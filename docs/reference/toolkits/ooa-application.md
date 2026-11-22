@@ -61,6 +61,7 @@ Open a program with its parameters, or a file in the application that opens it (
 | Parameters | `parameters` | Text | No |  | Main | For a program: what to pass to it, as typed after it on a command line. Words in quotes stay together. |
 | Start in | `start_in` | File path | No |  | Main | For a program: the folder it starts in. Empty: the agent's working folder. |
 | Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Pause this long after opening so its window can appear; 0 continues at once. Range: 0 to  |
+| Wait for window | `wait_for_window` | Yes/No | No | No | Main | For a program: go on as soon as its window shows, waiting at most wait_seconds (G4); off always pauses the whole time. |
 
 **Results**
 
@@ -232,4 +233,5 @@ True when a process with this program file name is running.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Name | `name` | Text | Yes |  | Main | Program file name, e.g. EXCEL.EXE. |
+| Name | `name` | Text | Yes |  | Main | Program file name, e.g. EXCEL.EXE, or its full path, e.g. C:\Tools\app.exe (G4). |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep trying this many seconds until it runs; 0 checks once (G4). Range: 0 to 3600 |

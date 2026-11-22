@@ -7,7 +7,7 @@ Toolkit `ooa.docusign`, version 1.0.0. Send documents for e-signature, track and
 ## Contents
 
 - **Recipients**: Add recipients, List recipients, Update recipient
-- **Envelopes**: Create envelope from documents, Create envelope from template, Get envelope status, List envelopes, Resend envelope, Send draft envelope, Void envelope
+- **Envelopes**: Create envelope, Envelope from template, Get envelope status, List envelopes, Resend envelope, Send draft envelope, Void envelope
 - **Embedded signing**: Get embedded signing link
 - **Documents**: Download combined PDF, Download document, Download signed ZIP, List envelope documents
 - **Custom fields**: Get envelope custom fields, Get filled-in form data, Set envelope custom fields
@@ -88,7 +88,7 @@ Correct a recipient's name or email address, for example after a typo, and optio
 
 ## Envelopes
 
-### Create envelope from documents
+### Create envelope
 
 `ooa.docusign/create_envelope` (action)
 
@@ -118,7 +118,7 @@ Prepare an envelope from local files and signers, then send it now or keep it as
 
 *Time limit 600 s; needs: network, filesystem.*
 
-### Create envelope from template
+### Envelope from template
 
 `ooa.docusign/create_envelope_from_template` (action)
 
@@ -185,7 +185,7 @@ Return envelopes changed since a date, optionally only those with a given status
 | Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Changed since | `changed_since` | DateTime | No |  | Main | Only envelopes changed on or after this date. Leave empty for the last 30 days. |
 | Changed before | `changed_before` | DateTime | No |  | Main | Only envelopes changed before this date. |
-| Status | `status` | Text | No |  | Main | Only these statuses, separated by commas, e.g. sent,delivered. Example: `completed` |
+| Status | `status` | Any | No |  | Main | Only these statuses: a list, or text separated by commas; created, sent, delivered, signed, completed, declined, voided (G5: a list). Example: `["sent", "delivered"]` |
 | Search text | `search_text` | Text | No |  | More options | Only envelopes whose subject, sender or recipients contain this text. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Most envelopes to return. |
 
@@ -296,7 +296,7 @@ Save all documents of an envelope as one PDF, optionally with the signing certif
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
 | Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
-| Save as | `save_as` | File path | Yes |  | Main | Where to save the PDF, e.g. signed/all.pdf. Missing folders are created. |
+| Save as | `save_as` | File path | No |  | Main | Where to save the PDF, e.g. signed/all.pdf, or a folder; the run's temporary folder when empty (G5). |
 | Include certificate | `include_certificate` | Yes/No | No | Yes | More options | Add the signing certificate as the last pages. |
 
 **Results**
@@ -322,7 +322,7 @@ Save one document from an envelope, the signing certificate, or all documents as
 | Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Document ID | `document_id` | Text | Yes |  | Main | Document number from List envelope documents, or certificate for the signing certificate, or archive for a zip of everything. Example: `1` |
-| Save as | `save_as` | File path | Yes |  | Main | Where to save it, e.g. signed/contract.pdf. Missing folders are created. |
+| Save as | `save_as` | File path | No |  | Main | Where to save it, e.g. signed/contract.pdf, or a folder; the run's temporary folder when empty (G5). Missing folders are created. |
 
 **Results**
 
@@ -346,7 +346,7 @@ Save all documents of an envelope as separate PDFs in one ZIP file, with the sig
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
 | Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
-| Save as | `save_as` | File path | Yes |  | Main | Where to save the ZIP, e.g. signed/contract.zip. Missing folders are created. |
+| Save as | `save_as` | File path | No |  | Main | Where to save the ZIP, e.g. signed/contract.zip, or a folder; the run's temporary folder when empty (G5). |
 
 **Results**
 

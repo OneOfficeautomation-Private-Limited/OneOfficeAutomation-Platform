@@ -7,7 +7,7 @@ Toolkit `ooa.pdf`, version 1.0.0. Extract text, merge, split, read and fill form
 ## Contents
 
 - **Security**: Decrypt PDF, Encrypt PDF
-- **Text**: Extract text from area, Extract tables, Extract text, Read XPS text
+- **Text**: Extract text from area, Extract fields by area, Extract tables, Extract text, Read XPS text
 - **Document**: Extract images, Get document properties, Merge PDFs, Get page count, Read text with OCR, Get page as picture, Split PDF, Convert to images
 - **Forms**: Fill form fields, Read form fields
 
@@ -41,8 +41,8 @@ Protect a PDF with an open password and an owner password, choosing the AES key 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | PDF file. |
-| User password | `user_password` | Credential (vault) | Yes |  | Main | Password needed to open the PDF. |
-| Owner password | `owner_password` | Credential (vault) | Yes |  | Main | Password needed to change permissions. |
+| User password | `user_password` | Credential (vault) | No |  | Main | Password needed to open the PDF; anyone may open it when empty. |
+| Owner password | `owner_password` | Credential (vault) | No |  | Main | Password needed to change permissions; a random one nobody knows when empty, so the permissions hold. |
 | Allow printing | `allow_printing` | Yes/No | No | Yes | Main | Allow printing. |
 | Allow modify | `allow_modify` | Yes/No | No | Yes | Main | Allow changing the content. |
 | Allow copy | `allow_copy` | Yes/No | No | Yes | Main | Allow copying text and images. |
@@ -81,6 +81,31 @@ Read the text inside a rectangle of one page, e.g. an invoice number box that is
 | Name | Type | Description |
 | --- | --- | --- |
 | `text` | Text | Text found inside the rectangle, trimmed. |
+
+*Time limit 300 s; safe to repeat; needs: filesystem.*
+
+### Extract fields by area
+
+`ooa.pdf/extract_fields` (action)
+
+Read the text of several named areas of a PDF at once, e.g. invoice number, date and total, into a Dictionary.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | PDF file. |
+| Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password for protected PDFs. |
+| Fields | `fields` | Dictionary | Yes |  | Main | Area name to {page, x, y, width, height}: points (72 per inch) from the top-left corner of the page; page 1 when left out. Example: `{"invoice_no": {"page": 1, "x": 400, "y": 90, "width": 150, "height": 20}}` |
+| Trim | `trim` | Yes/No | No | Yes | More options | Remove spaces and line breaks around each value. |
+| All pages | `all_pages` | Yes/No | No | No | More options | Read each area on every page and give a List of values per name (for a form repeated page after page). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `values` | Dictionary | Each area's name and the text found in it (empty when nothing is there). |
+| `empty` | List | Names of the areas where no text was found. |
 
 *Time limit 300 s; safe to repeat; needs: filesystem.*
 

@@ -7,6 +7,7 @@ Toolkit `ooa.json`, version 1.0.0. Parse, query and write JSON documents.
 ## Contents
 
 - **JSON**: Delete node, Get node value, Get node list, Get several node values, Insert node, Parse JSON, Read JSON file, Convert to JSON text, Convert to table, Update node, Validate JSON, Write JSON file
+- **JSON sessions**: End session, Start session
 
 ## JSON
 
@@ -20,7 +21,8 @@ Remove one value from JSON, found by its path (order.items[0]).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | Yes |  | Main | Path of the node to remove. |
 
 **Results**
@@ -42,7 +44,8 @@ Read one value from JSON by its path, such as order.items[0].sku; $..sku finds e
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text to query. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | Yes |  | Main | Dotted path with [n] indexes, or JSONPath starting with $. Example: `$.order.items[0].sku` |
 | Default | `default` | Any | No |  | More options | Value returned when the path does not exist. |
 | Fail if missing | `fail_if_missing` | Yes/No | No | No | More options | Fail with JSON.PATH_NOT_FOUND when the path does not exist. |
@@ -66,7 +69,8 @@ Read the list found at a path, ready to go through with a Loop.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | No |  | Main | Path of the list; the whole document when empty. |
 
 **Results**
@@ -88,7 +92,8 @@ Read several values at once into a Dictionary, e.g. {"id": "order.id", "email": 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Paths | `paths` | Any | Yes |  | Main | Dictionary of result name to path, or a list of paths (each path is then its own name). A path may instead be {"path": "order.total", "type": "Number"} to convert the value to String, Number, DateTime or Boolean. |
 
 **Results**
@@ -110,9 +115,11 @@ Add a value to JSON: a new key, or an item in a list at a position such as order
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | Yes |  | Main | Path of the new node; its parent must exist. Use - or the list size to append. Example: `order.items[0].note` |
 | Node | `node` | Any | No |  | Main | Value to insert. |
+| Value type | `value_type` | Text | No | `as_given` | Main | Type the new value gets in the JSON: as given, text, a number, true/false, JSON (text such as {"a": 1} becomes an object or list) or null. One of: `as_given`, `text`, `number`, `boolean`, `json`, `null` |
 | If exists | `if_exists` | Text | No | `error` | Main | When the key already exists: fail with JSON.NODE_EXISTS, replace its value, or leave it. One of: `error`, `overwrite`, `skip` |
 | Create parents | `create_parents` | Yes/No | No | No | More options | Create missing parent dictionaries on the way. |
 
@@ -197,7 +204,8 @@ Turn a JSON list of records into a table: each key becomes a column, each record
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | List of dictionaries, or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | List of dictionaries, or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | No |  | Main | Path of the array inside the document; the whole document when empty. |
 | Flatten | `flatten` | Yes/No | No | No | More options | Turn nested objects into dotted columns, e.g. customer.name. |
 
@@ -213,15 +221,18 @@ Turn a JSON list of records into a table: each key becomes a column, each record
 
 `ooa.json/update_node` (action)
 
-Change one value in JSON, found by its path.
+Change one value in JSON, found by its path; a list there can be replaced or added to.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
+| Value | `value` | Any | No |  | Main; choice JSON = A value | Dictionary, List or JSON text (or use an open JSON session). |
+| Session | `session` | Text | No |  | Main; choice JSON = A session | Work on the document of this JSON session (Start session) instead of a value; changes stay in the session until End session saves them. |
 | Path | `path` | Text | Yes |  | Main | Path of the node to change. |
 | Node | `node` | Any | No |  | Main | New value. |
+| Value type | `value_type` | Text | No | `as_given` | Main | Type the new value gets in the JSON: as given, text, a number, true/false, JSON (text such as {"a": 1} becomes an object or list) or null. One of: `as_given`, `text`, `number`, `boolean`, `json`, `null` |
+| If list | `if_list` | Text | No | `replace` | More options | When the node at the path is a list: replace the whole list with the new value, or add the new value (each item of a new list) at its end. One of: `replace`, `add` |
 | Create if missing | `create_if_missing` | Yes/No | No | No | More options | Add the key when it does not exist instead of failing. |
 
 **Results**
@@ -243,8 +254,11 @@ Check JSON: that it is well written, that the paths you need are there and, if y
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| JSON | `json` | Any | Yes |  | Main | JSON text, Dictionary or List to check. |
+| JSON | `json` | Any | No |  | Main; choice Check = JSON text or a value | JSON text, Dictionary or List to check (or use a file or a session). |
+| Path | `path` | File path | No |  | Main; choice Check = A file | JSON file to check (instead of json). |
+| Session | `session` | Text | No |  | Main; choice Check = A session | Check the document of this JSON session (Start session). |
 | Required keys | `required_keys` | List | No |  | Main | Paths that must exist, e.g. ["id", "customer.email"]. |
+| Required types | `required_types` | Dictionary | No |  | Main | Paths that must exist with a type: String, Number, Boolean, List, Dictionary or Null. Example: `{"id": "Number", "customer.email": "String"}` |
 | Schema | `schema` | Any | No |  | Main; choice Schema = Schema text | JSON Schema (draft-07 to 2020-12) as a Dictionary or JSON text; $ref may point inside it, to another file (with schema_path or an $id) or to a URL. |
 | Schema path | `schema_path` | File path | No |  | Main; choice Schema = Schema file | JSON Schema file; used when 'schema' is empty. References such as address.json#/$defs/x are read from its folder. |
 | Check formats | `check_formats` | Yes/No | No | Yes | More options | Check the format keyword: date-time, date, time, duration, email, hostname, ipv4, ipv6, uri, uuid, regex and json-pointer. |
@@ -276,3 +290,53 @@ Save a value to a JSON file (written in one go, so a reader never sees half a fi
 | Encoding | `encoding` | Text | No | `utf-8` | More options | Text encoding, e.g. utf-8, utf-8-bom, utf-16. |
 
 *Time limit 60 s; needs: filesystem.*
+
+## JSON sessions
+
+### End session
+
+`ooa.json/end_session` (action)
+
+Close a JSON session, optionally saving its document to a file first.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `json` | Main | Session name. |
+| Save to | `save_to` | File path | No |  | Main; tick Save the document | Save the document to this file before closing; not saved when empty. |
+| Pretty | `pretty` | Yes/No | No | No | Main; tick Save the document | Write indented JSON for reading. |
+| Encoding | `encoding` | Text | No | `utf-8` | Main; tick Save the document | Text encoding of the saved file, e.g. utf-8, utf-8-bom, utf-16. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `value` | Any | The document as the session held it. |
+| `path` | File path | The file written; empty when nothing was saved. |
+
+*Time limit 60 s; needs: filesystem.*
+
+### Start session
+
+`ooa.json/start_session` (action)
+
+Load JSON (text, a value or a file) once as a named session, so later steps read and change it without passing it along.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Value | `value` | Any | No |  | Main; choice Load from = Text or a value | JSON text, a Dictionary or a List. |
+| Path | `path` | File path | No |  | Main; choice Load from = A file | JSON file to load (or use value). |
+| Encoding | `encoding` | Text | No | `utf-8` | Main; choice Load from = A file | Text encoding of the file, e.g. utf-8, utf-16, ansi. Shown when: `{"path": ["!", ""]}` |
+| Session | `session` | Text | No | `json` | Main | Session name for later steps. |
+| Agents this one runs may use it | `share` | Yes/No | No | No | More options | Agents started from this one with Run agent may use this session by its name. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `value` | Any | The loaded document. |
+
+*Time limit 60 s; safe to repeat; needs: filesystem.*

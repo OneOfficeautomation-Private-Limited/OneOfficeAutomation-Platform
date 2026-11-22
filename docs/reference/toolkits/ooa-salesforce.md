@@ -7,7 +7,8 @@ Toolkit `ooa.salesforce`, version 1.0.0. Query Salesforce with SOQL and create, 
 ## Contents
 
 - **Authentication**: Authenticate, Revoke authentication
-- **Records**: Create record, Delete record, Describe object, Find records, Get record, Query (SOQL), Create, update or upsert many records, Update record, Upsert by external id
+- **Records**: Create record, Delete record, Describe object, Find records, Get record, Query (SOQL), Save many records, Update record, Upsert by external id
+- **Connection**: End session
 - **Files**: Get attachments, Upload attachment
 
 ## Authentication
@@ -22,13 +23,16 @@ Get an access token from Salesforce with a connected app (client credentials, or
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
+| Sign-in site | `login_site` | Text | No |  | Main | Where to sign in: production (login.salesforce.com), sandbox (test.salesforce.com) or custom (the login URL you give, such as your My Domain). When empty, the login URL is used (G6). One of: `production`, `sandbox`, `custom` |
+| Login address (URL) | `login_url` | Text | No | `https://login.salesforce.com` | Main | Login host for a custom sign-in site: your My Domain URL (needed for client credentials), or another login address. Shown when: `{"login_site": ["!", "production", "sandbox"]}` |
 | Grant type | `grant_type` | Text | No | `client_credentials` | Main | client_credentials: the connected app's run-as user; password: a named user with password and security token. One of: `client_credentials`, `password` |
 | Client ID | `client_id` | Text | Yes |  | Main | Consumer key of the connected app. |
 | Client secret | `client_secret` | Credential (vault) | Yes |  | Main | Consumer secret from the vault. |
 | Username | `username` | Text | No |  | Main | User name (password grant only). |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault (password grant only). |
-| Login address (URL) | `login_url` | Text | No | `https://login.salesforce.com` | Main | Login host: https://login.salesforce.com, https://test.salesforce.com for sandboxes, or your My Domain URL (required for client credentials). |
 | Security token | `security_token` | Credential (vault) | No |  | More options | Security token, added after the password, when the user's IP is not trusted (password grant only). |
+| Session | `session` | Text | No |  | More options | Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6). |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session (G6). |
 
 **Results**
 
@@ -49,8 +53,8 @@ Revoke an access token so it can no longer be used.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | The token to revoke. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | The token to revoke. |
 
 *Time limit 60 s; needs: network.*
 
@@ -68,8 +72,8 @@ Create a record and return its id.
 | --- | --- | --- | --- | --- | --- | --- |
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. Example: `Case` |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to value. |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
 **Results**
@@ -92,8 +96,8 @@ Delete a record (it goes to the Salesforce recycle bin).
 | --- | --- | --- | --- | --- | --- | --- |
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. |
 | ID | `id` | Text | Yes |  | Main | Record id. |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
 *Time limit 60 s; needs: network.*
@@ -109,8 +113,8 @@ Read what an object has: its fields with their labels, types, lengths, whether t
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. Example: `Case` |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
 **Results**
@@ -135,8 +139,8 @@ Find records of an object whose fields have the values you give (each value quot
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. Example: `Contact` |
 | Conditions | `conditions` | Dictionary | No |  | Main | Field to the value it must have; a list means any of them. Every condition must hold. Empty: every record. Example: `{"LastName": "O'Brien", "Account.Industry": ["Retail", "Banking"]}` |
 | Fields | `fields` | List | No |  | Main | Fields to read, e.g. ["Id", "Name", "Email"]. Id and Name when empty. |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Order by | `order_by` | Text | No |  | More options | A field to sort by, then ASC or DESC. Example: `CreatedDate DESC` |
 | Maximum records | `max_records` | Number | No | `2000` | More options | At most this many records. Range: 1 to  |
 | Include deleted | `include_deleted` | Yes/No | No | No | More options | Also return deleted and archived records. |
@@ -165,8 +169,8 @@ Read one record by its Salesforce id, or by the value of an external id field.
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. Example: `Account` |
 | ID | `id` | Text | Yes |  | Main | Record id, or the external id value when external_id_field is filled in. |
 | Fields | `fields` | List | No |  | Main | Fields to return; all when empty. |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | External ID field | `external_id_field` | Text | No |  | More options | API name of an external id field; when filled in, the record whose field has the value in id is read. Example: `ERP_Number__c` |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
@@ -191,8 +195,8 @@ Run a SOQL query and return all matching records as a table (all result pages ar
 | SOQL | `soql` | Text | Yes |  | Main | SOQL query. Example: `SELECT Id, Name FROM Account WHERE Industry = 'Retail'` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Values for :name in the SOQL, quoted and escaped for you, e.g. WHERE LastName = :name. A list becomes (a, b) for IN. Safer than putting values into the text. Example: `{"name": "O'Brien", "since": "2026-01-01"}` |
 | Include deleted | `include_deleted` | Yes/No | No | No | Main | Also return deleted and archived records (queryAll). |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Maximum records | `max_records` | Number | No | `50000` | More options | Safety limit. |
 | Batch size | `batch_size` | Number | No | `0` | More options | Records per page (200-2000); Salesforce's default when 0. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
@@ -207,7 +211,7 @@ Run a SOQL query and return all matching records as a table (all result pages ar
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
-### Create, update or upsert many records
+### Save many records
 
 `ooa.salesforce/save_records` (action)
 
@@ -221,8 +225,8 @@ Write the rows of a Data Table as records, 200 a call (Salesforce's collections 
 | Records | `records` | Table | Yes |  | Main | One row per record; the column names are the field API names (an Id column to update). |
 | Operation | `operation` | Text | No | `create` | Main | Create: new records. Update: change the records in the Id column. Upsert: create or update by the external id field. One of: `create`, `update`, `upsert` |
 | External ID field | `external_id_field` | Text | No |  | Main | For upsert: the external id field that finds an existing record. Example: `ERP_Number__c`; Shown when: `{"operation": ["upsert"]}` |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | All or none | `all_or_none` | Yes/No | No | No | More options | Write a call's records only if all of them can be written (otherwise the good ones are written and the others get an error). |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
@@ -249,8 +253,8 @@ Change fields of an existing record.
 | Object (API name) | `object` | Text | Yes |  | Main | Object API name. |
 | ID | `id` | Text | Yes |  | Main | Record id. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to new value. |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
 *Time limit 60 s; needs: network.*
@@ -269,8 +273,8 @@ Update the record whose external id field matches, or create it when none matche
 | External ID field | `external_id_field` | Text | Yes |  | Main | API name of the external id field. Example: `ERP_Number__c` |
 | External ID value | `external_id_value` | Text | Yes |  | Main | External id value to match. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to value (do not repeat the external id field). |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
 **Results**
@@ -282,24 +286,48 @@ Update the record whose external id field matches, or create it when none matche
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+## Connection
+
+### End session
+
+`ooa.salesforce/end_session` (action)
+
+Forget the open Salesforce session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*
+
 ## Files
 
 ### Get attachments
 
 `ooa.salesforce/get_attachments` (action)
 
-List the files and classic attachments on a record, and optionally download them to a folder.
+List the files and classic attachments on a record, or one file by its id, and optionally download them to a folder.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Record ID | `record_id` | Text | Yes |  | Main | Id of the record the files belong to. |
+| Record ID | `record_id` | Text | No |  | Main; choice Files of = A record | Id of the record the files belong to. Not needed when content_document_id is filled in. |
+| Content document ID | `content_document_id` | Text | No |  | Main; choice Files of = One file | Id of one Salesforce File (starts with 069): only that file is listed or downloaded, without a record id (G6). Example: `069000000000001AAA` |
 | Download folder | `download_folder` | File path | No |  | Main | Folder to save the files in; list only when empty. |
 | Kind | `kind` | Text | No | `all` | Main | Only Salesforce Files (file), only classic attachments (attachment), or both. One of: `all`, `file`, `attachment` |
-| Name pattern | `name_pattern` | Text | No |  | Main; tick Only files with matching names | Only files whose name matches this pattern (* and ?, case ignored); all when empty. Example: `*.pdf` |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Name pattern | `name_pattern` | Text | No |  | Main; tick Only some files | Only files whose name matches this pattern (* and ?, case ignored); all when empty. Example: `*.pdf` |
+| Extension | `extension` | Text | No |  | Main; tick Only some files | Only files with these extensions, separated by commas (with or without the dot, case ignored); all when empty (G6). Example: `pdf, docx` |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace files of the same name in the folder; when off, a number is put in front of the new file's name. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |
 
@@ -310,6 +338,7 @@ List the files and classic attachments on a record, and optionally download them
 | `table` | Table | Columns: id, name, size, content_type, kind (file or attachment), path. |
 | `count` | Number | Number of files. |
 | `files` | List | Paths of downloaded files (empty when not downloading). |
+| `path` | File path | Path of the first downloaded file, e.g. the one file asked for by content_document_id; empty when nothing was saved (G6). |
 
 *Time limit 600 s; safe to repeat; needs: network, filesystem.*
 
@@ -326,9 +355,9 @@ Upload a local file and link it to a record as a Salesforce File, or upload it a
 | Record ID | `record_id` | Text | No |  | Main | Id of the record to attach the file to. Not needed when content_document_id is filled in. |
 | Path | `path` | File path | Yes |  | Main | File to upload. |
 | Title | `title` | Text | No |  | Main | Title shown in Salesforce; the file name when empty. |
-| Visibility | `visibility` | Text | No |  | Main | Who can see the file on the record (AllUsers includes community users); Salesforce's default when empty. One of: `AllUsers`, `InternalUsers`, `SharedUsers` |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Visibility | `visibility` | Text | No |  | Main | Who can see the file on the record (AllUsers includes community users); Salesforce's default when empty, AllUsers for new steps. Not used for a new version, which keeps the file's sharing (G6). One of: `AllUsers`, `InternalUsers`, `SharedUsers`; Shown when: `{"content_document_id": [""]}` |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.my.salesforce.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Content document ID | `content_document_id` | Text | No |  | More options | Id of an existing file (starts with 069); the upload becomes its new version and keeps the file's links and sharing. Example: `069000000000001AAA` |
 | Description | `description` | Text | No |  | More options | Description stored with the file. |
 | API version | `api_version` | Text | No | `v61.0` | More options | REST API version. |

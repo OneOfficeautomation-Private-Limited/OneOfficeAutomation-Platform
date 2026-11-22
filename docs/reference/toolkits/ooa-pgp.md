@@ -24,10 +24,10 @@ Generate a new OpenPGP key pair (signing key plus encryption subkey) and optiona
 | --- | --- | --- | --- | --- | --- | --- |
 | Public key file | `public_key_file` | File path | No |  | Main | Where to save the armored public key (.asc) to share with partners. |
 | Private key file | `private_key_file` | File path | No |  | Main | Where to save the armored private key (.asc) as a backup; keep it secret. |
-| Algorithm | `algorithm` | Text | No | `ed25519` | Main | Key type: ed25519 (modern, small) or RSA for older systems. One of: `ed25519`, `rsa3072`, `rsa4096` |
+| Algorithm | `algorithm` | Text | No | `ed25519` | Main | Key type: ed25519 (modern, small) or RSA for older systems. One of: `ed25519`, `rsa2048`, `rsa3072`, `rsa4096` |
 | Passphrase | `passphrase` | Credential (vault) | No |  | Main | Passphrase that protects the private key; strongly recommended. |
-| Name | `name` | Text | Yes |  | Main | Key owner name. Example: `Finance Agent` |
-| Email | `email` | Text | Yes |  | Main | Key owner email address. Example: `finance-agent@example.com` |
+| Name | `name` | Text | No |  | Main | Key owner name (name, e-mail or both). Example: `Finance Agent` |
+| Email | `email` | Text | No |  | Main | Key owner email address (name, e-mail or both). Example: `finance-agent@example.com` |
 | Comment | `comment` | Text | No |  | More options | Optional comment stored in the user id. |
 | Expires | `expires` | Text | No | `2y` | More options | Lifetime, e.g. 1y, 6m, 90d, a date like 2028-12-31, or never. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace key files that are already there; when off, the step fails before any key is made. |

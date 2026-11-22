@@ -6,7 +6,98 @@ Toolkit `ooa.script`, version 1.0.0. Run PowerShell, Python, JavaScript and VBSc
 
 ## Contents
 
+- **Script sessions**: Call function in session, Close script session, Open script session, Run code in session
 - **Scripts**: Run JavaScript, Run JavaScript function, Run PowerShell, Run Python, Run Python function, Run VBScript, Run VBScript function
+- **Conditions**: Last script step succeeded, Script succeeded, Script session is open
+
+## Script sessions
+
+### Call function in session
+
+`ooa.script/call_in_session` (action)
+
+Call a function defined in an open script session with arguments, and return what it returns (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `script` | Main | Name of the script session, from Open script session. |
+| Function | `function` | Text | Yes |  | Main | Function name; dots for a function of an object or module. Example: `total` |
+| Arguments | `arguments` | List | No |  | Main | Arguments in order. |
+| Keyword arguments | `keyword_arguments` | Dictionary | No |  | Main | Python only: named arguments. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `300` | More options | Maximum run time; the session is closed when it runs out. Range: 1 to  |
+| Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Stop the step when the function raises an error. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Any | Value the function returned. |
+| `output` | Text | Text the function printed. |
+| `error` | Text | The error when fail_on_error is off; empty on success. |
+
+*Time limit 3600 s.*
+
+### Close script session
+
+`ooa.script/close_session` (action)
+
+End a script session and its program (G4); sessions also end with the run.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `script` | Main | Name of the script session, from Open script session. |
+
+*Time limit 60 s.*
+
+### Open script session
+
+`ooa.script/open_session` (action)
+
+Start Python, JavaScript (Node.js) or VBScript and keep it running for the steps after it: what one step defines is there for the next (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Language | `language` | Text | No | `python` | Main | The scripting language. One of: `python`, `javascript`, `vbscript` |
+| Session | `session` | Text | No | `script` | Main | Session name the later steps use. |
+| File | `file` | File path | No |  | Main; tick Load a file first | A script file to run first, e.g. one that defines functions. |
+| Interpreter | `interpreter` | Text | No |  | More options | The program to use (python, node or cscript); found on the PATH when empty. |
+| Environment | `environment` | Dictionary | No |  | More options | Extra environment variables. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session. |
+
+*Time limit 120 s; needs: filesystem.*
+
+### Run code in session
+
+`ooa.script/run_in_session` (action)
+
+Run code, or a file, in an open script session; the value of a last expression (Python, JavaScript) or of the code (VBScript Eval, when run_as is eval) comes back (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `script` | Main | Name of the script session, from Open script session. |
+| Script | `script` | Text | No |  | Main; choice Code = Type it here | Code to run. |
+| File | `file` | File path | No |  | Main; choice Code = Run a file | Or a script file to run in the session. |
+| Run as | `run_as` | Text | No | `exec` | Main | VBScript only: exec runs statements; eval works out an expression and returns its value. One of: `exec`, `eval` |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `300` | More options | Maximum run time; the session is closed when it runs out. Range: 1 to  |
+| Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Stop the step when the code raises an error. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Any | The value of the last expression, when there is one. |
+| `output` | Text | Text the code printed. |
+| `error` | Text | The error when fail_on_error is off; empty on success. |
+
+*Time limit 3600 s; needs: filesystem.*
 
 ## Scripts
 
@@ -217,3 +308,49 @@ Call one function in a VBScript file and return its result as text (Windows only
 | `error` | Text | Error raised by the function when fail_on_error is false; empty on success. |
 
 *Time limit 3600 s; needs: filesystem.*
+
+## Conditions
+
+Used in If, Loop while and Wait until steps.
+
+### Last script step succeeded
+
+`ooa.script/last_script_succeeded` (condition)
+
+True when the last script step succeeded: in this session, or (session empty) the last script step of the run (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | A script session; the last script step of the run when empty. |
+
+### Script succeeded
+
+`ooa.script/script_succeeded` (condition)
+
+Run a PowerShell, Python, JavaScript or VBScript script and be true when it ends without an error (exit code 0).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Language | `language` | Text | No | `powershell` | Main | The script's language. One of: `powershell`, `python`, `javascript`, `vbscript` |
+| Script | `script` | Text | No |  | Main | Script text (or use file). |
+| File | `file` | File path | No |  | Main | Script file (or use script). |
+| Arguments | `arguments` | List | No |  | Main | Arguments passed to the script, one list item each. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `60` | Main | Maximum run time. Range: 1 to  |
+
+*Needs: filesystem.*
+
+### Script session is open
+
+`ooa.script/session_open` (condition)
+
+True when the script session is open and its program still runs (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `script` | Main | Name of the script session, from Open script session. |

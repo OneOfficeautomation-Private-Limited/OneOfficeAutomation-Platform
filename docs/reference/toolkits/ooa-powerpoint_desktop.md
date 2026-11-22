@@ -1,4 +1,4 @@
-# PowerPoint (desktop, needs PowerPoint)
+# PowerPoint desktop
 
 Toolkit `ooa.powerpoint_desktop`, version 1.0.0. Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint.
 

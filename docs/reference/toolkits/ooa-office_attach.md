@@ -1,4 +1,4 @@
-# Open Excel and Word files (needs Office)
+# Open Office files
 
 Toolkit `ooa.office_attach`, version 1.0.0. Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window.
 
@@ -6,8 +6,8 @@ Toolkit `ooa.office_attach`, version 1.0.0. Read, write and save an Excel workbo
 
 ## Contents
 
-- **Excel**: List open workbooks, Read range from open workbook, Save open workbook, Write to open workbook
-- **Word**: Append text to open document, List open documents, Read open document, Replace text in open document, Save open document
+- **Excel**: List open workbooks, Read range, Save open workbook, Write to open workbook
+- **Word**: Append text to open document, List open documents, Read open document, Replace text, Save open document
 
 ## Excel
 
@@ -27,7 +27,7 @@ No settings.
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
 
-### Read range from open workbook
+### Read range
 
 `ooa.office_attach/excel_read_range` (action)
 
@@ -148,7 +148,7 @@ Read the text of a document that is open in Word, including changes not yet save
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
 
-### Replace text in open document
+### Replace text
 
 `ooa.office_attach/word_replace_text` (action)
 

@@ -1,4 +1,4 @@
-# Exchange on-premises (EWS)
+# Exchange (EWS)
 
 Toolkit `ooa.exchange`, version 1.0.0. Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there.
 
@@ -6,8 +6,9 @@ Toolkit `ooa.exchange`, version 1.0.0. Read, send, reply to, move, mark and dele
 
 ## Contents
 
-- **Mailbox**: Connect to Exchange mailbox, Delete email, Disconnect, Read email, Get folders, Find emails, Mark read or unread, Move email, Save attachments, Save email as .eml
+- **Mailbox**: Connect to Exchange mailbox, Delete email, Delete all emails, Disconnect, Read email, Get folders, Find emails, Mark read or unread, Move email, Move all emails, Save all attachments, Save attachments, Save email as .eml, Test Exchange connection
 - **Send**: Forward email, Reply to email, Reply to all, Send email
+- **Conditions**: Exchange folder exists
 - **Loop types**: Each email in an Exchange folder
 
 ## Mailbox
@@ -23,11 +24,14 @@ Sign in to an on-premises Exchange Server mailbox through Exchange Web Services 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Exchange web services address (URL) | `ews_url` | Text | Yes |  | Main | Address of the Exchange server's web services, usually https://<mail server>/EWS/Exchange.asmx. Example: `https://mail.example.com/EWS/Exchange.asmx` |
-| User | `user` | Text | Yes |  | Main | User that signs in: DOMAIN\user or user@domain. Example: `ACME\svc-mailbot` |
-| Password | `password` | Credential (vault) | Yes |  | Main | The user's password from the vault (a Credential). |
-| Sign in | `sign_in` | Text | No | `ntlm` | Main | ntlm: Windows sign-in, which Exchange accepts by default; basic: user name and password in each request, only over https and where the server allows it. One of: `ntlm`, `basic` |
+| Sign in | `sign_in` | Text | No | `ntlm` | Main | ntlm: Windows sign-in, which Exchange accepts by default; basic: user name and password in each request, only over https and where the server allows it; oauth: an access token from a saved sign-in connection or the vault (hybrid modern authentication) (G5). One of: `ntlm`, `basic`, `oauth` |
+| User | `user` | Text | No |  | Main | User that signs in: DOMAIN\user or user@domain (or the user alone with domain). Example: `ACME\svc-mailbot`; Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Domain | `domain` | Text | No |  | Main | Windows domain, when user has none (G5). Example: `ACME`; Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Password | `password` | Credential (vault) | No |  | Main | The user's password from the vault (a Credential). Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token for the Exchange server, from a saved sign-in connection or the vault (G5). Shown when: `{"sign_in": ["oauth"]}` |
 | Mailbox | `mailbox` | Text | No |  | Main; tick Open another person's or a shared mailbox | Work in this mailbox instead of the user's own, e.g. a shared mailbox; the user needs full access to it, or the impersonation role with impersonate. Example: `invoices@acme.com` |
 | Impersonate | `impersonate` | Yes/No | No | No | Main; tick Open another person's or a shared mailbox | Act as the mailbox's owner through Exchange impersonation (the user needs the ApplicationImpersonation role) instead of opening it as a delegate. Shown when: `{"mailbox": ["!", ""]}` |
+| Version | `version` | Text | No | `Exchange2013` | More options | The Exchange version the requests are written for (G5). One of: `Exchange2010_SP2`, `Exchange2013`, `Exchange2013_SP1`, `Exchange2016`, `Exchange2019` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | How long to wait for each answer from the server. Range: 1 to 600 |
 | Allow untrusted certificates | `insecure_tls` | Yes/No | No | No | More options | Accept any server certificate (self-signed or expired); for test systems only. |
 | Session | `session` | Text | No | `exchange` | More options | Session name. |
@@ -49,6 +53,34 @@ Delete an email: moved to Deleted Items, or with permanent removed from the fold
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
 
 *Time limit 60 s; needs: network.*
+
+### Delete all emails
+
+`ooa.exchange/delete_all` (action)
+
+Delete every email of a folder that the filters find (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `inbox` | Main | Folder: a well-known name (inbox, sentitems, deleteditems, drafts, junkemail, archive), a path such as Inbox/Invoices, or a folder id. |
+| Status | `status` | Text | No | `any` | Main | Which emails: any, only unread or only read. One of: `any`, `unread`, `read` |
+| From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Subject contains this text; separate several with ; to match any of them. |
+| Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Permanent | `permanent` | Yes/No | No | No | More options | Remove them instead of moving them to Deleted Items. |
+| Maximum results | `max_results` | Number | No | `500` | More options | At most this many emails. Range: 1 to 10000 |
+| Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | How many emails were deleted. |
+
+*Time limit 1800 s; needs: network.*
 
 ### Disconnect
 
@@ -149,6 +181,7 @@ Mark an email as read or unread, and optionally set or clear its follow-up flag.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | ID | `id` | Text | Yes |  | Main | Email id from Find emails (an EWS item id). |
+| Status | `status` | Text | No |  | Main | Mark it read or unread (G5); the tick below for older steps. One of: `read`, `unread` |
 | Read | `read` | Yes/No | No | Yes | Main | True = read, false = unread. |
 | Flagged | `flagged` | Yes/No | No |  | More options | Set (true) or clear (false) the follow-up flag; unchanged when empty. |
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
@@ -177,6 +210,65 @@ Move an email to another folder, e.g. Inbox/Processed; returns its new id, as Ex
 | `new_id` | Text | The email's id in the destination folder. |
 
 *Time limit 60 s; needs: network.*
+
+### Move all emails
+
+`ooa.exchange/move_all` (action)
+
+Move every email of a folder that the filters find to another folder (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `inbox` | Main | Folder: a well-known name (inbox, sentitems, deleteditems, drafts, junkemail, archive), a path such as Inbox/Invoices, or a folder id. |
+| Status | `status` | Text | No | `any` | Main | Which emails: any, only unread or only read. One of: `any`, `unread`, `read` |
+| From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Subject contains this text; separate several with ; to match any of them. |
+| Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| To folder | `to_folder` | Text | Yes |  | Main | Destination: a well-known name, a path such as Inbox/Processed, or a folder id. |
+| Create folder | `create_folder` | Yes/No | No | No | More options | Create the destination when it does not exist. |
+| Maximum results | `max_results` | Number | No | `500` | More options | At most this many emails. Range: 1 to 10000 |
+| Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `new_ids` | List | The moved emails' new ids. |
+
+*Time limit 1800 s; needs: network.*
+
+### Save all attachments
+
+`ooa.exchange/save_all_attachments` (action)
+
+Save the attachments of every email of a folder that the filters find (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `inbox` | Main | Folder: a well-known name (inbox, sentitems, deleteditems, drafts, junkemail, archive), a path such as Inbox/Invoices, or a folder id. |
+| Status | `status` | Text | No | `any` | Main | Which emails: any, only unread or only read. One of: `any`, `unread`, `read` |
+| From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Subject contains this text; separate several with ; to match any of them. |
+| Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Target folder | `target_folder` | File path | Yes |  | Main | Folder to save into. |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | Replace files of the same name instead of adding a number. |
+| Name pattern | `name_pattern` | Text | No | `*` | More options | Only names matching this pattern, e.g. *.pdf. |
+| Maximum results | `max_results` | Number | No | `500` | More options | At most this many emails. Range: 1 to 10000 |
+| Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `files` | List | Saved file paths. |
+
+*Time limit 1800 s; needs: network, filesystem.*
 
 ### Save attachments
 
@@ -225,6 +317,34 @@ Save a whole email (text, HTML, attachments and headers) as an .eml file that an
 | `path` | File path | The saved file. |
 
 *Time limit 60 s; needs: network, filesystem.*
+
+### Test Exchange connection
+
+`ooa.exchange/test_connection` (action)
+
+Check an Exchange address and sign-in without keeping a session: ok and what went wrong (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Ews address (URL) | `ews_url` | Text | Yes |  | Main | Address of the Exchange server's web services. Example: `https://mail.example.com/EWS/Exchange.asmx` |
+| Sign in | `sign_in` | Text | No | `ntlm` | Main | How to sign in. One of: `ntlm`, `basic`, `oauth` |
+| User | `user` | Text | No |  | Main | User that signs in. Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Domain | `domain` | Text | No |  | Main | Windows domain, when user has none. Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Password | `password` | Credential (vault) | No |  | Main | The user's password from the vault. Shown when: `{"sign_in": ["!", "oauth"]}` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token. Shown when: `{"sign_in": ["oauth"]}` |
+| Version | `version` | Text | No | `Exchange2013` | More options | The Exchange version. One of: `Exchange2010_SP2`, `Exchange2013`, `Exchange2013_SP1`, `Exchange2016`, `Exchange2019` |
+| Allow untrusted certificates | `insecure_tls` | Yes/No | No | No | More options | Accept any server certificate; for test systems only. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `ok` | Yes/No | True when the sign-in worked and the inbox opened. |
+| `message` | Text | What went wrong, or empty. |
+
+*Time limit 60 s; needs: network.*
 
 ## Send
 
@@ -316,6 +436,23 @@ Send an email (plain text or HTML) with optional CC, BCC and attachments from th
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
 
 *Time limit 120 s; needs: network.*
+
+## Conditions
+
+Used in If, Loop while and Wait until steps.
+
+### Exchange folder exists
+
+`ooa.exchange/folder_exists` (condition)
+
+True when the mailbox has the folder, e.g. Inbox/Invoices (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | Yes |  | Main | Folder: a well-known name (inbox, sentitems, deleteditems, drafts, junkemail, archive), a path such as Inbox/Invoices, or a folder id. Example: `Inbox/Invoices` |
+| Session | `session` | Text | No | `exchange` | Main | Session name of the open Exchange mailbox. |
 
 ## Loop types
 

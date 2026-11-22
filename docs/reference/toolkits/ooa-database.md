@@ -74,8 +74,10 @@ Insert every row of a Data Table, or of a delimited text file read line by line,
 | Start row | `start_row` | Number | No | `1` | Main; choice Rows from = A delimited file | Line of the file where reading starts (1 = the first line); lines above it, such as a title, are skipped. Range: 1 to ; Shown when: `{"source_file": ["!", ""]}` |
 | Has header | `has_header` | Yes/No | No | Yes | Main; choice Rows from = A delimited file | The first line read holds the column names, used as database columns when columns is empty. Shown when: `{"source_file": ["!", ""]}` |
 | Encoding | `encoding` | Text | No | `utf-8` | Main; choice Rows from = A delimited file | Text encoding of the file, e.g. utf-8 or windows-1252. Shown when: `{"source_file": ["!", ""]}` |
-| Columns | `columns` | List | No |  | Main | Database column for each Data Table or file column, in order; the Data Table's column names (or the file's header) when empty. |
+| Columns | `columns` | List | No |  | Main; choice Columns = In order | Database column for each Data Table or file column, in order; the Data Table's column names (or the file's header) when empty. |
+| Column map | `column_map` | Dictionary | No |  | Main; choice Columns = By name | G2 (AA parity): source column (Data Table or file header) to database column; columns left out are not inserted. Example: `{"Invoice No": "invoice_no", "Amount": "amount"}` |
 | Batch size | `batch_size` | Number | No | `500` | Main | Rows sent to the database per batch. Range: 1 to 100000 |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | G2 (AA parity): cancel a batch the database takes longer than this many seconds over; 0 waits as long as the step allows. Range: 0 to  |
 | Session | `session` | Text | No | `db` | More options | Session name. |
 
 **Results**
@@ -128,12 +130,16 @@ Open a database connection as a named session.
 | Database type | `database_type` | Text | No |  | Main; choice Connect using = Connection details | Kind of database, used to build the URL when jdbc_url is empty. odbc: any ODBC data source on a Windows runner (a DSN name or an ODBC connection string in database); excel: an Excel workbook through the Excel ODBC driver (sheets are tables, e.g. [Sheet1$]). One of: `sqlserver`, `postgresql`, `mysql`, `oracle`, `sqlite`, `h2`, `access`, `odbc`, `excel` |
 | Server | `server` | Text | No |  | Main; choice Connect using = Connection details | Database server name or address. Example: `dbserver01`; Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle"]}` |
 | Port | `port` | Number | No |  | Main; choice Connect using = Connection details | Server port; the database's usual port when empty. Range: 1 to 65535; Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle"]}` |
+| Instance | `instance` | Text | No |  | Main; choice Connect using = Connection details | G2 (AA parity): a named SQL Server instance on the server. Example: `SQLEXPRESS`; Shown when: `{"database_type": ["sqlserver"]}` |
 | Database | `database` | Text | No |  | Main; choice Connect using = Connection details | Database name (service name for Oracle; for odbc a DSN name, or a connection string such as Driver={SQL Server};Server=db01;Trusted_Connection=Yes). Shown when: `{"database_type": ["sqlserver", "postgresql", "mysql", "oracle", "odbc"]}` |
+| Oracle connect | `oracle_connect` | Text | No | `service` | Main; choice Connect using = Connection details | G2 (AA parity): what database names for Oracle: a service name, a SID, or a TNS alias from tnsnames.ora (its folder in properties as oracle.net.tns_admin). One of: `service`, `sid`, `tns`; Shown when: `{"database_type": ["oracle"]}` |
 | File | `file` | File path | No |  | Main; choice Connect using = Connection details | Database file for SQLite, H2 or Access, or the workbook for excel. Shown when: `{"database_type": ["sqlite", "h2", "access", "excel"]}` |
 | Database address (JDBC URL) | `jdbc_url` | Text | No |  | Main; choice Connect using = A JDBC address | JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below. |
-| User | `user` | Text | No |  | Main | User name. |
+| User | `user` | Text | No |  | Main | User name, typed or from the vault. |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault. |
 | Session | `session` | Text | No | `db` | More options | Session name for later steps. |
+| Agents this one runs may use it | `share` | Yes/No | No | No | More options | G2 (AA parity): child agents this one runs may use the connection by its session name. |
+| Secrets | `secrets` | Dictionary | No |  | More options | G2 (AA parity): values from the vault for {{name}} places in jdbc_url, e.g. jdbc:sqlserver://db;password={{pwd}}; never logged. Example: `{"pwd": {"$credential": "Finance/ERP/password"}}` |
 | Driver class | `driver_class` | Text | No |  | More options; tick Load a specific driver class | JDBC driver class to load first, for drivers that do not register themselves. Example: `org.postgresql.Driver` |
 | Login timeout (seconds) | `login_timeout_seconds` | Number | No | `0` | More options | Give up connecting after this many seconds; 0 uses the driver's default. Range: 0 to  |
 | Properties | `properties` | Dictionary | No |  | More options | Extra driver properties, e.g. {"encrypt": "true"}; Credential values are revealed only to the driver. |
@@ -197,6 +203,8 @@ Run a SELECT or a stored procedure with ? parameters and write its rows to a CSV
 | First row is the header | `header` | Yes/No | No | Yes | Main | Write the column names as the first line. |
 | Delimiter | `delimiter` | Text | No | `,` | More options | Field separator, e.g. , or ; or tab. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace an existing file; when false an existing file stops the step. |
+| Append | `append` | Yes/No | No | No | More options | G2 (AA parity): add the rows to the end of the file when it is there (without a second header line). |
+| Skip when no rows | `skip_when_no_rows` | Yes/No | No | No | More options | G2 (AA parity): make no file when the query gives no rows (path is then empty). |
 | Maximum rows | `max_rows` | Number | No | `0` | More options | Stop after writing this many rows; 0 writes them all. Range: 0 to  |
 | Query timeout (seconds) | `query_timeout_seconds` | Number | No | `0` | More options | Cancel the statement after this many seconds; 0 waits as long as the step allows. Range: 0 to  |
 | Session | `session` | Text | No | `db` | More options | Session name. |

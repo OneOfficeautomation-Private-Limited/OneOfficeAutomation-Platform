@@ -42,8 +42,9 @@ Add a message, with optional details, to this run's log so it appears in One Com
 | --- | --- | --- | --- | --- | --- | --- |
 | Message | `message` | Text | Yes |  | Main | Text to log; ${...} interpolation allowed. |
 | Details | `details` | Dictionary | No |  | Main | Extra name and value pairs added to the entry as JSON. |
-| Level | `level` | Text | No | `INFO` | Main | Level of the log entry. One of: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| Level | `level` | Text | No | `INFO` | Main | Level of the log entry; CRITICAL and EMERGENCY are recorded as errors with the level named. One of: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`, `EMERGENCY` |
 | Source | `source` | Text | No |  | More options | Short tag for where the entry comes from, shown in brackets before the message, e.g. [invoice-check]. Example: `invoice-check` |
+| Variables of type | `variables_of_type` | Text | No |  | More options | G2 (AA parity): also log the agent's variables of this type (all = every variable) after the message; credentials never. One of: ``, `all`, `String`, `Number`, `Boolean`, `DateTime`, `List`, `Dictionary`, `Table`, `Record`, `File`, `Any` |
 
 *Time limit 60 s.*
 

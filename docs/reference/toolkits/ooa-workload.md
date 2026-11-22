@@ -418,3 +418,5 @@ Take items one by one until the queue is empty; mark each completed or failed in
 | --- | --- | --- | --- | --- | --- | --- |
 | Queue | `queue` | Text | Yes |  | Main | Queue name. |
 | Maximum items | `max_items` | Number | No | `1000` | Main | Stop after this many items. Range: 1 to  |
+| Status | `status` | Text | No | `new` | Main | Which items to work (G6). new: new items, and deferred ones that are due. on_hold: items put on hold or deferred, due or not. data_error: failed items whose error was marked a business exception. failed: other failed items (system errors). One of: `new`, `on_hold`, `data_error`, `failed` |
+| Fetch count | `fetch_count` | Number | No | `1` | Main | How many items to take from the queue in one go (G6); each is marked in progress when taken. Items taken but not reached when the loop stops early stay in progress until unlocked. Range: 1 to 1000 |

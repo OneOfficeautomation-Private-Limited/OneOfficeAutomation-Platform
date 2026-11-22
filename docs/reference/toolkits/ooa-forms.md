@@ -6,7 +6,7 @@ Toolkit `ooa.forms`, version 1.0.0. Show a form to the person at the runner, rea
 
 ## Contents
 
-- **Interactive forms**: Assign options, Change label, Change form title, Close form, Disable element, Display form, Set dynamic area, Enable element, Get field value, Hide element, Highlight element, Reset form, Set field value, Set focus, Show element, Remove highlight, Validate form, Wait for form event
+- **Interactive forms**: Assign options, Change label, Change form title, Close form, Disable element, Display form, Set dynamic area, Enable element, Get field value, Hide element, Hide form, Highlight element, Reset form, Set field value, Set focus, Show element, Show form, Remove highlight, Validate form, Wait for form event
 
 ## Interactive forms
 
@@ -22,7 +22,7 @@ Fill a drop-down or choice list with options, e.g. from a list or a data table c
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
 | Element | `element` | Text | Yes |  | Main | Id of a drop-down or choice field. |
-| Options | `options` | List | Yes |  | Main | The options to offer, in order. |
+| Options | `options` | Any | Yes |  | Main | The options to offer, in order: a list, or text with the options separated by commas (G1). |
 | Select | `select` | Text | No |  | Main | Option to select; the current choice is kept when it is still offered. |
 | Mode | `mode` | Text | No | `replace` | More options | replace: offer only these options. append: add them after the options already offered, skipping ones already there. One of: `replace`, `append` |
 
@@ -139,7 +139,9 @@ Replace what a dynamic area on the form shows with new fields, e.g. one line per
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
 | Element | `element` | Text | Yes |  | Main | Id of a dynamic area on the form. |
-| Fields | `fields` | List | Yes |  | Main | Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required. |
+| How | `how` | Text | No | `replace` | Main | G1 (AA parity): replace the area's fields, add these after them, or empty the area. One of: `replace`, `append`, `clear` |
+| Fields | `fields` | List | No |  | Main | Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required, read_only, tooltip. Shown when: `{"how": ["!", "clear"]}` |
+| Height | `height` | Number | No |  | More options | G1 (AA parity): the area's height in pixels; more fields then scroll inside it. As tall as its fields when empty. Range: 40 to  |
 
 **Results**
 
@@ -200,6 +202,20 @@ Hide a field, button or area (a hidden field is not checked).
 
 *Time limit 60 s; needs: desktop.*
 
+### Hide form
+
+`ooa.forms/hide_form` (action)
+
+Move the open form's window out of the way (minimised to the task bar) while the agent works; its answers are kept.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
+
+*Time limit 60 s; needs: desktop.*
+
 ### Highlight element
 
 `ooa.forms/highlight` (action)
@@ -244,7 +260,9 @@ Change a field's value on the open form.
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
 | Element | `element` | Text | Yes |  | Main | Field or button id on the form, as set in the form designer. |
-| Value | `value` | Any | Yes |  | Main | New value (text, number, true/false for a checkbox, an option for a drop-down). |
+| Value | `value` | Any | No |  | Main; choice Set it to = A value | New value (text, number, true/false for a checkbox, an option for a drop-down). |
+| Credential | `credential` | Credential (vault) | No |  | Main; choice Set it to = A credential | G1 (AA parity): a credential from the vault for a password field, instead of a value; it never reaches the log. |
+| How | `how` | Text | No | `replace` | More options | G1 (AA parity): replace the field's value, or add the text after what it holds. One of: `replace`, `append` |
 
 *Time limit 60 s; needs: desktop.*
 
@@ -275,6 +293,20 @@ Show a hidden field, button or area.
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
 | Element | `element` | Text | Yes |  | Main | Field or button id on the form, as set in the form designer. |
+
+*Time limit 60 s; needs: desktop.*
+
+### Show form
+
+`ooa.forms/show_form` (action)
+
+Bring a hidden (minimised) form back in front of the other windows.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Name | `name` | Text | Yes |  | Main | Name of the open form (by default the form's id, as given when it was displayed). |
 
 *Time limit 60 s; needs: desktop.*
 

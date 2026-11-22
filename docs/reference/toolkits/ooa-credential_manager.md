@@ -1,4 +1,4 @@
-# Windows Credential Manager
+# Credential Manager
 
 Toolkit `ooa.credential_manager`, version 1.0.0. Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account.
 

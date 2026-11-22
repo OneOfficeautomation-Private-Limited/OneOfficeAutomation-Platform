@@ -20,7 +20,8 @@ Give an agent a goal and a set of agents it may use; it plans, calls the agents 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Goal | `goal` | Text | Yes |  | Main | What the agent should achieve, e.g. the customer email to handle. |
+| Goal | `goal` | Text | No |  | Main; choice Goal = Typed here | What the agent should achieve, e.g. the customer email to handle. Shown when: `{"goal_file": [""]}` |
+| Goal file | `goal_file` | File path | No |  | Main; choice Goal = From a file | A text file holding the goal, read as UTF-8 when the step runs (at most 1 MB). Example: `Inbox/request.txt`; Shown when: `{"goal": [""]}` |
 | Instructions | `instructions` | Text | No | `You are a careful business assistant. Use the tools to act; never invent results.` | Main | Role, policy and rules for the agent. |
 | Tools | `tools` | List | No |  | Main | Ids of the agents it may call, e.g. ["lookup_order", "check_refund_policy"]. |
 | Forms | `forms` | List | No |  | Main; tick Let the agent ask a person with forms | Forms from the form designer the agent may show to the person at the runner, as tools, to ask for information or a decision (attended runners). Example: `["Forms/Approve refund.form.json"]` |
@@ -37,10 +38,12 @@ Give an agent a goal and a set of agents it may use; it plans, calls the agents 
 | Action plan | `action_plan` | Text | No |  | More options | The order in which to use the tools and when to stop or ask a person, in plain words. |
 | Output fields | `output_fields` | Dictionary | No |  | More options | Values the agent must return, name to description; they come back in outputs. Plain text answer when empty. Example: `{"refund_amount": "amount refunded as a number"}` |
 | Allow cancel | `allow_cancel` | Yes/No | No | No | More options | Let the agent end with status cancelled when the goal should not be pursued (with output fields only). |
+| Workspace folder | `workspace_folder` | File path | No |  | More options | The folder the agent's tools may work in: file paths the model gives agents are kept inside it (one outside is refused), agents with a workspace_folder input receive it, and forms and knowledge indexes must be inside it. Any folder when empty. Example: `Work/claims` |
+| Credentials | `credentials` | Dictionary | No |  | More options | Credentials from the vault the agents it runs may use, by the name of their Credential input. They are handed over directly and never shown to the model. Example: `{"erp_password": "$erpPassword$"}` |
 | Toxicity guardrail | `toxicity_guardrail` | Text | No | `off` | More options; tick Toxicity guardrail | Check the goal, the model's answers and the arguments it gives tools for toxic language (threats, self-harm, hate, insults, swearing): log records it in the trace; block stops the agent with status blocked. One of: `off`, `log`, `block` |
 | Toxicity level | `toxicity_level` | Text | No | `medium` | More options; tick Toxicity guardrail | From which level the guardrail acts: high only threats, self-harm and hate; medium also insults and explicit content; low also swearing. One of: `low`, `medium`, `high` |
 | Blocked terms | `blocked_terms` | List | No |  | More options; tick Toxicity guardrail | Your own words or phrases the guardrail treats as high, e.g. competitor names or internal code names. |
-| Maximum steps | `max_steps` | Number | No | `8` | More options | Maximum model turns. |
+| Maximum steps | `max_steps` | Number | No | `8` | More options | Maximum model turns. New steps start at 25, room for longer tasks; steps saved before keep their own value (8 when they never set one). |
 | Maximum tokens total | `max_tokens_total` | Number | No | `60000` | More options | Stop when this many tokens have been used. |
 | Maximum duration (seconds) | `max_duration_seconds` | Number | No | `0` | More options | Stop with limit_reached after this many seconds; no time limit when 0. |
 | Temperature | `temperature` | Number | No | `0` | More options | 0 = consistent, higher = more creative. |
@@ -62,4 +65,4 @@ Give an agent a goal and a set of agents it may use; it plans, calls the agents 
 | `trace` | List | Each model turn and tool call, for review and audit. |
 | `tokens` | Number | Total tokens used. |
 
-*Time limit 1800 s; needs: network, ai.*
+*Time limit 1800 s; needs: network, ai, filesystem.*

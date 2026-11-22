@@ -92,6 +92,7 @@ Add or replace the value for a key.
 | Key | `key` | Text | Yes |  | Main | Key to set; added when the dictionary does not have it yet, its value replaced when it does (keys are case-sensitive). |
 | Value | `value` | Any | No |  | Main | Value. |
 | Only if missing | `only_if_missing` | Yes/No | No | No | More options | Keep the existing value when the key is already there. |
+| Position | `position` | Number | No |  | More options | G1 (AA parity): where a new key goes, counted from 0 (0 = first); at the end when empty. A key already there keeps its place. Range: 0 to  |
 
 **Results**
 
@@ -114,7 +115,8 @@ Remove a key and its value from a dictionary; returns the dictionary without it.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Dictionary | `dictionary` | Dictionary | Yes |  | Main | Source dictionary. |
-| Key | `key` | Text | Yes |  | Main | Key to remove. |
+| Key | `key` | Text | No |  | Main; choice Remove = A key | Key to remove. |
+| Position | `position` | Number | No |  | Main; choice Remove = The key at a position | G1 (AA parity): remove the key at this place, counted from 0, instead of naming it. Range: 0 to  |
 | Fail if missing | `fail_if_missing` | Yes/No | No | No | More options | Fail with DICT.KEY_NOT_FOUND when the key is not there. |
 
 **Results**

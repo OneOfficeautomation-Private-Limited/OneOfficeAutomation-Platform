@@ -6,7 +6,7 @@ Toolkit `ooa.number`, version 1.1.0. Calculate, round, format and generate numbe
 
 ## Contents
 
-- **Number**: Calculate, Decrement, Format number, Format as currency, percent or unit, Increment, Random number, Round, Round to a step, List statistics, Number to text, Number to words
+- **Number**: Calculate, Decrement, Format number, Format as currency or unit, Increment, Random number, Round, Round to a step, List statistics, Number to text, Number to words
 - **Conditions**: Compare numbers, Number is between
 
 ## Number
@@ -80,7 +80,7 @@ Format a number as text with thousands separators and fixed decimals, e.g. 1,234
 
 *Time limit 60 s; safe to repeat.*
 
-### Format as currency, percent or unit
+### Format as currency or unit
 
 `ooa.number/format_as` (action)
 

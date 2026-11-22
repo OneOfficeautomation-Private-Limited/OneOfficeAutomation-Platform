@@ -22,7 +22,7 @@ Copy a folder and its contents, optionally only some files by name, size or date
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Source | `source` | File path | Yes |  | Main | Source folder. |
+| Source | `source` | File path | Yes |  | Main | Source folder, or name rules choosing the files to copy (with the folders below the one they share). |
 | Target | `target` | File path | Yes |  | Main | Target folder. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace files that already exist in the target; when false they are kept. |
 | Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Filter by size | Only copy files larger than this many KB (1 KB = 1024 bytes). Range: 0 to  |
@@ -44,14 +44,22 @@ Copy a folder and its contents, optionally only some files by name, size or date
 
 `ooa.folder/create` (action)
 
-Create a folder and any missing parents.
+Create a folder and any missing parents, choosing what happens when it is already there.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Folder path. |
-| Fail if exists | `fail_if_exists` | Yes/No | No | No | Main | Stop when the folder already exists instead of continuing. |
+| If exists | `if_exists` | Text | No |  | Main | When the folder is already there: use it, replace it with an empty one (deleting what is in it), make a numbered one such as Reports (2), or stop with FOLDER.EXISTS. One of: `use`, `replace`, `numbered`, `fail` |
+| Fail if exists | `fail_if_exists` | Yes/No | No | No | Main | Stop when the folder already exists instead of continuing (used when no choice is made for an existing folder). Shown when: `{"if_exists": [""]}` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Full path of the folder (the numbered name with numbered). |
+| `created` | Yes/No | True when a folder was made; false when the existing one is used. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
 

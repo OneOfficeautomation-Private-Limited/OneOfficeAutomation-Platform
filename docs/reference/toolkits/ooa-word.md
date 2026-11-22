@@ -1,4 +1,4 @@
-# Word (no Office needed)
+# Word
 
 Toolkit `ooa.word`, version 1.0.0. Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save.
 
@@ -6,7 +6,7 @@ Toolkit `ooa.word`, version 1.0.0. Open or create .docx documents, read text and
 
 ## Contents
 
-- **Text**: Add paragraph, Extract text from a file, Format text, Insert text, Read text, Replace text
+- **Text**: Add paragraph, Extract text from a file, Format text, Insert text, Read text, Find and replace text
 - **Tables**: Insert table, Read tables
 - **Document**: Close, Create document, Get page count, Open document, Save, Save as
 - **Pictures**: Find and replace picture, Insert picture
@@ -54,7 +54,7 @@ Return the whole text of a .doc, .docx or .rtf file without opening it as a sess
 
 `ooa.word/format_text` (action)
 
-Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text; inputs left empty are not changed.
+Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text in the document, a paragraph range, a bookmark or a page; inputs left empty are not changed.
 
 **Settings**
 
@@ -65,6 +65,8 @@ Apply bold, italic, underline, strikethrough, highlight, font, size or colour to
 | Whole word | `whole_word` | Yes/No | No | No | Main | Only match the text as a whole word, not inside a longer word. |
 | From paragraph | `from_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty. Range: 1 to  |
 | To paragraph | `to_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based last body paragraph to search, included; to the end when empty. Range: 1 to  |
+| Bookmark | `bookmark` | Text | No |  | Main; choice Look in = A bookmark | Only format text in the paragraphs a bookmark covers. |
+| Page | `page` | Number | No |  | Main; choice Look in = A page | Only format text on this 1-based page of the body. Range: 1 to  |
 | Occurrence | `occurrence` | Text | No | `all` | Main | Which occurrences to change, in document order: all, the first or the last. One of: `all`, `first`, `last` |
 | Font | `font` | Text | No |  | Main | Font name, e.g. Calibri. |
 | Color | `color` | Text | No |  | Main | Hex text colour. Example: `#C00000` |
@@ -94,7 +96,7 @@ Insert text, or HTML (headings, lists, tables, links, formatting and pictures), 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Position | `position` | Text | No | `end` | Main | Where to insert: end, start of the document, after_text, before_text or bookmark. One of: `end`, `start`, `after_text`, `before_text`, `bookmark` |
+| Position | `position` | Text | No | `end` | Main | Where to insert: end, start of the document, after_text, before_text, bookmark, or cursor: where the last Insert text of this session ended (G3, AA's cursor; the end at first). One of: `end`, `start`, `after_text`, `before_text`, `bookmark`, `cursor` |
 | Anchor | `anchor` | Text | No |  | Main | Marker text or bookmark name the position refers to. |
 | Text | `text` | Text | Yes |  | Main | Text to insert; line breaks are kept. |
 | As HTML | `as_html` | Yes/No | No | No | Main | The text is HTML: headings, paragraphs, bold/italic/underline, colours and sizes, links, bulleted and numbered lists, tables and pictures (data: URIs or local files) become Word formatting; it always starts in its own paragraph. |
@@ -137,11 +139,11 @@ Return the paragraph text, one paragraph per line, of the whole body, a range of
 
 *Time limit 60 s; safe to repeat.*
 
-### Replace text
+### Find and replace text
 
 `ooa.word/replace_text` (action)
 
-Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.
+Find text everywhere (body, tables, headers, footers) or in a paragraph range, bookmark or page and count it, or replace it, e.g. fill {{customer}} placeholders; can ignore case, match whole words or take only the first or last occurrence.
 
 **Settings**
 
@@ -152,8 +154,10 @@ Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}}
 | Whole word | `whole_word` | Yes/No | No | No | Main | Only match the text as a whole word, not inside a longer word. |
 | From paragraph | `from_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty. Range: 1 to  |
 | To paragraph | `to_paragraph` | Number | No |  | Main; choice Look in = A paragraph range | 1-based last body paragraph to search, included; to the end when empty. Range: 1 to  |
-| Page | `page` | Number | No |  | Main; choice Look in = A page | Only replace text on this 1-based page of the body (from Word's saved page layout, else the stored page breaks). Range: 1 to  |
-| Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text. |
+| Bookmark | `bookmark` | Text | No |  | Main; choice Look in = A bookmark | Only look in the paragraphs a bookmark covers. |
+| Page | `page` | Number | No |  | Main; choice Look in = A page | Only look on this 1-based page of the body (from Word's saved page layout, else the stored page breaks). Range: 1 to  |
+| Replace | `replace` | Yes/No | No | Yes | Main | Replace what is found with the replacement text (empty removes it); when off the step only counts the matches and changes nothing (the default for new steps). |
+| Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text; empty removes what is found. Shown when: `{"replace": ["true"]}` |
 | Occurrence | `occurrence` | Text | No | `all` | Main | Which occurrences to change, in document order: all, the first or the last. One of: `all`, `first`, `last` |
 | Session | `session` | Text | No | `word` | More options | Session name. |
 
@@ -161,7 +165,7 @@ Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}}
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `count` | Number | Number of replacements. |
+| `count` | Number | Number of matches found, or of replacements made. |
 
 *Time limit 60 s.*
 
@@ -250,6 +254,7 @@ Create a new .docx (or .doc, .rtf or .odt) file on disk, empty or as a copy of a
 | Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file that already exists at the path. |
 | Template | `template` | File path | No |  | More options | Existing .docx whose content and styles the new document starts from; empty document when empty. |
 | Session | `session` | Text | No | `word` | More options | Session name. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -279,7 +284,7 @@ Count the document's pages, from the page layout Word saved in the file or from 
 
 `ooa.word/open` (action)
 
-Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.
+Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files, check the password to edit and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.
 
 **Settings**
 
@@ -288,8 +293,10 @@ Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named sessi
 | Path | `path` | File path | Yes |  | Main | Document path. |
 | Read only | `read_only` | Yes/No | No | No | Main | Open for reading only: save over the opened file is refused, save_as to another file still works. |
 | Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password of an encrypted document; saves keep the file encrypted with it. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick The file has a password to edit | Password to edit a document whose editing is restricted; a wrong one stops the step. Without it such a file still opens. |
 | Create | `create` | Yes/No | No | No | More options | Create the document when it does not exist. |
 | Session | `session` | Text | No | `word` | More options | Session name. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -320,7 +327,7 @@ Save the document to a new .docx, .doc, .rtf or .odt file (.docx optionally pass
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Target file path. |
-| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that already exists at the target path; false stops with WORD.EXISTS. |
+| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that already exists at the target path; off stops with WORD.EXISTS (the default for new steps). |
 | Format | `format` | Text | No | `docx` | Main | docx keeps the document; doc (Word 97-2003), rtf and odt are written with Microsoft Word (or LibreOffice) on the runner; pdf exports it the same way; txt writes the plain text (body, tables and headers). After pdf and txt the session stays on the previous file. One of: `docx`, `doc`, `rtf`, `odt`, `pdf`, `txt` |
 | Password | `password` | Credential (vault) | No |  | More options | Encrypt the new .docx file with this password; later saves keep it. |
 | Session | `session` | Text | No | `word` | More options | Session name. |

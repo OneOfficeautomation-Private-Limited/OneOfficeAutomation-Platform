@@ -1,4 +1,4 @@
-# Hash, encryption and encoding
+# Hash and encrypt
 
 Toolkit `ooa.crypto`, version 1.0.0. Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding.
 

@@ -287,10 +287,12 @@ List the tasks of a project, of a section, or assigned to a user in a workspace.
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | No |  | Main | Workspace, used together with assignee. |
 | Project ID | `project_id` | Text | No |  | Main | List the tasks of this project. |
+| Project IDs | `project_ids` | List | No |  | Main | Or the tasks of several projects, one after another (G5). |
 | Assignee | `assignee` | Text | No |  | Main | Or list tasks assigned to this user (id, email or me); also needs workspace_id. |
 | Modified since | `modified_since` | Text | No |  | Main | Only tasks changed at or after this time (ISO 8601). Example: `2026-10-01T00:00:00Z` |
 | Section ID | `section_id` | Text | No |  | More options | Or list the tasks of this section: its id, or Project name/Section name. |
 | Only open | `only_open` | Yes/No | No | No | More options | Leave out completed tasks. |
+| Completed since | `completed_since` | Text | No |  | More options | Only tasks not completed, or completed at or after this time (ISO 8601) (G5). Example: `2026-10-01T00:00:00Z` |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -470,6 +472,8 @@ Create a project in a workspace. Organization workspaces also need a team.
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Team ID | `team_id` | Text | No |  | Main | Team id; required in organization workspaces. |
 | Notes | `notes` | Text | No |  | Main | Project description. |
+| Owner | `owner` | Text | No |  | Main | The project's owner: a user id, email or me (G5). |
+| Due on | `due_on` | Text | No |  | Main | The project's due date, yyyy-MM-dd (G5). Example: `2027-03-31` |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 **Results**
@@ -556,7 +560,8 @@ List the projects in a workspace, optionally only those of one team.
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | No |  | Main | Only projects of this team id. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
-| Include archived | `include_archived` | Yes/No | No | No | Main | Also list archived projects. |
+| Archived | `archived` | Text | No |  | Main | Active projects, archived ones or all; the tick below for older steps (G5). One of: `active`, `archived`, `all` |
+| Include archived | `include_archived` | Yes/No | No | No | More options | Also list archived projects. |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -811,7 +816,7 @@ Save an attachment of a task to a local folder.
 | --- | --- | --- | --- | --- | --- | --- |
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attachment ID | `attachment_id` | Text | Yes |  | Main | Attachment id, from Upload attachment or the task's attachments. |
-| Folder | `folder` | File path | No | `.` | Main | Folder to save into. |
+| Folder | `folder` | File path | No | `.` | Main | Folder to save into; the run's temporary folder when empty (G5). |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file of the same name; otherwise a number is added. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -908,7 +913,8 @@ List the people in a workspace.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
+| Workspace ID | `workspace_id` | Text | No |  | Main; choice People of = The workspace | Workspace id, from List workspaces. |
+| Team ID | `team_id` | Text | No |  | Main; choice People of = One team | Only the people of this team (G5). |
 | Maximum results | `max_results` | Number | No | `2000` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 

@@ -227,7 +227,7 @@ Read each instance's state and the results of AWS's system and instance health c
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
 | Instance IDs | `instance_ids` | List | No |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. Leave empty for all. |
-| Include stopped | `include_stopped` | Yes/No | No | Yes | Main | Also list instances that are not running (AWS leaves them out otherwise). |
+| Include stopped | `include_stopped` | Yes/No | No | Yes | Main | Also list instances that are not running (AWS leaves them out otherwise); off for new steps (G6). |
 
 **Results**
 

@@ -6,7 +6,7 @@ Toolkit `ooa.system`, version 1.0.0. Read environment variables and runner infor
 
 ## Contents
 
-- **System**: Delete environment variable, Empty recycle bin, Get environment variable, Get all environment variables, Get screen resolution, Get system info, List processes, Desktop notification, Set environment variable, Set screen resolution, Show desktop
+- **System**: Delete environment variable, Empty recycle bin, Get environment variable, List environment variables, Get screen resolution, Get system info, List processes, Desktop notification, Set environment variable, Set screen resolution, Show desktop
 - **Power**: Lock computer, Sign out, Restart computer, Shut down computer
 
 ## System
@@ -68,7 +68,7 @@ Read an environment variable of the runner; variables that look like secrets are
 
 *Time limit 60 s; safe to repeat.*
 
-### Get all environment variables
+### List environment variables
 
 `ooa.system/get_environment_variables` (action)
 

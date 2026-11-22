@@ -6,12 +6,13 @@ Toolkit `ooa.kafka`, version 1.0.0. Send messages to Kafka topics, read messages
 
 ## Contents
 
-- **Messages**: Mark messages as read up to an offset, Send message, Read messages
+- **Messages**: Commit offsets, Send message, Read messages
+- **Connection**: Connect, Disconnect
 - **Topics**: Create topic, Get topic info, List topics
 
 ## Messages
 
-### Mark messages as read up to an offset
+### Commit offsets
 
 `ooa.kafka/commit_offsets` (action)
 
@@ -21,7 +22,7 @@ Record, for a consumer group, that one partition of a topic has been handled up 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |
@@ -48,7 +49,7 @@ Write one message to a topic, with an optional key and headers.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |
@@ -80,7 +81,7 @@ Read new messages from one or more topics as a consumer group, so the next read 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |
@@ -90,6 +91,7 @@ Read new messages from one or more topics as a consumer group, so the next read 
 | Wait (seconds) | `wait_seconds` | Number | No | `10` | Main | Stop when no new message arrives within this time. |
 | Start from | `start_from` | Text | No | `earliest` | Main | For a new group only: start at the oldest message kept (earliest) or only new messages (latest). One of: `earliest`, `latest` |
 | Mark as read | `mark_as_read` | Yes/No | No | Yes | Main | Remember what was read so the group does not read it again. |
+| CSV file | `csv_file` | File path | No |  | More options | Also save the messages read to this CSV file (topic, partition, offset, key, value), replacing it; no file when empty (G6). Example: `out/messages.csv` |
 | Value format | `value_format` | Text | No | `json` | More options | Read values as JSON or as plain text. One of: `json`, `text` |
 
 **Results**
@@ -99,8 +101,51 @@ Read new messages from one or more topics as a consumer group, so the next read 
 | `table` | Table | Columns: topic, partition, offset, key, value. JSON values are shown as text. |
 | `messages` | List | Each message as a dictionary; JSON values stay structured. |
 | `count` | Number | Number of messages read. |
+| `csv_file` | File path | The CSV file written; empty when csv_file was not given (G6). |
 
-*Time limit 900 s; needs: network.*
+*Time limit 900 s; needs: network, filesystem.*
+
+## Connection
+
+### Connect
+
+`ooa.kafka/connect` (action)
+
+Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Endpoint address | `base_url` | Text | No |  | Main | The base url the later steps use (G6). |
+| API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | The api key the later steps use (G6). |
+| API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | The api secret the later steps use (G6). |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | The access token the later steps use (G6). |
+| Cluster ID | `cluster_id` | Text | No |  | More options | The cluster id the later steps use (G6). |
+| Session | `session` | Text | No |  | More options | The session's name; the toolkit's default session when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.kafka/disconnect` (action)
+
+Forget the open Kafka session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*
 
 ## Topics
 
@@ -114,7 +159,7 @@ Create a topic with a number of partitions and optional settings such as how lon
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |
@@ -143,7 +188,7 @@ Read a topic's partition count, replication and settings.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |
@@ -169,7 +214,7 @@ Return the topics in the cluster.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
+| Endpoint address | `base_url` | Text | No |  | Main | Kafka REST Proxy address, e.g. https://pkc-12345.us-east-1.aws.confluent.cloud:443 or http://kafka-rest.internal:8082. |
 | API key | `api_key` | Text | No |  | Main; choice Sign in with = API key and secret | API key or user name, used with api_secret. |
 | API secret | `api_secret` | Credential (vault) | No |  | Main; choice Sign in with = API key and secret | API secret or password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A bearer token | Bearer token from the vault, used instead of an API key and secret. |

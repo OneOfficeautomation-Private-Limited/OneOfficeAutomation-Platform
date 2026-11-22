@@ -8,7 +8,7 @@ Toolkit `ooa.box`, version 1.0.0. Work with Box folders and files: upload, downl
 
 - **Sharing**: Invite collaborator, Create shared link, List collaborators, Remove collaborator, Remove shared link
 - **Files**: Copy file, Delete file, Download file, Get file info, Move file, Rename file, Upload file
-- **Folders**: Create folder, Delete folder, List folder items
+- **Folders**: Create folder, Delete folder, Get folder info, List folder items
 - **Search**: Search
 
 ## Sharing
@@ -56,6 +56,7 @@ Create or change the shared link of a file or folder and return the link.
 | Item ID | `item_id` | Text | Yes |  | Main | Id of the file or folder. |
 | Access | `access` | Text | No | `company` | Main | Who can use the link: open (anyone with the link), company (people in your organization) or collaborators (invited people only). One of: `open`, `company`, `collaborators` |
 | Allow download | `allow_download` | Yes/No | No | Yes | Main | Let people with the link download the item. |
+| Allow preview | `allow_preview` | Yes/No | No | Yes | Main | Let people with the link preview the item (G5). |
 | Expires at | `expires_at` | DateTime | No |  | Main; tick Set an end date | When the link stops working (UTC). Leave empty for no end date. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
 | Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
@@ -331,6 +332,29 @@ Move a folder to the Box trash. A folder that still has content is only removed 
 | Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
 
 *Time limit 60 s; needs: network.*
+
+### Get folder info
+
+`ooa.box/get_folder_info` (action)
+
+Read a folder's name, item count, size, dates, owner, parent and shared link (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Folder ID | `folder_id` | Text | Yes |  | Main | Folder to look up; 0 is the top level. |
+| As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
+| Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `info` | Dictionary | id, name, item_count, size, created_at, modified_at, parent_id, parent_name, owner, shared_link. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
 
 ### List folder items
 

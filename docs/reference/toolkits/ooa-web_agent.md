@@ -35,7 +35,8 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Start address (URL) | `start_url` | Text | No |  | Main | Open this address before the first step; the page already open when empty. Example: `https://portal.example.com/invoices` |
-| Goal | `goal` | Text | Yes |  | Main | What to achieve, in plain words; ${...} interpolation allowed. Example: `Search for invoice 4711 and tell me its total and due date.` |
+| Goal | `goal` | Text | No |  | Main | What to achieve, in plain words; ${...} interpolation allowed. Empty when goals lists them. Example: `Search for invoice 4711 and tell me its total and due date.` |
+| Goals | `goals` | List | No |  | Main | More goals, reached one after another in the same browser (after goal, when it is given); each gets its own result in goal_results, and a goal not reached stops the rest (G4). |
 | Secrets | `secrets` | Dictionary | No |  | Main | Name to Credential, e.g. {"password": a Credential}. The model types them as {{secret:password}} and never sees the values. |
 | Connection | `connection` | Text | No |  | Main; choice Model = A saved connection | Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
 | Provider | `provider` | Text | No | `openai` | Main; choice Model = Set up here | Who runs the model: OpenAI, Azure OpenAI, Anthropic, OpenAI-compatible (LiteLLM, vLLM, Ollama), Hugging Face (its router or your own TGI server), AWS SageMaker (a model on an Amazon SageMaker endpoint), AWS Bedrock or Google Vertex AI (Gemini). One of: `openai`, `azure_openai`, `anthropic`, `openai_compatible`, `huggingface`, `aws_bedrock_sagemaker`, `aws_bedrock`, `google_vertex` |
@@ -47,6 +48,7 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | Output schema | `output_schema` | Dictionary | No |  | Main; tick Return the findings in a fixed shape | JSON Schema the data output must match; the model is shown it and asked to correct an answer that does not match. Example: `{"type": "object", "required": ["total"], "properties": {"total": {"type": "number"}, "due": {"type": "string"}}}` |
 | Output path | `output_path` | File path | No |  | Main; tick Return the findings in a fixed shape | Also write the data output to this JSON file when the goal is reached. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | Main | Seconds to wait for the model on each step; 180 when 0. |
+| Time limit (seconds) | `time_limit_seconds` | Number | No | `0` | Main | Most time for the whole step, all goals together; no limit when 0. A goal is not started once the time is used up (G4). Range: 0 to 7200 |
 | Session | `session` | Text | No | `browser` | More options | Browser session (from Start web agent session or Open browser). |
 | Maximum steps | `max_steps` | Number | No | `15` | More options | Most actions to take, 1 to 60. |
 | Allowed sites | `allowed_sites` | List | No |  | More options | Host names the agent may visit (sub-domains included), e.g. ["portal.example.com"]; any site when empty. |
@@ -65,6 +67,7 @@ Describe the goal in plain words; the AI model works the page in a browser sessi
 | `url` | Text | Address of the page at the end. |
 | `input_tokens` | Number | Tokens sent to the model in all steps. |
 | `output_tokens` | Number | Tokens the model answered with in all steps. |
+| `goal_results` | List | With several goals or a time limit: each goal with its success, answer and data (G4). |
 
 *Time limit 1800 s; needs: browser, network, ai, filesystem.*
 
@@ -82,7 +85,7 @@ Open a browser for the web goal agent (the same session works with every Browser
 | Browser | `browser` | Text | No | `edge` | Main | Browser to use. One of: `edge`, `chrome`, `chromium`, `firefox` |
 | Headless | `headless` | Yes/No | No | No | Main | Run without a visible window (for unattended agents). |
 | Proxy server | `proxy_server` | Text | No |  | More options; tick Go through a proxy server | Send the browser's traffic through this proxy: host:port, or with http://, https://, socks4:// or socks5:// in front. Example: `http://proxy.example.com:3128` |
-| Proxy username | `proxy_username` | Text | No |  | More options; tick Go through a proxy server | User name for a proxy that asks for one. |
+| Proxy username | `proxy_username` | Text | No |  | More options; tick Go through a proxy server | User name for a proxy that asks for one; it may come from the vault (G4). |
 | Proxy password | `proxy_password` | Credential (vault) | No |  | More options; tick Go through a proxy server | Password for the proxy, from the vault; never logged. |
 | Browser path | `browser_path` | File path | No |  | More options | Start this browser program instead of the installed one (a Chromium-based browser, or Firefox when browser is firefox). Example: `C:\Program Files\Google\Chrome Beta\Application\chrome.exe` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |

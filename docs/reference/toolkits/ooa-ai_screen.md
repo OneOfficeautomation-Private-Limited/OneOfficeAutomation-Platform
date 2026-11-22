@@ -6,7 +6,7 @@ Toolkit `ooa.ai_screen`, version 1.0.0. Find and click controls on the screen fr
 
 ## Contents
 
-- **AI screen**: Click described control (AI), Find on screen (AI), Read described control (AI), Type into described control (AI)
+- **AI screen**: Click described control (AI), Find on screen (AI), Read described control (AI), Type into control
 
 ## AI screen
 
@@ -98,7 +98,7 @@ Read the text of a control on the screen, found from a plain description with a 
 
 *Time limit 180 s; needs: desktop, network, ai.*
 
-### Type into described control (AI)
+### Type into control
 
 `ooa.ai_screen/type_described` (action)
 

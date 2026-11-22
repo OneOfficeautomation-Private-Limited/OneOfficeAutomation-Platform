@@ -1,4 +1,4 @@
-# Mouse, keyboard and screen
+# Mouse and keyboard
 
 Toolkit `ooa.desktop`, version 1.1.0. Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop.
 
@@ -6,7 +6,7 @@ Toolkit `ooa.desktop`, version 1.1.0. Click, type, press keys, capture the scree
 
 ## Contents
 
-- **Keyboard**: Block input, Press keys, Set Caps Lock, Num Lock or Scroll Lock, Type text, Unblock input, Wait for mouse or key
+- **Keyboard**: Block input, Press keys, Set lock keys, Type text, Unblock input, Wait for mouse or key
 - **Screen**: Capture screen
 - **Clipboard**: Clear clipboard, Get clipboard text, Copy to clipboard
 - **Mouse**: Get mouse position, Mouse click, Mouse move, Mouse scroll
@@ -47,7 +47,7 @@ Press, hold down or release a key or key combination, e.g. ENTER, CTRL+S or ALT+
 
 *Time limit 60 s; needs: desktop.*
 
-### Set Caps Lock, Num Lock or Scroll Lock
+### Set lock keys
 
 `ooa.desktop/set_key_state` (action)
 
@@ -303,18 +303,18 @@ Scroll the mouse wheel up, down, left or right, optionally over a chosen point o
 
 `ooa.desktop/message_box` (action)
 
-Show a message to the user (attended agents) with a choice of buttons and icon; can close automatically after a timeout.
+Show a message to the person at the screen with a choice of buttons and an icon; it can close by itself after some seconds.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `ONEOFFICEAUTOMATION` | Main | Window title. |
-| Message | `message` | Text | Yes |  | Main | Message text. |
-| Scroll after lines | `scroll_after_lines` | Number | No | `0` | Main | Show the message in a scrolling box when it has more lines than this; 0 never scrolls. Range: 0 to  |
-| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | Main; tick Close it automatically | Close automatically after this many seconds; 0 waits for OK. Range: 0 to  |
-| Buttons | `buttons` | Text | No | `ok` | More options | Buttons to show. One of: `ok`, `ok_cancel`, `yes_no`, `yes_no_cancel` |
-| Icon | `icon` | Text | No | `information` | More options | Icon next to the message. One of: `information`, `warning`, `error`, `question`, `none` |
+| Title | `title` | Text | No |  | Main | Title shown in bold at the top and as the window's title; the agent's name when empty. |
+| Message | `message` | Text | Yes |  | Main | Message text; it can be selected and copied. |
+| Scroll after lines | `scroll_after_lines` | Number | No | `0` | Main | Show the message in a scroll box when it has more lines than this; 0 never scrolls. Range: 0 to  |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `0` | Main; tick Close by itself after | Close by itself after this many seconds, showing the time left; 0 waits for a button. Example: `5`; Range: 0 to  |
+| Buttons | `buttons` | Text | No | `ok` | More options | Buttons to show; Enter presses the first, Esc means cancel or no. One of: `ok`, `ok_cancel`, `yes_no`, `yes_no_cancel` |
+| Icon | `icon` | Text | No | `information` | More options | Icon next to the title; it also colours the top edge. One of: `information`, `warning`, `error`, `question`, `none` |
 | Always on top | `always_on_top` | Yes/No | No | Yes | More options | Keep the dialog in front of other windows. |
 
 **Results**
@@ -335,10 +335,10 @@ Ask the user to choose one or more files, optionally of given types.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `Choose a file` | Main | Dialog title. |
+| Title | `title` | Text | No | `Choose a file` | Main | Title shown in bold at the top; the window's title is the agent's name unless you change this. |
 | Message | `message` | Text | No |  | Main | Text shown in the dialog above the list, e.g. what to choose and why. Example: `Pick this month's bank statement.` |
 | File types | `file_types` | Text | No |  | Main | Only show files with these extensions; all files when empty. Example: `pdf, xlsx` |
-| Multiple | `multiple` | Yes/No | No | No | Main | Let the user choose several files. |
+| Multiple | `multiple` | Yes/No | No | No | Main | Let the user choose several files; paths lists them all. |
 | Start folder | `start_folder` | File path | No |  | More options | Folder to start in. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Give up after this many seconds; 0 waits. Range: 0 to  |
 | Always on top | `always_on_top` | Yes/No | No | Yes | More options | Keep the dialog in front of other windows. |
@@ -363,7 +363,7 @@ Ask the user to choose a folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `Choose a folder` | Main | Dialog title. |
+| Title | `title` | Text | No | `Choose a folder` | Main | Title shown in bold at the top; the window's title is the agent's name unless you change this. |
 | Message | `message` | Text | No |  | Main | Text shown in the dialog above the list, e.g. what to choose and why. Example: `Pick the folder with the scanned invoices.` |
 | Start folder | `start_folder` | File path | No |  | More options | Folder to start in. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Give up after this many seconds; 0 waits. Range: 0 to  |
@@ -388,7 +388,7 @@ Ask the user for a password; the result is a Credential that is never shown or l
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `ONEOFFICEAUTOMATION` | Main | Window title of the dialog. |
+| Title | `title` | Text | No |  | Main | Title shown in bold at the top and as the window's title; the agent's name when empty. |
 | Question | `question` | Text | No | `Enter password` | Main | Prompt text. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Stop waiting after this many seconds (the step then fails as cancelled); 0 waits. Range: 0 to  |
 | Always on top | `always_on_top` | Yes/No | No | Yes | More options | Keep the dialog in front of other windows. |
@@ -411,7 +411,7 @@ Ask the user to type a value, optionally hidden as it is typed.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `ONEOFFICEAUTOMATION` | Main | Window title of the dialog. |
+| Title | `title` | Text | No |  | Main | Title shown in bold at the top and as the window's title; the agent's name when empty. |
 | Question | `question` | Text | Yes |  | Main | Question to show. |
 | Masked | `masked` | Yes/No | No | No | Main | Show dots instead of the typed characters. The value is still plain text; use Prompt for password for secrets. |
 | Default | `default` | Text | No |  | More options | Pre-filled answer. |
@@ -438,7 +438,7 @@ Ask the user a yes/no question.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No | `ONEOFFICEAUTOMATION` | Main | Window title of the dialog. |
+| Title | `title` | Text | No |  | Main | Title shown in bold at the top and as the window's title; the agent's name when empty. |
 | Question | `question` | Text | Yes |  | Main | Question to show. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Answer No after this many seconds; 0 waits. Range: 0 to  |
 | Answer on timeout | `answer_on_timeout` | Yes/No | No | No | More options | Answer used when the prompt times out or is closed without a choice. Shown when: `{"timeout_seconds": ["!", "0"]}` |

@@ -146,6 +146,7 @@ Open a .pptx, .ppt or .odp presentation, or create a new empty one, as a named s
 | Path | `path` | File path | Yes |  | Main | Presentation path. |
 | Read only | `read_only` | Yes/No | No | No | Main | Open for reading only: save over the opened file is refused, save_as to another file still works. |
 | Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password of an encrypted presentation; saves keep the file encrypted with it. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick The file has a password to edit | Password to modify a presentation that has one; a wrong one stops the step. Without it such a file still opens (G3). |
 | Create | `create` | Yes/No | No | No | More options | Create the presentation when it does not exist. |
 | Session | `session` | Text | No | `powerpoint` | More options | Session name used by later steps. |
 
@@ -222,7 +223,8 @@ Replace text on every slide, including tables and grouped shapes, e.g. fill {{na
 | Match case | `match_case` | Yes/No | No | Yes | Main | Match upper/lower case exactly. |
 | Whole word | `whole_word` | Yes/No | No | No | Main | Only match the text as a whole word, not inside a longer word. |
 | Slide | `slide` | Number | No |  | Main; choice Look in = One slide | Only this 1-based slide; all slides when empty. |
-| Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text. |
+| Replace | `replace` | Yes/No | No | Yes | Main | G3 (AA parity): replace what is found (empty replacement removes it); when off the step only counts the matches (the default for new steps). |
+| Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text; empty removes what is found. Shown when: `{"replace": ["true"]}` |
 | Occurrence | `occurrence` | Text | No | `all` | Main | Which occurrences to change, in slide order: all, the first or the last. One of: `all`, `first`, `last` |
 | Session | `session` | Text | No | `powerpoint` | More options | Presentation session. |
 
@@ -230,7 +232,7 @@ Replace text on every slide, including tables and grouped shapes, e.g. fill {{na
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `count` | Number | Number of replacements. |
+| `count` | Number | Number of matches found, or of replacements made. |
 
 *Time limit 60 s.*
 
@@ -276,7 +278,7 @@ Put text into a slide's title or body placeholder, or add it as a new text box a
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the last slide (usually the one just added) when empty. Range: 1 to  |
+| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the current slide (the one added or copied last) when empty, else the last. Range: 1 to  |
 | Text | `text` | Text | Yes |  | Main | Text to insert; each line becomes a paragraph. |
 | X | `x` | Number | No | `50` | Main | Text box left edge in points. |
 | Y | `y` | Number | No | `50` | Main | Text box top edge in points. |
@@ -356,7 +358,7 @@ Place an image file on a slide at a position in points, optionally scaled to a w
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the last slide (usually the one just added) when empty. Range: 1 to  |
+| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the current slide (the one added or copied last) when empty, else the last. Range: 1 to  |
 | Image | `image` | File path | Yes |  | Main | Image file (PNG, JPEG, GIF, BMP, TIFF, EMF or WMF). |
 | X | `x` | Number | No | `50` | Main | Left edge in points. |
 | Y | `y` | Number | No | `50` | Main | Top edge in points. |
@@ -385,14 +387,16 @@ Add a table to a slide from a Data Table, with the column names as an optional b
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the last slide (usually the one just added) when empty. Range: 1 to  |
+| Slide | `slide` | Number | No |  | Main; choice Slide = A slide number | 1-based slide number; the current slide (the one added or copied last) when empty, else the last. Range: 1 to  |
 | X | `x` | Number | No | `50` | Main | Left edge in points. |
 | Y | `y` | Number | No | `120` | Main | Top edge in points. |
 | Width | `width` | Number | No | `600` | Main | Total table width in points. |
-| Row height | `row_height` | Number | No |  | Main | Height of each row in points; twice the font size when empty. |
+| Row height | `row_height` | Number | No |  | Main; choice Height = Of each row | Height of each row in points; twice the font size when empty. |
+| Height | `height` | Number | No |  | Main; choice Height = Of the whole table | G3 (AA parity): the whole table's height in points, shared by its rows (instead of a row height). Range: 1 to  |
 | Column widths | `column_widths` | List | No |  | Main | Width of each column in points, in order; the total width is shared equally when empty. |
 | Table | `table` | Table | Yes |  | Main | Data to insert. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | Put the column names in a bold first row. |
+| Title | `title` | Text | No |  | Main | G3 (AA parity): the table's name, read by screen readers and shown in PowerPoint's selection pane. |
 | Font size | `font_size` | Number | No | `14` | More options | Font size in points. |
 | Session | `session` | Text | No | `powerpoint` | More options | Presentation session. |
 

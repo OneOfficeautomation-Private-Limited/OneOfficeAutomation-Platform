@@ -236,8 +236,10 @@ Create a project with a key, name, type and project lead.
 | Project type | `project_type` | Text | No | `software` | Main | Project type key. One of: `software`, `business`, `service_desk` |
 | Template key | `template_key` | Text | No |  | Main | Project template key; the site default when empty. |
 | Project description | `project_description` | Text | No |  | Main | Project description. |
-| Lead account ID | `lead_account_id` | Text | No |  | Main | Project lead's account id (Cloud). |
+| Lead account ID | `lead_account_id` | Text | No |  | Main | Project lead: an email address (looked up, G5), or the account id (Cloud). |
+| Category | `category` | Text | No |  | Main | A project category, by name or id (G5). |
 | Lead user name | `lead_user_name` | Text | No |  | More options | Project lead's user name (Data Center). |
+| Assignee type | `assignee_type` | Text | No |  | More options | Who new issues go to by default (G5). One of: `project_lead`, `unassigned` |
 
 **Results**
 
@@ -282,6 +284,8 @@ List the projects the account can see as a table.
 | Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Query | `query` | Text | No |  | Main | Only projects whose key or name contains this text. |
 | Project type | `project_type` | Text | No |  | Main | Only projects of this type. One of: `software`, `business`, `service_desk` |
+| Keys | `keys` | List | No |  | Main | Only these project keys (G5). |
+| Category | `category` | Text | No |  | Main | Only projects in this category, by name (G5). |
 | Maximum results | `max_results` | Number | No | `1000` | Main | Maximum projects. |
 | Start at | `start_at` | Number | No | `0` | Main | Skip this many projects first (for paging). |
 

@@ -9,7 +9,9 @@ Toolkit `ooa.dotnet`, version 1.0.0. Run inline C# or VB.NET code, and call meth
 - **COM**: Call COM method
 - **.NET**: Call .NET method
 - **Java**: Call Java method
+- **.NET sessions**: Call method in session, Close assembly, Create object, Open assembly, Read assembly
 - **Code**: Run C# code, Run VB.NET code
+- **Conditions**: .NET session is open
 
 ## COM
 
@@ -106,6 +108,111 @@ Load JAR files and call a static method of a class, or create an object and call
 
 *Time limit 3600 s; needs: filesystem.*
 
+## .NET sessions
+
+### Call method in session
+
+`ooa.dotnet/call_method` (action)
+
+Call a static method of a type, or a method of an object created in the session, with typed and named arguments (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `dotnet` | Main | Name of the .NET session, from Open assembly. |
+| Type | `type` | Text | No |  | Main; choice Call on = A static method of a type | Full type name for a static method. |
+| Object name | `object_name` | Text | No |  | Main; choice Call on = A method of a session object | An object made with Create object. |
+| Method | `method` | Text | Yes |  | Main | Method name. Example: `Price` |
+| Arguments | `arguments` | List | No |  | Main | Arguments in order. |
+| Argument types | `argument_types` | List | No |  | More options | The type of each argument, in order: auto, text, int, long, double, decimal, bool, byte, datetime, bytes (base64), text_list, number_list, list or dictionary. |
+| Named arguments | `named_arguments` | Dictionary | No |  | More options | Arguments by their parameter names, after the ones in order. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `300` | More options | Maximum run time; the session is closed when it runs out. Range: 1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Any | What the method returned. |
+| `output` | Text | Anything it wrote to the console. |
+
+*Time limit 3600 s.*
+
+### Close assembly
+
+`ooa.dotnet/close_assembly` (action)
+
+End a .NET session (G4); sessions also end with the run.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `dotnet` | Main | Name of the .NET session, from Open assembly. |
+
+*Time limit 60 s.*
+
+### Create object
+
+`ooa.dotnet/create_object` (action)
+
+Create an object of a type of the open assembly and keep it in the session by a name, for Call method (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `dotnet` | Main | Name of the .NET session, from Open assembly. |
+| Type | `type` | Text | Yes |  | Main | Full type name, with its namespace. Example: `Pricing.Calculator` |
+| Object name | `object_name` | Text | No | `object` | Main | Name the object is kept by. |
+| Arguments | `arguments` | List | No |  | Main | Constructor arguments in order. |
+| Argument types | `argument_types` | List | No |  | More options | The type of each argument, in order: auto, text, int, long, double, decimal, bool, byte, datetime, bytes (base64), text_list, number_list, list or dictionary. |
+| Named arguments | `named_arguments` | Dictionary | No |  | More options | Arguments by their parameter names, after the ones in order. |
+
+*Time limit 600 s.*
+
+### Open assembly
+
+`ooa.dotnet/open_assembly` (action)
+
+Load a .NET assembly (DLL) into a session kept for the steps after it, so objects it creates keep their state (G4, Windows).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | The .dll file. |
+| Session | `session` | Text | No | `dotnet` | Main | Session name the later steps use. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `assembly` | Text | The assembly's full name. |
+
+*Time limit 120 s; needs: filesystem.*
+
+### Read assembly
+
+`ooa.dotnet/read_assembly` (action)
+
+List the public types of a .NET assembly with their methods and parameters (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | The .dll file. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `types` | List | Each type: type (full name) and methods (name, static, returns, parameters with name, type, optional). |
+
+*Time limit 120 s; safe to repeat; needs: filesystem.*
+
 ## Code
 
 ### Run C# code
@@ -165,3 +272,19 @@ Return n * 2` |
 | `error` | Text | The exception, when fail on error is off. |
 
 *Time limit 3600 s.*
+
+## Conditions
+
+Used in If, Loop while and Wait until steps.
+
+### .NET session is open
+
+`ooa.dotnet/assembly_session_open` (condition)
+
+True when the .NET session is open (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `dotnet` | Main | Name of the .NET session, from Open assembly. |

@@ -9,8 +9,9 @@ Toolkit `ooa.google`, version 1.0.0. Read and write Google Sheets, upload and do
 - **Calendar**: Create Google Calendar event, Delete Google Calendar event, List Google Calendar events, Update Google Calendar event
 - **Docs**: Add text to Google Doc, Create Google Doc, Read Google Doc text, Replace text in Google Doc
 - **Drive**: Check Drive permission, Copy Drive file, Copy Drive folder, Create Drive folder, Share Drive item, Delete Drive item, Remove Drive permission, Download from Drive, Export Google file, Find Drive items, Get Drive item info, List Drive files, List Drive permissions, Move Drive item, Rename Drive item, Change Drive permission, Upload to Drive
-- **Gmail**: Delete all emails (Gmail), Delete email (Gmail), Forward email (Gmail), Read email (Gmail), Check label exists (Gmail), Find emails (Gmail), Change email status (Gmail), Move all emails (Gmail), Move email (Gmail), Reply all to email (Gmail), Reply to email (Gmail), Save attachments of all matching emails (Gmail), Save email attachments (Gmail), Save email as EML (Gmail), Send email (Gmail)
-- **Sheets**: Add sheet, Append rows to sheet, Autofit columns, Autofit rows, Clear range, Copy range, Create spreadsheet, Delete columns, Delete range, Delete rows, Delete sheet, Find cells, Format cells, Get cell value, Get cell colour, Get range values, Hide sheet, Insert columns, Insert range, Insert rows, List sheets, Read sheet range, Read column, Read formula, Read row, Rename sheet, Get used row count, Set cell value, Set formula, Show sheet, Write to sheet, Write data table
+- **Gmail**: Delete all emails, Delete email, Forward email, Read email, Check label exists, Find emails, Change email status, Move all emails, Move email, Reply all to email, Reply to email, Save all attachments, Save attachments, Save email as EML, Send email
+- **Sheets**: Add sheet, Append rows to sheet, Autofit columns, Autofit rows, Clear range, Close spreadsheet, Copy range, Create spreadsheet, Delete columns, Delete range, Delete rows, Delete sheet, Find cells, Format cells, Get cell value, Get cell colour, Get range values, Go to cell, Hide sheet, Insert columns, Insert range, Insert rows, List sheets, Open spreadsheet, Read sheet range, Read column, Read formula, Read row, Rename sheet, Get used row count, Set cell value, Set formula, Show sheet, Write to sheet, Write data table
+- **Conditions**: Gmail label exists
 - **Loop types**: Each email in Gmail
 
 ## Calendar
@@ -32,7 +33,7 @@ Create an event, optionally inviting attendees.
 | Start | `start` | DateTime | Yes |  | Main | When the event starts (UTC, or in time_zone when given). |
 | End | `end` | DateTime | Yes |  | Main | When the event ends; must be after start. |
 | All day | `all_day` | Yes/No | No | No | Main | All-day event: only the dates count; the end date may equal the start date. |
-| Time zone | `time_zone` | Text | No | `UTC` | Main | IANA time zone of start and end. |
+| Time zone | `time_zone` | Text | No | `UTC` | Main | IANA time zone of start and end, e.g. Europe/Berlin; runner for the runner's own zone (G5). |
 | Recurrence | `recurrence` | Text | No |  | Main; tick Repeat the event | Repeat rule (RFC 5545), or simply daily, weekly, monthly or yearly. Example: `RRULE:FREQ=WEEKLY;COUNT=10` |
 | Visibility | `visibility` | Text | No | `default` | Main | Who can see the event's details. One of: `default`, `public`, `private` |
 | Description | `description` | Text | No |  | Main | Description. |
@@ -241,8 +242,8 @@ Check whether a person (or their domain, or anyone with the link) can read, comm
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
-| Access | `access` | Text | No | `read` | Main | The access to check. One of: `read`, `comment`, `write` |
-| Email | `email` | Text | Yes |  | Main | The person's email address. |
+| Access | `access` | Text | No | `read` | Main | The access to check; delete (own rights only) asks whether the item may be deleted (G5). One of: `read`, `comment`, `write`, `delete` |
+| Email | `email` | Text | No |  | Main | The person's email address; the signed-in account's own rights when empty (G5). |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
@@ -343,7 +344,7 @@ Give a user, group, domain or anyone with the link access to a file or folder.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
-| Role | `role` | Text | No | `reader` | Main | Access level. One of: `reader`, `commenter`, `writer`, `fileOrganizer`, `organizer` |
+| Role | `role` | Text | No | `reader` | Main | Access level; owner hands the item over to the person (G5). One of: `reader`, `commenter`, `writer`, `fileOrganizer`, `organizer`, `owner` |
 | Share with | `share_with` | Text | No | `user` | Main | Who receives access. One of: `user`, `group`, `domain`, `anyone` |
 | Email | `email` | Text | No |  | Main | User or group address (for user and group). |
 | Domain | `domain` | Text | No |  | Main | Domain such as example.com (for domain). |
@@ -393,6 +394,12 @@ Take away a permission from a file or folder.
 | Permission ID | `permission_id` | Text | Yes |  | Main | Permission id from List Drive permissions. |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `deleted` | Yes/No | True when the permission was removed (G5). |
+
 *Time limit 60 s; needs: network.*
 
 ### Download from Drive
@@ -407,7 +414,8 @@ Download a Drive file by id (Google Docs/Sheets are exported to PDF/XLSX automat
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
-| Local path | `local_path` | File path | Yes |  | Main | Where to save it. |
+| Local path | `local_path` | File path | No |  | Main | Where to save it: a file, or a folder (the Drive name is kept); the run's temporary folder when empty (G5). |
+| File name | `file_name` | Text | No |  | Main | A new name for the saved file, with local_path a folder (G5). |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
@@ -628,7 +636,7 @@ Upload a local file to a Drive folder.
 
 ## Gmail
 
-### Delete all emails (Gmail)
+### Delete all emails
 
 `ooa.google/gmail_delete_all` (action)
 
@@ -640,14 +648,14 @@ Trash, or permanently delete, every Gmail message that matches a search.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
-| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
+| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5). |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
 | From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
 | Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages; a search or at least one filter is required so a mailbox is never emptied by accident. Example: `from:alerts@acme.com older_than:30d` |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good instead of moving to the trash. |
-| Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run. |
+| Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run; 0 for no limit (G5). |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
@@ -658,7 +666,7 @@ Trash, or permanently delete, every Gmail message that matches a search.
 
 *Time limit 600 s; needs: network.*
 
-### Delete email (Gmail)
+### Delete email
 
 `ooa.google/gmail_delete_message` (action)
 
@@ -675,7 +683,7 @@ Move a Gmail message to the trash, or delete it permanently.
 
 *Time limit 60 s; needs: network.*
 
-### Forward email (Gmail)
+### Forward email
 
 `ooa.google/gmail_forward_message` (action)
 
@@ -705,7 +713,7 @@ Forward a Gmail message with a note, either inline with its attachments or as an
 
 *Time limit 60 s; needs: network.*
 
-### Read email (Gmail)
+### Read email
 
 `ooa.google/gmail_get_message` (action)
 
@@ -728,7 +736,7 @@ Read one Gmail message: headers, text and HTML body, labels and attachment names
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Check label exists (Gmail)
+### Check label exists
 
 `ooa.google/gmail_label_exists` (action)
 
@@ -751,7 +759,7 @@ Check whether a Gmail label exists, by name (not case-sensitive) or id, and retu
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Find emails (Gmail)
+### Find emails
 
 `ooa.google/gmail_list_messages` (action)
 
@@ -769,6 +777,8 @@ Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread 
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
 | Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
 | Has attachments only | `has_attachments_only` | Yes/No | No | No | Main | Only messages with attachments. |
+| Oldest first | `oldest_first` | Yes/No | No | No | More options | The oldest messages first (G5). |
+| Local time | `local_time` | Yes/No | No | No | More options | received in the runner's time zone instead of UTC (G5). |
 | Query | `query` | Text | No |  | More options | Gmail search text; all messages when empty. Example: `from:billing@acme.com has:attachment newer_than:7d` |
 | Maximum results | `max_results` | Number | No | `100` | More options | Maximum messages returned. |
 | Include spam trash | `include_spam_trash` | Yes/No | No | No | More options | Also search Spam and Trash. |
@@ -783,7 +793,7 @@ Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread 
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
-### Change email status (Gmail)
+### Change email status
 
 `ooa.google/gmail_mark_message` (action)
 
@@ -800,7 +810,7 @@ Mark a Gmail message as read, unread, starred, not starred, important or not imp
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Move all emails (Gmail)
+### Move all emails
 
 `ooa.google/gmail_move_all` (action)
 
@@ -814,13 +824,14 @@ Add and remove labels on every Gmail message that matches a search or the filter
 | Remove labels | `remove_labels` | Any | No | `INBOX` | Main | Label name(s) or id(s) to remove; INBOX by default. |
 | Add labels | `add_labels` | Any | No |  | Main | Label name(s) or id(s) to add. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
-| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
+| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5). |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
 | From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
 | Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Keep other labels | `keep_other_labels` | Yes/No | No | Yes | More options | Keep the messages' other labels; off removes every label of your own except the ones added (G5). |
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages. Example: `from:billing@acme.com` |
-| Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run. |
+| Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run; 0 for no limit (G5). |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
@@ -831,7 +842,7 @@ Add and remove labels on every Gmail message that matches a search or the filter
 
 *Time limit 600 s; needs: network.*
 
-### Move email (Gmail)
+### Move email
 
 `ooa.google/gmail_move_message` (action)
 
@@ -856,7 +867,7 @@ Move a Gmail message between labels, e.g. add Processed and remove INBOX.
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Reply all to email (Gmail)
+### Reply all to email
 
 `ooa.google/gmail_reply_all` (action)
 
@@ -887,7 +898,7 @@ Reply to the sender and every other recipient of a Gmail message in the same thr
 
 *Time limit 60 s; needs: network.*
 
-### Reply to email (Gmail)
+### Reply to email
 
 `ooa.google/gmail_reply_message` (action)
 
@@ -916,7 +927,7 @@ Reply to the sender of a Gmail message in the same conversation thread.
 
 *Time limit 60 s; needs: network.*
 
-### Save attachments of all matching emails (Gmail)
+### Save all attachments
 
 `ooa.google/gmail_save_all_attachments` (action)
 
@@ -928,7 +939,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
-| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
+| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5). |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
 | From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
@@ -938,7 +949,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 | Name pattern | `name_pattern` | Text | No | `*` | More options | Only names matching this pattern, e.g. *.pdf. |
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages; all messages with attachments when empty. Example: `from:billing@acme.com` |
 | Mark read | `mark_read` | Yes/No | No | No | More options | Mark each matching message as read afterwards. |
-| Maximum messages | `max_messages` | Number | No | `100` | More options | Upper limit of messages handled in one run. |
+| Maximum messages | `max_messages` | Number | No | `100` | More options | Upper limit of messages handled in one run; 0 for no limit (G5). |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
@@ -950,7 +961,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 
 *Time limit 600 s; needs: network, filesystem.*
 
-### Save email attachments (Gmail)
+### Save attachments
 
 `ooa.google/gmail_save_attachments` (action)
 
@@ -975,7 +986,7 @@ Save a Gmail message's attachments to a folder, optionally only names matching a
 
 *Time limit 60 s; needs: network, filesystem.*
 
-### Save email as EML (Gmail)
+### Save email as EML
 
 `ooa.google/gmail_save_message_as_eml` (action)
 
@@ -999,7 +1010,7 @@ Save a complete Gmail message, with attachments, as an .eml file that mail progr
 
 *Time limit 60 s; needs: network, filesystem.*
 
-### Send email (Gmail)
+### Send email
 
 `ooa.google/gmail_send` (action)
 
@@ -1133,6 +1144,16 @@ Remove the values in a range while keeping its formatting and the cell layout.
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+### Close spreadsheet
+
+`ooa.google/sheets_close` (action)
+
+Close the open spreadsheet session (G5).
+
+No settings.
+
+*Time limit 60 s.*
 
 ### Copy range
 
@@ -1323,9 +1344,9 @@ Read the value of one cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | Google access token from the vault; the open spreadsheet session's when empty. |
+| Spreadsheet ID | `spreadsheet_id` | Text | No |  | Main | Spreadsheet id, URL or Drive path; the open spreadsheet session's when empty. |
+| Cell | `cell` | Text | No |  | Main | Cell such as Sheet1!B2 or B2; the session's current cell (Go to cell) when empty. Example: `Sheet1!B2` |
 | Formatted | `formatted` | Yes/No | No | No | Main | Return the text as displayed (e.g. 12.5%) instead of the raw value. |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
@@ -1388,6 +1409,21 @@ Read a range as a list of rows and, optionally, as a data table with the first r
 | `table` | Table | The same range as a data table. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+### Go to cell
+
+`ooa.google/sheets_go_to_cell` (action)
+
+Make a cell, and optionally another sheet, the current one of the open spreadsheet session (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cell | `cell` | Text | Yes |  | Main | The cell, e.g. B2; with a sheet, Sheet2!B2. Example: `B2` |
+| Sheet | `sheet` | Text | No |  | Main | Another sheet to make current. |
+
+*Time limit 60 s.*
 
 ### Hide sheet
 
@@ -1487,6 +1523,29 @@ List the sheets (tabs) of a spreadsheet with their size and visibility.
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+### Open spreadsheet
+
+`ooa.google/sheets_open` (action)
+
+Open a Google spreadsheet for the steps after it, with a current sheet and cell; cell steps then need no spreadsheet or cell (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
+| Sheet | `sheet` | Text | No |  | Main | The current sheet; the first sheet when empty. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `sheets` | List | The spreadsheet's sheet (tab) names. |
+
+*Time limit 60 s; needs: network.*
+
 ### Read sheet range
 
 `ooa.google/sheets_read` (action)
@@ -1546,9 +1605,9 @@ Read the formula of one cell (the plain value when the cell has no formula).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!D2` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | Google access token from the vault; the open spreadsheet session's when empty. |
+| Spreadsheet ID | `spreadsheet_id` | Text | No |  | Main | Spreadsheet id, URL or Drive path; the open spreadsheet session's when empty. |
+| Cell | `cell` | Text | No |  | Main | Cell such as Sheet1!B2 or B2; the session's current cell (Go to cell) when empty. Example: `Sheet1!D2` |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
@@ -1637,9 +1696,9 @@ Write a value into one cell; text is interpreted as if typed by a user.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | Google access token from the vault; the open spreadsheet session's when empty. |
+| Spreadsheet ID | `spreadsheet_id` | Text | No |  | Main | Spreadsheet id, URL or Drive path; the open spreadsheet session's when empty. |
+| Cell | `cell` | Text | No |  | Main | Cell such as Sheet1!B2 or B2; the session's current cell (Go to cell) when empty. Example: `Sheet1!B2` |
 | Value | `value` | Any | Yes |  | Main | Value to write; empty clears the cell. |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
@@ -1655,9 +1714,9 @@ Put a formula into one cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!D2` |
+| Access token | `access_token` | Credential (vault) | No |  | Main | Google access token from the vault; the open spreadsheet session's when empty. |
+| Spreadsheet ID | `spreadsheet_id` | Text | No |  | Main | Spreadsheet id, URL or Drive path; the open spreadsheet session's when empty. |
+| Cell | `cell` | Text | No |  | Main | Cell such as Sheet1!B2 or B2; the session's current cell (Go to cell) when empty. Example: `Sheet1!D2` |
 | Formula | `formula` | Text | Yes |  | Main | Formula; a leading = is added when missing. Example: `=SUM(B2:C2)` |
 | Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
@@ -1733,6 +1792,24 @@ Write a data table to a sheet from a start cell, optionally clearing the sheet f
 
 *Time limit 60 s; needs: network.*
 
+## Conditions
+
+Used in If, Loop while and Wait until steps.
+
+### Gmail label exists
+
+`ooa.google/gmail_label_exists` (condition)
+
+True when the Gmail label exists, by name (not case-sensitive) or id (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Label | `label` | Text | Yes |  | Main | Label name or id. |
+| Endpoint address | `base_url` | Text | No |  | Main | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+
 ## Loop types
 
 Used as the kind of loop in a Loop step.
@@ -1759,3 +1836,5 @@ Go through the messages matching the Find emails (Gmail) filters, one per turn: 
 | Maximum results | `max_results` | Number | No | `100` | Main | Stop after this many messages. |
 | With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |
 | Endpoint address | `base_url` | Text | No |  | Main | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Oldest first | `oldest_first` | Yes/No | No | No | Main | The oldest messages first (G5). |
+| Local time | `local_time` | Yes/No | No | No | Main | received in the runner's time zone instead of UTC (G5). |

@@ -23,6 +23,8 @@ End a transaction opened with Open transaction and record its values, outcome an
 | Transaction | `transaction` | Text | Yes |  | Main | Name used in Open transaction. |
 | Outcome | `outcome` | Text | No | `success` | Main | How the transaction ended. One of: `success`, `failure`, `business_exception` |
 | Values | `values` | Dictionary | No |  | Main | Business values to record, e.g. {"amount": 120, "supplier": "Acme"}; leave out sensitive fields. Credentials are refused. |
+| Status | `status` | Text | No |  | More options | G1 (AA parity): a status in your own words (or from a variable), recorded instead of the outcome when given. Example: `Partially paid` |
+| Include variables | `include_variables` | Yes/No | No | No | More options | G1 (AA parity): also record every variable of the agent (credentials never), after the values listed. |
 
 **Results**
 

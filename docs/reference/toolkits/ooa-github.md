@@ -6,7 +6,7 @@ Toolkit `ooa.github`, version 1.0.0. Work with GitHub repositories: issues, pull
 
 ## Contents
 
-- **Issues**: Comment on issue or pull request, Close issue, Create issue, Get issue, List issues, Update issue
+- **Issues**: Add comment, Close issue, Create issue, Get issue, List issues, Update issue
 - **Branches**: Create branch, List branches
 - **Pull requests**: Create pull request, Get pull request, List pull requests, Merge pull request
 - **Releases**: Create release, Get latest release
@@ -17,7 +17,7 @@ Toolkit `ooa.github`, version 1.0.0. Work with GitHub repositories: issues, pull
 
 ## Issues
 
-### Comment on issue or pull request
+### Add comment
 
 `ooa.github/add_issue_comment` (action)
 
@@ -291,6 +291,7 @@ List pull requests, filtered by state and target branch.
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | State | `state` | Text | No | `open` | Main | open, closed or all. One of: `open`, `closed`, `all` |
 | Target branch | `target_branch` | Text | No |  | Main | Only pull requests that merge into this branch. Example: `main` |
+| Source branch | `source_branch` | Text | No |  | Main | Only pull requests from this branch; owner:branch for a fork (G5). Example: `feature/invoices` |
 | Maximum results | `max_results` | Number | No | `100` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://api.github.com` | More options | API address. Keep the default for github.com; for GitHub Enterprise Server use https://github.yourcompany.com/api/v3. |
 

@@ -6,10 +6,41 @@ Toolkit `ooa.ocr`, version 1.0.0. Read text from images, image URLs or the scree
 
 ## Contents
 
-- **OCR**: Add OCR language to Windows, Click text on screen, Get OCR engines, Find text in image, Read text from image, Read text from screen, Read text from image URL, Read text with a cloud engine
+- **OCR**: Act next to a label, Add OCR language to Windows, Click text on screen, Get OCR engines, Find text in image, Read text from image, Read text from screen, Read text from image URL, Read text (cloud)
 - **Conditions**: Text is on screen
 
 ## OCR
+
+### Act next to a label
+
+`ooa.ocr/act_near_label` (action)
+
+Find a label on the screen with OCR (e.g. Invoice number:) and click, type into or read the field next to it: for remote desktops and screens without accessible controls (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Label | `label` | Text | Yes |  | Main | The label's text as the screen shows it. Example: `Invoice number` |
+| Where | `where` | Text | No | `right` | Main | Where the field is from its label. One of: `right`, `below`, `left`, `above` |
+| Action | `action` | Text | No | `read` | Main | What to do with the field. One of: `read`, `click`, `type` |
+| Text | `text` | Text | No |  | Main | type: the text to type; it may come from the vault. Shown when: `{"action": ["type"]}` |
+| Occurrence | `occurrence` | Number | No | `1` | More options | Which appearance of the label, counting in reading order from 1. Range: 1 to  |
+| Gap | `gap` | Number | No | `8` | More options | Pixels between the label and the field. Range: 0 to  |
+| Field width | `field_width` | Number | No | `220` | More options | Width of the field in pixels. Range: 10 to  |
+| Field height | `field_height` | Number | No | `0` | More options | Height of the field in pixels; a little more than the label when 0. Range: 0 to  |
+| Language | `language` | Text | No | `eng` | More options | Tesseract language(s), e.g. eng, deu or eng+fra. |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | More options | Keep looking for the label this many seconds; 0 looks once. Range: 0 to 600 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | read: the text of the field; otherwise empty. |
+| `x` | Number | Centre x of the field on the screen. |
+| `y` | Number | Centre y of the field on the screen. |
+
+*Time limit 300 s; needs: desktop.*
 
 ### Add OCR language to Windows
 
@@ -107,13 +138,15 @@ Locate a word or phrase in an image, or its n-th appearance; returns whether it 
 
 `ooa.ocr/read_image` (action)
 
-Extract text from an image file (PNG, JPG, TIFF, BMP), or from a region of it, optionally keeping only the text between two markers.
+Extract text from an image file (PNG, JPG, TIFF, BMP) or a PDF, or from a region of an image, optionally keeping only the text between two markers.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Image file. |
+| Password | `password` | Credential (vault) | No |  | Main; tick The PDF has a password | A PDF's password (G4). |
+| Pages | `pages` | Text | No |  | Main; tick Only some PDF pages | A PDF's pages to read, e.g. 1,3,5-7; every page when empty (G4). Example: `1,3,5-7` |
 | After text | `after_text` | Text | No |  | Main; tick Keep only part of the text | Keep only the text after the first occurrence of this marker, e.g. Invoice number:. |
 | Before text | `before_text` | Text | No |  | Main; tick Keep only part of the text | Keep only the text before this marker (searched after the after_text marker). |
 | Trim | `trim` | Yes/No | No | Yes | Main | Remove spaces and line breaks at the start and end of the result. |
@@ -170,13 +203,15 @@ Capture the screen (or a region) and extract its text, optionally keeping only t
 
 `ooa.ocr/read_url` (action)
 
-Download an image from an http or https address and extract its text, optionally keeping only the text between two markers.
+Download an image or a PDF from an http or https address and extract its text, optionally keeping only the text between two markers.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Address (URL) | `url` | Text | Yes |  | Main | Address of the image. Example: `https://example.com/scan.png` |
+| Password | `password` | Credential (vault) | No |  | Main; tick The PDF has a password | A PDF's password (G4). |
+| Pages | `pages` | Text | No |  | Main; tick Only some PDF pages | A PDF's pages to read, e.g. 1,3,5-7; every page when empty (G4). Example: `1,3,5-7` |
 | After text | `after_text` | Text | No |  | Main; tick Keep only part of the text | Keep only the text after the first occurrence of this marker, e.g. Invoice number:. |
 | Before text | `before_text` | Text | No |  | Main; tick Keep only part of the text | Keep only the text before this marker (searched after the after_text marker). |
 | Trim | `trim` | Yes/No | No | Yes | Main | Remove spaces and line breaks at the start and end of the result. |
@@ -194,7 +229,7 @@ Download an image from an http or https address and extract its text, optionally
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
-### Read text with a cloud engine
+### Read text (cloud)
 
 `ooa.ocr/read_with_cloud` (action)
 

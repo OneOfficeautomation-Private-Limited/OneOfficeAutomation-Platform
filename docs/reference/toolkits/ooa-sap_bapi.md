@@ -6,7 +6,7 @@ Toolkit `ooa.sap_bapi`, version 1.0.0. Call SAP BAPIs and RFC function modules t
 
 ## Contents
 
-- **Functions**: Run BAPI / function, Commit, Get function details, Roll back
+- **Functions**: Run BAPI / function, Commit, Get function details, Roll back, Find functions
 - **Session**: Connect, Disconnect
 - **Tables**: Read table
 
@@ -27,6 +27,9 @@ Run a BAPI or remote-enabled function module with import values (structures as d
 | Tables | `tables` | Dictionary | No |  | Main | Table parameters: name to a Table or a list of dictionaries (one per row). |
 | Changing | `changing` | Dictionary | No |  | Main | Changing parameters. |
 | Commit | `commit` | Yes/No | No | No | Main | Run BAPI_TRANSACTION_COMMIT (wait) right after a successful call. |
+| Return table | `return_table` | Text | No |  | More options | A table parameter to return on its own as Table. Example: `ORDER_ITEMS_OUT` |
+| Return structure | `return_structure` | Text | No |  | More options | An export or changing structure to return on its own as a dictionary. Example: `ADDRESS` |
+| Return field | `return_field` | Text | No |  | More options | One value to return on its own: an export field, or STRUCTURE-FIELD. Example: `SALESDOCUMENT` |
 | Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Stop with SAP_BAPI.FAILED when RETURN has an error (type E or A); the call is rolled back. |
 | Session | `session` | Text | No | `sap` | More options | Session name; one SAP logon per session. |
 
@@ -34,6 +37,9 @@ Run a BAPI or remote-enabled function module with import values (structures as d
 
 | Name | Type | Description |
 | --- | --- | --- |
+| `table` | Table | With return_table: that table parameter after the call, on its own. |
+| `structure` | Dictionary | With return_structure: that export or changing structure, on its own. |
+| `value` | Any | With return_field: that one value (an export field, or STRUCTURE-FIELD). |
 | `exports` | Dictionary | Export parameters (structures as dictionaries, tables as Tables). |
 | `tables` | Dictionary | Every table parameter after the call, as Tables. |
 | `changing` | Dictionary | Changing parameters after the call. |
@@ -81,6 +87,7 @@ List the parameters of a BAPI or function module (direction, type, optional, des
 | Name | Type | Description |
 | --- | --- | --- |
 | `parameters` | List | One dictionary per parameter: name, direction, type, optional, description, fields. |
+| `required_values` | Dictionary | The imports, changing values and tables that must be given, with empty values to fill in (paste into Run BAPI / function). |
 
 *Time limit 120 s; safe to repeat; needs: network.*
 
@@ -98,6 +105,32 @@ Undo the work of the BAPIs called in this session since the last commit (BAPI_TR
 
 *Time limit 120 s; needs: network.*
 
+### Find functions
+
+`ooa.sap_bapi/search_functions` (action)
+
+Find remote-enabled functions and BAPIs by name pattern (* for any text) and function group, with their short descriptions.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pattern | `pattern` | Text | No | `BAPI_*` | Main | Function name, with * for any text, e.g. BAPI_SALESORDER*. Example: `BAPI_SALESORDER*` |
+| Group | `group` | Text | No |  | Main | Only functions of this function group (* allowed). |
+| Maximum rows | `max_rows` | Number | No | `200` | More options | Most functions to list. Range: 1 to 5000 |
+| Language | `language` | Text | No | `EN` | More options | Language of the descriptions. |
+| Session | `session` | Text | No | `sap` | More options | Session name; one SAP logon per session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: name, group, description. |
+| `names` | List | The function names found. |
+| `count` | Number | How many were found. |
+
+*Time limit 120 s; safe to repeat; needs: network.*
+
 ## Session
 
 ### Connect
@@ -110,19 +143,24 @@ Log on to an SAP system through SAP JCo (application server or message server wi
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | No |  | Main; choice Server = Application server | Application server host name or IP address. |
+| Host | `host` | Text | No |  | Main; choice Server = Application server | Application server host name or IP address; it may come from the vault. |
 | System number | `system_number` | Text | No |  | Main; choice Server = Application server | Two-digit SAP system (instance) number. Example: `00` |
-| Message server | `message_server` | Text | No |  | Main; choice Server = Message server and logon group | Message server host, for load balancing instead of one application server. |
+| Message server | `message_server` | Text | No |  | Main; choice Server = Message server and logon group | Message server host, for load balancing instead of one application server; it may come from the vault. |
 | System ID | `system_id` | Text | No |  | Main; choice Server = Message server and logon group | Three-character system ID (with a message server). |
 | Logon group | `logon_group` | Text | No | `PUBLIC` | Main; choice Server = Message server and logon group | Logon group (with a message server). |
 | Client | `client` | Text | Yes |  | Main | Three-digit SAP client. Example: `100` |
-| User | `user` | Text | No |  | Main | SAP user name (empty with SNC single sign-on). |
-| Password | `password` | Credential (vault) | No |  | Main | SAP password from the vault (empty with SNC single sign-on). |
+| Sign in | `sign_in` | Text | No |  | Main | How to sign in: password (user and password), snc (secure network single sign-on), or snc_and_password (secure network plus user and password); worked out from the fields when empty. One of: `password`, `snc`, `snc_and_password` |
+| User | `user` | Text | No |  | Main | SAP user name; it may come from the vault. Shown when: `{"sign_in": ["!", "snc"]}` |
+| Password | `password` | Credential (vault) | No |  | Main | SAP password from the vault. Shown when: `{"sign_in": ["!", "snc"]}` |
+| Snc partner name | `snc_partner_name` | Text | No |  | Main | SNC name of the SAP system; turns on SNC (secure, single sign-on). Example: `p:CN=SAP-ERP, O=Example`; Shown when: `{"sign_in": ["!", "password"]}` |
+| Snc protection | `snc_protection` | Text | No | `maximum` | Main | SNC protection level: authentication only, integrity, privacy (encryption), the system's default, or the maximum both sides support. One of: `authentication`, `integrity`, `privacy`, `default`, `maximum`; Shown when: `{"sign_in": ["!", "password"]}` |
+| Snc library | `snc_library` | File path | No |  | Main | Path of the SNC library (e.g. sapcrypto.dll) when SNC is used. Shown when: `{"sign_in": ["!", "password"]}` |
 | Language | `language` | Text | No | `EN` | Main | Logon language, e.g. EN or DE. |
 | Router | `router` | Text | No |  | More options | SAP router string. Example: `/H/saprouter.example.com/S/3299/H/` |
-| Snc partner name | `snc_partner_name` | Text | No |  | More options | SNC name of the SAP system; turns on SNC (secure, single sign-on). Example: `p:CN=SAP-ERP, O=Example` |
-| Snc library | `snc_library` | File path | No |  | More options | Path of the SNC library (e.g. sapcrypto.dll) when SNC is used. |
+| Gateway host | `gateway_host` | Text | No |  | More options | Gateway host, when it is not the application or message server. |
+| Gateway service | `gateway_service` | Text | No |  | More options | Gateway service (sapgwNN) or port, with the gateway host. Example: `sapgw00` |
 | Properties | `properties` | Dictionary | No |  | More options | Other JCo destination properties, e.g. {"jco.destination.pool_capacity": "3"}. |
+| Jco folder | `jco_folder` | File path | No |  | More options | Folder holding sapjco3.jar and its native library, for this runner; the runner's usual places are used when empty. |
 | Session | `session` | Text | No | `sap` | More options | Session name; one SAP logon per session. |
 
 **Results**

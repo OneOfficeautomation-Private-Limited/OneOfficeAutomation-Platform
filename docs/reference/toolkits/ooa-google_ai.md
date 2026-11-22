@@ -17,20 +17,21 @@ Toolkit `ooa.google_ai`, version 1.0.0. Read sentiment and entities in text with
 
 `ooa.google_ai/connect` (action)
 
-Open a session with an API key or OAuth access token from the vault, and the project and location of your Document AI processors.
+Open a session with an API key, an OAuth access token or a service account key, and the project and location of your Document AI processors.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `google_ai` | Main | Session name. |
-| Credential | `credential` | Credential (vault) | Yes |  | Main | API key or OAuth access token from the vault. |
-| Credential type | `credential_type` | Text | No | `api_key` | Main | api_key: a Google Cloud API key (Natural Language and Vision). access_token: an OAuth token of a service account or user (needed for Document AI). One of: `api_key`, `access_token` |
-| Project | `project` | Text | No |  | More options | Google Cloud project id or number; needed for Document AI, and billed for calls made with an access token. Example: `acme-ai-prod` |
+| Credential | `credential` | Credential (vault) | No |  | Main | API key, OAuth access token or service account key (the key file's JSON) from the vault. |
+| Credential type | `credential_type` | Text | No | `api_key` | Main | api_key: a Google Cloud API key (Natural Language and Vision). access_token: an OAuth token of a service account or user (needed for Document AI). service_account_json: a service account's JSON key, from the vault or a file; the session gets and renews its own access tokens (G6). One of: `api_key`, `access_token`, `service_account_json` |
+| Key file | `key_file` | File path | No |  | Main | The service account's JSON key file, when the key is not in the vault (G6). Keep the file where only the runner's account can read it. Shown when: `{"credential_type": ["service_account_json"]}` |
+| Project | `project` | Text | No |  | More options | Google Cloud project id or number; needed for Document AI, and billed for calls made with an access token. It may come from the vault. Example: `acme-ai-prod` |
 | Location | `location` | Text | No | `us` | More options | Location of the Document AI processors: us or eu. One of: `us`, `eu` |
 | Endpoint | `endpoint` | Text | No |  | More options | Another address for the APIs, e.g. a Private Service Connect address; {service} in it becomes language, vision or us-documentai (eu-documentai). Leave empty for Google's addresses. |
 
-*Time limit 60 s.*
+*Time limit 60 s; needs: filesystem.*
 
 ### Disconnect
 
@@ -59,8 +60,9 @@ Send a document to a Document AI processor (e.g. an invoice, form, OCR or custom
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `google_ai` | Main | Name of the session opened by Connect. |
-| Processor ID | `processor_id` | Text | Yes |  | Main | Id of the processor, from its page in the Google Cloud console. Example: `a1b2c3d4e5f60718` |
+| Processor ID | `processor_id` | Text | Yes |  | Main | Id of the processor, from its page in the Google Cloud console. It may come from the vault. Example: `a1b2c3d4e5f60718` |
 | File | `file` | File path | Yes |  | Main | PDF, TIFF, GIF, JPEG, PNG, BMP or WEBP file; at most 20 MB. |
+| Project | `project` | Text | No |  | More options | The project that owns the processor, when it is not the one given to Connect (G6). It may come from the vault. |
 | Processor version | `processor_version` | Text | No |  | More options | A processor version id, e.g. pretrained-invoice-v2.0-2023-12-06. Leave empty for the default version. |
 | MIME type | `mime_type` | Text | No |  | More options | Content type of the file, e.g. application/pdf. Leave empty to take it from the file name. |
 | First row headers | `first_row_headers` | Yes/No | No | Yes | More options | Use each table's header row (or first row) as its column names. |

@@ -1,4 +1,4 @@
-# Outlook (desktop, needs Outlook)
+# Outlook desktop
 
 Toolkit `ooa.outlook_desktop`, version 1.0.0. Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile.
 
@@ -6,11 +6,27 @@ Toolkit `ooa.outlook_desktop`, version 1.0.0. Find, read, send, reply to, forwar
 
 ## Contents
 
-- **Mailbox**: Delete email, Read email, Get folders, Find emails, Mark read or unread, Move email, Save attachments
+- **Mailbox**: Use mailbox, Delete email, Delete all emails, Stop using mailbox, Read email, Get folders, Find emails, Mark read or unread, Move email, Move all emails, Save all emails, Save attachments, Save email
 - **Send**: Forward email, Reply to email, Send email
+- **Conditions**: Outlook folder exists
 - **Loop types**: Each email in an Outlook folder
 
 ## Mailbox
+
+### Use mailbox
+
+`ooa.outlook_desktop/connect` (action)
+
+Name the mailbox once, e.g. a shared mailbox, for every later Outlook desktop step that leaves its mailbox empty; it is checked now.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Mailbox | `mailbox` | Text | No |  | Main | A mailbox open in the runner's Outlook profile (its name or address); empty for the user's own. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same mailbox. |
+
+*Time limit 60 s; needs: desktop.*
 
 ### Delete email
 
@@ -25,6 +41,44 @@ Delete an email (Outlook moves it to Deleted Items).
 | ID | `id` | Text | Yes |  | Main | The email's id from Find emails. |
 
 *Time limit 60 s; needs: desktop.*
+
+### Delete all emails
+
+`ooa.outlook_desktop/delete_all` (action)
+
+Delete every email in a folder that the filters find (Outlook moves them to Deleted Items).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `Inbox` | Main | Folder path. Example: `Inbox/Old` |
+| Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Only emails whose subject contains this text. |
+| From contains | `from_contains` | Text | No |  | Main | Only emails whose sender address or name contains this text. |
+| Received after | `received_after` | DateTime | No |  | Main | Only emails received after this date and time. |
+| Received before | `received_before` | DateTime | No |  | Main | Only emails received before this date and time (G3). |
+| With attachments only | `with_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments (G3). |
+| Largest value | `max` | Number | No | `500` | Main | At most this many emails. Range: 1 to 5000 |
+| Mailbox | `mailbox` | Text | No |  | More options | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `count` | Number | How many emails were deleted. |
+
+*Time limit 600 s; needs: desktop.*
+
+### Stop using mailbox
+
+`ooa.outlook_desktop/disconnect` (action)
+
+Later Outlook desktop steps go back to the user's own mailbox, or the one each names.
+
+No settings.
+
+*Time limit 60 s.*
 
 ### Read email
 
@@ -81,6 +135,8 @@ List the newest emails in an Outlook folder, optionally only unread ones, by sub
 | Subject contains | `subject_contains` | Text | No |  | Main | Only emails whose subject contains this text. |
 | From contains | `from_contains` | Text | No |  | Main | Only emails whose sender address or name contains this text. |
 | Received after | `received_after` | DateTime | No |  | Main | Only emails received after this date and time. |
+| Received before | `received_before` | DateTime | No |  | Main | Only emails received before this date and time (G3). |
+| With attachments only | `with_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments (G3). |
 | Largest value | `max` | Number | No | `50` | Main | At most this many emails. Range: 1 to 5000 |
 | Mailbox | `mailbox` | Text | No |  | More options | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `120` | More options | Maximum time. |
@@ -133,11 +189,73 @@ Move an email to another folder, e.g. Inbox/Done. The email gets a new id.
 
 *Time limit 60 s; needs: desktop.*
 
+### Move all emails
+
+`ooa.outlook_desktop/move_all` (action)
+
+Move every email in a folder that the filters find to another folder, e.g. Inbox/Done. The emails get new ids.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `Inbox` | Main | Folder path to move from. |
+| To folder | `to_folder` | Text | Yes |  | Main | Folder path to move them to. Example: `Inbox/Done` |
+| Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Only emails whose subject contains this text. |
+| From contains | `from_contains` | Text | No |  | Main | Only emails whose sender address or name contains this text. |
+| Received after | `received_after` | DateTime | No |  | Main | Only emails received after this date and time. |
+| Received before | `received_before` | DateTime | No |  | Main | Only emails received before this date and time (G3). |
+| With attachments only | `with_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments (G3). |
+| Largest value | `max` | Number | No | `500` | Main | At most this many emails. Range: 1 to 5000 |
+| Mailbox | `mailbox` | Text | No |  | More options | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
+| To mailbox | `to_mailbox` | Text | No |  | More options | The mailbox of the folder to move to; the same mailbox when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `ids` | List | The moved emails' new ids. |
+| `count` | Number | How many emails were moved. |
+
+*Time limit 600 s; needs: desktop.*
+
+### Save all emails
+
+`ooa.outlook_desktop/save_all` (action)
+
+Save every email in a folder that the filters find as files (.msg keeps the attachments), named after their subjects.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `Inbox` | Main | Folder path. |
+| Save to | `save_to` | File path | Yes |  | Main | Folder on the runner to save into. |
+| Format | `format` | Text | No | `msg` | Main | File type: msg (Outlook, keeps attachments), txt, html or mht. One of: `msg`, `txt`, `html`, `mht` |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | Replace a file of the same name; off: the new file gets a number such as (1). |
+| Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Only emails whose subject contains this text. |
+| From contains | `from_contains` | Text | No |  | Main | Only emails whose sender address or name contains this text. |
+| Received after | `received_after` | DateTime | No |  | Main | Only emails received after this date and time. |
+| Received before | `received_before` | DateTime | No |  | Main | Only emails received before this date and time (G3). |
+| With attachments only | `with_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments (G3). |
+| Largest value | `max` | Number | No | `500` | Main | At most this many emails. Range: 1 to 5000 |
+| Mailbox | `mailbox` | Text | No |  | More options | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `files` | List | The saved files. |
+
+*Time limit 600 s; needs: desktop, filesystem.*
+
 ### Save attachments
 
 `ooa.outlook_desktop/save_attachments` (action)
 
-Save an email's attachments to a folder, optionally only those matching a name pattern; existing files are kept and new ones numbered.
+Save an email's attachments to a folder, optionally only those matching a name pattern; existing files are kept and new ones numbered, or replaced.
 
 **Settings**
 
@@ -146,6 +264,7 @@ Save an email's attachments to a folder, optionally only those matching a name p
 | ID | `id` | Text | Yes |  | Main | The email's id from Find emails. |
 | Folder | `folder` | File path | Yes |  | Main | Folder to save into. |
 | Name pattern | `name_pattern` | Text | No |  | Main | Only attachments whose name matches, e.g. *.pdf. Example: `*.pdf` |
+| Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file of the same name; off: the new file gets a number such as (1). (G3) |
 
 **Results**
 
@@ -155,13 +274,37 @@ Save an email's attachments to a folder, optionally only those matching a name p
 
 *Time limit 60 s; needs: desktop, filesystem.*
 
+### Save email
+
+`ooa.outlook_desktop/save_email` (action)
+
+Save one email as a file: .msg (opens in Outlook, keeps the attachments), text, HTML or MHT.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| ID | `id` | Text | Yes |  | Main | The email's id from Find emails. |
+| Save to | `save_to` | File path | Yes |  | Main | Folder on the runner to save into. |
+| Format | `format` | Text | No | `msg` | Main | File type: msg (Outlook, keeps attachments), txt, html or mht. One of: `msg`, `txt`, `html`, `mht` |
+| File name | `file_name` | Text | No |  | More options | File name with its extension; the email's subject when empty. |
+| Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file of the same name; off: the new file gets a number such as (1). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | The saved file. |
+
+*Time limit 60 s; needs: desktop, filesystem.*
+
 ## Send
 
 ### Forward email
 
 `ooa.outlook_desktop/forward` (action)
 
-Forward an email with its attachments, with a note above it; send it or keep it in Drafts.
+Forward an email with its attachments, with a note above it and more files if wanted; send it or keep it in Drafts.
 
 **Settings**
 
@@ -170,6 +313,10 @@ Forward an email with its attachments, with a note above it; send it or keep it 
 | ID | `id` | Text | Yes |  | Main | The email's id from Find emails. |
 | To | `to` | Text | Yes |  | Main | Recipients, separated by semicolons. |
 | Body | `body` | Text | No |  | Main | A note above the forwarded email. |
+| Body is HTML | `html` | Yes/No | No | No | Main | The note is HTML (bold, links, lists) (G3). |
+| Attachments | `attachments` | List | No |  | Main | More files to attach (G3). |
+| Cc | `cc` | Text | No |  | More options | Copy to (G3), separated by semicolons. |
+| Bcc | `bcc` | Text | No |  | More options | Blind copy to (G3). |
 | Save as draft | `save_as_draft` | Yes/No | No | No | More options | Keep it in Drafts instead of sending. |
 
 **Results**
@@ -184,7 +331,7 @@ Forward an email with its attachments, with a note above it; send it or keep it 
 
 `ooa.outlook_desktop/reply` (action)
 
-Reply to the sender (or everyone) above the original message; send it or keep it in Drafts.
+Reply to the sender (or everyone) above the original message, with copies and files if wanted; send it or keep it in Drafts.
 
 **Settings**
 
@@ -192,7 +339,11 @@ Reply to the sender (or everyone) above the original message; send it or keep it
 | --- | --- | --- | --- | --- | --- | --- |
 | ID | `id` | Text | Yes |  | Main | The email's id from Find emails. |
 | Body | `body` | Text | No |  | Main | Your reply (text). |
+| Body is HTML | `html` | Yes/No | No | No | Main | The reply is HTML (bold, links, lists) (G3). |
 | Reply all | `reply_all` | Yes/No | No | No | Main | Reply to everyone on the email. |
+| Attachments | `attachments` | List | No |  | Main | Files to attach (G3). |
+| Cc | `cc` | Text | No |  | More options | Also copy to (G3), separated by semicolons. |
+| Bcc | `bcc` | Text | No |  | More options | Blind copy to (G3). |
 | Save as draft | `save_as_draft` | Yes/No | No | No | More options | Keep it in Drafts instead of sending. |
 
 **Results**
@@ -231,6 +382,23 @@ Send an email from Outlook, or keep it in Drafts for someone to check, with atta
 
 *Time limit 120 s; needs: desktop.*
 
+## Conditions
+
+Used in If, Loop while and Wait until steps.
+
+### Outlook folder exists
+
+`ooa.outlook_desktop/folder_exists` (condition)
+
+True when the mailbox has the folder, e.g. Inbox/Invoices.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | Yes |  | Main | Folder path. Example: `Inbox/Invoices` |
+| Mailbox | `mailbox` | Text | No |  | Main | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
+
 ## Loop types
 
 Used as the kind of loop in a Loop step.
@@ -253,3 +421,6 @@ Go through the emails matching the Find emails filters, one per turn: id, subjec
 | Largest value | `max` | Number | No | `50` | Main | At most this many emails. Range: 1 to 5000 |
 | With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |
 | Mailbox | `mailbox` | Text | No |  | Main | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |
+| Received before | `received_before` | DateTime | No |  | Main | Only emails received before this date and time (G3). |
+| With attachments only | `with_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments (G3). |
+| Read state | `read_state` | Text | No | `all` | Main | All emails, only unread ones or only read ones (G3); unread_only still works. One of: `all`, `unread`, `read` |

@@ -8,6 +8,7 @@ Toolkit `ooa.databricks`, version 1.0.0. Run SQL on a Databricks SQL warehouse, 
 
 - **Jobs**: Cancel job run, Get job run, Get job run output, List jobs, Run job now
 - **SQL**: Cancel statement, Run SQL statement, Get statement results, Get statement status
+- **Connection**: Connect, Disconnect
 - **Files**: Delete file, Download file, Upload file
 - **Clusters**: List clusters, Start cluster, Stop cluster
 
@@ -23,8 +24,10 @@ Stop a job run that is queued or running.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
 
 *Time limit 60 s; needs: network.*
@@ -39,8 +42,10 @@ Check the progress and outcome of a job run.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
 
 **Results**
@@ -63,8 +68,10 @@ Read what a finished job run produced: the notebook's result, the error and its 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
 
 **Results**
@@ -89,8 +96,10 @@ Return the jobs in the workspace, optionally only those with a given name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Maximum results | `max_results` | Number | No | `1000` | Main | Most jobs to return. |
 | Name | `name` | Text | No |  | More options | Only the job with exactly this name. |
 
@@ -113,8 +122,10 @@ Start a job right away, optionally with parameters, and wait for it to finish if
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Job ID | `job_id` | Text | Yes |  | Main | Job to start: its name or id (see List jobs). |
 | Job parameters | `job_parameters` | Dictionary | No |  | Main | Job parameter values, e.g. {"run_date": "2026-10-20"}. |
 | Wait | `wait` | Yes/No | No | No | Main; tick Wait until it ends | Wait for the run to end before going on. |
@@ -144,8 +155,10 @@ Stop a SQL statement that is still running.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 
 *Time limit 60 s; needs: network.*
@@ -160,8 +173,10 @@ Run SQL on a SQL warehouse and return the rows as a data table. Use :name in the
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Warehouse ID | `warehouse_id` | Text | Yes |  | Main | SQL warehouse that runs the statement: its name or its id (from its Connection details). |
 | SQL statement | `sql` | Text | Yes |  | Main | SQL to run. Example: `SELECT * FROM sales.orders WHERE region = :region` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Values for :name markers in the SQL, e.g. {"region": "EMEA"}. |
@@ -191,8 +206,10 @@ Read the rows of a finished SQL statement into a data table, chunk by chunk.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 | Maximum rows | `max_rows` | Number | No | `100000` | Main | Most rows to bring back. |
 | Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | How long to wait for a running statement to finish; 0 fails at once if it is still running. Range: 0 to  |
@@ -217,8 +234,10 @@ Check whether a SQL statement that was left running has finished.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 
 **Results**
@@ -230,6 +249,47 @@ Check whether a SQL statement that was left running has finished.
 | `total_rows` | Number | Rows in the result once it succeeded. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.databricks/connect` (action)
+
+Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | The workspace url the later steps use (G6). |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | The access token the later steps use (G6). |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
+| Session | `session` | Text | No |  | More options | The session's name; the toolkit's default session when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.databricks/disconnect` (action)
+
+Forget the open Databricks session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*
 
 ## Files
 
@@ -243,8 +303,10 @@ Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Remote path | `remote_path` | Text | Yes |  | Main | File to delete. Example: `/Volumes/main/finance/inbox/old.csv` |
 | Recursive | `recursive` | Yes/No | No | No | More options | DBFS only: also delete a folder with everything in it. |
 
@@ -260,11 +322,13 @@ Save a file from a Unity Catalog volume, the workspace, or DBFS to this machine.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Remote path | `remote_path` | Text | Yes |  | Main | File to download, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv. Example: `/Volumes/main/finance/outbox/result.csv` |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save it on this machine. Missing folders are created. |
-| Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file already at save_as; when off, the action stops instead and nothing is downloaded. |
+| Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file already at save_as; when off, the action stops instead and nothing is downloaded. Off for new steps (G6). |
 
 **Results**
 
@@ -285,11 +349,13 @@ Copy a local file into a Unity Catalog volume, the workspace, or DBFS.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Local path | `local_path` | File path | Yes |  | Main | File on this machine to upload. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Destination, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv. Example: `/Volumes/main/finance/inbox/report.csv` |
-| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that is already there. |
+| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that is already there; off for new steps (G6). |
 
 **Results**
 
@@ -311,8 +377,10 @@ Return the workspace's clusters and their state.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 
 **Results**
 
@@ -333,8 +401,10 @@ Start a stopped cluster, and wait until it is running if you like. Nothing happe
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to start: its name or id (see List clusters). |
 | Wait | `wait` | Yes/No | No | Yes | Main; tick Wait until running | Wait until the cluster is ready before going on. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `1200` | Main; tick Wait until running | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
@@ -357,8 +427,10 @@ Stop a running cluster to save cost. Its settings are kept so it can be started 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Workspace address (URL) | `workspace_url` | Text | No |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = A personal access token | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Client ID | `client_id` | Text | No |  | Main; choice Sign in with = A service principal | Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6). |
+| Client secret | `client_secret` | Credential (vault) | No |  | Main; choice Sign in with = A service principal | The service principal's OAuth secret from the vault (G6). |
 | Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to stop: its name or id. |
 | Wait | `wait` | Yes/No | No | No | Main; tick Wait until stopped | Wait until the cluster has stopped before going on. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `1200` | Main; tick Wait until stopped | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |

@@ -183,6 +183,7 @@ List ticket fields with their ids, to fill custom_fields in Create ticket and Up
 | Email | `email` | Text | No |  | Main; choice Sign in with = Email and API token | Email of the agent the API token belongs to. Leave empty when using an OAuth token. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Email and API token | Zendesk API token from the vault (used with email). |
 | OAuth token | `oauth_token` | Credential (vault) | No |  | Main; choice Sign in with = OAuth token | OAuth access token from the vault, instead of email and API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Field type | `field_type` | Text | No |  | Main | Only fields of this type, e.g. text, textarea, checkbox, date, integer, decimal, regexp, tagger (drop-down), multiselect (G5). Example: `tagger` |
 
 **Results**
 
@@ -505,7 +506,7 @@ Save an attachment (from a ticket comment) to a local folder under its own name.
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Email and API token | Zendesk API token from the vault (used with email). |
 | OAuth token | `oauth_token` | Credential (vault) | No |  | Main; choice Sign in with = OAuth token | OAuth access token from the vault, instead of email and API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attachment ID | `attachment_id` | Number | Yes |  | Main | Attachment id, from List comments. |
-| Folder | `folder` | File path | No | `.` | Main | Folder to save into. |
+| Folder | `folder` | File path | No | `.` | Main | Folder to save into; the run's temporary folder when empty (G5). |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file of the same name; otherwise a number is added. |
 
 **Results**

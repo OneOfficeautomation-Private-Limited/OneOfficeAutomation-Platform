@@ -9,8 +9,9 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 - **Logic**: Exit loop, Comment, Continue loop, Go to, If, Label, Loop, Parallel, State machine, Step, Switch
 - **Runtime**: Delay, Log message, Wait for condition
 - **Agent**: Exit subflow, Pause agent, Run Agent, Run subflow, Stop agent
+- **Error handling**: Watch for interruptions, Throw error, Try
 - **Variables**: Assign variable, Assign several variables
-- **Error handling**: Throw error, Try
+- **Conditions**: Child agent succeeded, Session is open
 
 ## Logic
 
@@ -108,20 +109,20 @@ Repeat the steps inside: a number of times, while a condition holds, or once for
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Iterator | `iterator` | Text | Yes |  | Main | Iterator kind or package/iterator address. Example: `list` |
+| Iterator | `iterator` | Text | Yes |  | Main | Iterator kind or package/iterator address; triggers waits for the events of the loop's handlers and runs the steps of the handler whose event came first. Example: `list` |
 | Over | `over` | Any | No |  | Main | Collection for list, dictionary and table_rows iterators. Shown when: `{"iterator": ["list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows"]}` |
 | Count | `count` | Number | No |  | Main | Repetitions for the times iterator. Range: 0 to ; Shown when: `{"iterator": ["times"]}` |
 | Condition | `condition` | Any | No |  | Main | Condition for the while iterator, checked before each pass. Shown when: `{"iterator": ["while"]}` |
-| Iterator args | `iterator_args` | Dictionary | No |  | Main | Arguments for a toolkit iterator. Shown when: `{"iterator": ["!", "times", "while", "list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows"]}` |
+| Iterator args | `iterator_args` | Dictionary | No |  | Main | Arguments for a toolkit iterator. Shown when: `{"iterator": ["!", "times", "while", "list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows", "triggers"]}` |
 | As | `as` | Text | No |  | Main | Declared variable that receives the current item. |
 | Index | `index` | Text | No |  | Main | Declared Number variable that receives the zero-based index. |
 | Columns to | `columns_to` | Dictionary | No |  | Main | Column name to a declared variable: each pass puts that column of the current row (or key of the current record) in the variable. Shown when: `{"iterator": ["!", "times", "while"]}` |
 | Maximum iterations | `max_iterations` | Number | No | `100000` | Main | Safety limit; the loop fails with LOOP.LIMIT when reached. Range: 1 to  |
-| From index | `from_index` | Number | No |  | Main | First zero-based item or row to visit (list, dictionary, table and toolkit iterators); from the first when empty. Range: 0 to ; Shown when: `{"iterator": ["!", "times", "while"]}` |
-| To index | `to_index` | Number | No |  | Main | Last zero-based item or row to visit, included; up to the last when empty. Range: 0 to ; Shown when: `{"iterator": ["!", "times", "while"]}` |
-| Step | `step` | Number | No | `1` | Main | Visit every n-th item; for the times iterator, the amount the counter grows each pass. Shown when: `{"iterator": ["!", "while"]}` |
+| From index | `from_index` | Number | No |  | Main | First zero-based item or row to visit (list, dictionary, table and toolkit iterators); from the first when empty. Range: 0 to ; Shown when: `{"iterator": ["!", "times", "while", "triggers"]}` |
+| To index | `to_index` | Number | No |  | Main | Last zero-based item or row to visit, included; up to the last when empty. Range: 0 to ; Shown when: `{"iterator": ["!", "times", "while", "triggers"]}` |
+| Step | `step` | Number | No | `1` | Main | Visit every n-th item; for the times iterator, the amount the counter grows each pass. Shown when: `{"iterator": ["!", "while", "triggers"]}` |
 | Start | `start` | Number | No | `0` | Main | First counter value for the times iterator. Shown when: `{"iterator": ["times"]}` |
-| Reverse | `reverse` | Yes/No | No | No | Main | Visit the items in reverse order (list, dictionary, table and toolkit iterators). Shown when: `{"iterator": ["!", "times", "while"]}` |
+| Reverse | `reverse` | Yes/No | No | No | Main | Visit the items in reverse order (list, dictionary, table and toolkit iterators). Shown when: `{"iterator": ["!", "times", "while", "triggers"]}` |
 | Check at end | `check_at_end` | Yes/No | No | No | Main | While iterator: check the condition after each pass, so the children run at least once. Shown when: `{"iterator": ["while"]}` |
 | Label | `label` | Text | No |  | Main | Name of this loop, so Exit loop and Continue loop inside nested loops can target it. |
 
@@ -283,11 +284,13 @@ Run another agent with the inputs you give it, and keep the outputs it gives bac
 | Version | `version` | Any | No |  | Main | Version number or 'production' (default). |
 | Inputs | `inputs` | Dictionary | No |  | Main | Values for the child's input variables. |
 | Output map | `output_map` | Dictionary | No |  | Main | Child output name to the variable of this agent that receives it, e.g. {"total": "invoice_total"}. |
-| Timeout (seconds) | `timeout_seconds` | Number | No |  | Main | Stop the child with CHILD.TIMEOUT when one run takes longer than this; no limit when empty. Range: 0 to  |
-| Same session | `same_session` | Yes/No | No | No | Main | Share this agent's open sessions (workbooks, browsers, connections) with the child; sessions the child opens stay open for this agent. |
-| Fail on error | `fail_on_error` | Yes/No | No | Yes | Main | Fail this step when the child fails; when off, set status to failed and the error output and carry on. |
-| Repeat | `repeat` | Number | No | `1` | Main | Run the child this many times in a row. Range: 1 to  |
-| Repeat delay (seconds) | `repeat_delay_seconds` | Number | No | `0` | Main | Wait between repeated runs. Range: 0 to ; Shown when: `{"repeat": ["!", "1"]}` |
+| Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Fail this step when the child fails; when off, set status to failed and the error output and carry on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No |  | More options | Stop the child with CHILD.TIMEOUT when one run takes longer than this; no limit when empty. Range: 0 to  |
+| Same session | `same_session` | Yes/No | No | No | More options | Share this agent's open sessions (workbooks, browsers, connections) with the child; sessions the child opens stay open for this agent. |
+| Repeat mode | `repeat_mode` | Text | No | `times` | More options | How often the child runs: a number of times, again and again for a length of time, or again and again until the run is stopped. One of: `times`, `for_duration`, `until_stopped` |
+| Repeat | `repeat` | Number | No | `1` | More options | Run the child this many times in a row. Range: 1 to ; Shown when: `{"repeat_mode": ["!", "for_duration", "until_stopped"]}` |
+| Repeat for (seconds) | `repeat_for_seconds` | Number | No |  | More options | Start the child again until this many seconds have passed since the first run began; a run that has started always finishes. Range: 0 to ; Shown when: `{"repeat_mode": ["for_duration"]}` |
+| Repeat delay (seconds) | `repeat_delay_seconds` | Number | No | `0` | More options; tick Wait between runs | Wait between repeated runs. Range: 0 to  |
 
 **Results**
 
@@ -329,6 +332,52 @@ End the agent now with the status you choose; Finally steps still run.
 
 *Time limit 60 s.*
 
+## Error handling
+
+### Watch for interruptions
+
+`core/interrupt_scope` (action)
+
+Run the steps inside while watching for interruptions such as a pop-up: when a handler's condition becomes true, its steps run and the agent carries on.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Title | `title` | Text | No |  | Main | What the watched steps do, shown in OneAgentStudio. |
+| Check every (seconds) | `check_every_seconds` | Number | No | `0.5` | More options | How often the handlers are checked while the agent waits (Delay, Wait for condition, keep checking); they are always checked before each toolkit step. Range: 0.1 to  |
+| Retry failed step | `retry_failed_step` | Yes/No | No | No | More options | When a step fails and a handler then finds and deals with an interruption, run that step once more. |
+
+*Time limit 60 s.*
+
+### Throw error
+
+`core/throw` (action)
+
+Raise an error with a code of your choice, for a Catch (or On error) to handle.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Code | `code` | Text | Yes |  | Main | Error code, e.g. BUSINESS.INVOICE_DUPLICATE. |
+| Message | `message` | Text | No |  | Main | What went wrong, for the log and the Catch; the code when empty. |
+| Suggested fix | `suggested_fix` | Text | No |  | Main | How to resolve the error. |
+| Details | `details` | Dictionary | No |  | Main | Extra values carried with the error, readable in Catch. |
+| Retryable | `retryable` | Yes/No | No | No | Main | Mark the error as temporary so retry policies try the step again. |
+
+*Time limit 60 s.*
+
+### Try
+
+`core/try` (action)
+
+Run the steps inside; if one fails, run the first Catch that takes the error, then always Finally.
+
+No settings.
+
+*Time limit 60 s.*
+
 ## Variables
 
 ### Assign variable
@@ -360,32 +409,31 @@ Put values in several variables in one step, in order: a later value can use a v
 
 *Time limit 60 s.*
 
-## Error handling
+## Conditions
 
-### Throw error
+Used in If, Loop while and Wait until steps.
 
-`core/throw` (action)
+### Child agent succeeded
 
-Raise an error with a code of your choice, for a Catch (or On error) to handle.
+`core/agent_succeeded` (condition)
+
+Run another agent (its production version) and be true when it ends without an error, false when it fails.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Code | `code` | Text | Yes |  | Main | Error code, e.g. BUSINESS.INVOICE_DUPLICATE. |
-| Message | `message` | Text | No |  | Main | What went wrong, for the log and the Catch; the code when empty. |
-| Suggested fix | `suggested_fix` | Text | No |  | Main | How to resolve the error. |
-| Details | `details` | Dictionary | No |  | Main | Extra values carried with the error, readable in Catch. |
-| Retryable | `retryable` | Yes/No | No | No | Main | Mark the error as temporary so retry policies try the step again. |
+| Automation | `automation` | Text | Yes |  | Main | Id of the published agent to run. |
+| Inputs | `inputs` | Dictionary | No |  | Main | Values for the child's input variables. |
 
-*Time limit 60 s.*
+### Session is open
 
-### Try
+`core/session_open` (condition)
 
-`core/try` (action)
+True when a session with this name is open in this run: a workbook, browser, database connection or any other toolkit's session.
 
-Run the steps inside; if one fails, run the first Catch that takes the error, then always Finally.
+**Settings**
 
-No settings.
-
-*Time limit 60 s.*
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | Yes |  | Main | Session name, as given on the step that opened it (for example excel, browser or db). Example: `excel` |

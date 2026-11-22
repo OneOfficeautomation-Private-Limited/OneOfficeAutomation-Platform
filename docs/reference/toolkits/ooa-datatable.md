@@ -6,7 +6,7 @@ Toolkit `ooa.datatable`, version 1.0.0. Build, filter, sort, search and change i
 
 ## Contents
 
-- **Table**: Add column from list, Add row, Group and summarise, Change column type, Clear rows, Column count, Column name, Column names, Column to list, Delete column, Delete rows, Filter rows, Find value, Create from CSV text, Create from records, Get value, Insert column, Insert row, Join tables, Look up value, Merge tables, Remove duplicate rows, Remove empty rows, Rename column, Replace values, Row count, Set value, Sort, Sum column, Convert to CSV text, Convert to HTML table, Convert to records, Write to file
+- **Table**: Add column from list, Add row, Group and summarise, Change column type, Clear rows, Column count, Column name, Column names, Column to list, Create empty table, Delete column, Delete rows, Filter rows, Find value, Create from CSV text, Create from records, Get value, Insert column, Insert row, Join tables, Look up value, Merge tables, Remove duplicate rows, Remove empty rows, Rename column, Replace values, Row count, Set value, Sort, Sum column, Convert to CSV text, Convert to HTML table, Convert to records, Write to file
 - **Conditions**: Column count is, Column contains value, Table has column, Table is empty, Row count is
 
 ## Table
@@ -93,7 +93,7 @@ Convert every value in a column to String, Number, DateTime or Boolean; empty ce
 | Column | `column` | Text | No |  | Main; choice Column = By name | Column to convert. |
 | Column index | `column_index` | Number | No |  | Main; choice Column = By position | Zero-based column index; used when 'column' is empty. Range: 0 to  |
 | Type | `type` | Text | Yes |  | Main | Target type. One of: `String`, `Number`, `DateTime`, `Boolean` |
-| Date format | `date_format` | Text | No |  | Main | Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy; ISO dates when empty. Shown when: `{"type": ["DateTime"]}` |
+| Date format | `date_format` | Text | No |  | Main | Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy, or a ready format: ISO_DATE, ISO_LOCAL_DATE_TIME, ISO_OFFSET_DATE_TIME, BASIC_ISO_DATE, RFC_1123_DATE_TIME...; ISO dates when empty. Shown when: `{"type": ["DateTime"]}` |
 
 **Results**
 
@@ -205,6 +205,28 @@ Return the values of one column as a list, e.g. every invoice number.
 | Name | Type | Description |
 | --- | --- | --- |
 | `list` | List | The column's values, top to bottom. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Create empty table
+
+`ooa.datatable/create_table` (action)
+
+Make a table with the columns you name (or a number of columns) and a number of empty rows, ready to fill.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Columns | `columns` | List | No |  | Main; choice Columns = By name | Column names, in order. |
+| Column count | `column_count` | Number | No |  | Main; choice Columns = A number of them | Number of columns, named Column1, Column2 ... Range: 1 to 1000 |
+| Rows | `rows` | Number | No | `0` | Main | Number of empty rows. Range: 0 to 100000 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | The new table. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -761,7 +783,7 @@ Save a table as a CSV file or as a JSON list of records, replacing the file.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Table | `table` | Table | Yes |  | Main | Table to save. |
-| Path | `path` | File path | Yes |  | Main | Target file, e.g. output/report.csv. |
+| Path | `path` | File path | No |  | Main | Target file, e.g. output/report.csv; a folder keeps the file there; a temporary file in the run's folder when empty (G2, AA's file variable). |
 | Append | `append` | Yes/No | No | No | Main | Add the rows to the end of an existing CSV file (no header is repeated). Shown when: `{"format": ["csv"]}` |
 | Row delimiter | `row_delimiter` | Text | No |  | Main | Text written after each CSV row instead of the line ending, e.g. \| or ;\n (\n, \r and \t are understood). Example: `|`; Shown when: `{"format": ["csv"]}` |
 | Delimiter | `delimiter` | Text | No | `,` | Main | CSV delimiter (one character). Shown when: `{"format": ["csv"]}` |

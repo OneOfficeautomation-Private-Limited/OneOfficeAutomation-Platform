@@ -7,7 +7,7 @@ Toolkit `ooa.azure_devops`, version 1.0.0. Work with Azure DevOps: work items an
 ## Contents
 
 - **Repos**: Comment on pull request, Complete pull request, Create pull request, Get pull request, List pull requests, List repositories
-- **Test plans**: Add test cases to suite, Complete test run, Create test case, Create test plan, Create test run, Create test suite, Delete test plan, Delete test suite, Get test plan details, Get test run details, List test cases, List test plans, List test points, List test runs, List test suites, Remove test cases from suite, Edit test plan, Update test point, Update test results, Edit test suite
+- **Test plans**: Add test cases to suite, Complete test run, Create test case, Create test plan, Create test run, Create test suite, Delete test plan, Delete test suite, Get test plan details, Get test run details, Get test suite, List test cases, List test plans, List test points, List test runs, List test suites, Remove test cases from suite, Edit test plan, Update test point, Update test results, Edit test suite
 - **Work items**: Add work item comment, Attach file to work item, Create work item, Delete work item, Get work item, List work item comments, Query work items (WIQL), Update work item
 - **Pipelines**: Create pipeline, Delete pipeline, Get pipeline details, Get pipeline run, List pipeline runs, List pipelines, Run pipeline, Edit pipeline
 - **Builds**: Get build, List builds, Queue build
@@ -233,10 +233,11 @@ Create a Test Case work item with numbered steps (action and expected result), o
 | Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Title | `title` | Text | Yes |  | Main | Test case title. |
-| Steps | `steps` | List | No |  | Main | Steps in order: text, or {"action": ..., "expected": ...}, e.g. [{"action": "Open the invoice", "expected": "Total shows 120.50"}]. |
+| Steps | `steps` | List | No |  | Main; choice Steps = A list | Steps in order: text, or {"action": ..., "expected": ...}, e.g. [{"action": "Open the invoice", "expected": "Total shows 120.50"}]. |
+| Steps table | `steps_table` | Table | No |  | Main; choice Steps = A table | The steps as a table with the columns action and expected, one row per step (G5); used instead of steps. |
 | Area path | `area_path` | Text | No |  | Main | Area path; the project's root area when empty. Example: `Finance Portal\Payments` |
 | Iteration path | `iteration_path` | Text | No |  | Main | Iteration (sprint) path; the project's root iteration when empty. Example: `Finance Portal\Sprint 42` |
-| Priority | `priority` | Number | No |  | Main | Priority from 1 (highest) to 4 (lowest). Range: 1 to 4 |
+| Priority | `priority` | Number | No |  | Main | Priority from 1 (highest) to 4 (lowest); 2 in new steps (G5). Range: 1 to 4 |
 | Automation status | `automation_status` | Text | No |  | More options | Whether the test is automated: Not Automated, Planned or Automated. One of: `Not Automated`, `Planned`, `Automated` |
 | Fields | `fields` | Dictionary | No |  | More options | Other fields, e.g. {"priority": 2, "area_path": "Finance Portal"}. |
 | Plan ID | `plan_id` | Number | No |  | More options | Add the new test case to this plan's suite (with suite_id). Range: 1 to  |
@@ -413,7 +414,31 @@ Read a test run: state, counts of passed, failed and incomplete tests, dates.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `run` | Dictionary | Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url. |
+| `run` | Dictionary | Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url, outcomes (a count per outcome, G5). |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Get test suite
+
+`ooa.azure_devops/get_test_suite` (action)
+
+Read one test suite: its name, type, parent, test case count, requirement or query (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
+| Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id (see List test suites). Range: 1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `suite` | Dictionary | Keys: id, name, suite_type, parent_suite_id, test_case_count, requirement_id, query, inherit_default_configurations. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -631,7 +656,7 @@ Record the outcome of tests in a run: one row per result, with its outcome and, 
 | Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Run ID | `run_id` | Number | Yes |  | Main | Test run id. Range: 1 to  |
-| Results | `results` | Table | Yes |  | Main | Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable...), and optionally comment, duration_seconds, error_message. |
+| Results | `results` | Table | Yes |  | Main | Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable, Timeout, Aborted, Inconclusive, NotExecuted...), and optionally comment, duration_seconds, error_message. |
 
 **Results**
 
@@ -883,7 +908,7 @@ Create a YAML pipeline from a file in an Azure Repos Git repository.
 | Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Name | `name` | Text | Yes |  | Main | Pipeline name. |
-| Repository ID | `repository_id` | Text | Yes |  | Main | Repository id (a GUID, from List repositories). |
+| Repository ID | `repository_id` | Text | Yes |  | Main | Repository: its id (a GUID) or its name (looked up, G5). |
 | Yaml path | `yaml_path` | Text | Yes |  | Main | Path of the YAML file in the repository. Example: `/azure-pipelines.yml` |
 | Folder | `folder` | Text | No | `\` | More options | Folder for the pipeline, e.g. \Finance. |
 

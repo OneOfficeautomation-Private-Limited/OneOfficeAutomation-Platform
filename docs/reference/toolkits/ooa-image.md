@@ -24,6 +24,7 @@ Find a picture on the screen (optionally waiting for it, in a region, or its n-t
 | Template | `template` | File path | Yes |  | Main | Picture to click. |
 | Double-click | `double_click` | Yes/No | No | No | Main | Double-click. |
 | Button | `button` | Text | No | `left` | Main | Mouse button to click with. One of: `left`, `right`, `middle` |
+| Window | `window` | Text | No |  | More options; tick Search only a window | Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4). |
 | X | `x` | Number | No |  | More options; tick Search only an area | Search region left; the whole image or screen when the region is empty. |
 | Y | `y` | Number | No |  | More options; tick Search only an area | Search region top. |
 | Width | `width` | Number | No |  | More options; tick Search only an area | Search region width. |
@@ -122,6 +123,7 @@ Look for a picture on the screen, optionally in a region and for its n-th appear
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Template | `template` | File path | Yes |  | Main | Picture to look for. |
+| Window | `window` | Text | No |  | Main; tick Search only a window | Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4). |
 | X | `x` | Number | No |  | Main; tick Search only an area | Search region left; the whole image or screen when the region is empty. |
 | Y | `y` | Number | No |  | Main; tick Search only an area | Search region top. |
 | Width | `width` | Number | No |  | Main; tick Search only an area | Search region width. |
@@ -231,7 +233,7 @@ True when the picture appears inside an image file.
 
 `ooa.image/image_on_screen` (condition)
 
-True when the picture is visible on the screen within the tolerance.
+True when the picture is visible on the screen, or inside one window, within the tolerance.
 
 **Settings**
 
@@ -239,5 +241,9 @@ True when the picture is visible on the screen within the tolerance.
 | --- | --- | --- | --- | --- | --- | --- |
 | Template | `template` | File path | Yes |  | Main | Picture to look for. |
 | Tolerance | `tolerance` | Number | No | `10` | Main | Allowed difference in percent (0 = pixel-exact); raise for anti-aliased or scaled screens. |
+| Window | `window` | Text | No |  | Main | Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4). |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep looking this many seconds until it is there; 0 looks once (G4). Range: 0 to 3600 |
+| Occurrence | `occurrence` | Number | No | `1` | Main | True only when the picture appears at least this many times (G4). Range: 1 to  |
+| Click if found | `click_if_found` | Yes/No | No | No | Main | Also click the picture when it is there (G4). |
 
 *Needs: filesystem.*

@@ -8,6 +8,7 @@ Toolkit `ooa.okta`, version 1.0.0. Create and manage Okta users, change their st
 
 - **User status**: Activate user, Clear user sessions, Deactivate user, Expire password, Reset password, Suspend user, Unlock user, Unsuspend user
 - **Groups**: Add user to group, List groups, List user's groups, Remove user from group
+- **Connection**: Connect, Disconnect
 - **Users**: Create user, Delete user, Get user, List users, Update user profile
 
 ## User status
@@ -22,7 +23,7 @@ Activate a staged or newly created account.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -46,7 +47,7 @@ Sign a person out everywhere: end their Okta sessions and, if you like, revoke t
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -64,7 +65,7 @@ Turn off an account so the person can no longer sign in. Their app access is rem
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -82,7 +83,7 @@ Make a person choose a new password the next time they sign in; optionally give 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -106,7 +107,7 @@ Start a password reset. The person gets an email, or you get a one-time reset li
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -130,7 +131,7 @@ Block sign-in for an active account for now, keeping its app assignments.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -147,7 +148,7 @@ Let a person whose account was locked by too many wrong passwords sign in again.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -164,7 +165,7 @@ Let a suspended person sign in again.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -183,11 +184,17 @@ Make a person a member of a group. Nothing changes if they are already a member.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Group | `group` | Text | Yes |  | Main | Group id, or the group's exact name. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `done` | Yes/No | True when the person is a member of the group now (G6). |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -201,7 +208,7 @@ Return groups, optionally only those whose name starts with some text or that ma
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name starts with | `name_starts_with` | Text | No |  | Main; choice Groups = Name starts with | Only groups whose name starts with this text. |
@@ -227,7 +234,7 @@ Return every group a person belongs to.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -251,13 +258,59 @@ Take a person out of a group.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Group | `group` | Text | Yes |  | Main | Group id, or the group's exact name. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
 
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `done` | Yes/No | True when the person is no longer a member of the group (G6). |
+
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.okta/connect` (action)
+
+Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `org_url` | Text | No |  | Main | The org url the later steps use (G6). |
+| API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | The api token the later steps use (G6). |
+| Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An OAuth access token | The access token the later steps use (G6). |
+| Session | `session` | Text | No |  | More options | The session's name; the toolkit's default session when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.okta/disconnect` (action)
+
+Forget the open Okta session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*
 
 ## Users
 
@@ -271,7 +324,7 @@ Add a new person to Okta, optionally with a starting password and group membersh
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Login | `login` | Text | No |  | Main | Sign-in name. Leave empty to use the email address. |
@@ -279,6 +332,7 @@ Add a new person to Okta, optionally with a starting password and group membersh
 | Email | `email` | Text | Yes |  | Main | Primary email address. Example: `ann.lee@acme.com` |
 | First name | `first_name` | Text | Yes |  | Main | Given name. |
 | Last name | `last_name` | Text | Yes |  | Main | Family name. |
+| Phone | `phone` | Text | No |  | Main | Mobile phone number, kept in the profile as mobilePhone (G6). Example: `+1 555 0100` |
 | Activate | `activate` | Yes/No | No | Yes | Main | Activate the account now. When off, the account is created in a staged state. |
 | Groups | `groups` | List | No |  | Main | Groups the person should join straight away, by name or id. Example: `["Finance", "VPN users"]` |
 | Profile fields | `profile_fields` | Dictionary | No |  | More options | More profile values, e.g. {"department": "Finance", "mobilePhone": "+1 555 0100"}. |
@@ -302,7 +356,7 @@ Remove a person from Okta for good. An account that is still active is deactivat
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -319,7 +373,7 @@ Look up one person by Okta id or sign-in name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
@@ -343,7 +397,7 @@ Return people that match a quick text search or an Okta filter expression.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Search text | `search_text` | Text | No |  | Main; choice Users = Name or email starts with | Match the start of first name, last name or email, e.g. ann. |
@@ -369,11 +423,16 @@ Change selected profile values; values you leave out stay as they are.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Organization address (URL) | `org_url` | Text | Yes |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
+| Organization address (URL) | `org_url` | Text | No |  | Main | Your Okta address, e.g. https://yourcompany.okta.com. |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = An API token | Okta API token from the vault. Leave empty when you use an access token instead. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. |
-| Profile fields | `profile_fields` | Dictionary | Yes |  | Main | Profile values to change, e.g. {"title": "Team Lead", "department": "Sales"}. |
+| Login | `login` | Text | No |  | Main | New sign-in name; unchanged when empty (G6). |
+| Email | `email` | Text | No |  | Main | New primary email address; unchanged when empty (G6). |
+| First name | `first_name` | Text | No |  | Main | New given name; unchanged when empty (G6). |
+| Last name | `last_name` | Text | No |  | Main | New family name; unchanged when empty (G6). |
+| Phone | `phone` | Text | No |  | Main | New mobile phone number (mobilePhone); unchanged when empty (G6). |
+| Profile fields | `profile_fields` | Dictionary | No |  | Main | Other profile values to change, e.g. {"title": "Team Lead", "department": "Sales"}. |
 
 **Results**
 

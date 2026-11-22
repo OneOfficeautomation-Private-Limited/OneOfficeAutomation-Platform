@@ -7,6 +7,7 @@ Toolkit `ooa.workday`, version 1.0.0. Search and read Workday workers and call W
 ## Contents
 
 - **Authentication**: Authenticate
+- **Connection**: End session
 - **REST**: Call REST endpoint (GET)
 - **Integrations**: Get integration event, Launch EIB with file, Launch integration
 - **Reports**: Get report (RaaS)
@@ -29,6 +30,8 @@ Get an OAuth access token for a registered API client from its refresh token, fo
 | Client ID | `client_id` | Text | Yes |  | Main | Client id of the API client registered in Workday. |
 | Client secret | `client_secret` | Credential (vault) | Yes |  | Main | Client secret from the vault. |
 | Refresh token | `refresh_token` | Credential (vault) | Yes |  | Main | Refresh token issued to the API client, from the vault. |
+| Session | `session` | Text | No |  | More options | Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6). |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session (G6). |
 
 **Results**
 
@@ -38,6 +41,28 @@ Get an OAuth access token for a registered API client from its refresh token, fo
 | `expires_in` | Number | Seconds until the access token expires, when Workday says. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### End session
+
+`ooa.workday/end_session` (action)
+
+Forget the open Workday session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*
 
 ## REST
 
@@ -51,9 +76,9 @@ GET any Workday REST resource or RaaS report URL path and return the JSON.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
 | Path | `path` | Text | Yes |  | Main | Path starting with /ccx/. Example: `/ccx/api/v1/acme/workers/3aa5550b7fe348b98d7b5741afc65534` |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. |
 
 **Results**
 
@@ -75,10 +100,10 @@ Read the status and timing of an integration run.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
-| Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Tenant | `tenant` | Text | No |  | Main | Tenant name. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Integration event WID from Launch integration. |
-| Kind of ID | `id_type` | Text | No | `WID` | More options | Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type your tenant accepts for integration event references, written exactly as Workday names it. Example: `WID` |
+| Kind of ID | `id_type` | Text | No | `WID` | More options | Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns) or Background_Process_Instance_ID (the process id shown for the run); a variable may hold another ID type name your tenant accepts (G6). One of: `WID`, `Background_Process_Instance_ID` |
 | User | `user` | Text | No |  | More options; choice Sign in with = User name and password | Integration system user with tenant (basic sign-in). |
 | Password | `password` | Credential (vault) | No |  | More options; choice Sign in with = User name and password | Password from the vault (basic sign-in). |
 | Access token | `access_token` | Credential (vault) | No |  | More options; choice Sign in with = An access token | OAuth access token from the vault (instead of user and password). |
@@ -106,8 +131,8 @@ Start an inbound EIB with a file to load (a spreadsheet or XML attached at launc
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
-| Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Tenant | `tenant` | Text | No |  | Main | Tenant name. |
 | Kind of ID | `id_type` | Text | No | `integration_system_id` | Main | Whether integration_system_id holds the Integration System ID or the EIB's Workday ID (WID). One of: `integration_system_id`, `wid` |
 | Integration system ID | `integration_system_id` | Text | Yes |  | Main | Integration System ID of the EIB to start. Example: `INT_Worker_Load` |
 | File | `file` | File path | Yes |  | Main | File to load: the EIB's spreadsheet template filled in, or XML. |
@@ -136,8 +161,8 @@ Start an integration system (such as an EIB) through the Integrations web servic
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
-| Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Tenant | `tenant` | Text | No |  | Main | Tenant name. |
 | Kind of ID | `id_type` | Text | No | `integration_system_id` | Main | Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID). One of: `integration_system_id`, `wid` |
 | Integration system ID | `integration_system_id` | Text | Yes |  | Main | Integration System ID of the integration to start. Example: `INT_Worker_Load` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Launch parameter name to value; text, numbers, true/false and dates are sent with their Workday type. Example: `{"Effective_Date": "2026-11-01", "Include_Terminated": false}` |
@@ -166,7 +191,7 @@ Run a custom report exposed as a web service and return its rows as a table.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
 | Report path | `report_path` | Text | Yes |  | Main | Report path starting with /ccx/service/customreport2/. Example: `/ccx/service/customreport2/acme/isu_reports/Active_Workers` |
 | Format | `format` | Text | No | `json` | Main | Format to request from Workday: json, csv, simple_xml, or workday_xml (which adds reference ids such as WIDs as extra columns). One of: `json`, `csv`, `simple_xml`, `workday_xml` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Report prompts, e.g. {"Effective_as_of_Date": "2026-10-01"}. |
@@ -197,9 +222,9 @@ Find workers by name or id text.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
-| Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | OAuth access token from the vault. |
+| Host | `host` | Text | No |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Tenant | `tenant` | Text | No |  | Main | Tenant name. |
+| Access token | `access_token` | Credential (vault) | No |  | Main | OAuth access token from the vault. |
 | Search | `search` | Text | No |  | Main; tick Only matching workers | Name or id text; all workers when empty. |
 | Maximum results | `max_results` | Number | No | `100` | More options | Maximum workers. |
 

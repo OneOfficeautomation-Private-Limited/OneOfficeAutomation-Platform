@@ -8,7 +8,7 @@ Toolkit `ooa.window`, version 1.0.0. Find, activate, move, resize, minimise, max
 
 - **Window**: Activate window, Capture window, Close window, Close all matching windows, Get active window title, Get window details, Hide window, List windows, Maximise window, Minimise window, Move and resize window, Restore window, Set window title, Show window, Wait for window
 - **Capture**: Pick a point on screen
-- **Keyboard**: Type into window in background
+- **Keyboard**: Type in background
 - **Conditions**: Window exists, Window is active
 
 ## Window
@@ -96,7 +96,7 @@ Ask every visible window whose title matches to close (like clicking each X); pr
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | Yes |  | Main | Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do. Example: ` - Notepad` |
+| Title | `title` | Text | No |  | Main; tick Only windows whose title matches | Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do. Empty: every window except those to keep (G4). Example: ` - Notepad` |
 | Keep | `keep` | List | No |  | Main | Windows to leave open: text in their titles (case-insensitive), e.g. ["Invoices.xlsx"]. The agent's own windows are always kept. |
 | Title is a regular expression | `use_regex` | Yes/No | No | No | More options | Treat title as a regular expression. |
 
@@ -389,7 +389,7 @@ Design time: point at a place in any window and press Ctrl+Shift+C. Gives the po
 
 ## Keyboard
 
-### Type into window in background
+### Type in background
 
 `ooa.window/type_in_background` (action)
 
@@ -433,6 +433,7 @@ True when a visible window title matches (text in it, * or ? pattern, or re:).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Title | `title` | Text | Yes |  | Main | Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive). |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep trying this many seconds until it is true; 0 checks once (G4). Range: 0 to 3600 |
 
 ### Window is active
 
@@ -445,3 +446,4 @@ True when the window in front has a matching title (text in it, * or ? pattern, 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Title | `title` | Text | Yes |  | Main | Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive). |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep trying this many seconds until it is true; 0 checks once (G4). Range: 0 to 3600 |

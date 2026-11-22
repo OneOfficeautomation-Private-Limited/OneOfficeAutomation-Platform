@@ -1,4 +1,4 @@
-# Excel (no Office needed)
+# Excel
 
 Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Microsoft Office installed.
 
@@ -11,7 +11,7 @@ Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Micro
 - **Rows and columns**: Autofit columns, Delete columns, Delete rows, Hide columns, Hide rows, Insert columns, Insert rows, Remove blank rows, Get number of rows, Set column width, Set row height, Unhide columns, Unhide rows
 - **Links**: Break workbook links, Change workbook link, Get workbook links
 - **Addresses**: Get cell address, Get column name, Get row and column number
-- **Cells**: Clear range, Copy range, Delete cells, Fill down or right, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Remove duplicate rows, Replace, Select range, Set cell, Set formula, Sort, Text to columns, Write from Data Table
+- **Cells**: Clear filter, Clear range, Copy range, Delete cells, Fill down or right, Filter, Find, Find next empty cell, Get all cells, Get cell, Get range, Get table range, Go to cell, Go to next empty cell, Read column, Read cell formula, Read row, Remove duplicate rows, Replace, Select range, Set cell, Set formula, Sort, Text to columns, Write from Data Table
 - **Pivot tables and charts**: Create chart, Create pivot table, Create Excel table
 - **Tables**: Delete table column, Insert table column
 - **Formatting**: Format cells, Get cell colour, Set cell colour
@@ -25,17 +25,23 @@ Toolkit `ooa.excel`, version 1.0.0. Read and write .xlsx workbooks without Micro
 
 `ooa.excel/add_sheet` (action)
 
-Create a worksheet at the end or at a position, or clear it first when replace is true.
+Create a worksheet at the end or at a position; when a sheet of that name exists the step stops, unless 'replace' is ticked, which deletes that sheet and everything on it first.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Name | `name` | Text | Yes |  | Main | Worksheet name. |
+| Name | `name` | Text | No |  | Main | Worksheet name; the next free SheetN name when empty. |
 | Position | `position` | Number | No |  | Main | 1-based position among the sheets; at the end when empty. Range: 1 to  |
 | Activate | `activate` | Yes/No | No | No | Main | Make the new sheet the active one. |
-| Replace | `replace` | Yes/No | No | Yes | More options | Replace an existing sheet with this name. |
+| Replace | `replace` | Yes/No | No | Yes | More options | When a sheet with this name exists, delete it with all its content and create an empty one; when off, the step stops with an error instead (the default for new steps). |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `name` | Text | Name of the new worksheet. |
 
 *Time limit 60 s.*
 
@@ -283,7 +289,7 @@ Close the workbook session, saving the changes first when asked.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Save | `save` | Yes/No | No | No | Main | Save the changes to the opened file before closing. |
+| Save | `save` | Yes/No | No | No | Main | Save the changes to the opened file before closing (on for new steps, as AA). |
 | Fail if read only | `fail_if_read_only` | Yes/No | No | Yes | Main | When the workbook was opened read-only, stop with an error instead of saving; false closes it without saving and logs a warning. Shown when: `{"save": ["true"]}` |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -293,7 +299,7 @@ Close the workbook session, saving the changes first when asked.
 
 `ooa.excel/create_workbook` (action)
 
-Create a new empty .xlsx file on disk with one named sheet and open it as a session; optionally encrypted with a password.
+Create a new empty .xlsx file on disk with one named sheet and open it as a session; optionally with a password to open, a password to edit and a sensitivity label.
 
 **Settings**
 
@@ -303,7 +309,12 @@ Create a new empty .xlsx file on disk with one named sheet and open it as a sess
 | Overwrite | `overwrite` | Yes/No | No | No | Main | Replace a file that already exists at the path. |
 | Sheet | `sheet` | Text | No | `Sheet1` | Main | Name of the first worksheet. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Require a password to open the file | Encrypt the file with this password; later saves keep it encrypted. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick Require a password to edit the file | Password to modify: Excel asks for it, or offers to open the file read-only. |
+| Sensitivity label | `sensitivity_label` | Text | No |  | Main; tick Set a sensitivity label | Sensitivity label id (a GUID) to put on the workbook; it may come from the vault. |
+| Label site ID | `label_site_id` | Text | No |  | Main; tick Set a sensitivity label | Microsoft 365 tenant id (a GUID) the label belongs to. Shown when: `{"sensitivity_label": ["!", ""]}` |
+| Continue if label fails | `continue_if_label_fails` | Yes/No | No | No | Main; tick Set a sensitivity label | When the label cannot be set, log a warning and go on instead of stopping. Shown when: `{"sensitivity_label": ["!", ""]}` |
 | Session | `session` | Text | No | `excel` | More options | Session name used by later steps. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -311,7 +322,7 @@ Create a new empty .xlsx file on disk with one named sheet and open it as a sess
 
 `ooa.excel/open` (action)
 
-Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.
+Open an .xlsx or .xls workbook (a local path, onedrive:path or a pasted SharePoint or OneDrive link), or a .csv or .txt file (one sheet, saved back as text), or create a new one, as a named session; can open encrypted files, open read-only and skip hidden sheets.
 
 **Settings**
 
@@ -322,10 +333,16 @@ Open an .xlsx or .xls workbook, or create a new one, as a named session; can ope
 | Sheet | `sheet` | Text | No |  | Main; tick Open a named sheet | Sheet to make active after opening; the sheet saved as active when empty. |
 | Read only | `read_only` | Yes/No | No | No | Main | Open for reading only: save over the opened file is refused, save_as to another file still works. |
 | Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password of an encrypted workbook; save keeps the file encrypted with the same password. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick The file has a password to edit | Password to modify the file (Excel's write access password); a wrong one stops the step. Without it such a file still opens. |
+| Skip hidden sheets | `skip_hidden_sheets` | Yes/No | No | No | Main | Leave hidden sheets out: sheet lists, counts and positions only see visible sheets, and later steps cannot use a hidden sheet. |
+| Sensitivity label | `sensitivity_label` | Text | No |  | Main; tick Set a sensitivity label | Sensitivity label id (a GUID) to put on the workbook; it may come from the vault. |
+| Label site ID | `label_site_id` | Text | No |  | Main; tick Set a sensitivity label | Microsoft 365 tenant id (a GUID) the label belongs to. Shown when: `{"sensitivity_label": ["!", ""]}` |
+| Continue if label fails | `continue_if_label_fails` | Yes/No | No | No | Main; tick Set a sensitivity label | When the label cannot be set, log a warning and go on instead of stopping. Shown when: `{"sensitivity_label": ["!", ""]}` |
 | Access token | `access_token` | Credential (vault) | No |  | Main; tick The file is on OneDrive or SharePoint | For a path starting onedrive: (onedrive:Reports/sales.xlsx): a Microsoft Graph access token from the vault. The workbook is downloaded, and save and close with save upload it back. |
 | Drive | `drive` | Text | No | `me/drive` | Main; tick The file is on OneDrive or SharePoint | For onedrive: paths: me/drive (the signed-in user's OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
 | Create | `create` | Yes/No | No | No | More options | Create the workbook when it does not exist. |
 | Session | `session` | Text | No | `excel` | More options | Session name used by later steps. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it. |
 | Graph address (URL) | `graph_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Microsoft Graph address (national clouds, tests). |
 
 *Time limit 60 s; needs: filesystem, network.*
@@ -525,7 +542,8 @@ Count the rows that hold data, or all rows of the used area, and report the numb
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Sheet | `sheet` | Text | No |  | Main; choice Sheet = By name | Sheet name; active sheet when empty. |
+| Index | `index` | Number | No |  | Main; choice Sheet = By position | 1-based sheet position, used instead of the name. Range: 1 to  |
 | Mode | `mode` | Text | No | `non_empty` | Main | non_empty counts rows holding data; all counts every row from the first to the last used row, empty ones included. One of: `non_empty`, `all` |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -671,6 +689,7 @@ List the other workbooks this workbook's formulas refer to and the cells that us
 | --- | --- | --- |
 | `links` | List | Linked workbook file names. |
 | `cells` | List | Cells with external formulas, as Sheet!A1. |
+| `table` | Table | One row per cell with an external formula: sheet, cell, formula. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -680,14 +699,18 @@ List the other workbooks this workbook's formulas refer to and the cells that us
 
 `ooa.excel/cell_address` (action)
 
-Turn a row number and a column number or letter into an address such as B7.
+Give the address (such as B7) of the active cell, of a row and column, or of the cell some rows below a column title.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | 1-based column number or column letters. |
-| Row | `row` | Number | Yes |  | Main | 1-based row number. Range: 1 to  |
+| Column | `column` | Any | No |  | Main; choice Cell = A row and column | 1-based column number or column letters. |
+| Row | `row` | Number | No |  | Main; choice Cell = A row and column | 1-based row number. Range: 1 to  |
+| First row is the header | `header` | Text | No |  | Main; choice Cell = Below a column title | Column title to look for in the sheet's first used row (not case-sensitive). Example: `First name` |
+| Offset | `offset` | Number | No | `1` | Main; choice Cell = Below a column title | How many cells below the title: 1 is the first cell under it. Range: 0 to ; Shown when: `{"header": ["!", ""]}` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session; used for the active cell and a column title. |
 
 **Results**
 
@@ -701,13 +724,16 @@ Turn a row number and a column number or letter into an address such as B7.
 
 `ooa.excel/column_name` (action)
 
-Turn a 1-based column number into its letters, e.g. 28 becomes AB.
+Give the letters of a column, from its number (28 becomes AB), from a cell, or of the active cell.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Number | Yes |  | Main | 1-based column number. Range: 1 to 16384 |
+| Column | `column` | Number | No |  | Main; choice Column of = A column number | 1-based column number. Range: 1 to 16384 |
+| Cell | `cell` | Text | No |  | Main; choice Column of = A cell | Cell address whose column is wanted. Example: `B7` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session; used for the active cell. |
 
 **Results**
 
@@ -721,13 +747,15 @@ Turn a 1-based column number into its letters, e.g. 28 becomes AB.
 
 `ooa.excel/row_number` (action)
 
-Split a cell address such as B7 into its row and column numbers.
+Split a cell address such as B7, or the active cell, into its row and column numbers.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `B7` |
+| Cell | `cell` | Text | No |  | Main; choice Cell = A specific cell | Cell address; the active cell when empty. Example: `B7` |
+| Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session; used for the active cell. |
 
 **Results**
 
@@ -740,6 +768,28 @@ Split a cell address such as B7 into its row and column numbers.
 *Time limit 60 s; safe to repeat.*
 
 ## Cells
+
+### Clear filter
+
+`ooa.excel/clear_filter` (action)
+
+Show every row a filter hid on a sheet and remove the sheet's Excel filter, or keep its buttons and drop only the conditions.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Keep filter buttons | `keep_filter_buttons` | Yes/No | No | No | Main | Keep the filter buttons on the header row and only remove the conditions. |
+| Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `rows_shown` | Number | Number of rows that were hidden and are shown again. |
+
+*Time limit 60 s.*
 
 ### Clear range
 
@@ -833,7 +883,7 @@ Copy the first row of a range down to its other rows, or its first column right 
 
 `ooa.excel/filter` (action)
 
-Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.
+Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows, or put the condition into the file as a real Excel filter.
 
 **Settings**
 
@@ -848,6 +898,8 @@ Return the rows of a sheet, a range or an Excel table whose value in one column 
 | Value | `value` | Any | No |  | Main | Value to compare with; not needed for empty and not_empty. Shown when: `{"operator": ["!", "empty", "not_empty"]}` |
 | Value to | `value_to` | Any | No |  | Main | Upper bound for the between operator. Shown when: `{"operator": ["between"]}` |
 | Match case | `match_case` | Yes/No | No | No | Main | Match upper/lower case exactly for text comparisons. Shown when: `{"operator": ["equals", "not_equals", "contains", "not_contains", "starts_with", "ends_with"]}` |
+| Clear existing | `clear_existing` | Yes/No | No | No | Main | First show the rows an earlier filter hid and remove the sheet's Excel filter. |
+| Apply in file | `apply_in_file` | Yes/No | No | No | More options | Also put the condition into the workbook as an Excel filter: the header gets filter buttons, the other rows are hidden, and Excel shows the condition; save to keep it. |
 | Hide rows | `hide_rows` | Yes/No | No | No | More options | Also hide the sheet rows that do not match (and show the ones that do), like an AutoFilter; save to keep it. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -875,6 +927,8 @@ Find cells whose content contains (or equals) a text, in the whole sheet or a ra
 | Search by | `search_by` | Text | No | `rows` | Main | Order of the results: rows goes across each row first, columns goes down each column first. One of: `rows`, `columns` |
 | Match case | `match_case` | Yes/No | No | No | Main | Match upper/lower case exactly. |
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | Only match when the whole cell content equals the text. |
+| Start from | `start_from` | Text | No | `top` | More options | G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does. One of: `top`, `active_cell`, `cell`, `end` |
+| Start cell | `start_cell` | Text | No |  | More options | The cell the search starts at. Example: `C10`; Shown when: `{"start_from": ["cell"]}` |
 | Look in | `look_in` | Text | No | `values` | More options | values searches the calculated results; formulas searches the formula text of formula cells and the value of the others. One of: `values`, `formulas` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
@@ -918,7 +972,7 @@ Starting from a cell, walk along its column or row in a direction and return the
 
 `ooa.excel/get_all_cells` (action)
 
-Read the used area of a sheet as a table; the first row can be the column names.
+Read the used area of a sheet, or only rows N to M of it, as a table; the first row can be the column names.
 
 **Settings**
 
@@ -926,6 +980,8 @@ Read the used area of a sheet as a table; the first row can be the column names.
 | --- | --- | --- | --- | --- | --- | --- |
 | Sheet | `sheet` | Text | No |  | Main; choice Worksheet = A named sheet | Sheet name; active sheet when empty. |
 | First row is the header | `header` | Yes/No | No |  | Main | First row holds column names; the workbook's open setting (true by default) when empty. |
+| From row | `from_row` | Number | No |  | Main; choice Rows = Rows from-to | Only from this sheet row number on (the header row, when there is one, still gives the column names); from the first row when empty. Range: 1 to  |
+| To row | `to_row` | Number | No |  | Main; choice Rows = Rows from-to | Only up to this sheet row number, included; to the last used row when empty. Range: 1 to  |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
 | Include hidden | `include_hidden` | Yes/No | No | Yes | More options | Include hidden rows and columns; false returns only what is visible, as after a filter in Excel. |
 | Keep blank rows | `keep_blank_rows` | Yes/No | No | No | More options | Keep empty rows inside the data as rows of empty values instead of dropping them. |
@@ -1063,14 +1119,14 @@ Starting from a cell, walk along its column or row to the first empty cell and m
 
 `ooa.excel/read_column` (action)
 
-Read the values of one column, from a start row down to an end row or the last used row.
+Read the values of one column, from the active cell or a start row down to an end row or the last used row.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Column | `column` | Any | Yes |  | Main | Column letter, 1-based number or header name (looked up in header_row). Example: `B` |
-| Start row | `start_row` | Number | No | `1` | Main | 1-based row to start from, e.g. 2 to skip a header. Range: 1 to  |
+| Column | `column` | Any | No |  | Main; choice Start at = A column | Column letter, 1-based number or header name (looked up in header_row); empty starts at the active cell and reads down its column. Example: `B` |
+| Start row | `start_row` | Number | No | `1` | Main; choice Start at = A column | 1-based row to start from, e.g. 2 to skip a header. Range: 1 to  |
 | End row | `end_row` | Number | No |  | Main | 1-based last row to read; the last used row when empty. Range: 1 to  |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
 | Header row | `header_row` | Number | No |  | More options | Row with the column names. A column given by name is looked up here (row 1 when empty), and reading starts below this row. Range: 1 to  |
@@ -1112,14 +1168,14 @@ Return the formula a cell (or the active cell) holds, or an empty text when it h
 
 `ooa.excel/read_row` (action)
 
-Read the values of one row, from a start column to an end column or the last used cell.
+Read the values of one row, from the active cell or a start column to an end column or the last used cell.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Row | `row` | Number | Yes |  | Main | 1-based row number. Range: 1 to  |
-| Start column | `start_column` | Any | No | `A` | Main | Column letter or 1-based number to start from. |
+| Row | `row` | Number | No |  | Main; choice Start at = A row | 1-based row number; empty starts at the active cell and reads along its row. Range: 1 to  |
+| Start column | `start_column` | Any | No | `A` | Main; choice Start at = A row | Column letter or 1-based number to start from. |
 | End column | `end_column` | Any | No |  | Main | Column letter or 1-based number of the last column to read; the last used cell when empty. |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
@@ -1176,6 +1232,8 @@ Replace text in the cells of a sheet or range, optionally matching case or the w
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | Only replace when the whole cell equals the text. |
 | Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text. |
 | First only | `first_only` | Yes/No | No | No | More options | Change only the first matching cell in search order. |
+| Start from | `start_from` | Text | No | `top` | More options | G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does. One of: `top`, `active_cell`, `cell`, `end` |
+| Start cell | `start_cell` | Text | No |  | More options | The cell the search starts at. Example: `C10`; Shown when: `{"start_from": ["cell"]}` |
 | Look in | `look_in` | Text | No | `values` | More options | values changes text cells; formulas also changes the formula text of formula cells, e.g. a sheet name inside references. One of: `values`, `formulas` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
@@ -1193,15 +1251,24 @@ Replace text in the cells of a sheet or range, optionally matching case or the w
 
 `ooa.excel/select_range` (action)
 
-Remember a range as the session's current selection and make its top-left cell active.
+Select a range, whole rows, whole columns (given, or those of the active cell) or the whole sheet; later steps see it as the current selection and its top-left cell becomes active.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Range | `range` | Text | Yes |  | Main | Range address. Example: `A1:D20` |
+| Select | `select` | Text | No | `range` | Main | What to select: a range, whole rows, whole columns, or every cell of the sheet. One of: `range`, `rows`, `columns`, `whole_sheet` |
+| Range | `range` | Text | No |  | Main | Range address. Example: `A1:D20`; Shown when: `{"select": ["range"]}` |
+| Rows | `rows` | Text | No |  | Main | Row number or rows such as 3:5; the active cell's row when empty. Example: `3:5`; Shown when: `{"select": ["rows"]}` |
+| Columns | `columns` | Text | No |  | Main | Column letter, number or columns such as C:E; the active cell's column when empty. Example: `C:E`; Shown when: `{"select": ["columns"]}` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `range` | Text | The address that is now selected, e.g. A3:XFD5 for rows 3 to 5. |
 
 *Time limit 60 s.*
 
@@ -1243,19 +1310,22 @@ Put a formula in a cell, or in the active cell, e.g. SUM(C2:C10).
 
 `ooa.excel/sort_range` (action)
 
-Sort the rows of a range (or of the used area) by one column and an optional second column, ascending or descending, keeping an optional header row in place.
+Sort the rows of a range, an Excel table or the used area by one column and an optional second column, ascending or descending, keeping a header row in place; or sort only that column's cells.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
-| Range | `range` | Text | No |  | Main | Range to sort; the used area when empty. |
+| Range | `range` | Text | No |  | Main; choice Sort = A range | Range to sort; the used area when empty. |
+| Table | `table` | Text | No |  | Main; choice Sort = An Excel table | Excel table name, e.g. Table1: sort that table's rows (its header row stays); sheet and range are then not used. |
 | First row is the header | `header` | Yes/No | No |  | Main | The first row is a header and stays at the top; the workbook's open setting (true by default) when empty. |
 | Column | `column` | Any | Yes |  | Main | Sort column: letter, 1-based sheet column number, or header name. Example: `C` |
 | Descending | `descending` | Yes/No | No | No | Main | Sort from largest to smallest. |
+| Sort as | `sort_as` | Text | No | `auto` | Main | auto keeps numbers before text as Excel does; number sorts numbers written as text by their value; text sorts everything as text. One of: `auto`, `number`, `text` |
 | Then by | `then_by` | Any | No |  | More options | Second sort column used when the first column's values are equal: letter, number or header name. Example: `A` |
 | Then descending | `then_descending` | Yes/No | No | No | More options | Sort the second column from largest to smallest. Shown when: `{"then_by": ["!", ""]}` |
+| Only column | `only_column` | Yes/No | No | No | More options | Sort only the cells of the sort column and leave the other columns as they are (rows no longer stay together). |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
 *Time limit 60 s.*
@@ -1423,9 +1493,15 @@ Add a named column to an Excel table, moving the table cells to its right over b
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Table | `table` | Text | Yes |  | Main | Excel table name, e.g. Table1. |
-| Column name | `column_name` | Text | Yes |  | Main | Header for the new column. |
+| Column name | `column_name` | Text | No |  | Main | Header for the new column; ColumnN (the next free number) when empty. |
 | Position | `position` | Number | No |  | Main | 1-based position inside the table; at the end when empty. Range: 1 to  |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `column_name` | Text | Header of the new column. |
 
 *Time limit 60 s.*
 
@@ -1543,7 +1619,7 @@ Write a sensitivity label into the workbook's MSIP_Label custom properties, repl
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sensitivity label ID | `label_id` | Text | Yes |  | Main | Label GUID from your organisation's compliance centre. |
+| Sensitivity label ID | `label_id` | Text | Yes |  | Main | Label GUID from your organisation's compliance centre; it may come from the vault. |
 | Tenant (site) ID | `site_id` | Text | Yes |  | Main | Tenant (site) GUID the label belongs to. |
 | Method | `method` | Text | No | `Standard` | Main | Standard for a default label, Privileged for one chosen by a person. One of: `Standard`, `Privileged` |
 | Name | `name` | Text | No |  | More options | Label display name, e.g. Confidential. |
@@ -1569,12 +1645,16 @@ Password-protect a worksheet so its locked cells cannot be edited in Excel, choo
 | Allow format rows | `allow_format_rows` | Yes/No | No | No | Main | People may change row heights and hide rows. |
 | Allow insert columns | `allow_insert_columns` | Yes/No | No | No | Main | People may insert columns. |
 | Allow insert rows | `allow_insert_rows` | Yes/No | No | No | Main | People may insert rows. |
+| Allow insert hyperlinks | `allow_insert_hyperlinks` | Yes/No | No | No | Main | People may insert links. |
 | Allow delete columns | `allow_delete_columns` | Yes/No | No | No | Main | People may delete columns. |
 | Allow delete rows | `allow_delete_rows` | Yes/No | No | No | Main | People may delete rows. |
 | Allow sort | `allow_sort` | Yes/No | No | No | Main | People may sort. |
 | Allow filter | `allow_filter` | Yes/No | No | No | Main | People may use AutoFilter. |
+| Allow pivot tables | `allow_pivot_tables` | Yes/No | No | No | Main | People may use and change pivot tables. |
 | Allow select locked | `allow_select_locked` | Yes/No | No | Yes | More options | People may select locked cells. |
 | Allow select unlocked | `allow_select_unlocked` | Yes/No | No | Yes | More options | People may select unlocked cells. |
+| Allow edit objects | `allow_edit_objects` | Yes/No | No | No | More options | People may change pictures, charts and other objects. |
+| Allow edit scenarios | `allow_edit_scenarios` | Yes/No | No | No | More options | People may change what-if scenarios. |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
@@ -1656,3 +1736,5 @@ Yield each row of a sheet (or of a range) of an open workbook as a record keyed 
 | Session | `session` | Text | No | `excel` | Main | Workbook session. |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
 | Include hidden | `include_hidden` | Yes/No | No | Yes | Main | Include hidden rows; false skips rows hidden by a filter. Shown when: `{"range": [""]}` |
+| From row | `from_row` | Number | No |  | Main | Only from this sheet row number on (the header row, when there is one, still gives the column names); from the first row when empty. Range: 1 to ; Shown when: `{"range": [""]}` |
+| To row | `to_row` | Number | No |  | Main | Only up to this sheet row number, included; to the last used row when empty. Range: 1 to ; Shown when: `{"range": [""]}` |

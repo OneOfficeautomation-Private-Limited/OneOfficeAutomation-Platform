@@ -8,7 +8,7 @@ Toolkit `ooa.file_transfer`, version 1.0.0. Connect to FTP, FTPS or SFTP servers
 
 - **Folders**: Change folder, Delete folder, Download folder, Synchronise folders, Upload folder
 - **Connection**: Connect, Disconnect, Send FTP command
-- **Files**: Create folder, Delete, Delete files, Download, List files, Rename or move, Upload
+- **Files**: Create folder, Delete, Delete files, Download, Get files, List files, Rename or move, Upload, Put files
 
 ## Folders
 
@@ -23,7 +23,8 @@ Change the session's current remote folder; later relative paths start from it.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `transfer` | Main | Session name. |
-| Folder | `folder` | Text | Yes |  | Main | Remote folder, absolute or relative to the current one. Example: `/outgoing/invoices` |
+| Folder | `folder` | Text | No |  | Main; choice Go to = A folder | Remote folder, absolute or relative to the current one. Example: `/outgoing/invoices` |
+| To parent | `to_parent` | Yes/No | No | No | Main; choice Go to = The parent folder | Go up to the parent folder (G5). |
 
 **Results**
 
@@ -157,12 +158,14 @@ Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when
 | Protocol | `protocol` | Text | Yes |  | Main | sftp (SSH), ftps (FTP over TLS) or plain ftp. One of: `sftp`, `ftps`, `ftp` |
 | Host | `host` | Text | Yes |  | Main | Server name or address. |
 | Port | `port` | Number | No |  | Main | Port; 22 for SFTP, 21 for FTP/FTPS when empty. Range: 1 to 65535 |
-| User | `user` | Text | Yes |  | Main | User name. |
+| Anonymous | `anonymous` | Yes/No | No | No | Main | Sign in as anonymous, for public FTP servers (G5). Shown when: `{"protocol": ["ftp", "ftps"]}` |
+| User | `user` | Text | No |  | Main | User name; it may come from the vault. Shown when: `{"anonymous": ["!", "true"]}` |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault. |
 | Private key | `private_key` | File path | No |  | Main | SFTP private key file (instead of a password). Shown when: `{"protocol": ["sftp"]}` |
 | Key passphrase | `key_passphrase` | Credential (vault) | No |  | Main | Private key passphrase. Shown when: `{"protocol": ["sftp"]}` |
 | Host key fingerprint | `host_key_fingerprint` | Text | No |  | Main | Expected SFTP server fingerprint (SHA256:...); strongly recommended. Shown when: `{"protocol": ["sftp"]}` |
 | Passive mode | `passive_mode` | Yes/No | No | Yes | Main | FTP/FTPS: the client opens the data connections (works through most firewalls); false uses active mode. Shown when: `{"protocol": ["ftp", "ftps"]}` |
+| Ftps encryption | `ftps_encryption` | Text | No |  | Main | FTPS: explicit (TLS after connecting, usually port 21) or implicit (TLS from the start, usually 990); overrides implicit_tls (G5). One of: `explicit`, `implicit`; Shown when: `{"protocol": ["ftps"]}` |
 | Implicit TLS | `implicit_tls` | Yes/No | No | No | Main | FTPS: use implicit TLS (usually port 990) instead of explicit TLS after connecting. Shown when: `{"protocol": ["ftps"]}` |
 | Transfer mode | `transfer_mode` | Text | No | `binary` | Main | FTP/FTPS: binary copies files byte for byte; ascii converts line endings of text files. One of: `binary`, `ascii`; Shown when: `{"protocol": ["ftp", "ftps"]}` |
 | Session | `session` | Text | No | `transfer` | Main | Session name. |
@@ -281,6 +284,33 @@ Download a remote file.
 
 *Time limit 3600 s; needs: network, filesystem.*
 
+### Get files
+
+`ooa.file_transfer/download_files` (action)
+
+Download every file of a remote folder whose name matches a pattern, optionally only those changed in a date range (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `transfer` | Main | Session name. |
+| Folder | `folder` | Text | No | `.` | Main | Remote folder. |
+| Pattern | `pattern` | Text | No | `*` | Main | Only names matching this wildcard (* and ?). Example: `*.csv` |
+| Local folder | `local_folder` | File path | Yes |  | Main | Folder on the runner to save into. |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | Replace local files of the same name; off skips them. |
+| Modified after | `modified_after` | DateTime | No |  | More options | Only files changed on or after this time (UTC). |
+| Modified before | `modified_before` | DateTime | No |  | More options | Only files changed before this time (UTC). |
+| Transfer mode | `transfer_mode` | Text | No |  | More options | FTP/FTPS: binary or ascii for these files; the session's when empty. One of: `binary`, `ascii` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `files` | List | The saved local files. |
+
+*Time limit 7200 s; needs: network, filesystem.*
+
 ### List files
 
 `ooa.file_transfer/list` (action)
@@ -295,6 +325,8 @@ List a remote folder.
 | Folder | `folder` | Text | No | `.` | Main | Remote folder. |
 | Pattern | `pattern` | Text | No | `*` | Main | Only names matching this wildcard (* and ?). Example: `*.csv` |
 | Kind | `kind` | Text | No | `all` | Main | List files, folders or both. One of: `all`, `files`, `folders` |
+| Modified after | `modified_after` | DateTime | No |  | More options | Only items changed on or after this time (UTC) (G5). |
+| Modified before | `modified_before` | DateTime | No |  | More options | Only items changed before this time (UTC) (G5). |
 
 **Results**
 
@@ -336,3 +368,29 @@ Upload a local file.
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace an existing remote file; when false an existing file stops the step. |
 
 *Time limit 3600 s; needs: network, filesystem.*
+
+### Put files
+
+`ooa.file_transfer/upload_files` (action)
+
+Upload several local files, or those matching a pattern in a local folder, into a remote folder (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `transfer` | Main | Session name. |
+| Files | `files` | List | No |  | Main; choice Files = A list of files | Local files to upload. |
+| Local folder | `local_folder` | File path | No |  | Main; choice Files = Files matching a pattern | A local folder whose matching files are uploaded. |
+| Pattern | `pattern` | Text | No | `*` | Main; choice Files = Files matching a pattern | With local_folder: only names matching this wildcard. |
+| Remote folder | `remote_folder` | Text | No | `.` | Main | Remote folder to upload into. |
+| Overwrite | `overwrite` | Yes/No | No | No | Main | Replace remote files of the same name; off skips them. |
+| Transfer mode | `transfer_mode` | Text | No |  | More options | FTP/FTPS: binary or ascii for these files; the session's when empty. One of: `binary`, `ascii` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `uploaded` | List | The remote paths written. |
+
+*Time limit 7200 s; needs: network, filesystem.*

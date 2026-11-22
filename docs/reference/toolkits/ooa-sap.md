@@ -10,7 +10,7 @@ Toolkit `ooa.sap`, version 1.0.0. Log on to SAP, run transactions, set and read 
 - **Menus**: Choose menu entry
 - **Session**: Close connection, Open system and log on, Open system (single sign-on), Run transaction
 - **Trees**: Expand tree node
-- **Tables**: Export table, Get table cell, Find value in table, Press grid or tree toolbar button, Read grid, Set table cell, Get table cell count, Get table column count, Get table row count
+- **Tables**: Export table, Get table cell, Find value in table, Press toolbar button, Read grid, Set table cell, Get table cell count, Get table column count, Get table row count
 
 ## Fields
 
@@ -281,13 +281,14 @@ Select a radio button option.
 
 `ooa.sap/send_key` (action)
 
-Send a virtual key: 0 Enter, 3 Back (F3), 8 Execute (F8), 11 Save (Ctrl+S), 12 Cancel (F12).
+Press a key in SAP GUI, such as Enter, F3 (Back), F8 (Execute), Ctrl+S (Save) or F12 (Cancel).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Vkey | `vkey` | Number | No | `0` | Main | SAP virtual key number. |
+| Key | `key` | Text | No |  | Main; choice Key = By name | Key to press, by name; the number below is used when this is empty. One of: `Enter`, `F1`, `F2`, `F3`, `F4`, `F5`, `F6`, `F7`, `F8`, `F9`, `F10`, `F11`, `F12`, `Ctrl+S`, `Shift+F1`, `Shift+F2`, `Shift+F3`, `Shift+F4`, `Shift+F5`, `Shift+F6`, `Shift+F7`, `Shift+F8`, `Shift+F9`, `Shift+F11`, `Shift+F12`, `Ctrl+F1`, `Ctrl+F2`, `Ctrl+F3`, `Ctrl+F4`, `Ctrl+F5`, `Ctrl+F6`, `Ctrl+F7`, `Ctrl+F8`, `Ctrl+F9`, `Ctrl+F10`, `Ctrl+F11`, `Ctrl+F12`, `Ctrl+Shift+F1`, `Ctrl+Shift+F2`, `Ctrl+Shift+F3`, `Ctrl+Shift+F4`, `Ctrl+Shift+F5`, `Ctrl+Shift+F6`, `Ctrl+Shift+F7`, `Ctrl+Shift+F8`, `Ctrl+Shift+F9`, `Ctrl+Shift+F10`, `Ctrl+Shift+F11`, `Ctrl+Shift+F12`, `Page up`, `Page down`, `Ctrl+Page up`, `Ctrl+Page down`, `Ctrl+E`, `Ctrl+F`, `Ctrl+G`, `Ctrl+N`, `Ctrl+O`, `Ctrl+P`, `Ctrl+R`, `Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+Z` |
+| Vkey | `vkey` | Number | No | `0` | Main; choice Key = By number | SAP virtual key number. |
 | Window | `window` | Number | No | `0` | More options | Window to send the key to (0 = main window, 1 = the first pop-up). |
 | Fail on error message | `fail_on_error_message` | Yes/No | No | No | More options | Stop with an error when the status bar then shows an error message. |
 | Connection | `connection` | Number | No | `0` | More options | SAP connection number (0 = first open system). |
@@ -362,7 +363,7 @@ Open a system from SAP Logon by its description and log on with client, user, pa
 | --- | --- | --- | --- | --- | --- | --- |
 | System | `system` | Text | Yes |  | Main | System description exactly as in SAP Logon. Example: `PRD - Live production` |
 | Client | `client` | Text | Yes |  | Main | Client. Example: `100` |
-| User | `user` | Text | Yes |  | Main | User. |
+| User | `user` | Text | Yes |  | Main | SAP user name; it may come from the vault. |
 | Password | `password` | Credential (vault) | Yes |  | Main | Password from the vault. |
 | Language | `language` | Text | No | `EN` | Main | Logon language. |
 | System type | `system_type` | Text | No | `description` | More options | Whether system is the SAP Logon entry description or a connection string such as /H/host/S/3200. One of: `description`, `connection_string` |
@@ -483,8 +484,9 @@ Read one cell of an ALV grid or table control.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | ID | `id` | Text | Yes |  | Main | Scripting id from the SAP script recorder, e.g. wnd[0]/usr/ctxtVBAK-AUART. |
-| Row | `row` | Number | Yes |  | Main | Row (0-based, counted from the top of the whole table). |
-| Column | `column` | Text | Yes |  | Main | Column: 0-based position, title, or technical field name. |
+| Row | `row` | Number | Yes |  | Main | Row, counted from the top of the whole table (from 1 or from 0, as set below). |
+| Column | `column` | Text | Yes |  | Main | Column: its position (from 1 or from 0, as set below), title, or technical field name. |
+| Count rows and columns from 1 | `count_from_one` | Yes/No | No | No | Main | The first row and column are number 1; when off they are number 0, as in steps made before. |
 | Connection | `connection` | Number | No | `0` | More options | SAP connection number (0 = first open system). |
 | Session | `session` | Number | No | `0` | More options | Session (window) number within the connection (0 = first). |
 
@@ -525,7 +527,7 @@ Find the first cell (or every cell) holding a value, ignoring surrounding spaces
 
 *Time limit 300 s; safe to repeat; needs: desktop.*
 
-### Press grid or tree toolbar button
+### Press toolbar button
 
 `ooa.sap/press_toolbar_button` (action)
 
@@ -578,10 +580,11 @@ Type a value into an editable cell of an ALV grid or table control, chosen by ro
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | ID | `id` | Text | Yes |  | Main | Scripting id from the SAP script recorder, e.g. wnd[0]/usr/ctxtVBAK-AUART. |
-| Row | `row` | Number | No |  | Main; choice Find the cell = By row | Row (0-based, counted from the top of the whole table); not used with find_text. |
+| Row | `row` | Number | No |  | Main; choice Find the cell = By row | Row, counted from the top of the whole table (from 1 or from 0, as set below); not used with find_text. |
 | Find text | `find_text` | Text | No |  | Main; choice Find the cell = By the text it holds | Find the cell by the text it holds now (surrounding spaces and case ignored) and write into the first match, searching top to bottom; row is then not used. |
-| Column | `column` | Text | No |  | Main | Column: 0-based position, title, or technical field name. With find_text, only this column is searched (all columns when empty). |
+| Column | `column` | Text | No |  | Main | Column: its position (from 1 or from 0, as set below), title, or technical field name. With find_text, only this column is searched (all columns when empty). |
 | Value | `value` | Any | Yes |  | Main | New value, or a Credential variable. |
+| Count rows and columns from 1 | `count_from_one` | Yes/No | No | No | Main | The first row and column are number 1; when off they are number 0, as in steps made before. |
 | Connection | `connection` | Number | No | `0` | More options | SAP connection number (0 = first open system). |
 | Session | `session` | Number | No | `0` | More options | Session (window) number within the connection (0 = first). |
 
@@ -589,7 +592,7 @@ Type a value into an editable cell of an ALV grid or table control, chosen by ro
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `row` | Number | Row (0-based) of the cell that was changed. |
+| `row` | Number | Row of the cell that was changed (from 1 or from 0, as set). |
 | `column` | Text | Column of the cell that was changed, as given or as found. |
 
 *Time limit 60 s; needs: desktop.*

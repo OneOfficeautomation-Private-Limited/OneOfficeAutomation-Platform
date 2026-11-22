@@ -1,4 +1,4 @@
-# Excel (desktop, needs Excel)
+# Excel desktop
 
 Toolkit `ooa.excel_desktop`, version 1.0.0. Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel.
 
@@ -34,22 +34,31 @@ Save a workbook in another format, e.g. .xls to .xlsx or .csv to .xlsx, optional
 
 `ooa.excel_desktop/export_pdf` (action)
 
-Export the whole workbook, or one sheet, to PDF, choosing quality, page range, print areas and document properties.
+Export the whole workbook, the active sheet or one sheet to PDF (from a file, or a workbook open in an Excel session, unsaved changes included), choosing quality, page range, print areas and document properties.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Path | `path` | File path | Yes |  | Main | Workbook. |
+| Path | `path` | File path | No |  | Main; choice Workbook = A file | Workbook; not needed when a session is given. |
+| Session | `session` | Text | No |  | Main; choice Workbook = An open Excel session | An Excel session open in this run: the step works on that workbook as it is now, changes not yet saved included; the path is not needed then (G3). |
+| Active sheet | `active_sheet` | Yes/No | No | No | Main; choice Sheets = The active sheet | Only the active sheet (G3). |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheets = One sheet | Only this sheet; the whole workbook when empty. |
 | Target | `target` | File path | Yes |  | Main | PDF file to create. |
-| Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace the PDF when it already exists; false stops with EXCEL_DESKTOP.EXISTS. |
+| If exists | `if_exists` | Text | No |  | Main | When the PDF is already there: replace it, stop the step, or add a number such as (2) to the name (G3); follows overwrite when empty. One of: `replace`, `fail`, `number` |
 | Quality | `quality` | Text | No | `standard` | More options | standard for printing; minimum for a smaller file to publish online. One of: `standard`, `minimum` |
 | Include properties | `include_properties` | Yes/No | No | Yes | More options | Copy the workbook's title, author and other properties into the PDF. |
 | Ignore print areas | `ignore_print_areas` | Yes/No | No | No | More options | Export whole sheets even where a print area is set. |
 | From page | `from_page` | Number | No |  | More options | First printed page to export; from the first page when empty. |
 | To page | `to_page` | Number | No |  | More options | Last printed page to export; to the last page when empty. |
 | Password | `password` | Credential (vault) | No |  | More options | Password needed to open the workbook; passed to Excel through the environment, not the command line. |
+| Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace the PDF when it already exists; false stops with EXCEL_DESKTOP.EXISTS. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | The PDF file written (with a number added when one was already there). |
 
 *Time limit 600 s; needs: desktop, filesystem.*
 
@@ -101,13 +110,14 @@ Open the workbook in Excel, refresh the values taken from every linked workbook 
 
 `ooa.excel_desktop/run_macro` (action)
 
-Open a macro-enabled workbook, optionally password-protected, run a VBA macro with up to 10 arguments and optionally save.
+Run a VBA macro, with up to 10 arguments, in a macro-enabled workbook (a file, or a workbook open in an Excel session, unsaved changes included) and optionally save.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Path | `path` | File path | Yes |  | Main | Workbook (.xlsm/.xlsb/.xls). |
+| Path | `path` | File path | No |  | Main; choice Workbook = A file | Workbook (.xlsm/.xlsb/.xls); not needed when a session is given. |
+| Session | `session` | Text | No |  | Main; choice Workbook = An open Excel session | An Excel session open in this run: the step works on that workbook as it is now, changes not yet saved included; the path is not needed then (G3). |
 | Macro | `macro` | Text | Yes |  | Main | Macro name. Example: `Module1.BuildReport` |
 | Arguments | `arguments` | List | No |  | Main | Arguments passed to the macro (text). |
 | Save | `save` | Yes/No | No | Yes | Main | Save the workbook afterwards. |

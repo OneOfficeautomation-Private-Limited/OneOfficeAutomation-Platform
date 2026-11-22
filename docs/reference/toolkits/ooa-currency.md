@@ -23,7 +23,7 @@ Convert an amount from one currency to another using the chosen rate source.
 | Amount | `amount` | Number | Yes |  | Main | Amount to convert. |
 | From currency | `from_currency` | Text | Yes |  | Main | Currency of the amount. Example: `USD` |
 | To currency | `to_currency` | Text | Yes |  | Main | Currency to convert into. Example: `EUR` |
-| Date | `date` | DateTime | No |  | More options; tick Use the rates of a past day | Convert at the rates of this past day (ecb source only); on a weekend or holiday the last working day before it is used. Today's rates when empty. Example: `2026-03-31` |
+| Date | `date` | DateTime | No |  | More options; tick Use the rates of a past day | Convert at the rates of this past day: ecb uses its history (on a weekend or holiday the last working day before); json puts the day (yyyy-MM-dd) where {date} is in the url. Today's rates when empty. Example: `2026-03-31` |
 | Decimals | `decimals` | Number | No | `2` | More options | Decimal places in the result. Range: 0 to 10 |
 | Source | `source` | Text | No | `ecb` | More options | ecb: European Central Bank daily reference rates (base EUR). json: a JSON rates service at 'url'. fixed: the 'rates' Dictionary. One of: `ecb`, `json`, `fixed` |
 | Address (URL) | `url` | Text | No |  | More options | For json: the address returning the rates. For ecb: leave empty to use the ECB's public file. Shown when: `{"source": ["json"]}` |

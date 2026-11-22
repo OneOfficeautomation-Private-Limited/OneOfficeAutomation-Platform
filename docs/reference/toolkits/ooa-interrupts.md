@@ -14,19 +14,20 @@ Toolkit `ooa.interrupts`, version 1.0.0. Rules that deal with unexpected windows
 
 `ooa.interrupts/add_rule` (action)
 
-Add (or replace by name) a rule for this run: when a window or element appears, click, press keys, close the window or run a child agent.
+Add (or replace by name) a rule for this run: when a window or element appears, or a condition becomes true, click, press keys, close the window or run a child agent.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Name | `name` | Text | Yes |  | Main | Rule name; adding a rule with the same name replaces it. Example: `Session expired` |
-| When window | `when_window` | Text | No |  | Main | Window title pattern: text the title contains, a wildcard pattern with * and ?, or re: followed by a regular expression. Example: `*Session expired*` |
-| When element | `when_element` | Text | No |  | Main | Element selector that marks the pop-up, looked for in the browser session below. Example: `#cookie-banner` |
+| When window | `when_window` | Text | No |  | Main; choice When = A window appears | Window title pattern: text the title contains, a wildcard pattern with * and ?, or re: followed by a regular expression. Example: `*Session expired*` |
+| When element | `when_element` | Text | No |  | Main; choice When = An element appears | Element selector that marks the pop-up, looked for in the browser session below. Example: `#cookie-banner` |
+| Browser session | `browser_session` | Text | No | `browser` | Main; choice When = An element appears | Browser session for element rules. |
+| When condition | `when_condition` | Any | No |  | Main; choice When = A condition is true | Any condition, as for If (a toolkit's condition such as Image found), that marks the interruption; variables in it are read when the rule is added (Watch for interruptions reads them each time). |
 | Then | `then` | Text | Yes |  | Main | Response: click the target, press the target keys, close the matched window, run the target agent, or only log it. One of: `click`, `press_keys`, `close_window`, `run_agent`, `ignore` |
 | Target | `target` | Text | No |  | Main | For click: a selector in the browser session or x,y screen coordinates; for press_keys: keys such as ENTER or ALT+F4; for run_agent: the agent id. Shown when: `{"then": ["click", "press_keys", "run_agent"]}` |
 | Inputs | `inputs` | Dictionary | No |  | Main | Inputs for the child agent (run_agent). Shown when: `{"then": ["run_agent"]}` |
-| Browser session | `browser_session` | Text | No | `browser` | More options | Browser session for element rules. |
 | Maximum times | `max_times` | Number | No | `0` | More options | Respond at most this many times in the run; 0 means no limit. Range: 0 to  |
 
 *Time limit 60 s.*

@@ -9,6 +9,7 @@ Toolkit `ooa.servicenow`, version 1.0.0. Query, create and update ServiceNow rec
 - **Records**: Add comment or work note, Create record, Delete record, Get record, List changed records, Query records, Update record
 - **Attachments**: Attach file, Delete attachment, Download attachment, List attachments
 - **Authentication**: Authenticate, Revoke authentication
+- **Connection**: End session
 
 ## Records
 
@@ -22,7 +23,7 @@ Add a customer-visible comment or an internal work note.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -30,6 +31,7 @@ Add a customer-visible comment or an internal work note.
 | Record sys_id | `sys_id` | Text | Yes |  | Main | Record sys_id. |
 | Text | `text` | Text | Yes |  | Main | Comment text. |
 | Internal | `internal` | Yes/No | No | No | Main | Internal work note instead of a visible comment. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 *Time limit 60 s; needs: network.*
 
@@ -43,13 +45,14 @@ Create a record, e.g. an incident; returns its sys_id and number.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
 | Table | `table` | Text | Yes |  | Main | Table name. Example: `incident` |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to value, e.g. {"short_description": "...", "urgency": "2"}. |
 | Input display value | `input_display_value` | Yes/No | No | No | More options | Values are display values (e.g. a user's name for caller_id) that the instance should look up. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -71,12 +74,13 @@ Delete a record by sys_id.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
 | Table | `table` | Text | Yes |  | Main | Table name. |
 | Record sys_id | `sys_id` | Text | Yes |  | Main | Record sys_id. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 *Time limit 60 s; needs: network.*
 
@@ -90,7 +94,7 @@ Read one record by sys_id.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -98,6 +102,7 @@ Read one record by sys_id.
 | Record sys_id | `sys_id` | Text | Yes |  | Main | Record sys_id. |
 | Fields | `fields` | List | No |  | Main | Fields to return; all when empty. |
 | Display value | `display_value` | Text | No | `true` | More options | true: display values (e.g. user names); false: stored values (e.g. sys_ids); all: both, as field and dv_field. One of: `true`, `false`, `all` |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -117,7 +122,7 @@ Return records created or updated after a point in time, oldest first, for polli
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -126,6 +131,7 @@ Return records created or updated after a point in time, oldest first, for polli
 | Query | `query` | Text | No |  | Main | Extra encoded query to narrow the records. Example: `active=true` |
 | Fields | `fields` | List | No |  | Main | Fields to return; sys_id and sys_updated_on are always included. |
 | Maximum records | `max_records` | Number | No | `1000` | More options | Maximum records. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -147,7 +153,7 @@ Return records matching an encoded query (as copied from a ServiceNow list filte
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name (basic sign-in). |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault (instead of user and password). |
@@ -160,6 +166,7 @@ Return records matching an encoded query (as copied from a ServiceNow list filte
 | Order by | `order_by` | Text | No |  | More options | Field to sort by; put - in front for newest or largest first, e.g. -sys_created_on. Example: `sys_created_on` |
 | Offset | `offset` | Number | No | `0` | More options | Skip this many matching records first (for paging). |
 | Exclude reference link | `exclude_reference_link` | Yes/No | No | Yes | More options | Leave out the API links of reference fields. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -180,7 +187,7 @@ Change fields of a record.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -188,6 +195,7 @@ Change fields of a record.
 | Record sys_id | `sys_id` | Text | Yes |  | Main | Record sys_id. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to new value. |
 | Input display value | `input_display_value` | Yes/No | No | No | More options | Values are display values that the instance should look up. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -209,7 +217,7 @@ Attach a local file to a record.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -218,6 +226,7 @@ Attach a local file to a record.
 | Path | `path` | File path | Yes |  | Main | File to attach. |
 | File name | `file_name` | Text | No |  | More options | Name to give the attachment; the local file name when empty. |
 | Content type | `content_type` | Text | No |  | More options | Content type; guessed from the file when empty. Example: `application/pdf` |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -237,11 +246,12 @@ Delete an attachment by its sys_id.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
 | Attachment ID | `attachment_id` | Text | Yes |  | Main | Attachment sys_id, from List attachments. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 *Time limit 60 s; needs: network.*
 
@@ -255,7 +265,7 @@ Save an attachment to a local folder under its original file name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
@@ -263,6 +273,7 @@ Save an attachment to a local folder under its original file name.
 | Folder | `folder` | File path | No | `.` | Main | Folder to save into. |
 | File name | `file_name` | Text | No |  | More options | Name to save the file under; the attachment's own name when empty. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file of the same name; when off, the action stops with an error instead. |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -276,18 +287,24 @@ Save an attachment to a local folder under its original file name.
 
 `ooa.servicenow/list_attachments` (action)
 
-List the files attached to a record.
+List the files attached to a record, one attachment by its id, or the attachments an encoded query finds; optionally save them all in the same step.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | User | `user` | Text | No |  | Main; choice Sign in with = User name and password | User name. |
 | Password | `password` | Credential (vault) | No |  | Main; choice Sign in with = User name and password | Password from the vault. |
 | Access token | `access_token` | Credential (vault) | No |  | Main; choice Sign in with = An access token | OAuth token from the vault. |
-| Table | `table` | Text | Yes |  | Main | Table name. |
-| Record sys_id | `sys_id` | Text | Yes |  | Main | Record sys_id. |
+| Table | `table` | Text | No |  | Main; choice Find by = A record | Table name of the record. |
+| Record sys_id | `sys_id` | Text | No |  | Main; choice Find by = A record | Record sys_id. |
+| Attachment ID | `attachment_id` | Text | No |  | Main; choice Find by = An attachment id | Sys_id of one attachment, to find just that one (G6). |
+| Encoded query | `attachment_query` | Text | No |  | Main; choice Find by = An encoded query | Encoded query over the attachment table (sys_attachment), e.g. by table_name, file_name or content_type (G6). Example: `table_name=incident^content_type=application/pdf` |
+| Limit | `limit` | Number | No | `1000` | Main; choice Find by = An encoded query | Most attachments an encoded query returns (G6). Range: 1 to  |
+| Save the files | `download` | Yes/No | No | No | Main | Also save every attachment found, in this step (G6). |
+| Download folder | `download_folder` | File path | No |  | Main | Folder to save the files in; the run's temporary folder when empty. A file of the same name is replaced (G6). Shown when: `{"download": ["true"]}` |
+| API version | `api_version` | Text | No |  | More options | Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6). One of: `latest`, `v1`, `v2` |
 
 **Results**
 
@@ -295,8 +312,9 @@ List the files attached to a record.
 | --- | --- | --- |
 | `table` | Table | Columns: sys_id, file_name, content_type, size_bytes, created_on. |
 | `count` | Number | Number of attachments. |
+| `files` | List | Paths of the saved files, in the order of the table; empty when not saving (G6). |
 
-*Time limit 60 s; safe to repeat; needs: network.*
+*Time limit 600 s; safe to repeat; needs: network, filesystem.*
 
 ## Authentication
 
@@ -316,6 +334,8 @@ Get an OAuth access token from the instance (user and password, or client creden
 | Client secret | `client_secret` | Credential (vault) | Yes |  | Main | Client secret from the vault. |
 | User | `user` | Text | No |  | Main | User name (password grant). |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault (password grant). |
+| Session | `session` | Text | No |  | More options | Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6). |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs use the same session (G6). |
 
 **Results**
 
@@ -337,9 +357,31 @@ Revoke an access or refresh token so it can no longer be used.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Instance address (URL) | `instance_url` | Text | Yes |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
+| Instance address (URL) | `instance_url` | Text | No |  | Main | Instance URL, e.g. https://yourcompany.service-now.com. |
 | Client ID | `client_id` | Text | Yes |  | Main | Client id of the OAuth application. |
 | Client secret | `client_secret` | Credential (vault) | Yes |  | Main | Client secret from the vault. |
 | Token | `token` | Credential (vault) | Yes |  | Main | The token to revoke. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### End session
+
+`ooa.servicenow/end_session` (action)
+
+Forget the open ServiceNow session; later steps then need their own address and sign-in (G6).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The session; the toolkit's default session when empty. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `closed` | Yes/No | True when a session was open. |
+
+*Time limit 60 s.*

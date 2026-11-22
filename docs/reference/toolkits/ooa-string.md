@@ -186,8 +186,10 @@ Return the text before, after or between markers.
 | After occurrence | `after_occurrence` | Number | No | `1` | Main | Which occurrence of the 'after' marker to start from (1 = first). Range: 1 to ; Shown when: `{"after": ["!", ""]}` |
 | Before | `before` | Text | No |  | Main | Return text before this marker. |
 | Before occurrence | `before_occurrence` | Number | No | `1` | Main | Which occurrence of the 'before' marker to stop at (1 = first). Range: 1 to ; Shown when: `{"before": ["!", ""]}` |
+| Markers | `markers` | Text | No | `either` | Main | G1 (AA parity): with both markers given, whether either one found is enough, or both must be found (else the marker is missing). One of: `either`, `both` |
 | If not found | `if_not_found` | Text | No | `empty` | Main | Result when a marker is missing: empty text, or the whole source text. One of: `empty`, `source` |
 | Maximum length | `max_length` | Number | No |  | Main; tick Limit the length | Keep at most this many characters of the result. Range: 0 to  |
+| Length mode | `length_mode` | Text | No | `up_to` | Main; tick Limit the length | G1 (AA parity): keep up to max_length characters, or exactly that many (a shorter result counts as not found). One of: `up_to`, `exactly`; Shown when: `{"max_length": ["!", ""]}` |
 | Ignore case | `ignore_case` | Yes/No | No | No | Main | Find the markers without regard to upper/lower case. |
 | Trim | `trim` | Yes/No | No | Yes | Main | Trim whitespace from the result. |
 | Remove line breaks | `remove_line_breaks` | Yes/No | No | No | Main | Remove line breaks from the result. |
@@ -212,7 +214,8 @@ Put values into a text with {name} places, e.g. "Dear {first_name}, invoice {num
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Template | `template` | Text | Yes |  | Main | Text with places in curly brackets, e.g. {name}; {{ and }} write a bracket. |
-| Values | `values` | Dictionary | Yes |  | Main | The values by name: a Dictionary or a table row (a Record). |
+| Values | `values` | Dictionary | No |  | Main | The values by name: a Dictionary or a table row (a Record). |
+| From agent | `from_agent` | Yes/No | No | No | Main | G1 (AA parity): also fill $name$ places with the agent's own variables now, for a text read while the agent runs (from a file or a web page). Credentials are never filled in. |
 | If missing | `if_missing` | Text | No | `keep` | More options | A place without a value: keep {name}, leave it empty, or fail with STRING.MISSING_VALUE. One of: `keep`, `empty`, `error` |
 
 **Results**

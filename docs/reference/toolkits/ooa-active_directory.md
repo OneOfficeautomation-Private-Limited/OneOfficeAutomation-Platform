@@ -9,7 +9,7 @@ Toolkit `ooa.active_directory`, version 1.0.0. Create, change, move and delete u
 - **Groups**: Add users to group, Create group, Delete group, Get group members, Get group properties, Move group, Remove users from group, Rename group, Set group property
 - **Directory**: Build distinguished name, Connect, Disconnect, Run LDAP query, Search
 - **Computers**: Create computer, Delete computer, Get computer properties, Move computer, Rename computer, Set computer property
-- **Organizational units**: Create organizational unit, Delete organizational unit, Get organizational unit properties, Move organizational unit, Rename organizational unit, Set organizational unit property
+- **Organizational units**: Create organizational unit, Delete organizational unit, Get OU properties, Move organizational unit, Rename organizational unit, Set OU property
 - **Users**: Create user, Delete user, Disable user, Enable user, Get user, Move user, Rename user, Reset password, Set user property, Set password, Unlock user, Update account options, Update user details
 
 ## Groups
@@ -25,9 +25,9 @@ Add one or more users to a group (no error for users already in it).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Group (distinguished name) | `group_dn` | Text | Yes |  | Main | Group distinguished name, or its sAMAccountName or common name. Example: `CN=Finance,OU=Groups,DC=corp,DC=example,DC=com` |
-| More usernames | `more_usernames` | List | No |  | Main | More users (sAMAccountName or UPN) to add in the same step. |
+| More usernames | `more_usernames` | List | No |  | Main | More users to add in the same step (logon name, full name or distinguished name each). |
 
 **Results**
 
@@ -50,9 +50,9 @@ Create a security or distribution group.
 | Session | `session` | Text | No | `ad` | Main | Session name. |
 | Name | `name` | Text | Yes |  | Main | Group name (also its sAMAccountName unless given). |
 | Group description | `group_description` | Text | No |  | Main | Description. |
-| Scope | `scope` | Text | No | `global` | Main | Group scope. One of: `global`, `domain_local`, `universal` |
+| Scope | `scope` | Text | No | `global` | Main | Group scope: global (the Windows default) for people of this domain, domain_local for permissions in this domain, universal across the forest. One of: `global`, `domain_local`, `universal` |
 | Group type | `group_type` | Text | No | `security` | Main | Security groups can be used in permissions; distribution groups only for mail. One of: `security`, `distribution` |
-| Container (distinguished name) | `container_dn` | Text | Yes |  | Main | Distinguished name of the organizational unit or container to create it in. Example: `OU=Groups,DC=corp,DC=example,DC=com` |
+| Container (distinguished name) | `container_dn` | Text | No |  | Main | Distinguished name of the organizational unit or container to create it in; the session's base (Connect) when empty. Example: `OU=Groups,DC=corp,DC=example,DC=com` |
 | Pre-Windows 2000 name (sAMAccountName) | `sam_account_name` | Text | No |  | More options | Pre-Windows 2000 name; the group name when empty. |
 
 **Results**
@@ -92,6 +92,7 @@ List the members of a group, optionally including members of nested groups.
 | Group | `group` | Text | Yes |  | Main | Group distinguished name, or its sAMAccountName or common name. |
 | Member type | `member_type` | Text | No | `all` | Main | Only return members of this kind. One of: `all`, `user`, `group`, `computer` |
 | Recursive | `recursive` | Yes/No | No | No | Main | Include members of nested groups (Active Directory only). |
+| Return as | `return_as` | Text | No | `table` | Main | table: a row per member; names: a list of their names; dns: a list of their distinguished names. One of: `table`, `names`, `dns` |
 | Maximum results | `max_results` | Number | No | `5000` | More options | Safety limit. |
 
 **Results**
@@ -100,6 +101,7 @@ List the members of a group, optionally including members of nested groups.
 | --- | --- | --- |
 | `table` | Table | Columns: dn, name, sAMAccountName, type, mail. |
 | `count` | Number | Number of members. |
+| `list` | List | With return as names or distinguished names: the members as a plain list. |
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
@@ -122,6 +124,7 @@ Read attributes of a group.
 | Name | Type | Description |
 | --- | --- | --- |
 | `properties` | Dictionary | dn plus the requested attributes (all readable ones when none are listed). |
+| `value` | Any | When exactly one attribute is asked for: its value on its own (text, or a list for several values). |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -158,9 +161,9 @@ Remove one or more users from a group (no error for users not in it).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Group (distinguished name) | `group_dn` | Text | Yes |  | Main | Group distinguished name, or its sAMAccountName or common name. |
-| More usernames | `more_usernames` | List | No |  | Main | More users (sAMAccountName or UPN) to remove in the same step. |
+| More usernames | `more_usernames` | List | No |  | Main | More users to remove in the same step (logon name, full name or distinguished name each). |
 
 **Results**
 
@@ -287,6 +290,7 @@ Run a raw LDAP filter from any starting point and scope and return the entries a
 | Session | `session` | Text | No | `ad` | Main | Session name. |
 | Filter | `filter` | Text | Yes |  | Main | LDAP filter. Example: `(&(objectClass=computer)(operatingSystem=*Server*))` |
 | Attributes | `attributes` | List | No |  | Main | Attributes to return; cn, sAMAccountName and mail when empty. |
+| Return as | `return_as` | Text | No | `table` | Main | table: a row per entry; names: a list of their names (the first attribute, else the name in the dn); dns: a list of distinguished names. One of: `table`, `names`, `dns` |
 | Search base (distinguished name) | `base_dn` | Text | No |  | More options | Where to start; the session's base when empty. |
 | Scope | `scope` | Text | No | `subtree` | More options | How deep to search below the starting point. One of: `subtree`, `one_level`, `base` |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Safety limit. |
@@ -297,6 +301,7 @@ Run a raw LDAP filter from any starting point and scope and return the entries a
 | --- | --- | --- |
 | `table` | Table | One row per entry; columns are dn plus the requested attributes. |
 | `count` | Number | Number of entries. |
+| `list` | List | With return as names or distinguished names: the entries as a plain list. |
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
@@ -339,7 +344,7 @@ Create a computer account so a machine can join the domain.
 | Session | `session` | Text | No | `ad` | Main | Session name. |
 | Name | `name` | Text | Yes |  | Main | Computer name (up to 15 characters). Example: `PC-0042` |
 | Computer description | `computer_description` | Text | No |  | Main | Description. |
-| Container (distinguished name) | `container_dn` | Text | Yes |  | Main | Distinguished name of the organizational unit or container to create it in. Example: `OU=Workstations,DC=corp,DC=example,DC=com` |
+| Container (distinguished name) | `container_dn` | Text | No |  | Main | Distinguished name of the organizational unit or container to create it in; the session's base (Connect) when empty. Example: `OU=Workstations,DC=corp,DC=example,DC=com` |
 | Enabled | `enabled` | Yes/No | No | Yes | More options | Create the account enabled. |
 
 **Results**
@@ -384,6 +389,7 @@ Read attributes of a computer account.
 | Name | Type | Description |
 | --- | --- | --- |
 | `properties` | Dictionary | dn plus the requested attributes (all readable ones when none are listed). |
+| `value` | Any | When exactly one attribute is asked for: its value on its own (text, or a list for several values). |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -463,7 +469,7 @@ Create an organizational unit.
 | Session | `session` | Text | No | `ad` | Main | Session name. |
 | Name | `name` | Text | Yes |  | Main | Name of the organizational unit. |
 | Organizational unit description | `ou_description` | Text | No |  | Main | Description. |
-| Parent (distinguished name) | `parent_dn` | Text | Yes |  | Main | Distinguished name of the parent domain or organizational unit. Example: `DC=corp,DC=example,DC=com` |
+| Parent (distinguished name) | `parent_dn` | Text | No |  | Main | Distinguished name of the parent domain or organizational unit; the session's base (Connect) when empty. Example: `DC=corp,DC=example,DC=com` |
 
 **Results**
 
@@ -489,7 +495,7 @@ Delete an organizational unit; with recursive, everything inside it is deleted t
 
 *Time limit 60 s; needs: network.*
 
-### Get organizational unit properties
+### Get OU properties
 
 `ooa.active_directory/get_ou_property` (action)
 
@@ -508,6 +514,7 @@ Read attributes of an organizational unit.
 | Name | Type | Description |
 | --- | --- | --- |
 | `properties` | Dictionary | dn plus the requested attributes (all readable ones when none are listed). |
+| `value` | Any | When exactly one attribute is asked for: its value on its own (text, or a list for several values). |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -555,7 +562,7 @@ Change the name of an organizational unit.
 
 *Time limit 60 s; needs: network.*
 
-### Set organizational unit property
+### Set OU property
 
 `ooa.active_directory/set_ou_property` (action)
 
@@ -597,9 +604,10 @@ Create a user account in an organizational unit, optionally with a first passwor
 | Title | `title` | Text | No |  | Main | Job title. |
 | Enabled | `enabled` | Yes/No | No | Yes | Main | Enable the account once the password is set. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Set a first password | First password from the vault (needs an ldaps:// connection); the account stays disabled without one. |
-| Must change password | `must_change_password` | Yes/No | No | Yes | Main | Require a password change at first sign-in. |
-| Password never expires | `password_never_expires` | Yes/No | No | No | Main | Create the account with a password that never expires (must_change_password is then ignored by the directory). |
-| Container (distinguished name) | `container_dn` | Text | Yes |  | Main | Distinguished name of the organizational unit or container to create it in. Example: `OU=Staff,DC=corp,DC=example,DC=com` |
+| Must change password | `must_change_password` | Yes/No | No | Yes | Main; tick Set a first password | Require a password change at first sign-in. |
+| Password never expires | `password_never_expires` | Yes/No | No | No | Main; tick Set a first password | Create the account with a password that never expires (only when no change is required at first sign-in). Shown when: `{"must_change_password": ["false"]}` |
+| Cannot change password | `cannot_change_password` | Yes/No | No | No | Main; tick Set a first password | Stop the user from changing their own password (Active Directory only; only when no change is required at first sign-in). Shown when: `{"must_change_password": ["false"]}` |
+| Container (distinguished name) | `container_dn` | Text | No |  | Main | Distinguished name of the organizational unit or container to create it in; the session's base (Connect) when empty. Example: `OU=Staff,DC=corp,DC=example,DC=com` |
 | Attributes | `attributes` | Dictionary | No |  | More options | More attributes, e.g. {"mail": "jdoe@example.com", "department": "Finance"}. |
 
 **Results**
@@ -621,7 +629,7 @@ Delete a user account.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 
 *Time limit 60 s; needs: network.*
 
@@ -636,7 +644,7 @@ Disable a user account (for example when someone leaves).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 
 *Time limit 60 s; needs: network.*
 
@@ -651,7 +659,7 @@ Enable a disabled user account.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 
 *Time limit 60 s; needs: network.*
 
@@ -659,14 +667,14 @@ Enable a disabled user account.
 
 `ooa.active_directory/get_user` (action)
 
-Read a user's properties by sAMAccountName or UPN.
+Read a user's properties, finding the user by logon name, full name or distinguished name.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Attributes | `attributes` | List | No |  | Main | More attributes to read, e.g. ["employeeID","physicalDeliveryOfficeName"]; the usual set is always returned. |
 
 **Results**
@@ -674,6 +682,7 @@ Read a user's properties by sAMAccountName or UPN.
 | Name | Type | Description |
 | --- | --- | --- |
 | `user` | Dictionary | dn, sAMAccountName, displayName, mail, enabled, locked and more. |
+| `value` | Any | When exactly one attribute is asked for: its value on its own (text, or a list for several values). |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -687,7 +696,7 @@ Move a user to another organizational unit.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Target organizational unit (distinguished name) | `target_ou_dn` | Text | Yes |  | Main | Distinguished name of the destination organizational unit. |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
 
@@ -710,7 +719,7 @@ Change the object name of a user (optionally also its display name), its sign-in
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | New name | `new_name` | Text | Yes |  | Main | New object name (common name), e.g. Jane Doe; also the new sign-in name when only the sign-in name is renamed and new_sign_in_name is empty. |
 | Rename target | `rename_target` | Text | No | `object` | Main | object: the object name only (the sign-in name is kept); sign_in: the sign-in name only; both: object name and sign-in name. One of: `object`, `sign_in`, `both` |
 | Update display name | `update_display_name` | Yes/No | No | Yes | More options | Also set the display name to the new name (when the object name changes). |
@@ -735,7 +744,7 @@ Set a new password (needs an ldaps:// connection), optionally forcing a change a
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | New password | `new_password` | Credential (vault) | Yes |  | Main | New password from the vault or a Credential variable. |
 | Must change | `must_change` | Yes/No | No | Yes | Main | Require a change at next sign-in. |
 | Unlock | `unlock` | Yes/No | No | No | More options | Also unlock the account. |
@@ -753,7 +762,7 @@ Change one attribute of a user, e.g. title or telephoneNumber; values can be rep
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Attribute | `attribute` | Text | Yes |  | Main | LDAP attribute name. |
 | Value | `value` | Text | No |  | Main | New value; empty clears it. |
 | Mode | `mode` | Text | No | `replace` | More options | replace: set the value; add: add one more value to a multi-valued attribute; remove: remove this one value. One of: `replace`, `add`, `remove` |
@@ -771,7 +780,7 @@ Set a user's password as an administrator (needs an ldaps:// connection), option
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | New password | `new_password` | Credential (vault) | Yes |  | Main | New password from the vault or a Credential variable. |
 | Must change | `must_change` | Yes/No | No | No | Main | Require a change at next sign-in. |
 | Unlock | `unlock` | Yes/No | No | No | More options | Also unlock the account. |
@@ -789,7 +798,7 @@ Unlock an account locked by failed sign-ins.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 
 *Time limit 60 s; needs: network.*
 
@@ -804,7 +813,7 @@ Turn account options on or off: enabled, password never expires, and must change
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | Enabled | `enabled` | Yes/No | No |  | Main | Enable (true) or disable (false) the account. |
 | Must change password | `must_change_password` | Yes/No | No |  | Main | Whether a password change is required at next sign-in. |
 | Password never expires | `password_never_expires` | Yes/No | No |  | Main | Whether the password never expires. |
@@ -834,7 +843,7 @@ Change several details of a user in one step (names, description, office, phone,
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Username | `username` | Text | Yes |  | Main | sAMAccountName or UPN. |
+| Username | `username` | Text | Yes |  | Main | Logon name (sAMAccountName or UPN), full name, or distinguished name. |
 | First name | `first_name` | Text | No |  | Main | Given name. |
 | Last name | `last_name` | Text | No |  | Main | Surname. |
 | Display name | `display_name` | Text | No |  | Main | Display name. |

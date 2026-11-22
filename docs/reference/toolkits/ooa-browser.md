@@ -9,7 +9,7 @@ Toolkit `ooa.browser`, version 1.0.0. Open web pages, click, type, select, read 
 - **Browser**: Attach to open browser, Close browser, Back, forward or refresh, List windows (design time), Go to URL, Open browser, Start browser for automation, Switch tab
 - **Page**: Call JavaScript function, Download file, Download file from address, Find broken links, Get page source, Get URL and title, Run JavaScript, Take screenshot
 - **Elements**: Click element, Get attribute, Get text, Select item, Set text, Wait for element
-- **Capture**: Capture: element action, Pick element (design time), Test captured object (design time)
+- **Capture**: Capture: element action, Pick element (design time), Test capture
 - **Data**: Extract list, Extract table
 - **Recorder**: Record web actions
 - **Conditions**: Element exists, Element text is, Element is visible, Page contains text
@@ -74,6 +74,7 @@ Go back, go forward or reload the page.
 | Steps | `steps` | Number | No | `1` | Main | back: how many pages to go back (e.g. 3). Range: 1 to ; Shown when: `{"action": ["back", "forward"]}` |
 | Error if too many | `error_if_too_many` | Yes/No | No | No | Main | back: fail when the tab has visited fewer pages than the steps asked for. Shown when: `{"action": ["back", "forward"]}` |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `60000` | More options | How long to wait for the browser to answer (G4). Range: 1000 to  |
 
 *Time limit 120 s; needs: browser.*
 
@@ -126,7 +127,7 @@ Start a browser, optionally open a URL, as a named session.
 | --- | --- | --- | --- | --- | --- | --- |
 | Open in | `open_in` | Text | No | `new_window` | Main | new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab. One of: `new_window`, `new_tab`, `existing_tab` |
 | Window | `window` | Dictionary | No |  | Main | For new_tab and existing_tab: the tab to use. Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. Shown when: `{"open_in": ["!", "new_window"]}` |
-| Browser | `browser` | Text | No | `edge` | Main | edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB). One of: `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
+| Browser | `browser` | Text | No | `edge` | Main | default: the browser Windows opens web links with (G4); edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB). One of: `default`, `edge`, `chrome`, `chromium`, `firefox`; Shown when: `{"open_in": ["new_window"]}` |
 | Address (URL) | `url` | Text | No |  | Main | Page to open. |
 | Download folder | `download_folder` | File path | No |  | More options | Where downloads are saved. Shown when: `{"open_in": ["new_window"]}` |
 | Headless | `headless` | Yes/No | No | No | More options | Run without a visible window (for unattended agents). Shown when: `{"open_in": ["new_window"]}` |
@@ -209,8 +210,10 @@ Call a function defined by the page (e.g. app.calculateTotal) with arguments and
 | Function | `function` | Text | Yes |  | Main | Function name, reachable from window; dots for nested objects. Example: `app.calculateTotal` |
 | Arguments | `arguments` | List | No |  | Main | Arguments, in order (text, numbers, true/false, lists and dictionaries). |
 | Return type | `return_type` | Text | No | `any` | Main | What the function returns: the result is checked and converted (none ignores it). One of: `any`, `none`, `text`, `number`, `boolean`, `list`, `dictionary` |
+| Argument types | `argument_types` | List | No |  | More options | The type of each argument, in order (G4): auto, text, number, boolean, list, dictionary or date; auto when left out. Example: `["text", "number"]` |
 | Frame | `frame` | Dictionary | No |  | More options | Call the function inside this iframe instead of the main page: the captured iframe element. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `60000` | More options | How long to wait for the browser to answer (G4). Range: 1000 to  |
 
 **Results**
 
@@ -319,6 +322,7 @@ Return the current HTML of the page (after scripts have run), and optionally sav
 | Frame | `frame` | Dictionary | No |  | Main; choice Read from = One iframe | The source of this iframe instead of the whole page: the captured iframe element. |
 | Path | `path` | File path | No |  | Main; tick Also save it to a file | Also save the HTML to this file. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `60000` | More options | How long to wait for the browser to answer (G4). Range: 1000 to  |
 
 **Results**
 
@@ -365,6 +369,7 @@ Run JavaScript in the page and return its result: an expression such as document
 | Script file | `script_file` | File path | No |  | Main; choice Script = Run a file | Or a .js file to run (UTF-8), used instead of the typed script. Shown when: `{"script": [""]}` |
 | Frame | `frame` | Dictionary | No |  | More options | Run the script inside this iframe instead of the main page: the captured iframe element. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
+| Wait up to (milliseconds) | `timeout_ms` | Number | No | `60000` | More options | How long to wait for the browser to answer (G4). Range: 1000 to  |
 
 **Results**
 
@@ -561,15 +566,18 @@ Do one action on a captured element: click, type, read text, attributes or all p
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
 | Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture in OneAgentStudio: the properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), index when several elements match, and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No |  | Main | Element selector: CSS (#id, .class), text="Sign in", role=button[name="Save"] or xpath=//input[@name='q']. Used when no captured object is given. |
-| Action | `action` | Text | Yes |  | Main | What to do with the element. OneAgentStudio lists the actions that suit the captured control type. One of: `click`, `double_click`, `right_click`, `middle_click`, `hover`, `focus`, `set_text`, `append_text`, `clear`, `press_key`, `get_text`, `get_value`, `get_attribute`, `get_property`, `get_all_properties`, `get_html`, `get_inner_html`, `get_coordinates`, `get_children_text`, `get_table`, `select_by_text`, `select_by_value`, `select_by_index`, `get_selected`, `get_options`, `check`, `uncheck`, `is_checked`, `is_visible`, `is_enabled`, `is_present`, `count`, `scroll_into_view`, `highlight`, `wait_to_appear`, `wait_to_disappear`, `drag_to`, `upload_file`, `screenshot`, `get_status`, `toggle`, `select`, `get_selected_index`, `get_total_items`, `get_total_rows`, `get_total_columns`, `get_cell_text`, `get_cell_index_by_text`, `set_cell_text`, `click_cell`, `set_position`, `get_control_type` |
+| Action | `action` | Text | Yes |  | Main | What to do with the element. OneAgentStudio lists the actions that suit the captured control type. One of: `click`, `double_click`, `right_click`, `middle_click`, `hover`, `focus`, `set_text`, `append_text`, `clear`, `press_key`, `get_text`, `get_value`, `get_attribute`, `get_property`, `get_all_properties`, `get_html`, `get_inner_html`, `get_coordinates`, `get_children_text`, `get_table`, `select_by_text`, `select_by_value`, `select_by_index`, `get_selected`, `get_options`, `check`, `uncheck`, `is_checked`, `is_visible`, `is_enabled`, `is_present`, `count`, `scroll_into_view`, `highlight`, `wait_to_appear`, `wait_to_disappear`, `drag_to`, `upload_file`, `screenshot`, `get_status`, `toggle`, `select`, `get_selected_index`, `get_total_items`, `get_total_rows`, `get_total_columns`, `get_cell_text`, `get_cell_index_by_text`, `set_cell_text`, `click_cell`, `set_position`, `get_control_type`, `click_cell_by_text`, `set_cell_by_text`, `expand`, `collapse`, `select_path`, `get_children_values` |
 | Value | `value` | Any | No |  | Main | Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text. |
 | Row | `row` | Number | No |  | Main | Table cell actions: the row, 1 for the first. |
 | Column | `column` | Number | No |  | Main | Table cell actions: the column, 1 for the first. |
+| Find text | `find_text` | Text | No |  | Main | click_cell_by_text and set_cell_by_text: the text of the cell to find (an exact match first, else the first cell containing it) (G4). Shown when: `{"action": ["click_cell_by_text", "set_cell_by_text"]}` |
+| Click kind | `click_kind` | Text | No | `click` | Main | How a table cell is clicked (G4). One of: `click`, `double_click`, `right_click`; Shown when: `{"action": ["click_cell", "click_cell_by_text"]}` |
 | Run in background | `run_in_background` | Yes/No | No | No | Main | Leave the browser window where it is: the tab is not brought to the front and clicks are sent to the page (not with the mouse), so other work on the screen can go on. |
+| Index from one | `index_from_one` | Yes/No | No | No | More options | select_by_index counts from 1 for the first item, as Get selected index does; off counts from 0 as older steps did (G4). |
 | Typing | `typing` | Text | No | `fill` | More options | fill: set the whole text at once (fast); keystrokes: type key by key like a person, for fields that react to each key. One of: `fill`, `keystrokes` |
 | Key delay (milliseconds) | `key_delay_ms` | Number | No | `0` | More options | Pause between keys when typing is keystrokes. |
 | Clear first | `clear_first` | Yes/No | No | Yes | More options | Clear the field before set_text. |
-| Click method | `click_method` | Text | No | `mouse` | More options | mouse: a real click at the element (scrolls it into view and waits until it can be clicked); javascript: fire the click event directly, for elements that are covered or off screen. One of: `mouse`, `javascript` |
+| Click method | `click_method` | Text | No | `mouse` | More options | mouse: a real click at the element (scrolls it into view and waits until it can be clicked); javascript: fire the click event directly, for elements that are covered or off screen; debugger: a click sent through the browser's debugging channel with no script put into the page, for sites whose security rules block scripts (G4). One of: `mouse`, `javascript`, `debugger` |
 | Modifiers | `modifiers` | Text | No |  | More options | Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT. |
 | Offset x | `offset_x` | Number | No |  | More options | Click this many pixels from the element's left edge instead of its centre. |
 | Offset y | `offset_y` | Number | No |  | More options | Click this many pixels from the element's top edge instead of its centre. |
@@ -620,7 +628,7 @@ Open a page and let a person click one element; returns a robust selector and th
 
 *Time limit 900 s; needs: browser.*
 
-### Test captured object (design time)
+### Test capture
 
 `ooa.browser/test_object` (action)
 

@@ -299,6 +299,7 @@ Replace the item at a position.
 | Name | Type | Description |
 | --- | --- | --- |
 | `list` | List | Updated list. |
+| `previous` | Any | The item that was at that position before (G1, AA parity). |
 
 *Time limit 60 s; safe to repeat.*
 

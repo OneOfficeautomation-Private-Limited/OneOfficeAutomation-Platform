@@ -6,7 +6,7 @@ Toolkit `ooa.file`, version 1.0.0. Read, write, copy, move and delete files.
 
 ## Contents
 
-- **Files**: Copy, Create shortcut, Create symbolic link, Create temporary file, Delete, Base64 to file, Get file info, Move or rename, Print files, Read text, Read variables from file, File to Base64, Wait for file, Write text
+- **Files**: Copy, Create file, Create shortcut, Create symbolic link, Create temporary file, Delete, Base64 to file, Get file from One CommandCenter, Get file info, Move or rename, Print files, Read text, Read variables from file, Rename file, File to Base64, Wait for file, Write text
 - **Paths**: Get file name, Get parent folder
 - **Folders**: List files
 - **Archives**: Unzip, Zip
@@ -19,14 +19,14 @@ Toolkit `ooa.file`, version 1.0.0. Read, write, copy, move and delete files.
 
 `ooa.file/copy` (action)
 
-Copy a file, or every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.
+Copy a file, every file the name rules choose, or every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Source | `source` | File path | Yes |  | Main | Source file, or a folder when pattern is given. |
-| Target | `target` | File path | Yes |  | Main | Target file, or a folder when pattern is given. |
+| Source | `source` | File path | Yes |  | Main | Source file, name rules choosing several files, or a folder when pattern is given. |
+| Target | `target` | File path | Yes |  | Main | Target file, or a folder when several files are copied. |
 | Overwrite | `overwrite` | Yes/No | No | No | Main | Replace an existing target. |
 | Pattern | `pattern` | Text | No |  | Main; tick Copy several files by name pattern | Copy every file in the source folder whose name matches this glob pattern; the target is then a folder. A source such as in/*.pdf works too. Example: `*.pdf` |
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main; tick Copy several files by name pattern | With a pattern, also take matching files in sub-folders, keeping their folders under the target. |
@@ -35,6 +35,7 @@ Copy a file, or every file of a folder that matches a pattern and optional size 
 | Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). |
 | Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
 | Keep both | `keep_both` | Yes/No | No | No | More options | When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping. Shown when: `{"overwrite": ["false"]}` |
+| Several files at once | `parallel` | Yes/No | No | No | More options | Copy up to four files at the same time; faster for many files on a network share. |
 
 **Results**
 
@@ -43,6 +44,30 @@ Copy a file, or every file of a folder that matches a pattern and optional size 
 | `path` | File path | Path of the copy (the target folder when copying several files). |
 | `count` | Number | Number of files copied. |
 | `files` | List | Paths of the copies. |
+
+*Time limit 60 s; needs: filesystem.*
+
+### Create file
+
+`ooa.file/create` (action)
+
+Create an empty file (or one holding some text), choosing what happens when a file of that name is already there.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| File | `new_file` | File path | Yes |  | Main | File to create; its folder is created when missing. |
+| If exists | `if_exists` | Text | No | `fail` | Main | When the file is already there: stop with FILE.EXISTS, replace it, create a numbered name such as notes (2).txt, or leave it as it is. One of: `fail`, `replace`, `keep_both`, `keep` |
+| Text | `text` | Text | No |  | More options | Text to put in the new file; empty for an empty file. |
+| Encoding | `encoding` | Text | No | `utf-8` | More options | Text encoding, e.g. utf-8, utf-16le, windows-1252. Shown when: `{"text": ["!", ""]}` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Full path of the file (the numbered name with keep both). |
+| `created` | Yes/No | True when a file was written; false when an existing file was kept. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -120,13 +145,13 @@ Create an empty file with a unique name in the temporary folder (or another fold
 
 `ooa.file/delete` (action)
 
-Delete a file if it exists, or every file in a folder that matches a pattern and optional size and age limits.
+Delete a file if it exists, every file the name rules choose, or every file in a folder that matches a pattern and optional size and age limits.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Path | `path` | File path | Yes |  | Main | File path, or a folder when pattern is given. |
+| Path | `path` | File path | Yes |  | Main | File path (or name rules choosing several files), or a folder when pattern is given. |
 | Pattern | `pattern` | Text | No |  | Main; tick Delete several files by name pattern | Delete the files in the folder at path that match this glob pattern. Example: `*.tmp` |
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main; tick Delete several files by name pattern | With pattern, also delete matching files in sub-folders. |
 | Minimum size (bytes) | `min_size_bytes` | Number | No |  | Main; tick Filter by size | With pattern, only files at least this large. Range: 0 to  |
@@ -134,12 +159,14 @@ Delete a file if it exists, or every file in a folder that matches a pattern and
 | Older than (days) | `older_than_days` | Number | No |  | Main; tick Filter by date | With pattern, only files last changed more than this many days ago. Range: 0 to  |
 | Modified after | `modified_after` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). Shown when: `{"pattern": ["!", ""]}` |
 | Modified before | `modified_before` | DateTime | No |  | Main; tick Filter by date | With pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). Shown when: `{"pattern": ["!", ""]}` |
+| Several files at once | `parallel` | Yes/No | No | No | More options | Delete up to four files at the same time; faster for many files on a network share. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `deleted` | Number | Number of files deleted. |
+| `files` | List | Paths of the files deleted. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
 
@@ -166,6 +193,29 @@ Write Base64 text (for example a PDF or image returned by a web service) to a fi
 
 *Time limit 60 s; needs: filesystem.*
 
+### Get file from One CommandCenter
+
+`ooa.file/get_from_command_center` (action)
+
+Copy a file kept in One CommandCenter (its Agents page, Files) to the runner, by its path there; the path may come from a variable.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Repository path | `repository_path` | Text | Yes |  | Main | The file's path in One CommandCenter, e.g. Templates/invoice.xlsx or $template$. Example: `Templates/invoice.xlsx` |
+| Save to | `save_to` | File path | No |  | Main | File or folder on the runner; the run's temporary folder when empty (the path is returned). |
+| Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file already there; when off, an existing file stops the step. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | Where the file was saved on the runner. |
+| `size` | Number | Size in bytes. |
+
+*Time limit 120 s; needs: filesystem, network.*
+
 ### Get file info
 
 `ooa.file/get_info` (action)
@@ -190,14 +240,14 @@ Return a file's name, extension, folder, size and last modified time.
 
 `ooa.file/move` (action)
 
-Move or rename a file, or move every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.
+Move or rename a file, or move every file the name rules choose or every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Source | `source` | File path | Yes |  | Main | Source file, or a folder when pattern is given. |
-| Target | `target` | File path | Yes |  | Main | New path or name, or a folder when pattern is given. |
+| Source | `source` | File path | Yes |  | Main | Source file, name rules choosing several files, or a folder when pattern is given. |
+| Target | `target` | File path | Yes |  | Main | New path or name, or a folder when several files are moved. |
 | Overwrite | `overwrite` | Yes/No | No | No | More options | Replace an existing target. |
 | Keep both | `keep_both` | Yes/No | No | No | More options | When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping. Shown when: `{"overwrite": ["false"]}` |
 | Pattern | `pattern` | Text | No |  | More options; tick Move several files by name pattern | Move every file in the source folder whose name matches this glob pattern; the target is then a folder. A source such as in/*.pdf works too. Example: `*.pdf` |
@@ -206,6 +256,7 @@ Move or rename a file, or move every file of a folder that matches a pattern and
 | Maximum size (bytes) | `max_size_bytes` | Number | No |  | More options; tick Filter by size | With a pattern, only files at most this large. Range: 0 to  |
 | Modified after | `modified_after` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed after this date and time (UTC, like every DateTime; Text to date converts local times). |
 | Modified before | `modified_before` | DateTime | No |  | More options; tick Filter by date | With a pattern, only files last changed before this date and time (UTC, like every DateTime; Text to date converts local times). |
+| Several files at once | `parallel` | Yes/No | No | No | More options | Move up to four files at the same time; faster for many files on a network share. |
 
 **Results**
 
@@ -228,7 +279,7 @@ Print several files, in order, on a named printer or with each file's default ap
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Files | `files` | List | No |  | Main; choice Print = Listed files | File paths to print (or use folder). Shown when: `{"folder": [""]}` |
-| Folder | `folder` | File path | No |  | Main; choice Print = Files in a folder | Print the files in this folder that match pattern, after any files in the list. Shown when: `{"files": [""]}` |
+| Folder | `folder` | File path | No |  | Main; choice Print = Files in a folder | Print the files in this folder that match pattern (or the files name rules choose), after any files in the list. Shown when: `{"files": [""]}` |
 | Pattern | `pattern` | Text | No | `*` | Main; choice Print = Files in a folder | With folder, glob pattern of the files to print. Example: `*.pdf`; Shown when: `{"files": [""]}` |
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main; choice Print = Files in a folder | With folder, also print matching files in sub-folders. Shown when: `{"files": [""]}` |
 | Modified within (days) | `modified_within_days` | Number | No |  | Main; choice Print = Files in a folder | With folder, only files changed in the last this many days. Range: 0 to ; Shown when: `{"files": [""]}` |
@@ -290,6 +341,28 @@ Read name=value lines (a settings or .properties-style file) into a Dictionary; 
 | `count` | Number | Number of values read. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
+
+### Rename file
+
+`ooa.file/rename` (action)
+
+Give a file a new name in the same folder.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | File to rename. |
+| New name | `new_name` | Text | Yes |  | Main | New name only, with its extension and without any folder. Example: `invoice-2026-11.pdf` |
+| Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file that already has the new name. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | New full path of the file. |
+
+*Time limit 60 s; needs: filesystem.*
 
 ### File to Base64
 
@@ -405,13 +478,13 @@ Return the folder that contains a file or folder, as a full path.
 
 `ooa.file/list` (action)
 
-List files in a folder matching a glob pattern.
+List the files in a folder that match a pattern, or the files the name rules choose.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Folder | `folder` | File path | Yes |  | Main | Folder path. |
+| Folder | `folder` | File path | Yes |  | Main | Folder path, or name rules (a folder and rules on name, type, size and date) choosing the files. |
 | Pattern | `pattern` | Text | No | `*` | Main | Glob pattern, e.g. *.pdf. |
 | Include subfolders | `include_subfolders` | Yes/No | No | No | Main | Also list matching files in sub-folders. |
 | Minimum size (bytes) | `min_size_bytes` | Number | No |  | Main; tick Filter by size | Only files at least this large. Range: 0 to  |
@@ -466,7 +539,7 @@ Compress files or a folder into a .zip archive, or add them to an existing one, 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Source | `source` | File path | Yes |  | Main | File or folder to compress. |
+| Source | `source` | File path | Yes |  | Main | File or folder to compress, or name rules choosing the files. |
 | Pattern | `pattern` | Text | No |  | Main | Only add files whose names match this glob pattern; all files when empty. Example: `*.pdf` |
 | Target | `target` | File path | Yes |  | Main | Archive path, e.g. out/report.zip. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Protect with a password | Encrypt every file with this password (AES-256). Windows Explorer cannot open such archives; 7-Zip, WinZip and most tools can. |
@@ -493,7 +566,7 @@ Used in If, Loop while and Wait until steps.
 
 `ooa.file/date_is` (condition)
 
-Compare when a file was last changed or created with a date, or check its age in days.
+Compare when a file was last changed or created with a date or a range, or check its age in days, hours, minutes or seconds.
 
 **Settings**
 
@@ -501,9 +574,12 @@ Compare when a file was last changed or created with a date, or check its age in
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File path. |
 | Which | `which` | Text | No | `modified` | Main | Which date of the file. One of: `modified`, `created` |
-| Operator | `operator` | Text | No | `before` | Main | Before, after or on a date (calendar day, UTC), or older/newer than a number of days. One of: `before`, `after`, `on`, `older_than_days`, `newer_than_days` |
-| Date | `date` | DateTime | No |  | Main | Date to compare with (UTC). Shown when: `{"operator": ["before", "after", "on"]}` |
-| Days | `days` | Number | No |  | Main | Age in days. Range: 0 to ; Shown when: `{"operator": ["older_than_days", "newer_than_days"]}` |
+| Operator | `operator` | Text | No | `before` | Main | Before, after or on a date (calendar day, UTC), between two dates, or older/newer than an age. One of: `before`, `after`, `on`, `between`, `older_than_days`, `newer_than_days` |
+| Date | `date` | DateTime | No |  | Main | Date to compare with (UTC); the start of the range for between. Shown when: `{"operator": ["before", "after", "on", "between"]}` |
+| Age | `days` | Number | No |  | Main | Age in the chosen unit (days when no unit is chosen). Range: 0 to ; Shown when: `{"operator": ["older_than_days", "newer_than_days"]}` |
+| Until | `until` | DateTime | No |  | Main | End of the range for between (UTC). Shown when: `{"operator": ["between"]}` |
+| Inclusive | `inclusive` | Yes/No | No | No | Main | Count a file dated exactly on the date (or on either end of the range) as matching. Shown when: `{"operator": ["before", "after", "between"]}` |
+| Unit | `unit` | Text | No | `days` | Main | Unit of the age. One of: `days`, `hours`, `minutes`, `seconds`; Shown when: `{"operator": ["older_than_days", "newer_than_days"]}` |
 
 *Needs: filesystem.*
 
@@ -532,7 +608,7 @@ True when the file name ends with one of the extensions, e.g. pdf, xlsx (case is
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File path or name. |
-| Extensions | `extensions` | Text | Yes |  | Main | One or more extensions separated by commas, with or without the dot. Example: `pdf, xlsx` |
+| Extensions | `extensions` | Text | Yes |  | Main | One or more extensions separated by commas, with or without the dot, or a List variable of them. Example: `pdf, xlsx` |
 
 *Needs: filesystem.*
 
@@ -561,13 +637,14 @@ Used as the kind of loop in a Loop step.
 
 `ooa.file/files_in_folder` (loop type)
 
-Yield each file path in a folder.
+Yield each file in a folder (or each file the name rules choose): its path, or with details its name, extension, folder, size and date.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Folder | `folder` | File path | Yes |  | Main | Folder path. |
+| Folder | `folder` | File path | Yes |  | Main | Folder path, or name rules choosing the files. |
 | Pattern | `pattern` | Text | No | `*` | Main | Glob pattern. |
+| Each pass gives the file's details | `details` | Yes/No | No | No | Main | Give each file as a Dictionary with path, name, name_without_extension, extension, folder, size_bytes and modified, instead of its path alone. |
 
 *Needs: filesystem.*

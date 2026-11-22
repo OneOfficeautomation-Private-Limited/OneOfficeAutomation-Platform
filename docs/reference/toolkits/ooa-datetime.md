@@ -461,10 +461,11 @@ True when the first date is later than the second.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | DateTime | Yes |  | Main | Date to check. |
-| Other | `other` | DateTime | Yes |  | Main | Date to compare with. |
+| Value | `value` | Any | Yes |  | Main | Date to check. A date, a Date variable, or text in the pattern below. |
+| Other | `other` | Any | Yes |  | Main | Date to compare with. A date, a Date variable, or text in the pattern below. |
 | Include time | `include_time` | Yes/No | No | Yes | Main | Compare the time of day too; when off only the calendar dates (in time_zone) are compared. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone whose calendar dates are compared when include_time is off. |
+| Pattern | `pattern` | Text | No |  | Main | Pattern of dates written as text, e.g. dd/MM/yyyy; ISO dates (2026-11-21) and Date variables need none. Example: `dd/MM/yyyy` |
 
 ### Date is before
 
@@ -476,10 +477,11 @@ True when the first date is earlier than the second.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | DateTime | Yes |  | Main | Date to check. |
-| Other | `other` | DateTime | Yes |  | Main | Date to compare with. |
+| Value | `value` | Any | Yes |  | Main | Date to check. A date, a Date variable, or text in the pattern below. |
+| Other | `other` | Any | Yes |  | Main | Date to compare with. A date, a Date variable, or text in the pattern below. |
 | Include time | `include_time` | Yes/No | No | Yes | Main | Compare the time of day too; when off only the calendar dates (in time_zone) are compared. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone whose calendar dates are compared when include_time is off. |
+| Pattern | `pattern` | Text | No |  | Main | Pattern of dates written as text, e.g. dd/MM/yyyy; ISO dates (2026-11-21) and Date variables need none. Example: `dd/MM/yyyy` |
 
 ### Date is between
 
@@ -491,11 +493,12 @@ True when the date lies between two dates, both included.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | DateTime | Yes |  | Main | Date to check. |
-| From | `from` | DateTime | Yes |  | Main | Earliest date. |
-| To | `to` | DateTime | Yes |  | Main | Latest date. |
+| Value | `value` | Any | Yes |  | Main | Date to check. A date, a Date variable, or text in the pattern below. |
+| From | `from` | Any | Yes |  | Main | Earliest date. A date, a Date variable, or text in the pattern below. |
+| To | `to` | Any | Yes |  | Main | Latest date. A date, a Date variable, or text in the pattern below. |
 | Include time | `include_time` | Yes/No | No | Yes | Main | Compare the time of day too; when off only the calendar dates (in time_zone) are compared. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone whose calendar dates are compared when include_time is off. |
+| Pattern | `pattern` | Text | No |  | Main | Pattern of dates written as text, e.g. dd/MM/yyyy; ISO dates (2026-11-21) and Date variables need none. Example: `dd/MM/yyyy` |
 
 ### Within business hours
 
@@ -522,10 +525,11 @@ True when both dates are the same moment, or the same day when the time is not i
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Value | `value` | DateTime | Yes |  | Main | Date to check. |
-| Other | `other` | DateTime | Yes |  | Main | Date to compare with. |
+| Value | `value` | Any | Yes |  | Main | Date to check. A date, a Date variable, or text in the pattern below. |
+| Other | `other` | Any | Yes |  | Main | Date to compare with. A date, a Date variable, or text in the pattern below. |
 | Include time | `include_time` | Yes/No | No | Yes | Main | Compare the time of day too; when off only the calendar dates (in time_zone) are compared. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone whose calendar dates are compared when include_time is off. |
+| Pattern | `pattern` | Text | No |  | Main | Pattern of dates written as text, e.g. dd/MM/yyyy; ISO dates (2026-11-21) and Date variables need none. Example: `dd/MM/yyyy` |
 
 ### Text is a valid date
 

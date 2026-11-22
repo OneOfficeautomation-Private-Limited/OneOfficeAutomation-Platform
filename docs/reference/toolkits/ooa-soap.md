@@ -39,16 +39,21 @@ Read a service's WSDL (address or file) and list its operations, each with its S
 
 `ooa.soap/send` (action)
 
-Send a SOAP envelope (or just the body, which is wrapped for you) and return the response.
+Send a SOAP envelope (or just the body, which is wrapped for you), or build the request from the service's WSDL, and return the response.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Address (URL) | `url` | Text | Yes |  | Main | Service endpoint URL, or a path when base_url (or a connection) gives the address. |
-| Version | `version` | Text | No | `1.1` | Main | SOAP version. One of: `1.1`, `1.2` |
-| Soap action | `soap_action` | Text | No |  | Main | SOAPAction header (from the WSDL). |
-| Body | `body` | Text | Yes |  | Main | Full SOAP envelope, or only the body XML (it is wrapped automatically). |
+| Address (URL) | `url` | Text | No |  | Main | Service endpoint URL, or a path when base_url (or a connection) gives the address. When the body is built from a WSDL, empty uses the address the WSDL gives. |
+| Version | `version` | Text | No | `1.1` | Main | SOAP version; when the body is built from a WSDL, the port's own version is used. One of: `1.1`, `1.2` |
+| Body | `body` | Text | No |  | Main; choice Body = Write the XML | Full SOAP envelope, or only the body XML (it is wrapped automatically); it may also come from the vault as a whole (G6). |
+| Replace in body | `replace_in_body` | Dictionary | No |  | Main; choice Body = Write the XML | Placeholders in the body filled just before sending: name to a Credential (or text); every {{name}} in the body becomes the value, which stays masked in the log (G6). |
+| Wsdl | `wsdl` | Text | No |  | Main; choice Body = Build from WSDL | Build the request from this WSDL (address or .wsdl file) instead of writing the XML (G6). Example: `https://erp.example.com/OrderService?wsdl` |
+| Service | `service` | Text | No |  | Main; choice Body = Build from WSDL | Service in the WSDL; empty when it has only one or any will do (G6). Shown when: `{"wsdl": ["!", ""]}` |
+| Port | `port` | Text | No |  | Main; choice Body = Build from WSDL | Port of the service (it fixes the address and SOAP version); empty for the first that offers the operation (G6). Shown when: `{"wsdl": ["!", ""]}` |
+| Operation | `operation` | Text | No |  | Main; choice Body = Build from WSDL | Operation to call, as Read WSDL lists it (G6). Example: `GetOrder`; Shown when: `{"wsdl": ["!", ""]}` |
+| Parameters | `parameters` | Dictionary | No |  | Main; choice Body = Build from WSDL | Values of the request's fields: field name (or a path such as Customer/Name) to value; a value may be a Credential, and a list repeats the field. Optional fields left out are dropped (G6). Shown when: `{"wsdl": ["!", ""]}` |
 | Basic user | `basic_user` | Text | No |  | Main; choice Sign in = User name and password | Basic auth user name. |
 | Basic password | `basic_password` | Credential (vault) | No |  | Main; choice Sign in = User name and password | Basic auth password from the vault. |
 | Bearer token | `bearer_token` | Credential (vault) | No |  | Main; choice Sign in = Bearer token | Bearer token from the vault. |
@@ -74,8 +79,16 @@ Send a SOAP envelope (or just the body, which is wrapped for you) and return the
 | Client certificate password | `client_certificate_password` | Credential (vault) | No |  | Main; tick Use a client certificate | Password of the client certificate file. |
 | Output file | `output_file` | File path | No |  | Main | Also save the response XML to this file. |
 | XPath | `xpath` | Text | No |  | Main | Also return the text of the response nodes this XPath selects, in values. Example: `//*[local-name()='Price']` |
+| XPath output | `xpath_output` | Text | No | `values` | Main | What xpath returns: values (a list of the nodes' text), joined (their text as one text, separated by delimiter), inner_xml (the XML inside the nodes) or outer_xml (the nodes with their own tags) (G6). One of: `values`, `joined`, `inner_xml`, `outer_xml`; Shown when: `{"xpath": ["!", ""]}` |
+| Delimiter | `delimiter` | Text | No | `pipe` | Main | What separates the joined values: none, pipe (\|), semicolon (;) or custom (G6). One of: `none`, `pipe`, `semicolon`, `custom`; Shown when: `{"xpath": ["!", ""], "xpath_output": ["joined"]}` |
+| Custom delimiter | `custom_delimiter` | Text | No |  | Main | Text that separates the joined values (G6). Shown when: `{"xpath": ["!", ""], "xpath_output": ["joined"], "delimiter": ["custom"]}` |
+| Soap action | `soap_action` | Text | No |  | More options | SOAPAction header (from the WSDL); when the body is built from a WSDL, empty uses the operation's own. |
+| Namespace | `namespace` | Text | No |  | More options | Namespace for the operation's element in place of the WSDL's (G6). Shown when: `{"wsdl": ["!", ""]}` |
+| Prefix | `prefix` | Text | No | `ns` | More options | Prefix written for that namespace (G6). Shown when: `{"wsdl": ["!", ""]}` |
+| Qualify elements | `qualify_elements` | Yes/No | No |  | More options | Whether the fields inside the operation carry the namespace too; empty follows the WSDL's schema (G6). Shown when: `{"wsdl": ["!", ""]}` |
 | Fail on error | `fail_on_error` | Yes/No | No | Yes | More options | Fail the step on a SOAP fault or HTTP error; when false the status and response are returned. |
 | Allow untrusted certificates | `insecure_tls` | Yes/No | No | No | More options | Accept any server certificate (self-signed or expired); for test systems only. |
+| Trust certificate | `trust_certificate` | File path | No |  | More options | Certificate of a private certificate authority (.cer, .crt or .pem) to trust as well as the usual ones, so a company server's certificate is still checked without insecure_tls (G6). |
 | Proxy | `proxy` | Text | No |  | More options; tick Use a proxy server | Proxy server as host:port; the runner's settings when empty. Example: `proxy.example.com:8080` |
 | Proxy user | `proxy_user` | Text | No |  | More options; tick Use a proxy server | Proxy user name, when the proxy needs a sign-in. |
 | Proxy password | `proxy_password` | Credential (vault) | No |  | More options; tick Use a proxy server | Proxy password from the vault. |
@@ -89,6 +102,7 @@ Send a SOAP envelope (or just the body, which is wrapped for you) and return the
 | `status` | Number | HTTP status code. |
 | `response` | Text | Response XML. |
 | `body` | Any | The first element inside the SOAP Body, as a dictionary. |
-| `values` | List | Text of the nodes selected by xpath; empty without xpath. |
+| `values` | List | Text of the nodes selected by xpath (their inner or outer XML with those xpath_output choices); empty without xpath. |
+| `text` | Text | With xpath_output joined, inner_xml or outer_xml: the selected nodes as one text; empty otherwise (G6). |
 
 *Time limit 120 s; needs: network, filesystem.*

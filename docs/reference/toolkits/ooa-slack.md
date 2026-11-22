@@ -6,10 +6,11 @@ Toolkit `ooa.slack`, version 1.0.0. Post messages to Slack channels and users.
 
 ## Contents
 
-- **Channels**: Get channel details, Get channel id by name, Get conversation history
+- **Channels**: Get channel details, Get channel id by name, Get conversation history, List channels, List a person's conversations, Open conversation with members
 - **Users**: Get user details
 - **Workspace**: Get workspace details, Get workspace id by name
 - **Messages**: Post message, Send direct message, Update message, Upload file
+- **Loop types**: Each Slack channel, Each Slack message
 
 ## Channels
 
@@ -86,6 +87,79 @@ Read recent messages of a channel or direct conversation into a table, newest fi
 | `count` | Number | Number of messages. |
 
 *Time limit 300 s; safe to repeat; needs: network.*
+
+### List channels
+
+`ooa.slack/list_channels` (action)
+
+List the workspace's channels and conversations of the kinds asked for (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Types | `types` | List | No |  | Main | Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty. Example: `["public_channel", "private_channel"]` |
+| Include archived | `include_archived` | Yes/No | No | No | More options | Also archived channels. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | At most this many. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, is_private, is_archived, is_im, is_mpim, user, num_members, created. |
+| `count` | Number | How many. |
+
+*Time limit 300 s; safe to repeat; needs: network.*
+
+### List a person's conversations
+
+`ooa.slack/list_user_conversations` (action)
+
+List the channels and conversations a person (or the agent) belongs to (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | No |  | Main | Member id (U...); the agent itself when empty. |
+| Types | `types` | List | No |  | Main | Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty. Example: `["public_channel", "private_channel"]` |
+| Include archived | `include_archived` | Yes/No | No | No | More options | Also archived channels. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | At most this many. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, is_private, is_archived, is_im, is_mpim, user, num_members, created. |
+| `count` | Number | How many. |
+
+*Time limit 300 s; safe to repeat; needs: network.*
+
+### Open conversation with members
+
+`ooa.slack/open_conversation` (action)
+
+Open (or find) the direct or group conversation with the given members and return its id (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Members | `members` | List | Yes |  | Main | Member ids (U...), 1 to 8 people. |
+| Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `channel_id` | Text | The conversation's id. |
+
+*Time limit 60 s; needs: network.*
 
 ## Users
 
@@ -264,3 +338,41 @@ Share one or more local files in a channel or direct conversation, with an optio
 | `file_ids` | List | Slack file ids. |
 
 *Time limit 600 s; needs: network, filesystem.*
+
+## Loop types
+
+Used as the kind of loop in a Loop step.
+
+### Each Slack channel
+
+`ooa.slack/channels` (loop type)
+
+Go through the workspace's channels and conversations of the kinds asked for, one per turn (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Types | `types` | List | No |  | Main | Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty. Example: `["public_channel", "private_channel"]` |
+| Include archived | `include_archived` | Yes/No | No | No | Main | Also archived channels. |
+| Maximum results | `max_results` | Number | No | `1000` | Main | At most this many. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://slack.com/api` | Main | API endpoint; change only for testing. |
+
+### Each Slack message
+
+`ooa.slack/messages` (loop type)
+
+Go through the messages of a channel or thread between two times, one per turn: ts, user, text, thread_ts, reply_count, subtype (G5).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Channel | `channel` | Text | Yes |  | Main | Channel id, or a channel name such as #ops-alerts. |
+| Oldest | `oldest` | Text | No |  | Main | Only messages after this date or time (UTC). Example: `2026-11-01` |
+| Latest | `latest` | Text | No |  | Main | Only messages before this date or time (UTC). |
+| Maximum messages | `max_messages` | Number | No | `200` | Main | Maximum messages. |
+| Thread ts | `thread_ts` | Text | No |  | Main | The replies of this thread instead of the channel. |
+| Endpoint address | `base_url` | Text | No | `https://slack.com/api` | Main | API endpoint; change only for testing. |

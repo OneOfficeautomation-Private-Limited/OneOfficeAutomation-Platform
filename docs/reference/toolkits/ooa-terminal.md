@@ -1,4 +1,4 @@
-# Terminal emulator (TN3270, TN5250, VT over SSH)
+# Terminal emulator
 
 Toolkit `ooa.terminal`, version 1.2.0. Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing.
 
@@ -36,25 +36,28 @@ Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, an
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Host | `host` | Text | Yes |  | Main | Host name or address. |
+| Host | `host` | Text | Yes |  | Main | Host name or address; it may come from the vault (G4). |
 | Port | `port` | Number | No |  | Main | Port; 23 for 3270 and 5250 (992 is common with TLS) and 22 for SSH when empty. Range: 1 to 65535 |
-| Terminal type | `terminal_type` | Text | No | `tn3270e` | Main | tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, or vt-ssh for a VT100/ANSI host reached over SSH. One of: `tn3270e`, `tn3270`, `tn5250`, `vt-ssh` |
-| Encrypted connection (TLS) | `tls` | Yes/No | No | No | Main | Use a TLS-encrypted connection. Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
-| Model | `model` | Text | No | `3279-2` | Main | Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome. 5250: 3179-2 = 24x80, 3477-FC = 27x132 (a 3270 model 5 also means 27x132). One of: `3279-2`, `3279-3`, `3279-4`, `3279-5`, `3278-2`, `3278-3`, `3278-4`, `3278-5`, `3179-2`, `3477-FC`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
-| Code page | `code_page` | Text | No |  | Main | Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default (5250: cp037) when empty. Example: `cp037`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
-| User | `user` | Text | No |  | Main | SSH user name. Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Password | `password` | Credential (vault) | No |  | Main | SSH password from the vault; leave empty when signing in with a key file. Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Key file | `key_file` | File path | No |  | Main; tick Sign in with a key file | Private key file for SSH sign-in (instead of, or as well as, a password). Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Key passphrase | `key_passphrase` | Credential (vault) | No |  | Main; tick Sign in with a key file | Passphrase of the key file, when it has one. Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Lu name | `lu_name` | Text | No |  | Main; tick Ask for a specific device name | Device name to request from the host (3270 logical unit, or 5250 display device); any free one when empty. Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
+| Terminal type | `terminal_type` | Text | No | `tn3270e` | Main | tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, vt-ssh for a VT100/ANSI host reached over SSH, or vt-telnet for one reached over Telnet (unencrypted) (G4). One of: `tn3270e`, `tn3270`, `tn5250`, `vt-ssh`, `vt-telnet` |
+| Encrypted connection (TLS) | `tls` | Yes/No | No | No | Main | Use a TLS-encrypted connection. Shown when: `{"terminal_type": ["!", "vt-ssh", "vt-telnet"]}` |
+| Model | `model` | Text | No | `3279-2` | Main | Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome; -E adds the extended attributes (colour, highlighting). 5250: 3477-FC and 3477-FG are 27x132, the others 24x80 (a 3270 model 5 also means 27x132). One of: `3279-2`, `3279-3`, `3279-4`, `3279-5`, `3278-2`, `3278-3`, `3278-4`, `3278-5`, `3279-2-E`, `3279-3-E`, `3279-4-E`, `3279-5-E`, `3278-2-E`, `3278-3-E`, `3278-4-E`, `3278-5-E`, `3179-2`, `3180-2`, `3196-A1`, `3477-FC`, `3477-FG`, `3486-BA`, `3487-HA`, `3487-HC`, `5251-11`, `5291-1`, `5292-2`; Shown when: `{"terminal_type": ["!", "vt-ssh", "vt-telnet"]}` |
+| Code page | `code_page` | Text | No |  | Main | Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default (5250: cp037) when empty. Example: `cp037`; Shown when: `{"terminal_type": ["!", "vt-ssh", "vt-telnet"]}` |
+| User | `user` | Text | No |  | Main | SSH user name; over Telnet, typed at the login prompt (empty: sign in with Type text steps). It may come from the vault. Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Password | `password` | Credential (vault) | No |  | Main | Password from the vault; over SSH leave it empty when signing in with a key file. Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Key file | `key_file` | File path | No |  | Main; tick Sign in with a key file | Private key file for SSH sign-in (instead of, or as well as, a password). Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Key passphrase | `key_passphrase` | Credential (vault) | No |  | Main; tick Sign in with a key file | Passphrase of the key file, when it has one. Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Lu name | `lu_name` | Text | No |  | Main; tick Ask for a specific device name | Device name to request from the host (3270 logical unit, or 5250 display device); any free one when empty. Shown when: `{"terminal_type": ["!", "vt-ssh", "vt-telnet"]}` |
 | Wait for text | `wait_for_text` | Text | No |  | Main; tick Wait for text on the first screen | Text the first screen must show (e.g. a logon prompt) before the agent continues; no check when empty. Example: `USERID` |
 | Session | `session` | Text | No | `terminal` | Main | Session name. |
 | Connect timeout (seconds) | `connect_timeout_seconds` | Number | No | `30` | More options | Seconds to wait for the connection and the first screen. |
 | Wait for input field | `wait_for_input_field` | Yes/No | No | Yes | More options | Wait until the first screen has a field to type into (on SSH: until the host stops sending); turn off for hosts that show a read-only banner first. |
-| Host key fingerprint | `host_key_fingerprint` | Text | No |  | More options | Expected SSH host fingerprint; the connection stops when the host shows a different one. Strongly recommended. Example: `SHA256:...`; Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Emulation | `emulation` | Text | No | `vt100` | More options | Terminal kind reported to the SSH host; it decides which control codes the host sends. One of: `vt100`, `vt220`, `xterm`, `ansi`; Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Screen rows | `screen_rows` | Number | No | `24` | More options | Screen height in rows for SSH hosts. Range: 5 to 255; Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Screen columns | `screen_columns` | Number | No | `80` | More options | Screen width in columns for SSH hosts. Range: 20 to 255; Shown when: `{"terminal_type": ["vt-ssh"]}` |
+| Host key fingerprint | `host_key_fingerprint` | Text | No |  | More options | Expected SSH host fingerprint; the connection stops when the host shows a different one. Strongly recommended. Example: `SHA256:...`; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Emulation | `emulation` | Text | No | `vt100` | More options | Terminal kind reported to the SSH host; it decides which control codes the host sends. One of: `vt100`, `vt220`, `xterm`, `ansi`; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Screen rows | `screen_rows` | Number | No | `24` | More options | Screen height in rows for SSH hosts. Range: 5 to 255; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Screen columns | `screen_columns` | Number | No | `80` | More options | Screen width in columns for SSH hosts. Range: 20 to 255; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Encoding | `encoding` | Text | No | `utf-8` | More options | VT hosts: how characters are sent: utf-8, ansi (windows-1252), or a double-byte set such as Shift_JIS, GBK or EUC-KR (G4). Example: `windows-1252`; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Auto wrap | `auto_wrap` | Yes/No | No | Yes | More options | VT hosts: text reaching the right edge goes on at the next line; off keeps writing in the last column (G4). Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
+| Device attributes | `device_attributes` | Text | No |  | More options | VT hosts: the answer to the host's 'what terminal are you' question, after ESC [ (e.g. ?62;1;6c for a VT220); the VT100 answer when empty (G4). Example: `?62;1;6c`; Shown when: `{"terminal_type": ["vt-ssh", "vt-telnet"]}` |
 
 *Time limit 120 s; needs: network, filesystem.*
 
@@ -121,23 +124,26 @@ Read the whole screen as text, one line per row.
 
 `ooa.terminal/get_text` (action)
 
-Read text from a row and column for a given length.
+Read text from a row and column for a given length, or the last line with text, a rectangle of the screen, or (VT hosts) everything that scrolled past.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `terminal` | Main | Session name. |
-| Row | `row` | Number | Yes |  | Main | Row (1-based). |
-| Column | `column` | Number | Yes |  | Main | Column (1-based). |
-| Length | `length` | Number | Yes |  | Main | Number of characters. |
+| What | `what` | Text | No | `position` | Main | What to read (G4): from a position, a rectangle (row, column, height, width), the last line with text, or on VT hosts all lines that scrolled off the top and the screen. One of: `position`, `rectangle`, `last_line`, `scroll_back` |
+| Row | `row` | Number | No | `1` | Main | Row (1-based). Shown when: `{"what": ["position", "rectangle"]}` |
+| Column | `column` | Number | No | `1` | Main | Column (1-based). Shown when: `{"what": ["position", "rectangle"]}` |
+| Length | `length` | Number | No | `80` | Main | Number of characters. Shown when: `{"what": ["position"]}` |
+| Height | `height` | Number | No | `1` | Main | Rectangle: how many rows (G4). Range: 1 to ; Shown when: `{"what": ["rectangle"]}` |
+| Width | `width` | Number | No | `80` | Main | Rectangle: how many columns (G4). Range: 1 to ; Shown when: `{"what": ["rectangle"]}` |
 | Trim | `trim` | Yes/No | No | Yes | More options | Remove leading and trailing spaces. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `text` | Text | Text (trimmed unless trim is off). |
+| `text` | Text | Text (trimmed unless trim is off); a rectangle or the scroll-back one line per row. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -145,7 +151,7 @@ Read text from a row and column for a given length.
 
 `ooa.terminal/hide_terminal` (action)
 
-Hide the terminal window; the scripting engine is always hidden, so nothing changes.
+Close the window Show terminal opened (G4); the session goes on.
 
 **Settings**
 
@@ -194,6 +200,7 @@ Type text at a row and column, or at the cursor; Credentials are typed without b
 | Column | `column` | Number | No |  | More options | Column (1-based). |
 | Clear field | `clear_field` | Yes/No | No | No | More options | Erase the rest of the field first. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `30` | More options | Seconds to wait for the host to unlock the keyboard after the key. |
+| Delay before (milliseconds) | `delay_before_ms` | Number | No | `0` | More options | Pause before typing, e.g. for a slow host (G4). Range: 0 to 600000 |
 
 *Time limit 120 s.*
 
@@ -238,13 +245,19 @@ Give keys friendly names for this session, e.g. Submit for Enter or Exit for PF3
 
 `ooa.terminal/show_terminal` (action)
 
-Ask for a visible terminal window; the scripting engine has no window, so this only records a note in the log.
+Open a window that follows the session's screen while the agent works, for a person watching (G4); on a runner without a screen it only notes that in the log.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `terminal` | Main | Session name. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `shown` | Yes/No | True when the window is showing. |
 
 *Time limit 60 s.*
 

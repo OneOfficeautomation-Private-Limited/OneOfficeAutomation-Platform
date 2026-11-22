@@ -6,9 +6,33 @@ Toolkit `ooa.documents`, version 1.0.0. Send documents (PDF, PNG, JPG, TIFF) to 
 
 ## Contents
 
-- **Document Automation**: Get document result, List finished documents, Mark collected, Send document to process, Wait for document
+- **Document Automation**: Download document, Get document result, List finished documents, Mark collected, Send document to process, Update document result, Wait for document
 
 ## Document Automation
+
+### Download document
+
+`ooa.documents/download` (action)
+
+Save a document's results (CSV or JSON), or the file that was sent, to a folder (G6). A file of the same name there is replaced.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Document ID | `document_id` | Text | Yes |  | Main | The document id that Send document to process gave (or a document_id input given by a Start-a-bot delivery). |
+| Kind | `kind` | Text | No | `csv` | Main | csv: one row per field (field, value, confidence, page, corrected). json: everything that was read. original: the document as it was sent. One of: `csv`, `json`, `original` |
+| Folder | `folder` | Text | No |  | Main | The folder to save in. Empty: the run's temporary folder (the path output says where). |
+| Delete after | `delete_after` | Yes/No | No | Yes | More options | Ask Document Automation to remove its copy once the file is saved. When the service keeps documents, the step says so and goes on. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | The saved file. |
+| `deleted` | Yes/No | True when Document Automation's copy was removed. |
+
+*Time limit 300 s; needs: filesystem.*
 
 ### Get document result
 
@@ -101,6 +125,7 @@ Send a document to a live Document Automation process. Optionally wait until it 
 | Process | `process` | Text | Yes |  | Main | The process's name (or id) as shown in Document Automation. It must be live. |
 | Path | `path` | File path | Yes |  | Main | The document: PDF, PNG, JPG or TIFF. |
 | Wait | `wait` | Yes/No | No | No | Main; tick Wait for the fields | Wait until the document is read (up to 15 minutes) and return its status and fields. |
+| Process version | `process_version` | Number | No |  | More options | Only send when the process's setup is still this version (G6), so a changed setup never reads the document unnoticed: a different version stops the step with DOCS.VERSION_CHANGED. Empty: whatever version is live. Range: 1 to  |
 
 **Results**
 
@@ -112,6 +137,28 @@ Send a document to a live Document Automation process. Optionally wait until it 
 | `fields` | Dictionary | The fields read, by name (only when waiting). |
 
 *Time limit 900 s; needs: filesystem.*
+
+### Update document result
+
+`ooa.documents/update_result` (action)
+
+Write corrected field values back to a read document (G6). The values are kept as a review by the run's user, so the document then counts as approved.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Document ID | `document_id` | Text | Yes |  | Main | The document id that Send document to process gave (or a document_id input given by a Start-a-bot delivery). |
+| Fields | `fields` | Any | Yes |  | Main | The corrected values by field name: a Dictionary, or JSON text such as {"total": "110.00"}. Fields left out keep their values. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `status` | Text | The document's status after the change (validated when approved). |
+| `fields` | Dictionary | The document's fields after the change, by name. |
+
+*Time limit 60 s.*
 
 ### Wait for document
 

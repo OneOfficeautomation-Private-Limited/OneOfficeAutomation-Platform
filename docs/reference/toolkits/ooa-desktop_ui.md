@@ -6,7 +6,7 @@ Toolkit `ooa.desktop_ui`, version 1.0.0. Capture controls in Windows application
 
 ## Contents
 
-- **Capture**: Find legacy (MSAA) objects, Find desktop objects, Get desktop object properties, Get parent object, Get desktop table, Legacy (MSAA) object action, Desktop object action, Pick desktop object, Wait for desktop object
+- **Capture**: Find legacy (MSAA) objects, Find desktop objects, Get object properties, Get parent object, Get desktop table, Get text at a point, Legacy (MSAA) object action, Desktop object action, Pick desktop object, Wait for desktop object
 - **Recorder**: Record desktop actions
 - **Conditions**: Desktop object exists
 
@@ -60,7 +60,7 @@ Return every control that matches the object's used properties (the index is ign
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
 
-### Get desktop object properties
+### Get object properties
 
 `ooa.desktop_ui/get_object_properties` (action)
 
@@ -131,6 +131,27 @@ Read a grid, table or detailed list view in a Windows application into a Data Ta
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
 
+### Get text at a point
+
+`ooa.desktop_ui/get_text_at_point` (action)
+
+Read the text of whatever control is at a point on the screen, e.g. a scrolling text area or a label (G4).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| X | `x` | Number | Yes |  | Main | Screen position from the left, in pixels. |
+| Y | `y` | Number | Yes |  | Main | Screen position from the top, in pixels. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | The control's text, or empty. |
+
+*Time limit 60 s; safe to repeat; needs: desktop.*
+
 ### Legacy (MSAA) object action
 
 `ooa.desktop_ui/legacy_object_action` (action)
@@ -171,11 +192,15 @@ Find a captured control in a Windows application and act on it: click, set or re
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
-| Action | `action` | Text | No | `click` | Main | What to do with the object. One of: `click`, `set_text`, `get_text`, `get_property`, `get_all_properties`, `select_item`, `expand`, `collapse`, `toggle`, `check`, `uncheck`, `invoke`, `focus`, `get_children`, `get_list_items`, `get_table`, `wait_appear`, `wait_disappear`, `scroll_into_view`, `get_coordinates` |
+| Action | `action` | Text | No | `click` | Main | What to do with the object. One of: `click`, `set_text`, `get_text`, `get_property`, `get_all_properties`, `select_item`, `expand`, `collapse`, `toggle`, `check`, `uncheck`, `invoke`, `focus`, `get_children`, `get_list_items`, `get_table`, `wait_appear`, `wait_disappear`, `scroll_into_view`, `get_coordinates`, `get_status`, `select`, `get_total_rows`, `get_total_columns`, `get_cell_text`, `get_cell_index_by_text`, `set_cell_text`, `click_cell`, `click_cell_by_text`, `set_cell_by_text`, `get_selected`, `get_selected_index`, `get_total_items`, `select_path`, `set_date`, `set_position`, `scroll`, `click_toolbar_button`, `get_focused`, `get_all_text`, `get_children_values` |
 | Click type | `click_type` | Text | No | `left` | Main | click: which click to make. One of: `left`, `right`, `double`, `middle` |
 | Text | `text` | Any | No |  | Main | set_text: the text to enter (a Credential is accepted and never logged). |
 | Property | `property` | Text | No |  | Main | get_property: the property to read, e.g. Name, Value, IsEnabled, ToggleState, IsSelected, ExpandCollapseState. Example: `Value` |
 | Item | `item` | Text | No |  | Main | select_item: the text of the item to select in a list, combo box, tree or tab control. |
+| Row | `row` | Number | No |  | Main | Grid cell actions: the row, 1 for the first (G4). Shown when: `{"action": ["get_cell_text", "set_cell_text", "click_cell"]}` |
+| Column | `column` | Number | No |  | Main | Grid cell actions: the column, 1 for the first (G4). Shown when: `{"action": ["get_cell_text", "set_cell_text", "click_cell"]}` |
+| Find text | `find_text` | Text | No |  | Main | The text of the cell to find (an exact match first, else the first containing it) (G4). Shown when: `{"action": ["get_cell_index_by_text", "click_cell_by_text", "set_cell_by_text"]}` |
+| Scroll direction | `scroll_direction` | Text | No | `down` | Main | scroll: which way (G4). One of: `up`, `down`, `left`, `right`; Shown when: `{"action": ["scroll"]}` |
 | Click method | `click_method` | Text | No | `auto` | More options | click: pattern presses the control through UI Automation without moving the mouse (left click only); mouse moves the pointer and clicks; auto uses a pattern when the control offers one, else the mouse. One of: `auto`, `pattern`, `mouse` |
 | Offset x | `offset_x` | Number | No | `0` | More options | click with the mouse: pixels right of the object's centre (negative for left). |
 | Offset y | `offset_y` | Number | No | `0` | More options | click with the mouse: pixels below the object's centre (negative for above). |
@@ -183,6 +208,9 @@ Find a captured control in a Windows application and act on it: click, set or re
 | Text method | `text_method` | Text | No | `auto` | More options | set_text: set_value writes the value directly through UI Automation; type sends key presses one character at a time; auto writes directly when the control allows it, else types. One of: `auto`, `set_value`, `type` |
 | Pause between keys (milliseconds) | `type_delay_ms` | Number | No | `0` | More options | set_text with typing: pause between characters in milliseconds. |
 | Item index | `item_index` | Number | No |  | More options | select_item: the position of the item to select (0 is the first), used when item is empty. |
+| Index from one | `index_from_one` | Yes/No | No | No | More options | item_index counts from 1 for the first item, as Get selected index does; off counts from 0 as older steps did (G4). |
+| Scroll amount | `scroll_amount` | Text | No | `line` | More options | scroll: a line or a page at a time (G4). One of: `line`, `page`; Shown when: `{"action": ["scroll"]}` |
+| Scroll times | `scroll_times` | Number | No | `1` | More options | scroll: how many times (G4). Range: 1 to 1000; Shown when: `{"action": ["scroll"]}` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `10` | More options | How long to wait for the object to appear, in seconds. For wait_disappear, how long to wait for it to go. |
 | If not found | `if_not_found` | Text | No | `error` | More options | When the object is not there in time: error stops with an error; continue skips this step (result is empty, found is false) and carries on. One of: `error`, `continue` |
 | Run in background | `run_in_background` | Yes/No | No | No | More options | Work through UI Automation only: the window is not brought to the front and the mouse and keyboard are not used, so the application can stay behind other windows or minimised. Clicks and text then need a control that supports it (a single left click; text set directly). |
@@ -276,10 +304,12 @@ Used in If, Loop while and Wait until steps.
 
 `ooa.desktop_ui/object_exists` (condition)
 
-True when the captured control can be found now in a Windows application (self-healing applies).
+True when the captured control can be found now in a Windows application (self-healing applies), and, when asked, is enabled or has the keyboard focus.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
+| State | `state` | Text | No | `exists` | Main | G1 (AA parity): what to check besides being there: nothing more, that it can be used (enabled), or that it has the keyboard focus. One of: `exists`, `enabled`, `focused` |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep trying this many seconds until it is so; 0 checks once (G4). Range: 0 to 3600 |

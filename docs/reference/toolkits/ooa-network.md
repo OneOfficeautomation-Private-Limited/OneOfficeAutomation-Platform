@@ -81,6 +81,8 @@ Read one or more values from a device with SNMP v1, v2c or v3.
 | Privacy protocol | `privacy_protocol` | Text | No | `aes128` | Main | SNMP v3 privacy (encryption): none, des or aes128. One of: `none`, `des`, `aes128`; Shown when: `{"version": ["v3"]}` |
 | Privacy password | `privacy_password` | Credential (vault) | No |  | Main | SNMP v3 privacy (encryption) password from the vault. Shown when: `{"version": ["v3"]}` |
 | Oids | `oids` | Any | Yes |  | Main | One OID, several separated by commas, or a List of OIDs. Example: `1.3.6.1.2.1.1.5.0` |
+| Output as | `output_as` | Text | No | `auto` | More options | Text values as the device sent them (auto: text when readable, else hex), always as text, or always as hex bytes (G4). One of: `auto`, `text`, `hex` |
+| Log file | `log_file` | File path | No |  | More options | Also write what was asked and answered to this text file (G4). |
 | Context name | `context_name` | Text | No |  | More options | SNMP v3 context, when the device uses them; usually empty. Shown when: `{"version": ["v3"]}` |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | More options | How long to wait for each answer, in milliseconds. Range: 1 to  |
 | Port | `port` | Number | No | `161` | More options | UDP port of the SNMP agent. Range: 1 to 65535 |
@@ -93,7 +95,7 @@ Read one or more values from a device with SNMP v1, v2c or v3.
 | `values` | Dictionary | OID to value; empty for objects the device does not have. |
 | `table` | Table | Columns: oid, type, value. |
 
-*Time limit 120 s; safe to repeat; needs: network.*
+*Time limit 120 s; safe to repeat; needs: network, filesystem.*
 
 ### SNMP get next
 
@@ -182,12 +184,13 @@ Change one value on a device with SNMP; the community (or v3 user) must have wri
 | Privacy protocol | `privacy_protocol` | Text | No | `aes128` | Main | SNMP v3 privacy (encryption): none, des or aes128. One of: `none`, `des`, `aes128`; Shown when: `{"version": ["v3"]}` |
 | Privacy password | `privacy_password` | Credential (vault) | No |  | Main | SNMP v3 privacy (encryption) password from the vault. Shown when: `{"version": ["v3"]}` |
 | Oid | `oid` | Text | Yes |  | Main | OID of the object to change. Example: `1.3.6.1.2.1.1.6.0` |
-| Value type | `value_type` | Text | No | `string` | Main | SNMP type of the new value. One of: `string`, `integer`, `oid`, `ip_address`, `counter32`, `gauge32`, `timeticks`, `counter64` |
+| Value type | `value_type` | Text | No | `string` | Main | SNMP type of the new value; hex_string takes bytes as hex (0a:1b:ff or 0a1bff), decimal_bytes as numbers (10.27.255), null sends no value (G4). One of: `string`, `integer`, `hex_string`, `decimal_bytes`, `null`, `oid`, `ip_address`, `counter32`, `gauge32`, `timeticks`, `counter64` |
 | Value | `value` | Any | Yes |  | Main | New value. |
 | Context name | `context_name` | Text | No |  | More options | SNMP v3 context, when the device uses them; usually empty. Shown when: `{"version": ["v3"]}` |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | More options | How long to wait for each answer, in milliseconds. Range: 1 to  |
 | Port | `port` | Number | No | `161` | More options | UDP port of the SNMP agent. Range: 1 to 65535 |
 | Retries | `retries` | Number | No | `1` | More options | Extra attempts after a timeout. Range: 0 to 10 |
+| Log file | `log_file` | File path | No |  | More options | Also write what was sent and answered to this text file (G4). |
 
 **Results**
 
@@ -195,7 +198,7 @@ Change one value on a device with SNMP; the community (or v3 user) must have wri
 | --- | --- | --- |
 | `value` | Any | Value the device reports after the change. |
 
-*Time limit 120 s; needs: network.*
+*Time limit 120 s; needs: network, filesystem.*
 
 ### SNMP walk
 
@@ -216,8 +219,11 @@ Read every object under an OID, e.g. a whole interface table, with repeated GETN
 | Privacy protocol | `privacy_protocol` | Text | No | `aes128` | Main | SNMP v3 privacy (encryption): none, des or aes128. One of: `none`, `des`, `aes128`; Shown when: `{"version": ["v3"]}` |
 | Privacy password | `privacy_password` | Credential (vault) | No |  | Main | SNMP v3 privacy (encryption) password from the vault. Shown when: `{"version": ["v3"]}` |
 | Oid | `oid` | Text | Yes |  | Main | Root OID of the subtree to read. Example: `1.3.6.1.2.1.2.2` |
+| Scope | `scope` | Text | No | `within` | More options | within: only objects under the starting OID; all: go on to the end of the device's tree (up to max_rows) (G4). One of: `within`, `all` |
 | Walk type | `walk_type` | Text | No | `getnext` | More options | getnext asks for one object per request and works with every version; getbulk (v2c and v3 only) asks for up to max_repetitions objects per request, which is much faster on large tables. One of: `getnext`, `getbulk` |
 | Maximum repetitions | `max_repetitions` | Number | No | `10` | More options | With getbulk, how many objects to ask for in each request; lower it when the device answers tooBig or not at all. Range: 1 to 100; Shown when: `{"walk_type": ["getbulk"]}` |
+| Output as | `output_as` | Text | No | `auto` | More options | Text values as the device sent them (auto: text when readable, else hex), always as text, or always as hex bytes (G4). One of: `auto`, `text`, `hex` |
+| Log file | `log_file` | File path | No |  | More options | Also write what was asked and answered to this text file (G4). |
 | Context name | `context_name` | Text | No |  | More options | SNMP v3 context, when the device uses them; usually empty. Shown when: `{"version": ["v3"]}` |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | More options | How long to wait for each answer, in milliseconds. Range: 1 to  |
 | Port | `port` | Number | No | `161` | More options | UDP port of the SNMP agent. Range: 1 to 65535 |
@@ -231,7 +237,7 @@ Read every object under an OID, e.g. a whole interface table, with repeated GETN
 | `table` | Table | Columns: oid, type, value. |
 | `row_count` | Number | Number of objects read. |
 
-*Time limit 600 s; safe to repeat; needs: network.*
+*Time limit 600 s; safe to repeat; needs: network, filesystem.*
 
 ## Conditions
 
@@ -249,6 +255,7 @@ True when the host answers a ping within the timeout.
 | --- | --- | --- | --- | --- | --- | --- |
 | Host | `host` | Text | Yes |  | Main | Host name or IP address. |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | Main | Timeout in milliseconds. Range: 1 to  |
+| Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | Keep trying this many seconds until it answers; 0 tries once (G4). Range: 0 to 3600 |
 
 *Needs: network.*
 
