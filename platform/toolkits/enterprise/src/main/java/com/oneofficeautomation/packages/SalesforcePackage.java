@@ -26,14 +26,37 @@ public final class SalesforcePackage {
         return authenticate(ctx, loginUrl, grant, clientId, clientSecret, user, password, securityToken, null, false);
     }
 
+    /** Earlier signature, kept for callers written before login_site (G6). */
+    public Map<String, Object> authenticate(ActionContext ctx, String loginUrl, String grant, String clientId, Object clientSecret, String user, Object password, Object securityToken,
+                                            String session, boolean share) {
+        return authenticate(ctx, loginUrl, grant, clientId, clientSecret, user, password, securityToken, session, share, null);
+    }
+
+    static final String PRODUCTION_LOGIN = "https://login.salesforce.com";
+    static final String SANDBOX_LOGIN = "https://test.salesforce.com";
+
+    /** The sign-in host: production or sandbox by name, or the login URL given (production when that is empty too). */
+    static String loginRoot(String site, String loginUrl) {
+        String s = site == null ? "" : site.strip().toLowerCase(Locale.ROOT);
+        String root = switch (s) {
+            case "production" -> PRODUCTION_LOGIN;
+            case "sandbox" -> SANDBOX_LOGIN;
+            case "", "custom" -> loginUrl == null || loginUrl.isBlank() ? (s.isEmpty() ? PRODUCTION_LOGIN : null) : loginUrl.strip();
+            default -> throw new ActionException(P + ".BAD_LOGIN_SITE", "Unknown sign-in site '" + site + "'", "Use production, sandbox or custom.");
+        };
+        if (root == null) throw new ActionException(P + ".NO_LOGIN_URL", "A custom sign-in site needs its login URL", "Fill in login_url, e.g. your My Domain address https://yourcompany.my.salesforce.com.");
+        return root.replaceAll("/+$", "");
+    }
+
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
             description = "Get an access token from Salesforce with a connected app (client credentials, or user name and password) for the other Salesforce actions.",
-            panel = "grant_type, client_id, client_secret, username, password, login_url | security_token, session, share")
+            panel = "login_site, login_url, grant_type, client_id, client_secret, username, password | security_token, session, share")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "instance_url", type = OoaType.STRING, description = "Instance URL returned by Salesforce; map it to instance_url of later actions.")
     public Map<String, Object> authenticate(ActionContext ctx,
             @Input(name = "login_url", type = OoaType.STRING, required = false, defaultValue = "\"https://login.salesforce.com\"", pattern = HttpJson.HTTPS_OR_LOCAL,
-                    description = "Login host: https://login.salesforce.com, https://test.salesforce.com for sandboxes, or your My Domain URL (required for client credentials).") String login,
+                    visibleWhen = "login_site!=production|sandbox",
+                    description = "Login host for a custom sign-in site: your My Domain URL (needed for client credentials), or another login address.") String login,
             @Input(name = "grant_type", type = OoaType.STRING, required = false, defaultValue = "\"client_credentials\"", enumValues = {"client_credentials", "password"},
                     description = "client_credentials: the connected app's run-as user; password: a named user with password and security token.") String grant,
             @Input(name = "client_id", type = OoaType.STRING, description = "Consumer key of the connected app.") String clientId,
@@ -42,7 +65,10 @@ public final class SalesforcePackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant only).") Object password,
             @Input(name = "security_token", type = OoaType.CREDENTIAL, required = false, description = "Security token, added after the password, when the user's IP is not trusted (password grant only).") Object securityToken,
             @Input(name = "session", type = OoaType.STRING, required = false, description = "Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6).") String session,
-            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session (G6).") boolean share) {
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session (G6).") boolean share,
+            @Input(name = "login_site", label = "Sign-in site", type = OoaType.STRING, required = false, newStepDefault = "\"production\"", enumValues = {"production", "sandbox", "custom"},
+                    description = "Where to sign in: production (login.salesforce.com), sandbox (test.salesforce.com) or custom (the login URL you give, such as your My Domain). "
+                            + "When empty, the login URL is used (G6).") String site) {
         String g = grant == null || grant.isBlank() ? "client_credentials" : grant;
         if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id (consumer key) is required", "Fill in the connected app's consumer key in the connection.");
         Map<String, Object> form = new LinkedHashMap<>();
@@ -55,7 +81,7 @@ public final class SalesforcePackage {
             form.put("password", new SecureString(EnterpriseAuth.secret(password, P, "password") + (securityToken instanceof SecureString t ? t.reveal() : ""), "salesforce/password"));
         } else if (!g.equals("client_credentials")) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'", "Use client_credentials or password.");
         EnterpriseAuth.secret(clientSecret, P, "client secret");
-        String root = (login == null || login.isBlank() ? "https://login.salesforce.com" : login).replaceAll("/+$", "");
+        String root = loginRoot(site, login);
         Map<String, Object> r = EnterpriseAuth.token(ctx, P, root + "/services/oauth2/token", form, null, null);
         return keepSession(ctx, session, share, Out.of(), Out.of("access_token", EnterpriseAuth.credential(r, "salesforce/session"), "instance_url", r.get("instance_url")));
     }
@@ -461,40 +487,65 @@ public final class SalesforcePackage {
     }
 
     @Action(id = "get_attachments", name = "Get attachments", category = "Files", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "List the files and classic attachments on a record, and optionally download them to a folder.",
-            panel = "record_id, download_folder, kind, [Only files with matching names: name_pattern], instance_url, access_token | overwrite, api_version")
+            description = "List the files and classic attachments on a record, or one file by its id, and optionally download them to a folder.",
+            panel = "(Files of: A record = record_id / One file = content_document_id), download_folder, kind, [Only some files: name_pattern, extension], instance_url, access_token | overwrite, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, size, content_type, kind (file or attachment), path.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of files.")
     @Output(name = "files", type = OoaType.LIST, description = "Paths of downloaded files (empty when not downloading).")
+    @Output(name = "path", type = OoaType.FILE, description = "Path of the first downloaded file, e.g. the one file asked for by content_document_id; empty when nothing was saved (G6).")
     public Map<String, Object> attachments(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
-            @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record the files belong to.") String rid,
+            @Input(name = "record_id", type = OoaType.STRING, required = false, description = "Id of the record the files belong to. Not needed when content_document_id is filled in.") String rid,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Folder to save the files in; list only when empty.") String folder,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
             @Input(name = "kind", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "file", "attachment"}, description = "Only Salesforce Files (file), only classic attachments (attachment), or both.") String kind,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, example = "*.pdf", description = "Only files whose name matches this pattern (* and ?, case ignored); all when empty.") String pattern,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files of the same name in the folder; when off, a number is put in front of the new file's name.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files of the same name in the folder; when off, a number is put in front of the new file's name.") boolean overwrite,
+            @Input(name = "content_document_id", type = OoaType.STRING, required = false, example = "069000000000001AAA",
+                    description = "Id of one Salesforce File (starts with 069): only that file is listed or downloaded, without a record id (G6).") String documentId,
+            @Input(name = "extension", type = OoaType.STRING, required = false, example = "pdf, docx",
+                    description = "Only files with these extensions, separated by commas (with or without the dot, case ignored); all when empty (G6).") String extension) {
         ApiSession __ss = ApiSession.find(ctx, null, "salesforce", "salesforce");   // G6: an open session fills what the step leaves empty
         instance = ApiSession.text(__ss, "instance_url", instance);
         ApiSession.require("SALESFORCE", instance, "instance url");
         token = ApiSession.value(__ss, "access_token", token);
         ApiSession.requireSecret("SALESFORCE", token, "access token");
-        id(rid);
-        String k = kind == null || kind.isBlank() ? "all" : kind;
+        boolean oneFile = documentId != null && !documentId.isBlank();
+        if (oneFile) {
+            if (!ID.matcher(documentId.strip()).matches() || !documentId.strip().startsWith("069"))
+                throw new ActionException(P + ".BAD_ID", "Invalid file id '" + documentId + "'", "A file (ContentDocument) id starts with 069 and has 15 or 18 characters.");
+        } else if (rid == null || rid.isBlank())
+            throw new ActionException(P + ".NO_RECORD", "No record id given", "Fill in record_id, or content_document_id to get one file.");
+        else id(rid);
+        String k = oneFile ? "file" : kind == null || kind.isBlank() ? "all" : kind;
         java.util.regex.Pattern glob = pattern == null || pattern.isBlank() ? null
                 : java.util.regex.Pattern.compile("(?i)" + java.util.regex.Pattern.quote(pattern).replace("*", "\\E.*\\Q").replace("?", "\\E.\\Q"));
         List<Object[]> found = new ArrayList<>();  // id, name, size, type, kind, download path
-        if (!k.equals("attachment")) for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT ContentDocumentId, ContentDocument.Title, ContentDocument.FileExtension, ContentDocument.ContentSize, "
+        if (oneFile) for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT Id, Title, FileExtension, ContentSize, LatestPublishedVersionId FROM ContentDocument WHERE Id = '"
+                + documentId.strip() + "'")) {
+            Object ext = r.get("FileExtension");
+            String name = r.get("Title") + (ext == null || String.valueOf(ext).isEmpty() ? "" : "." + ext);
+            found.add(new Object[]{r.get("Id"), name, r.get("ContentSize"), ext, "file", "/sobjects/ContentVersion/" + r.get("LatestPublishedVersionId") + "/VersionData"});
+        }
+        else if (!k.equals("attachment")) for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT ContentDocumentId, ContentDocument.Title, ContentDocument.FileExtension, ContentDocument.ContentSize, "
                 + "ContentDocument.LatestPublishedVersionId FROM ContentDocumentLink WHERE LinkedEntityId = '" + rid + "'")) {
             Object ext = r.get("ContentDocument.FileExtension");
             String name = r.get("ContentDocument.Title") + (ext == null || String.valueOf(ext).isEmpty() ? "" : "." + ext);
             found.add(new Object[]{r.get("ContentDocumentId"), name, r.get("ContentDocument.ContentSize"), ext, "file",
                     "/sobjects/ContentVersion/" + r.get("ContentDocument.LatestPublishedVersionId") + "/VersionData"});
         }
-        if (!k.equals("file")) for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT Id, Name, BodyLength, ContentType FROM Attachment WHERE ParentId = '" + rid + "'"))
+        if (!k.equals("file") && !oneFile) for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT Id, Name, BodyLength, ContentType FROM Attachment WHERE ParentId = '" + rid + "'"))
             found.add(new Object[]{r.get("Id"), r.get("Name"), r.get("BodyLength"), r.get("ContentType"), "attachment", "/sobjects/Attachment/" + r.get("Id") + "/Body"});
+        if (oneFile && found.isEmpty())
+            throw new ActionException(P + ".FILE_NOT_FOUND", "No file has the id " + documentId.strip(), "Check the id, and that the signed-in user may see the file.");
         if (glob != null) found.removeIf(f -> !glob.matcher(String.valueOf(f[1])).matches());
+        Set<String> exts = extensions(extension);
+        if (!exts.isEmpty()) found.removeIf(f -> {
+            String n = String.valueOf(f[1]);
+            int dot = n.lastIndexOf('.');
+            return dot < 0 || !exts.contains(n.substring(dot + 1).toLowerCase(Locale.ROOT));
+        });
         List<Object> rows = new ArrayList<>(), files = new ArrayList<>();
         Path dir = folder == null || folder.isBlank() ? null : ctx.resolvePath(folder);
         Set<String> used = new HashSet<>();
@@ -511,12 +562,31 @@ public final class SalesforcePackage {
             }
             rows.add(new ArrayList<>(Arrays.asList(f[0], f[1], f[2], f[3], f[4], saved)));
         }
-        return Out.of("table", Values.table(List.of("id", "name", "size", "content_type", "kind", "path"), rows), "count", BigDecimal.valueOf(rows.size()), "files", files);
+        return Out.of("table", Values.table(List.of("id", "name", "size", "content_type", "kind", "path"), rows), "count", BigDecimal.valueOf(rows.size()), "files", files,
+                "path", files.isEmpty() ? null : files.get(0));
+    }
+
+    /** Extensions from "pdf, .DOCX" as {pdf, docx}; letters and digits only. */
+    static Set<String> extensions(String text) {
+        Set<String> out = new LinkedHashSet<>();
+        if (text == null || text.isBlank()) return out;
+        for (String e : text.split("[,;\\s]+")) {
+            String x = e.strip().replaceFirst("^\\*?\\.", "").toLowerCase(Locale.ROOT);
+            if (x.isEmpty()) continue;
+            if (!x.matches("^[a-z0-9]{1,20}$")) throw new ActionException(P + ".BAD_EXTENSION", "Invalid file extension '" + e.strip() + "'", "Write extensions like pdf, docx or .xlsx, separated by commas.");
+            out.add(x);
+        }
+        return out;
     }
 
     /** Earlier signature, kept for callers written before kind, name_pattern and overwrite. */
     public Map<String, Object> attachments(ActionContext ctx, String instance, Object token, String rid, String folder, String version) {
         return attachments(ctx, instance, token, rid, folder, version, "all", null, true);
+    }
+
+    /** Earlier signature, kept for callers written before content_document_id and extension (G6). */
+    public Map<String, Object> attachments(ActionContext ctx, String instance, Object token, String rid, String folder, String version, String kind, String pattern, boolean overwrite) {
+        return attachments(ctx, instance, token, rid, folder, version, kind, pattern, overwrite, null, null);
     }
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -531,8 +601,10 @@ public final class SalesforcePackage {
             @Input(name = "path", type = OoaType.FILE, description = "File to upload.") String path,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Title shown in Salesforce; the file name when empty.") String title,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
-            @Input(name = "visibility", type = OoaType.STRING, required = false, enumValues = {"AllUsers", "InternalUsers", "SharedUsers"},
-                    description = "Who can see the file on the record (AllUsers includes community users); Salesforce's default when empty.") String visibility,
+            @Input(name = "visibility", type = OoaType.STRING, required = false, newStepDefault = "\"AllUsers\"", enumValues = {"AllUsers", "InternalUsers", "SharedUsers"},
+                    visibleWhen = "content_document_id=",
+                    description = "Who can see the file on the record (AllUsers includes community users); Salesforce's default when empty, AllUsers for new steps. "
+                            + "Not used for a new version, which keeps the file's sharing (G6).") String visibility,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description,
             @Input(name = "content_document_id", type = OoaType.STRING, required = false, example = "069000000000001AAA",
                     description = "Id of an existing file (starts with 069); the upload becomes its new version and keeps the file's links and sharing.") String documentId) {
@@ -548,8 +620,10 @@ public final class SalesforcePackage {
         if (newVersion) {
             if (!ID.matcher(documentId.strip()).matches() || !documentId.strip().startsWith("069"))
                 throw new ActionException(P + ".BAD_ID", "Invalid file id '" + documentId + "'", "A file (ContentDocument) id starts with 069 and has 15 or 18 characters.");
-            if (link) throw new ActionException(P + ".VISIBILITY_WITH_VERSION", "Visibility cannot be set when uploading a new version",
-                    "Leave visibility empty: a new version keeps the sharing of the existing file.");
+            if (link) {   // G6: new steps carry a visibility; a new version keeps the file's sharing, so it is left out
+                ctx.info("Visibility " + visibility + " is not used: a new version keeps the sharing of the existing file.");
+                link = false;
+            }
         } else if (rid == null || rid.isBlank())
             throw new ActionException(P + ".NO_RECORD", "No record id given", "Fill in record_id, or content_document_id to upload a new version of a file.");
         Path p = ctx.resolvePath(path);

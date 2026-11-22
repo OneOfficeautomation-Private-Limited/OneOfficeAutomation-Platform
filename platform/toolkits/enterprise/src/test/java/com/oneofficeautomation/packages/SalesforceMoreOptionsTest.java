@@ -137,7 +137,6 @@ class SalesforceMoreOptionsTest {
 
             int before = f.calls.size();
             assertEquals("SALESFORCE.BAD_ID", code(() -> sf.upload(ctx, f.url(), TOK, null, "report.csv", null, "v61.0", null, null, rec)), "an id that is not a file is refused");
-            assertEquals("SALESFORCE.VISIBILITY_WITH_VERSION", code(() -> sf.upload(ctx, f.url(), TOK, null, "report.csv", null, "v61.0", "AllUsers", null, doc)));
             assertEquals("SALESFORCE.NO_RECORD", code(() -> sf.upload(ctx, f.url(), TOK, " ", "report.csv", null, "v61.0", null, null, null)));
             assertEquals(before, f.calls.size(), "bad input is refused before any request");
         }

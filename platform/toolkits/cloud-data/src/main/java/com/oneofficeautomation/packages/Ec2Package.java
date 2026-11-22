@@ -131,7 +131,7 @@ public final class Ec2Package {
     public Map<String, Object> getInstanceStatus(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
             @Input(name = "instance_ids", type = OoaType.LIST, required = false, description = D_IDS + " Leave empty for all.") List<Object> ids,
-            @Input(name = "include_stopped", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also list instances that are not running (AWS leaves them out otherwise).") boolean all) {
+            @Input(name = "include_stopped", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Also list instances that are not running (AWS leaves them out otherwise); off for new steps (G6).") boolean all) {
         Ec2Session s = ctx.session(session, Ec2Session.class);
         Map<String, String> p = new LinkedHashMap<>();
         List<String> idList = ids(ctx, session, ids, false);

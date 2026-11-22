@@ -24,6 +24,48 @@ public final class DatabricksPackage {
     private static final Set<String> NUMERIC = Set.of("BYTE", "SHORT", "INT", "LONG", "TINYINT", "SMALLINT", "BIGINT", "INTEGER", "FLOAT", "DOUBLE", "DECIMAL");
 
     private static String ws(String url) { return url.replaceAll("/+$", ""); }
+
+    /** Seconds before an OAuth token's end at which a new one is got. */
+    private static final long RENEW_EARLY_SECONDS = 120;
+
+    /** An OAuth token got for a service principal, kept for the rest of the run (in the run's sessions, never in a log). */
+    record OAuthToken(SecureString token, long expiresAtMillis) {
+        boolean fresh() { return System.currentTimeMillis() < expiresAtMillis - RENEW_EARLY_SECONDS * 1000; }
+        @Override public String toString() { return "Databricks OAuth token"; }
+    }
+
+    /**
+     * The token a step uses (G6): its own access token; else a token for its own service principal; else the session's
+     * access token; else a token for the session's service principal. Service-principal tokens come from the
+     * workspace's token endpoint (client credentials, scope all-apis) and are reused for the rest of the run.
+     */
+    static Object signIn(ActionContext ctx, ApiSession ss, String url, Object token, String clientId, Object clientSecret) {
+        if (token != null && !(token instanceof String t && t.isBlank())) return token;
+        if (clientId != null && !clientId.isBlank()) return oauthToken(ctx, url, clientId.strip(), clientSecret);
+        Object kept = ApiSession.value(ss, "access_token", null);
+        if (kept != null) return kept;
+        String keptId = ApiSession.text(ss, "client_id", null);
+        if (keptId != null && !keptId.isBlank()) return oauthToken(ctx, url, keptId.strip(), ApiSession.value(ss, "client_secret", null));
+        return token;
+    }
+
+    static SecureString oauthToken(ActionContext ctx, String url, String clientId, Object clientSecret) {
+        if (!(clientSecret instanceof SecureString secret) || secret.reveal().isBlank())
+            throw new ActionException(P + ".NO_CLIENT_SECRET", "The service principal's secret is missing", "Map client_secret to the OAuth secret kept in the vault.");
+        if (url == null || url.isBlank()) throw new ActionException(P + ".NO_SIGN_IN", "The workspace url is missing", "Fill in the workspace url.");
+        String key = "\u0000databricks.oauth:" + ws(url) + "|" + clientId;
+        if (ctx.sessions().get(key) instanceof OAuthToken t && t.fresh()) return t.token();
+        String form = "grant_type=client_credentials&scope=all-apis";
+        Map<String, Object> r = HttpJson.req(P, "POST", ws(url) + "/oidc/v1/token").basic(clientId, secret)
+                .bytes(form.getBytes(java.nio.charset.StandardCharsets.UTF_8), "application/x-www-form-urlencoded").send(ctx).map();
+        Object at = r.get("access_token");
+        if (at == null || Values.text(at).isBlank())
+            throw new ActionException(P + ".SIGN_IN_FAILED", "Databricks gave no access token for the service principal", "Check the client id and secret, and that the service principal may use this workspace.");
+        long seconds = r.get("expires_in") instanceof BigDecimal b ? b.longValue() : 3600;
+        OAuthToken t = new OAuthToken(new SecureString(Values.text(at), "databricks/oauth"), System.currentTimeMillis() + seconds * 1000);
+        ctx.sessions().put(key, t);
+        return t.token();
+    }
     private static HttpJson.Req req(String method, String url, Object token) { return HttpJson.req(P, method, url).bearer(token); }
 
     private static String numId(String what, String v) {
@@ -165,7 +207,7 @@ public final class DatabricksPackage {
 
     @Action(id = "execute_sql", name = "Run SQL statement", category = "SQL", timeoutSeconds = 3600, capabilities = "network",
             description = "Run SQL on a SQL warehouse and return the rows as a data table. Use :name in the SQL for values passed in parameters.",
-            panel = "workspace_url, access_token, warehouse_id, sql, parameters, max_rows, wait_seconds | catalog, schema")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), warehouse_id, sql, parameters, max_rows, wait_seconds | catalog, schema")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows (empty for statements that return no rows).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "statement_id", type = OoaType.STRING, description = "Id of the statement, for status, results or cancel.")
@@ -179,11 +221,15 @@ public final class DatabricksPackage {
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema for names that are not fully written out.") String schema,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "How long to wait for the result before returning with status RUNNING.") int wait,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back into the table.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         if (sql == null || sql.isBlank()) throw new ActionException(P + ".NO_SQL", "The SQL statement is empty", "Write the SQL to run.");
         Map<String, Object> body = new LinkedHashMap<>();
@@ -212,20 +258,29 @@ public final class DatabricksPackage {
         return Out.of("table", tbl, "row_count", BigDecimal.valueOf(DataTablePackage.rows(tbl).size()), "statement_id", id, "status", state(st));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> executeSql(ActionContext ctx, String url, String warehouse, String sql, Map<String, Object> params, String catalog, String schema, int wait, int max, Object token) {
+        return executeSql(ctx, url, warehouse, sql, params, catalog, schema, wait, max, token, null, null);
+    }
+
     @Action(id = "get_statement_status", name = "Get statement status", category = "SQL", idempotent = true, capabilities = "network",
             description = "Check whether a SQL statement that was left running has finished.",
-            panel = "workspace_url, access_token, statement_id")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), statement_id")
     @Output(name = "status", type = OoaType.STRING, description = "PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED or CLOSED.")
     @Output(name = "message", type = OoaType.STRING, description = "Error text when the statement failed.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the result once it succeeded.")
     public Map<String, Object> statementStatus(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> st = getStatement(ctx, url, token, id);
         Object msg = st.get("status") instanceof Map<?, ?> m && m.get("error") instanceof Map<?, ?> e ? e.get("message") : null;
@@ -233,19 +288,33 @@ public final class DatabricksPackage {
         return Out.of("status", state(st), "message", msg, "total_rows", total);
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> statementStatus(ActionContext ctx, String url, String id, Object token) {
+        return statementStatus(ctx, url, id, token, null, null);
+    }
+
     @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a SQL statement that is still running.",
-            panel = "workspace_url, access_token, statement_id")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), statement_id")
     public Map<String, Object> cancelStatement(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         req("POST", ws(url) + "/api/2.0/sql/statements/" + textId("statement", id) + "/cancel", token).send(ctx);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> cancelStatement(ActionContext ctx, String url, String id, Object token) {
+        return cancelStatement(ctx, url, id, token, null, null);
     }
 
     /** Earlier signature, kept for callers written before wait_seconds. */
@@ -255,7 +324,7 @@ public final class DatabricksPackage {
 
     @Action(id = "fetch_results", name = "Get statement results", category = "SQL", idempotent = true, timeoutSeconds = 3600, capabilities = "network",
             description = "Read the rows of a finished SQL statement into a data table, chunk by chunk.",
-            panel = "workspace_url, access_token, statement_id, max_rows, wait_seconds")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), statement_id, max_rows, wait_seconds")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
@@ -265,11 +334,15 @@ public final class DatabricksPackage {
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back.") int max,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
-                    description = "How long to wait for a running statement to finish; 0 fails at once if it is still running.") int wait) {
+                    description = "How long to wait for a running statement to finish; 0 fails at once if it is still running.") int wait,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> st = getStatement(ctx, url, token, id);
         long deadline = System.currentTimeMillis() + Math.max(0, wait) * 1000L;
@@ -284,22 +357,31 @@ public final class DatabricksPackage {
         return Out.of("table", tbl, "row_count", BigDecimal.valueOf(DataTablePackage.rows(tbl).size()), "total_rows", t.get("total_rows"));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> fetchResults(ActionContext ctx, String url, String id, int max, Object token, int wait) {
+        return fetchResults(ctx, url, id, max, token, wait, null, null);
+    }
+
     // ----- jobs -----
 
     @Action(id = "list_jobs", name = "List jobs", category = "Jobs", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Return the jobs in the workspace, optionally only those with a given name.",
-            panel = "workspace_url, access_token, max_results | name")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), max_results | name")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: job_id, name, creator, created_time.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of jobs returned.")
     public Map<String, Object> listJobs(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Only the job with exactly this name.") String name,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most jobs to return.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         List<Object> rows = new ArrayList<>();
         String pageToken = null;
@@ -318,6 +400,11 @@ public final class DatabricksPackage {
             pageToken = Boolean.TRUE.equals(r.get("has_more")) && r.get("next_page_token") != null ? Values.text(r.get("next_page_token")) : null;
         } while (pageToken != null && rows.size() < max);
         return Out.of("table", Values.table(List.of("job_id", "name", "creator", "created_time"), rows), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> listJobs(ActionContext ctx, String url, String name, int max, Object token) {
+        return listJobs(ctx, url, name, max, token, null, null);
     }
 
     private static Map<String, Object> runSummary(Map<String, Object> r) {
@@ -344,7 +431,7 @@ public final class DatabricksPackage {
 
     @Action(id = "run_job", name = "Run job now", category = "Jobs", timeoutSeconds = 86400, capabilities = "network",
             description = "Start a job right away, optionally with parameters, and wait for it to finish if you like.",
-            panel = "workspace_url, access_token, job_id, job_parameters, [Wait until it ends: wait, timeout_seconds, fail_if_run_fails]")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), job_id, job_parameters, [Wait until it ends: wait, timeout_seconds, fail_if_run_fails]")
     @Output(name = "run_id", type = OoaType.STRING, description = "Id of the job run.")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once it has finished; empty before that.")
@@ -357,11 +444,15 @@ public final class DatabricksPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", min = 1, max = 86400, formerNames = "wait_seconds", visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT (the run goes on in Databricks).") int waitSeconds,
             @Input(name = "fail_if_run_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "When waiting, stop the agent with an error if the run does not succeed.") boolean failOnError,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("job_id", new BigDecimal(jobId(ctx, url, token, jobId)));
@@ -384,22 +475,36 @@ public final class DatabricksPackage {
         return Out.of("run_id", runId, "life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run_page_url", s.get("run_page_url"));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> runJob(ActionContext ctx, String url, String jobId, Map<String, Object> params, boolean wait, int waitSeconds, boolean failOnError, Object token) {
+        return runJob(ctx, url, jobId, params, wait, waitSeconds, failOnError, token, null, null);
+    }
+
     @Action(id = "get_run", name = "Get job run", category = "Jobs", idempotent = true, capabilities = "network", description = "Check the progress and outcome of a job run.",
-            panel = "workspace_url, access_token, run_id")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), run_id")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once finished.")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "run_id, life_cycle_state, result_state, state_message, run_page_url, start_time, end_time.")
     public Map<String, Object> getRun(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> s = runSummary(getRunRaw(ctx, url, token, runId));
         return Out.of("life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run", s);
+    }
+
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> getRun(ActionContext ctx, String url, String runId, Object token) {
+        return getRun(ctx, url, runId, token, null, null);
     }
 
     /**
@@ -408,7 +513,7 @@ public final class DatabricksPackage {
      */
     @Action(id = "get_run_output", name = "Get job run output", category = "Jobs", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Read what a finished job run produced: the notebook's result, the error and its trace, and the logs, for each task of the run.",
-            panel = "workspace_url, access_token, run_id")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), run_id")
     @Output(name = "result", type = OoaType.STRING, description = "The notebook's exit value (dbutils.notebook.exit); for several tasks, the first task's that has one.")
     @Output(name = "error", type = OoaType.STRING, description = "Why the run failed, when it failed.")
     @Output(name = "error_trace", type = OoaType.STRING, description = "The error's stack trace, when there is one.")
@@ -418,11 +523,15 @@ public final class DatabricksPackage {
     public Map<String, Object> getRunOutput(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> run = getRunRaw(ctx, url, token, runId);
         List<Map<String, Object>> tasks = HttpJson.maps(run.get("tasks"));
@@ -446,34 +555,52 @@ public final class DatabricksPackage {
                 "tasks", Values.table(List.of("task_key", "run_id", "result_state", "result", "error", "logs"), rows));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> getRunOutput(ActionContext ctx, String url, String runId, Object token) {
+        return getRunOutput(ctx, url, runId, token, null, null);
+    }
+
     @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.",
-            panel = "workspace_url, access_token, run_id")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), run_id")
     public Map<String, Object> cancelRun(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         req("POST", ws(url) + "/api/2.1/jobs/runs/cancel", token).json(Map.of("run_id", new BigDecimal(numId("run", runId)))).send(ctx);
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> cancelRun(ActionContext ctx, String url, String runId, Object token) {
+        return cancelRun(ctx, url, runId, token, null, null);
+    }
+
     // ----- clusters -----
 
     @Action(id = "list_clusters", name = "List clusters", category = "Clusters", idempotent = true, capabilities = "network", description = "Return the workspace's clusters and their state.",
-            panel = "workspace_url, access_token")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret)")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: cluster_id, name, state, spark_version, node_type, creator.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of clusters.")
     public Map<String, Object> listClusters(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         List<Object> rows = new ArrayList<>();
         String pageToken = null;
@@ -489,13 +616,18 @@ public final class DatabricksPackage {
         return Out.of("table", Values.table(List.of("cluster_id", "name", "state", "spark_version", "node_type", "creator"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> listClusters(ActionContext ctx, String url, Object token) {
+        return listClusters(ctx, url, token, null, null);
+    }
+
     private static String clusterState(ActionContext ctx, String url, Object token, String id) {
         return Values.text(req("GET", ws(url) + "/api/2.0/clusters/get?cluster_id=" + HttpJson.enc(id), token).send(ctx).map().get("state"));
     }
 
     @Action(id = "start_cluster", name = "Start cluster", category = "Clusters", timeoutSeconds = 3600, capabilities = "network",
             description = "Start a stopped cluster, and wait until it is running if you like. Nothing happens if it is already running.",
-            panel = "workspace_url, access_token, cluster_id, [Wait until running: wait, timeout_seconds]")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), cluster_id, [Wait until running: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. PENDING or RUNNING.")
     public Map<String, Object> startCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
@@ -503,11 +635,15 @@ public final class DatabricksPackage {
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", formerNames = "wait_until_running", description = "Wait until the cluster is ready before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, formerNames = "wait_seconds", visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         String id = clusterId(ctx, url, token, clusterId);
         String state = clusterState(ctx, url, token, id);
@@ -526,9 +662,14 @@ public final class DatabricksPackage {
         return Out.of("state", state);
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> startCluster(ActionContext ctx, String url, String clusterId, boolean wait, int waitSeconds, Object token) {
+        return startCluster(ctx, url, clusterId, wait, waitSeconds, token, null, null);
+    }
+
     @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", timeoutSeconds = 3700, capabilities = "network",
             description = "Stop a running cluster to save cost. Its settings are kept so it can be started again. Optionally wait until it has stopped.",
-            panel = "workspace_url, access_token, cluster_id, [Wait until stopped: wait, timeout_seconds]")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), cluster_id, [Wait until stopped: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. TERMINATING or TERMINATED.")
     public Map<String, Object> terminateCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
@@ -536,11 +677,15 @@ public final class DatabricksPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the cluster has stopped before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, visibleWhen = "wait=true",
-                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds) {
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         String id = clusterId(ctx, url, token, clusterId);
         req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", id)).send(ctx);
@@ -553,6 +698,11 @@ public final class DatabricksPackage {
         if (wait && !state.equals("TERMINATED"))
             throw new ActionException(P + ".WAIT_TIMEOUT", "Cluster " + id + " is still " + state + " after " + waitSeconds + " s", "Raise timeout_seconds, or check the cluster in Databricks.");
         return Out.of("state", state);
+    }
+
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> terminateCluster(ActionContext ctx, String url, String clusterId, Object token, boolean wait, int waitSeconds) {
+        return terminateCluster(ctx, url, clusterId, token, wait, waitSeconds, null, null);
     }
 
     /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
@@ -576,18 +726,23 @@ public final class DatabricksPackage {
 
     @Action(id = "upload_file", name = "Upload file", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Copy a local file into a Unity Catalog volume, the workspace, or DBFS.",
-            panel = "workspace_url, access_token, local_path, remote_path, overwrite")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), local_path, remote_path, overwrite")
     @Output(name = "remote_path", type = OoaType.STRING, description = "Where the file was written.")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "local_path", type = OoaType.FILE, description = "File on this machine to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/report.csv", description = "Destination, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv.") String remotePath,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that is already there.") boolean overwrite,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false",
+                    description = "Replace a file that is already there; off for new steps (G6).") boolean overwrite,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         byte[] data = HttpJson.readFile(ctx.resolvePath(local));
         String r = remote(remotePath);
@@ -606,18 +761,27 @@ public final class DatabricksPackage {
         return Out.of("remote_path", filesApi(r) ? r : "dbfs:" + r);
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> upload(ActionContext ctx, String url, String local, String remotePath, boolean overwrite, Object token) {
+        return upload(ctx, url, local, remotePath, overwrite, token, null, null);
+    }
+
     @Action(id = "delete_file", name = "Delete file", category = "Files", capabilities = "network",
             description = "Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder with recursive).",
-            panel = "workspace_url, access_token, remote_path | recursive")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), remote_path | recursive")
     public Map<String, Object> deleteFile(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/old.csv", description = "File to delete.") String remotePath,
             @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "DBFS only: also delete a folder with everything in it.") boolean recursive,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         String r = remote(remotePath);
         if (filesApi(r)) req("DELETE", ws(url) + "/api/2.0/fs/files/" + HttpJson.encPath(r), token).send(ctx);
@@ -625,9 +789,14 @@ public final class DatabricksPackage {
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> deleteFile(ActionContext ctx, String url, String remotePath, boolean recursive, Object token) {
+        return deleteFile(ctx, url, remotePath, recursive, token, null, null);
+    }
+
     @Action(id = "download_file", name = "Download file", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Save a file from a Unity Catalog volume, the workspace, or DBFS to this machine.",
-            panel = "workspace_url, access_token, remote_path, save_as | overwrite")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret), remote_path, save_as | overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     @Output(name = "size", type = OoaType.NUMBER, description = "File size in bytes.")
     public Map<String, Object> download(ActionContext ctx,
@@ -635,11 +804,16 @@ public final class DatabricksPackage {
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/outbox/result.csv", description = "File to download, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv.") String remotePath,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save it on this machine. Missing folders are created.") String saveAs,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file already at save_as; when off, the action stops instead and nothing is downloaded.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false",
+                    description = "Replace a file already at save_as; when off, the action stops instead and nothing is downloaded. Off for new steps (G6).") boolean overwrite,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
         ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
         url = ApiSession.text(__ss, "workspace_url", url);
         ApiSession.require("DATABRICKS", url, "workspace url");
-        token = ApiSession.value(__ss, "access_token", token);
+        token = signIn(ctx, __ss, url, token, clientId, clientSecret);   // G6: a token, or one got for a service principal
         ApiSession.requireSecret("DATABRICKS", token, "access token");
         String r = remote(remotePath);
         Path target = ctx.resolvePath(saveAs);
@@ -667,6 +841,11 @@ public final class DatabricksPackage {
         return Out.of("path", target.toString(), "size", BigDecimal.valueOf(data.length));
     }
 
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> download(ActionContext ctx, String url, String remotePath, String saveAs, Object token, boolean overwrite) {
+        return download(ctx, url, remotePath, saveAs, token, overwrite, null, null);
+    }
+
     /** Earlier signature, kept for callers written before overwrite. */
     public Map<String, Object> download(ActionContext ctx, String url, String remotePath, String saveAs, Object token) {
         return download(ctx, url, remotePath, saveAs, token, true);
@@ -674,17 +853,28 @@ public final class DatabricksPackage {
 
     @Action(id = "connect", name = "Connect", category = "Connection",
             description = "Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).",
-            panel = "workspace_url, access_token | session, share")
+            panel = "workspace_url, (Sign in with: A personal access token = access_token / A service principal = client_id, client_secret) | session, share")
     public Map<String, Object> connectDatabricks(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, required = false, description = "The workspace url the later steps use (G6).") String workspaceUrl,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "The access token the later steps use (G6).") Object accessToken,
             @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the toolkit's default session when empty.") String session,
-            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share,
+            @Input(name = "client_id", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "Application (client) id of a service principal, to sign in with OAuth instead of a personal access token (G6).") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "The service principal's OAuth secret from the vault (G6).") Object clientSecret) {
+        if ((accessToken == null || accessToken instanceof String t && t.isBlank()) && clientId != null && !clientId.isBlank())
+            oauthToken(ctx, workspaceUrl, clientId.strip(), clientSecret);   // signs in now, so a wrong secret shows here; later steps reuse the token
         Map<String, Object> v = new LinkedHashMap<>();
-        Object[] kv = {"workspace_url", workspaceUrl, "access_token", accessToken};
+        Object[] kv = {"workspace_url", workspaceUrl, "access_token", accessToken, "client_id", clientId, "client_secret", clientSecret};
         for (int i = 0; i < kv.length; i += 2) v.put((String) kv[i], kv[i + 1]);
         ApiSession.open(ctx, session, "databricks", "databricks", v, share);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the service principal sign-in (G6). */
+    public Map<String, Object> connectDatabricks(ActionContext ctx, String workspaceUrl, Object accessToken, String session, boolean share) {
+        return connectDatabricks(ctx, workspaceUrl, accessToken, session, share, null, null);
     }
 
     @Action(id = "disconnect", name = "Disconnect", category = "Connection",
