@@ -414,9 +414,9 @@ public final class WorkdayPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant (basic sign-in).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
-            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"WID\"", example = "WID",
-                    description = "Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type "
-                            + "your tenant accepts for integration event references, written exactly as Workday names it.") String idType) {
+            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"WID\"", enumValues = {"WID", "Background_Process_Instance_ID"},
+                    description = "Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns) or Background_Process_Instance_ID "
+                            + "(the process id shown for the run); a variable may hold another ID type name your tenant accepts (G6).") String idType) {
         ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
         host = ApiSession.text(__ss, "host", host);
         ApiSession.require("WORKDAY", host, "host");

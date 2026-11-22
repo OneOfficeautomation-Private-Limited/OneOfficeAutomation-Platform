@@ -204,13 +204,14 @@ public final class KafkaPackage {
         return Out.of("info", info, "settings", cfg);
     }
 
-    @Action(id = "read_messages", name = "Read messages", category = "Messages", timeoutSeconds = 900, capabilities = "network",
+    @Action(id = "read_messages", name = "Read messages", category = "Messages", timeoutSeconds = 900, capabilities = {"network", "filesystem"},
             description = "Read new messages from one or more topics as a consumer group, so the next read carries on where this one stopped. "
                     + "Needs a REST Proxy that supports consumer instances (self-managed Confluent REST Proxy).",
-            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topics, consumer_group, max_messages, wait_seconds, start_from, mark_as_read | value_format")
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topics, consumer_group, max_messages, wait_seconds, start_from, mark_as_read | csv_file, value_format")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: topic, partition, offset, key, value. JSON values are shown as text.")
     @Output(name = "messages", type = OoaType.LIST, description = "Each message as a dictionary; JSON values stay structured.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages read.")
+    @Output(name = "csv_file", type = OoaType.FILE, description = "The CSV file written; empty when csv_file was not given (G6).")
     public Map<String, Object> read(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "topics", type = OoaType.LIST, description = "Topics to read, e.g. [\"orders\"].") List<Object> topics,
@@ -223,7 +224,9 @@ public final class KafkaPackage {
             @Input(name = "mark_as_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remember what was read so the group does not read it again.") boolean commit,
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer,
+            @Input(name = "csv_file", type = OoaType.FILE, required = false, example = "out/messages.csv",
+                    description = "Also save the messages read to this CSV file (topic, partition, offset, key, value), replacing it; no file when empty (G6).") String csvFile) {
         ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
         base = ApiSession.text(__ss, "base_url", base);
         ApiSession.require("KAFKA", base, "base url");
@@ -275,7 +278,33 @@ public final class KafkaPackage {
             try { req("DELETE", instUrl, apiKey, secret, bearer).header("Content-Type", V2).header("Accept", V2).send(ctx); }
             catch (RuntimeException e) { ctx.warn("Could not close the Kafka reader: " + e.getMessage()); }
         }
-        return Out.of("table", Values.table(List.of("topic", "partition", "offset", "key", "value"), rows), "messages", messages, "count", BigDecimal.valueOf(messages.size()));
+        List<String> cols = List.of("topic", "partition", "offset", "key", "value");
+        String saved = null;
+        if (csvFile != null && !csvFile.isBlank()) saved = writeCsv(ctx.resolvePath(csvFile.strip()), cols, rows).toString();
+        return Out.of("table", Values.table(cols, rows), "messages", messages, "count", BigDecimal.valueOf(messages.size()), "csv_file", saved);
+    }
+
+    /** Earlier signature, kept for callers written before csv_file (G6). */
+    public Map<String, Object> read(ActionContext ctx, String base, List<Object> topics, String group, int max, int wait, String format, String start, boolean commit,
+                                    String apiKey, Object secret, Object bearer) {
+        return read(ctx, base, topics, group, max, wait, format, start, commit, apiKey, secret, bearer, null);
+    }
+
+    /** Writes a header and the rows as CSV (UTF-8, quoted where needed), through a temporary file so a failure leaves no half file. */
+    static java.nio.file.Path writeCsv(java.nio.file.Path out, List<String> cols, List<Object> rows) {
+        java.nio.file.Path part = out.resolveSibling(out.getFileName() + ".part");
+        try {
+            if (out.getParent() != null) java.nio.file.Files.createDirectories(out.getParent());
+            try (java.io.Writer w = java.nio.file.Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+                SnowflakePackage.line(w, "csv", new ArrayList<>(cols));
+                for (Object r : rows) SnowflakePackage.line(w, "csv", new ArrayList<>((List<?>) r));
+            }
+            java.nio.file.Files.move(part, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            return out;
+        } catch (java.io.IOException e) {
+            try { java.nio.file.Files.deleteIfExists(part); } catch (java.io.IOException ignored) { }
+            throw new ActionException(P + ".WRITE_FAILED", "Cannot write " + out + ": " + e.getMessage(), "Check the folder exists and can be written.");
+        }
     }
 
     @Action(id = "commit_offsets", name = "Commit offsets", category = "Messages", capabilities = "network",
