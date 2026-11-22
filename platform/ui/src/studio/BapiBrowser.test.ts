@@ -28,3 +28,11 @@ describe("model pick list (G6)", () => {
     expect(modelsFor({ id: "1", action: "ooa.genai/prompt", args: { provider: "$p$" } })).toEqual([]);
   });
 });
+
+describe("work queue fields (G6)", () => {
+  it("collects field names from dictionaries and JSON text", async () => {
+    const { queueFields } = await import("./Pickers");
+    expect(queueFields([["1", { invoice: "A", total: 2 }], ["2", '{"invoice":"B","vendor":"X"}'], ["3", "not json"]], ["id", "data"])).toEqual(["invoice", "total", "vendor"]);
+    expect(queueFields([["1"]], ["id"])).toEqual([]);
+  });
+});

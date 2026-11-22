@@ -25,6 +25,7 @@ export function pickerFor(step: FlowStep, name: string, props: Record<string, un
   if (step.action === "ooa.pdf/extract_area_text" && name === "x") return <PdfAreaPicker key="area" step={step} />;
   if (step.action === "ooa.sap_bapi/call_function" && name === "function") return <BapiBrowser key="bapi" step={step} />;
   if (step.action.startsWith("ooa.genai/") && name === "model" && modelsFor(step).length) return <ModelPicker key="model" step={step} />;
+  if ((step.action === "ooa.workload/add_item" || step.action === "ooa.workload/update_item") && name === "data") return <QueueFieldsForm key="queue-fields" step={step} />;
   if (isHtmlBody(step, name, props)) return <HtmlBodyEditor key={"html:" + name} step={step} field={name} />;
   if (POINT_STEPS.test(step.action) && name === "x") return <PointPicker key="point" step={step} />;
   const keys = keyKind(step.action, name);
@@ -525,5 +526,67 @@ function ModelPicker({ step }: { step: FlowStep }) {
     </select>
     <span className="st-muted"> or type any other model, deployment or variable above.</span>
   </label></PickerRow>;
+}
+
+// ------------------------------------------------------------------ Work queues: a form with the queue's fields (G6)
+
+/** Field names used by a queue's items, in first-seen order; data may come as a dictionary or as JSON text. */
+export function queueFields(rows: unknown[][], columns: string[]): string[] {
+  const di = columns.indexOf("data");
+  const seen: string[] = [];
+  for (const r of rows) {
+    let d = di >= 0 ? r[di] : undefined;
+    if (typeof d === "string") { try { d = JSON.parse(d); } catch { d = undefined; } }
+    if (d && typeof d === "object" && !Array.isArray(d)) for (const k of Object.keys(d)) if (!seen.includes(k)) seen.push(k);
+  }
+  return seen;
+}
+
+function QueueFieldsForm({ step }: { step: FlowStep }) {
+  const vars = useVars();
+  const set = useArgSetter(step);
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<string[] | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!vars) return null;
+  const queue = literal(step.args?.queue);
+  const have = step.args?.data && typeof step.args.data === "object" && !Array.isArray(step.args.data) ? step.args.data as Record<string, unknown> : {};
+  const start = async () => {
+    setOpen(true); setError(null); setFields(null);
+    const v: Record<string, string> = {};
+    for (const [k, x] of Object.entries(have)) v[k] = typeof x === "string" ? x : JSON.stringify(x);
+    setValues(v);
+    if (!queue) return;
+    setBusy(true);
+    try {
+      const o = await check(vars.api, "ooa.workload/list_items", { queue, central: step.args?.central === true ? true : undefined }, { table: "t" });
+      const t = o.t as { columns: string[]; rows: unknown[][] } | undefined;
+      const names = queueFields((t?.rows ?? []).slice(0, 200), t?.columns ?? []);
+      for (const k of Object.keys(have)) if (!names.includes(k)) names.push(k);
+      setFields(names);
+    } catch (e) { setError(errorText(e)); setFields(Object.keys(have)); }
+    finally { setBusy(false); }
+  };
+  const use = () => {
+    const data: Record<string, unknown> = { ...have };
+    for (const [k, v] of Object.entries(values)) { if (v !== "") data[k] = v; else if (!(k in have)) delete data[k]; }
+    set({ data }); setOpen(false);
+  };
+  return <PickerRow><>
+    <Button kind="plain" onClick={start}>Fill in the queue's fields…</Button>
+    <Dialog open={open} onClose={() => setOpen(false)} title={"Fields of " + (queue || "the queue")} width={560} resizable
+      footer={<><Button kind="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button kind="primary" disabled={!fields} onClick={use}>Use these values</Button></>}>
+      {!queue && <p className="st-alert" role="alert">Fill in the queue's name first (a fixed name, not a variable).</p>}
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {busy && <p role="status">Reading the queue…</p>}
+      {fields && !fields.length && <p className="st-muted">The queue has no items yet, so its fields are not known. Type the data as a dictionary instead.</p>}
+      {fields && fields.map((k) => <Field key={k} label={k}>{(id) =>
+        <TextInput id={id} value={values[k] ?? ""} placeholder="A value or $variable$" onChange={(e) => setValues({ ...values, [k]: e.target.value })} />}</Field>)}
+      {fields && fields.length > 0 && <p className="st-muted">Field names come from the items already in the queue. Empty fields are left out.</p>}
+    </Dialog>
+  </></PickerRow>;
 }
 
