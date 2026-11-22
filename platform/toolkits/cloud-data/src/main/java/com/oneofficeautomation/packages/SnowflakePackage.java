@@ -222,7 +222,7 @@ public final class SnowflakePackage {
     @Output(name = "statement_handle", type = OoaType.STRING, description = "Id of the statement, for status, results or cancel.")
     @Output(name = "status", type = OoaType.STRING, description = "succeeded, or running when it did not finish within the wait time.")
     public Map<String, Object> execute(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "sql", type = OoaType.STRING, example = "SELECT * FROM ORDERS WHERE REGION = ? AND AMOUNT > ?", description = "SQL to run. Put ? where each binding value goes.") String sql,
             @Input(name = "bindings", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order, e.g. [\"EMEA\", 1000].") List<Object> binds,
             @Input(name = "warehouse", type = OoaType.STRING, required = false, description = D_WH) String warehouse,
@@ -231,8 +231,14 @@ public final class SnowflakePackage {
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "How long to wait for the statement to finish before returning with status running.") int wait,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back into the table.") int max,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         Result r = waitFor(ctx, account, token, tokenType, submit(ctx, account, token, tokenType, sql, binds, warehouse, database, schema, role, Math.max(wait, 0) + 3600), wait);
         if (r.running())
             return Out.of("table", Values.table(List.of(), new ArrayList<>()), "row_count", BigDecimal.ZERO, "rows_affected", BigDecimal.ZERO,
@@ -250,10 +256,16 @@ public final class SnowflakePackage {
     @Output(name = "message", type = OoaType.STRING, description = "Snowflake's message, including the error text when it failed.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the result once it succeeded.")
     public Map<String, Object> status(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         try {
             Result r = poll(ctx, account, token, tokenType, h, null);
             Map<?, ?> meta = r.body().get("resultSetMetaData") instanceof Map<?, ?> m ? m : Map.of();
@@ -268,10 +280,16 @@ public final class SnowflakePackage {
     @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a statement that is still running.",
             panel = "account_url, token, statement_handle | token_type")
     public Map<String, Object> cancel(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         req("POST", api(account) + "/" + handle(h) + "/cancel", token, tokenType).send(ctx);
         return Map.of();
     }
@@ -283,11 +301,17 @@ public final class SnowflakePackage {
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
     public Map<String, Object> fetch(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back.") int max,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         Result r = poll(ctx, account, token, tokenType, h, null);
         if (r.running()) throw new ActionException(P + ".STILL_RUNNING", "The statement is still running", "Wait, then try again, or check it with Get statement status.", true);
         Map<String, Object> t = table(ctx, account, token, tokenType, r, max);
@@ -302,7 +326,7 @@ public final class SnowflakePackage {
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Rows written (not counting the header).")
     @Output(name = "statement_handle", type = OoaType.STRING, description = "Id of the statement.")
     public Map<String, Object> exportResults(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "sql", type = OoaType.STRING, example = "SELECT * FROM ORDERS WHERE ORDER_DATE >= ?", description = "SQL to run. Put ? where each binding value goes.") String sql,
             @Input(name = "file", type = OoaType.FILE, example = "exports/orders.csv", description = "File to write; add .gz yourself when compressing.") String file,
             @Input(name = "bindings", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order, e.g. [\"2026-10-01\"].") List<Object> binds,
@@ -316,8 +340,14 @@ public final class SnowflakePackage {
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema to use for names that are not fully written out.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "How long to wait for the statement to finish.") int wait,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         String fmt = format == null || format.isBlank() ? "csv" : format.strip().toLowerCase(Locale.ROOT);
         if (!List.of("csv", "tsv", "json_lines").contains(fmt)) throw new ActionException(P + ".BAD_FORMAT", "Unknown format '" + format + "'", "Use csv, tsv or json_lines.");
         boolean gzip = "gzip".equalsIgnoreCase(compression == null ? "" : compression.strip());
@@ -377,10 +407,16 @@ public final class SnowflakePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "One row per database with name, owner, comment and more.")
     @Output(name = "names", type = OoaType.LIST, description = "Database names only.")
     public Map<String, Object> listDatabases(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         return show(ctx, account, token, tokenType, role, "SHOW DATABASES");
     }
 
@@ -390,11 +426,17 @@ public final class SnowflakePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "One row per schema.")
     @Output(name = "names", type = OoaType.LIST, description = "Schema names only.")
     public Map<String, Object> listSchemas(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "database", type = OoaType.STRING, description = "Database to look in.") String database,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         return show(ctx, account, token, tokenType, role, "SHOW SCHEMAS IN DATABASE " + ident(database));
     }
 
@@ -404,12 +446,18 @@ public final class SnowflakePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "One row per table with name, row count, size and more.")
     @Output(name = "names", type = OoaType.LIST, description = "Table names only.")
     public Map<String, Object> listTables(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "database", type = OoaType.STRING, description = "Database to look in.") String database,
             @Input(name = "schema", type = OoaType.STRING, description = "Schema to look in, e.g. PUBLIC.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         return show(ctx, account, token, tokenType, role, "SHOW TABLES IN SCHEMA " + ident(database) + "." + ident(schema));
     }
 
@@ -419,11 +467,17 @@ public final class SnowflakePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "One row per column with name, type, nullability and default.")
     @Output(name = "names", type = OoaType.LIST, description = "Column names only.")
     public Map<String, Object> listColumns(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "table_name", type = OoaType.STRING, example = "SALES.PUBLIC.ORDERS", description = "Table, written as DATABASE.SCHEMA.TABLE.") String table,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         return show(ctx, account, token, tokenType, role, "DESCRIBE TABLE " + qualified(table));
     }
 
@@ -433,10 +487,16 @@ public final class SnowflakePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "One row per warehouse.")
     @Output(name = "names", type = OoaType.LIST, description = "Warehouse names only.")
     public Map<String, Object> listWarehouses(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         return show(ctx, account, token, tokenType, role, "SHOW WAREHOUSES");
     }
 
@@ -447,7 +507,7 @@ public final class SnowflakePackage {
             panel = "account_url, token, table_name, data | batch_size, warehouse, database, schema, role, token_type")
     @Output(name = "rows_inserted", type = OoaType.NUMBER, description = "Number of rows added.")
     public Map<String, Object> insert(ActionContext ctx,
-            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "table_name", type = OoaType.STRING, example = "SALES.PUBLIC.ORDERS", description = "Target table, written as DATABASE.SCHEMA.TABLE (or just TABLE with database and schema set).") String target,
             @Input(name = "data", type = OoaType.TABLE, description = "Rows to add. Its column names must match columns of the target table.") Map<String, Object> data,
             @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Rows sent per request.") int batch,
@@ -455,8 +515,14 @@ public final class SnowflakePackage {
             @Input(name = "database", type = OoaType.STRING, required = false, description = "Database of the table when table_name has no database.") String database,
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema of the table when table_name has no schema.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "snowflake", "snowflake");   // G6: an open session fills what the step leaves empty
+        account = ApiSession.text(__ss, "account_url", account);
+        ApiSession.require("SNOWFLAKE", account, "account url");
+        token = ApiSession.value(__ss, "token", token);
+        ApiSession.requireSecret("SNOWFLAKE", token, "token");
+        tokenType = ApiSession.text(__ss, "token_type", tokenType);
         List<String> cols = DataTablePackage.cols(data);
         List<List<Object>> rows = DataTablePackage.rows(data);
         if (cols.isEmpty()) throw new ActionException(P + ".NO_COLUMNS", "The data table has no columns", "Build the table with column names that match the target table.");
@@ -476,5 +542,29 @@ public final class SnowflakePackage {
             inserted += n.signum() > 0 ? n.longValue() : chunk.size();
         }
         return Out.of("rows_inserted", BigDecimal.valueOf(inserted));
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).",
+            panel = "account_url, token, token_type | session, share")
+    public Map<String, Object> connectSnowflake(ActionContext ctx,
+            @Input(name = "account_url", type = OoaType.STRING, required = false, description = "The account url the later steps use (G6).") String accountUrl,
+            @Input(name = "token", type = OoaType.CREDENTIAL, required = false, description = "The token the later steps use (G6).") Object token,
+            @Input(name = "token_type", type = OoaType.STRING, required = false, description = "The token type the later steps use (G6).") String tokenType,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the toolkit's default session when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        Object[] kv = {"account_url", accountUrl, "token", token, "token_type", tokenType};
+        for (int i = 0; i < kv.length; i += 2) v.put((String) kv[i], kv[i + 1]);
+        ApiSession.open(ctx, session, "snowflake", "snowflake", v, share);
+        return Map.of();
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the open Snowflake session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionSnowflake(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "snowflake"));
     }
 }

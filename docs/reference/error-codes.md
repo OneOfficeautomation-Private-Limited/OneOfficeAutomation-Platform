@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1666 codes in 152 areas.
+1674 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -30,7 +30,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `AD.ACCESS_DENIED` | Not allowed: … | The bind account needs permission for this change. | toolkits/microsoft |
 | `AD.ALREADY_EXISTS` | An object with that name already exists: … | Pick another name or container. | toolkits/microsoft |
-| `AD.AMBIGUOUS` | More than one … is named '…' | Give the distinguished name instead. | toolkits/microsoft |
+| `AD.AMBIGUOUS` | More than one user is named '…'<br>More than one … is named '…' | Give the logon name or the distinguished name instead.<br>Give the distinguished name instead. | toolkits/microsoft |
 | `AD.AUTH_FAILED` | Directory sign-in failed: … | Check the bind user and password. | toolkits/microsoft |
 | `AD.BAD_ATTRIBUTE` | Invalid attribute name '…' | Use the attribute's LDAP name, for example mail or telephoneNumber.<br>Example: description, telephoneNumber or managedBy. | toolkits/microsoft |
 | `AD.BAD_DATE` | Invalid date '…' | Use yyyy-MM-dd, e.g. 2026-12-31, or never. | toolkits/microsoft |
@@ -38,8 +38,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AD.BAD_EMAIL` | Not an email address: '…' | Example: jdoe@corp.example.com. | toolkits/microsoft |
 | `AD.BAD_FILTER` | Invalid LDAP filter: … | Example: (&(objectClass=user)(sAMAccountName=jdoe)) | toolkits/microsoft |
 | `AD.BAD_MODE` | Unknown mode '…' | Use replace, add or remove. | toolkits/microsoft |
-| `AD.BAD_NAME` | The … name is empty<br>The … name is longer than 64 characters<br>No … given | Fill in the name.<br>Shorten the name to 64 characters or fewer.<br>Shorten the initials to 6 characters or fewer. | toolkits/microsoft |
-| `AD.BAD_OPTION` | StartTLS is for ldap:// addresses; ldaps:// is already encrypted<br>name_kind is CN or OU, not '…'<br>path_kind is auto, ou or cn, not '…' | Turn StartTLS off, or use ldap://.<br>Set name_kind to CN or OU.<br>Set path_kind to auto, ou or cn. | toolkits/microsoft |
+| `AD.BAD_NAME` | No user given<br>The … name is empty<br>The … name is longer than 64 characters | Fill in the user's logon name, full name or distinguished name.<br>Fill in the name.<br>Shorten the name to 64 characters or fewer. | toolkits/microsoft |
+| `AD.BAD_OPTION` | StartTLS is for ldap:// addresses; ldaps:// is already encrypted<br>A user who must change the password at first sign-in cannot also be stopped from changing it<br>name_kind is CN or OU, not '…' | Turn StartTLS off, or use ldap://.<br>Turn off one of the two options.<br>Set name_kind to CN or OU. | toolkits/microsoft |
+| `AD.BAD_RETURN_AS` | Unknown result form '…' | Use table, names or dns. | toolkits/microsoft |
 | `AD.BAD_SECURITY_DESCRIPTOR` | The user's security descriptor could not be read | Check that the server is Active Directory. | toolkits/microsoft |
 | `AD.BAD_TARGET` | Unknown rename target '…' | Use object, sign_in or both. | toolkits/microsoft |
 | `AD.BAD_TIMEOUT` | Timeouts must be 1-600 s (connect) and 1-3600 s (read) | Set the connect timeout between 1 and 600 seconds and the read timeout between 1 and 3600 seconds. | toolkits/microsoft |
@@ -50,11 +51,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AD.NOT_EMPTY` | The object still contains other objects: … | Move or delete what is inside first, or use the recursive option. | toolkits/microsoft |
 | `AD.NO_BASE_DN` | Say where searches start (base_dn) | Example: DC=corp,DC=example,DC=com, or put it in the address: LDAP://dc01/DC=corp,DC=com. | toolkits/microsoft |
 | `AD.NO_CHANGES` | No details to change | Fill at least one input. | toolkits/microsoft |
-| `AD.NO_SECURITY_DESCRIPTOR` | Cannot read the permissions of … | The bind account needs permission to read and change permissions; this option works on Active Directory only. | toolkits/microsoft |
+| `AD.NO_SECURITY_DESCRIPTOR` | The user was created but its permissions cannot be read to stop password changes<br>Cannot read the permissions of … | The bind account needs permission to read and change permissions; this option works on Active Directory only. | toolkits/microsoft |
 | `AD.NO_VALUE` | Give the value to … | Fill in Value. | toolkits/microsoft |
 | `AD.TLS_FAILED` | StartTLS failed: … | Check that the server offers StartTLS and that its certificate is trusted (ca_file). | toolkits/microsoft |
 | `AD.UNREACHABLE` | Cannot reach the directory: … | Check the server name, port and network. | toolkits/microsoft |
-| `AD.USER_NOT_FOUND` | User '…' not found | Check the user name (sAMAccountName or UPN). | toolkits/microsoft |
+| `AD.USER_NOT_FOUND` | User '…' not found | Check the logon name (sAMAccountName or UPN), full name or distinguished name. | toolkits/microsoft |
 | `AD.USE_RESET_PASSWORD` | Use Reset password to change passwords | Use the Reset password step instead. | toolkits/microsoft |
 
 ## AGENT
@@ -964,13 +965,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_NAME` | The extension or prefix holds a character a file name cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `FILE.BAD_OPERATOR` | Unknown operator '…' | Use eq, ne, gt, ge, lt or le. | packages |
 | `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown sort '…'<br>Give the number of days | Use none, leading, trailing or both.<br>Use name, modified or size.<br>Fill in 'days'. | packages |
+| `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
+| `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
 | `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
-| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
-| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a path relative to the workspace. | sdk |
+| `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
+| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
 | `FILE.READ_FAILED` | Cannot read …: … | Check that the file exists, is not open in another program, and that the runner's account may read it. | toolkits/enterprise |
 | `FILE.TOO_LARGE` | … is … MB; Base64 text is limited to 50 MB of file | Send large files as files (for example with a REST upload) rather than as text. | packages |
 | `FILE.WAIT_TIMEOUT` | No finished file matching … appeared in time | Raise timeout_seconds, or check the folder and name pattern. | packages |
@@ -1630,7 +1634,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `PROCESS.FAILED` | … exited with code …: … | Check the arguments, or set fail_on_error to false to handle the exit code yourself. | packages |
-| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed or give its full path.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
+| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
 | `PROCESS.TIMEOUT` | '…' did not finish within … s | Raise timeout_seconds or check the program is not waiting for input. | packages |
 
 ## QUEUE
@@ -1772,17 +1776,17 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SAP.ACTION_FAILED` | … | Check SAP GUI is open on the expected screen and the element id is correct. | toolkits/enterprise |
 | `SAP.ALREADY_LOGGED_ON` | … | Choose what to do with the other session in the logon step's multiple logon option. | toolkits/enterprise |
 | `SAP.BAD_BUTTON` | Invalid toolbar button id '…' | Use the button id as SAP's scripting recorder shows it, for example &MB_EXPORT. | toolkits/enterprise |
-| `SAP.BAD_COLUMN` | Give the column of the cell | Use a 0-based position, the column title or the technical field name. | toolkits/enterprise |
+| `SAP.BAD_COLUMN` | Columns start at 1<br>Give the column of the cell | Give a column position from 1, its title or its technical field name.<br>Use a 0-based position, the column title or the technical field name. | toolkits/enterprise |
 | `SAP.BAD_ENCODING` | Unknown encoding '…' | Use an encoding name such as UTF-8, UTF-16LE or windows-1252. | toolkits/enterprise |
 | `SAP.BAD_ID` | Invalid SAP element id '…' | Scripting id from the SAP script recorder, e.g. wnd[0]/usr/ctxtVBAK-AUART. | toolkits/enterprise |
 | `SAP.BAD_INDEX` | With match_by index, value must be a 0-based number<br>With match_by index, node_key must be a 0-based number | Give a number from 0 (the first item), or set match_by to text.<br>Give a number from 0 (the first node), or set match_by to text. | toolkits/enterprise |
-| `SAP.BAD_KEY` | Invalid virtual key … | Use a virtual key number from 0 to 99 (for example 0 is Enter, 3 is F3 Back, 11 is Ctrl+S Save). | toolkits/enterprise |
+| `SAP.BAD_KEY` | Unknown key '…'<br>Invalid virtual key … | Pick a key from the list (Enter, F1-F12, Shift+F1, Ctrl+S, Page down ...), or give its virtual key number.<br>Use a virtual key number from 0 to 99 (for example 0 is Enter, 3 is F3 Back, 11 is Ctrl+S Save). | toolkits/enterprise |
 | `SAP.BAD_LANGUAGE` | Invalid logon language '…' | Use a two-letter code such as EN or DE. | toolkits/enterprise |
 | `SAP.BAD_LOGON_PATH` | The SAP Logon path must point to an .exe file<br>SAP Logon was not found at … | Example: saplogon.exe in the SAP GUI folder.<br>Check the SAP GUI installation folder. | toolkits/enterprise |
 | `SAP.BAD_MENU` | Unknown menu_by '…'<br>With menu_by position, menu_item must be 0-based positions such as 3 or 2 > 1, not '…'<br>The menu path is empty | Use code, text or position.<br>Count the entries from 0 at the top.<br>Example: System > User Profile > Own Data. | toolkits/enterprise |
 | `SAP.BAD_OPTION` | Unknown multiple_logon value '…' | Use one of: continue, close_others, or fail. | toolkits/enterprise |
 | `SAP.BAD_PROPERTY` | Unknown property '…' | Use text, tooltip, name, type, changeable, max_length or icon_name. | toolkits/enterprise |
-| `SAP.BAD_ROW` | Rows start at 0<br>Give the row of the cell, or find_text to find the cell by its text | Give a row number from 0 (the first row).<br>Fill in Row, or Find text to find the cell by its text. | toolkits/enterprise |
+| `SAP.BAD_ROW` | Rows start at …<br>Give the row of the cell, or find_text to find the cell by its text | Give a row number from … (the first row).<br>Fill in Row, or Find text to find the cell by its text. | toolkits/enterprise |
 | `SAP.BAD_SYSTEM` | The system is empty | Fill in the system as it is named in SAP Logon. | toolkits/enterprise |
 | `SAP.BAD_TCODE` | Invalid transaction code '…' | Use a transaction code such as VA01 or /nSE16 (letters, digits, / and _ only). | toolkits/enterprise |
 | `SAP.BAD_WINDOW` | Invalid window number … | Use a window number from 0 to 9; the main window is 0. | toolkits/enterprise |
@@ -1806,6 +1810,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SAP_BAPI.BAD_PARAMETER` | Cannot set ….…: …^SAP JCo \w+: …… | Check the parameter and field names and types with Get function details. | toolkits/enterprise |
 | `SAP_BAPI.BAD_PROPERTY` | Property '…' is not a JCo property | JCo properties start with jco., e.g. jco.client.trace. | toolkits/enterprise |
 | `SAP_BAPI.BAD_SERVER` | Give host and system_number, or message_server and system_id<br>A message server needs system_id | Fill the application server or the message server fields.<br>Fill system_id (three characters, e.g. PRD). | toolkits/enterprise |
+| `SAP_BAPI.BAD_SIGN_IN` | Unknown way to sign in '…' | Use password, snc or snc_and_password. | toolkits/enterprise |
+| `SAP_BAPI.BAD_SNC_LEVEL` | Unknown SNC protection level '…' | Use authentication, integrity, privacy, default or maximum. | toolkits/enterprise |
 | `SAP_BAPI.BAD_TABLE` | Each table row must be a dictionary of field values, got …<br>A table parameter needs a Table or a list of dictionaries | Give a Table, or a list of dictionaries such as [{"MATERIAL": "100-100"}].<br>Give a Table, or a list of dictionaries. | toolkits/enterprise |
 | `SAP_BAPI.COMMIT_FAILED` | The commit failed: …message… | See the messages. | toolkits/enterprise |
 | `SAP_BAPI.ERROR` | SAP JCo …: … | See the SAP message; check the function and its parameters. | toolkits/enterprise |
@@ -1816,9 +1822,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SAP_BAPI.NO_FUNCTION` | SAP has no remote-enabled function … | Check the name in transaction SE37 and that it is remote-enabled (BAPIs are). | toolkits/enterprise |
 | `SAP_BAPI.NO_SECRET` | Input 'password' must come from the vault (a Credential) | Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable. | toolkits/enterprise |
 | `SAP_BAPI.NO_SESSION` | No SAP BAPI connection '…sap…' | Run Connect first, with the same session name. | toolkits/enterprise |
-| `SAP_BAPI.NO_USER` | Give user and password, or snc_partner_name for single sign-on | Fill user and password from the vault. | toolkits/enterprise |
+| `SAP_BAPI.NO_SNC_NAME` | Secure network sign-in needs the SNC name of the SAP system | Fill in snc_partner_name, e.g. p:CN=SAP-ERP, O=Example. | toolkits/enterprise |
+| `SAP_BAPI.NO_USER` | Secure network plus password needs a user and a password from the vault<br>Give user and password, or snc_partner_name for single sign-on | Fill user and password, or choose snc for single sign-on alone.<br>Fill user and password from the vault. | toolkits/enterprise |
 | `SAP_BAPI.PROVIDER_IN_USE` | Another destination provider is already registered with SAP JCo in this runner | Run SAP BAPI agents on a runner without other JCo-based add-ons. | toolkits/enterprise |
-| `SAP_BAPI.UNKNOWN_PARAMETER` | … has no table parameters<br>… has no … parameters | Remove tables, or check the function.<br>Remove them, or check the function. | toolkits/enterprise |
+| `SAP_BAPI.UNKNOWN_PARAMETER` | … has no table parameters<br>… has no … …<br>… of … has no field … | Remove tables, or check the function.<br>Check the name with Get function details.<br>Remove them, or check the function. | toolkits/enterprise |
 | `SAP_BAPI.UNREACHABLE` | Cannot reach the SAP system: … | Check the host, system number, router string and network access. | toolkits/enterprise |
 
 ## SCRIPT
@@ -2038,6 +2045,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STUDIO.NO_ACCESS` | This folder cannot be opened: … | Choose another folder. | cli |
 | `STUDIO.NO_BROWSER_MODULE` | The Browser module is not installed | Add packages-browser to ooa.optionalModules in gradle.properties. | cli |
 | `STUDIO.NO_DESKTOP_MODULE` | The Windows desktop module is not installed<br>The Window toolkit is not installed<br>The Desktop objects toolkit is not installed | Add packages-windows to ooa.optionalModules in gradle.properties.<br>Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows. | cli |
+| `STUDIO.NO_NATIVE_DIALOG` | Windows' file dialog is not available here<br>The file dialog was interrupted<br>… | Choose from the list instead (Studio is used from another computer, or not on Windows).<br>Try Browse… again, or choose from the list.<br>Choose from the list instead. | cli |
 | `STUDIO.PORT_IN_USE` | Port … is already in use; another OneAgentStudio may still be running | Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
 | `STUDIO.TOO_LARGE` | Uploads are limited to … MB per file<br>The folder is larger than 200 MB<br>The file is larger than 200 MB | Upload a smaller file, or put large files in a share the runner reads.<br>Download smaller folders, or copy it in File Explorer.<br>Copy it in File Explorer instead. | cli, vendor-tools |
 | `STUDIO.TOO_MANY_RUNS` | Four runs are already in progress | Wait for a run to finish or stop one. | cli |

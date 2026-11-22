@@ -171,7 +171,7 @@ public final class DatabricksPackage {
     @Output(name = "statement_id", type = OoaType.STRING, description = "Id of the statement, for status, results or cancel.")
     @Output(name = "status", type = OoaType.STRING, description = "SUCCEEDED, or PENDING / RUNNING when it did not finish within the wait time.")
     public Map<String, Object> executeSql(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "warehouse_id", type = OoaType.STRING, description = "SQL warehouse that runs the statement: its name or its id (from its Connection details).") String warehouse,
             @Input(name = "sql", type = OoaType.STRING, example = "SELECT * FROM sales.orders WHERE region = :region", description = "SQL to run.") String sql,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Values for :name markers in the SQL, e.g. {\"region\": \"EMEA\"}.") Map<String, Object> params,
@@ -179,7 +179,12 @@ public final class DatabricksPackage {
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema for names that are not fully written out.") String schema,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "How long to wait for the result before returning with status RUNNING.") int wait,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back into the table.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         if (sql == null || sql.isBlank()) throw new ActionException(P + ".NO_SQL", "The SQL statement is empty", "Write the SQL to run.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("statement", sql);
@@ -214,9 +219,14 @@ public final class DatabricksPackage {
     @Output(name = "message", type = OoaType.STRING, description = "Error text when the statement failed.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the result once it succeeded.")
     public Map<String, Object> statementStatus(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> st = getStatement(ctx, url, token, id);
         Object msg = st.get("status") instanceof Map<?, ?> m && m.get("error") instanceof Map<?, ?> e ? e.get("message") : null;
         Object total = st.get("manifest") instanceof Map<?, ?> mf && mf.get("total_row_count") instanceof BigDecimal n ? n : BigDecimal.ZERO;
@@ -226,9 +236,14 @@ public final class DatabricksPackage {
     @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a SQL statement that is still running.",
             panel = "workspace_url, access_token, statement_id")
     public Map<String, Object> cancelStatement(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         req("POST", ws(url) + "/api/2.0/sql/statements/" + textId("statement", id) + "/cancel", token).send(ctx);
         return Map.of();
     }
@@ -245,12 +260,17 @@ public final class DatabricksPackage {
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
     public Map<String, Object> fetchResults(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
                     description = "How long to wait for a running statement to finish; 0 fails at once if it is still running.") int wait) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> st = getStatement(ctx, url, token, id);
         long deadline = System.currentTimeMillis() + Math.max(0, wait) * 1000L;
         while (running(state(st)) && System.currentTimeMillis() < deadline) {
@@ -272,10 +292,15 @@ public final class DatabricksPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: job_id, name, creator, created_time.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of jobs returned.")
     public Map<String, Object> listJobs(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Only the job with exactly this name.") String name,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most jobs to return.") int max,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         List<Object> rows = new ArrayList<>();
         String pageToken = null;
         do {
@@ -325,14 +350,19 @@ public final class DatabricksPackage {
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once it has finished; empty before that.")
     @Output(name = "run_page_url", type = OoaType.STRING, description = "Link to the run in the Databricks workspace.")
     public Map<String, Object> runJob(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "job_id", type = OoaType.STRING, description = "Job to start: its name or id (see List jobs).") String jobId,
             @Input(name = "job_parameters", type = OoaType.DICTIONARY, required = false, description = "Job parameter values, e.g. {\"run_date\": \"2026-10-20\"}.") Map<String, Object> params,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", formerNames = "wait_until_finished", description = "Wait for the run to end before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", min = 1, max = 86400, formerNames = "wait_seconds", visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT (the run goes on in Databricks).") int waitSeconds,
             @Input(name = "fail_if_run_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "When waiting, stop the agent with an error if the run does not succeed.") boolean failOnError,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("job_id", new BigDecimal(jobId(ctx, url, token, jobId)));
         if (params != null && !params.isEmpty()) { Map<String, Object> jp = new LinkedHashMap<>(); params.forEach((k, v) -> jp.put(k, Values.text(v))); body.put("job_parameters", jp); }
@@ -360,9 +390,14 @@ public final class DatabricksPackage {
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once finished.")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "run_id, life_cycle_state, result_state, state_message, run_page_url, start_time, end_time.")
     public Map<String, Object> getRun(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> s = runSummary(getRunRaw(ctx, url, token, runId));
         return Out.of("life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run", s);
     }
@@ -381,9 +416,14 @@ public final class DatabricksPackage {
     @Output(name = "tasks", type = OoaType.TABLE, description = "One row per task: task_key, run_id, result_state, result, error, logs.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> getRunOutput(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         Map<String, Object> run = getRunRaw(ctx, url, token, runId);
         List<Map<String, Object>> tasks = HttpJson.maps(run.get("tasks"));
         List<Object> rows = new ArrayList<>();
@@ -409,9 +449,14 @@ public final class DatabricksPackage {
     @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.",
             panel = "workspace_url, access_token, run_id")
     public Map<String, Object> cancelRun(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         req("POST", ws(url) + "/api/2.1/jobs/runs/cancel", token).json(Map.of("run_id", new BigDecimal(numId("run", runId)))).send(ctx);
         return Map.of();
     }
@@ -423,8 +468,13 @@ public final class DatabricksPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: cluster_id, name, state, spark_version, node_type, creator.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of clusters.")
     public Map<String, Object> listClusters(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         List<Object> rows = new ArrayList<>();
         String pageToken = null;
         do {
@@ -448,12 +498,17 @@ public final class DatabricksPackage {
             panel = "workspace_url, access_token, cluster_id, [Wait until running: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. PENDING or RUNNING.")
     public Map<String, Object> startCluster(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to start: its name or id (see List clusters).") String clusterId,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", formerNames = "wait_until_running", description = "Wait until the cluster is ready before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, formerNames = "wait_seconds", visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         String id = clusterId(ctx, url, token, clusterId);
         String state = clusterState(ctx, url, token, id);
         if (!state.equals("RUNNING") && !state.equals("PENDING") && !state.equals("RESIZING"))
@@ -476,12 +531,17 @@ public final class DatabricksPackage {
             panel = "workspace_url, access_token, cluster_id, [Wait until stopped: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. TERMINATING or TERMINATED.")
     public Map<String, Object> terminateCluster(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to stop: its name or id.") String clusterId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the cluster has stopped before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         String id = clusterId(ctx, url, token, clusterId);
         req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", id)).send(ctx);
         String state = clusterState(ctx, url, token, id);
@@ -519,11 +579,16 @@ public final class DatabricksPackage {
             panel = "workspace_url, access_token, local_path, remote_path, overwrite")
     @Output(name = "remote_path", type = OoaType.STRING, description = "Where the file was written.")
     public Map<String, Object> upload(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "local_path", type = OoaType.FILE, description = "File on this machine to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/report.csv", description = "Destination, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv.") String remotePath,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that is already there.") boolean overwrite,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         byte[] data = HttpJson.readFile(ctx.resolvePath(local));
         String r = remote(remotePath);
         if (filesApi(r)) {
@@ -545,10 +610,15 @@ public final class DatabricksPackage {
             description = "Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder with recursive).",
             panel = "workspace_url, access_token, remote_path | recursive")
     public Map<String, Object> deleteFile(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/old.csv", description = "File to delete.") String remotePath,
             @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "DBFS only: also delete a folder with everything in it.") boolean recursive,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         String r = remote(remotePath);
         if (filesApi(r)) req("DELETE", ws(url) + "/api/2.0/fs/files/" + HttpJson.encPath(r), token).send(ctx);
         else req("POST", ws(url) + "/api/2.0/dbfs/delete", token).json(Map.of("path", r, "recursive", recursive)).send(ctx);
@@ -561,11 +631,16 @@ public final class DatabricksPackage {
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     @Output(name = "size", type = OoaType.NUMBER, description = "File size in bytes.")
     public Map<String, Object> download(ActionContext ctx,
-            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/outbox/result.csv", description = "File to download, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv.") String remotePath,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save it on this machine. Missing folders are created.") String saveAs,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file already at save_as; when off, the action stops instead and nothing is downloaded.") boolean overwrite) {
+        ApiSession __ss = ApiSession.find(ctx, null, "databricks", "databricks");   // G6: an open session fills what the step leaves empty
+        url = ApiSession.text(__ss, "workspace_url", url);
+        ApiSession.require("DATABRICKS", url, "workspace url");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("DATABRICKS", token, "access token");
         String r = remote(remotePath);
         Path target = ctx.resolvePath(saveAs);
         if (!overwrite && java.nio.file.Files.exists(target))
@@ -595,5 +670,28 @@ public final class DatabricksPackage {
     /** Earlier signature, kept for callers written before overwrite. */
     public Map<String, Object> download(ActionContext ctx, String url, String remotePath, String saveAs, Object token) {
         return download(ctx, url, remotePath, saveAs, token, true);
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).",
+            panel = "workspace_url, access_token | session, share")
+    public Map<String, Object> connectDatabricks(ActionContext ctx,
+            @Input(name = "workspace_url", type = OoaType.STRING, required = false, description = "The workspace url the later steps use (G6).") String workspaceUrl,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "The access token the later steps use (G6).") Object accessToken,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the toolkit's default session when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        Object[] kv = {"workspace_url", workspaceUrl, "access_token", accessToken};
+        for (int i = 0; i < kv.length; i += 2) v.put((String) kv[i], kv[i + 1]);
+        ApiSession.open(ctx, session, "databricks", "databricks", v, share);
+        return Map.of();
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the open Databricks session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionDatabricks(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "databricks"));
     }
 }

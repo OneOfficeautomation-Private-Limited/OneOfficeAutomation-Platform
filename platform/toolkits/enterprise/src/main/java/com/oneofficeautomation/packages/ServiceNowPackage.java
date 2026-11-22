@@ -53,9 +53,13 @@ public final class ServiceNowPackage {
         return j.toString();
     }
 
+    public Map<String, Object> authenticate(ActionContext ctx, String instance, String clientId, Object clientSecret, String grant, String user, Object password) {
+        return authenticate(ctx, instance, clientId, clientSecret, grant, user, password, null, false);
+    }
+
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
             description = "Get an OAuth access token from the instance (user and password, or client credentials) for the other ServiceNow actions.",
-            panel = "instance_url, grant_type, client_id, client_secret, user, password")
+            panel = "instance_url, grant_type, client_id, client_secret, user, password | session, share")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token, when the instance returns one.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires.")
@@ -65,7 +69,9 @@ public final class ServiceNowPackage {
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "grant_type", type = OoaType.STRING, required = false, defaultValue = "\"password\"", enumValues = {"password", "client_credentials"}, description = "password: sign in as a user; client_credentials: as the application.") String grant,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name (password grant).") String user,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant).") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant).") Object password,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6).") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session (G6).") boolean share) {
         String g = grant == null || grant.isBlank() ? "password" : grant;
         if (!Set.of("password", "client_credentials").contains(g)) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'", "Use one of the sign-in kinds the connection offers: password, client_credentials or refresh_token.");
         if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required", "Fill in the OAuth client id in the connection (System OAuth > Application Registry in ServiceNow).");
@@ -81,18 +87,21 @@ public final class ServiceNowPackage {
             form.put("password", password);
         }
         Map<String, Object> r = EnterpriseAuth.token(ctx, P, instance.replaceAll("/+$", "") + "/oauth_token.do", form, null, null);
-        return Out.of("access_token", EnterpriseAuth.credential(r, "servicenow/session"),
+        return keepSession(ctx, session, share, Out.of("instance_url", instance), Out.of("access_token", EnterpriseAuth.credential(r, "servicenow/session"),
                 "refresh_token", r.get("refresh_token") instanceof String rt && !rt.isBlank() ? new SecureString(rt, "servicenow/refresh") : null,
-                "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in")));
+                "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in"))));
     }
 
     @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access or refresh token so it can no longer be used.",
             panel = "instance_url, client_id, client_secret, token")
     public Map<String, Object> revoke(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the OAuth application.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = "The token to revoke.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
         Map<String, Object> form = new LinkedHashMap<>();
         form.put("token", new SecureString(EnterpriseAuth.secret(token, P, "token"), "t"));
         form.put("client_id", clientId);
@@ -129,7 +138,7 @@ public final class ServiceNowPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     public Map<String, Object> query(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true^priority=1", description = "Encoded query.") String q,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return, e.g. [\"number\",\"short_description\",\"state\"].") List<Object> fields,
@@ -143,6 +152,10 @@ public final class ServiceNowPackage {
             @Input(name = "exclude_reference_link", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Leave out the API links of reference fields.") boolean noLinks,
             @Input(name = "filter", type = OoaType.DICTIONARY, required = false, example = "{\"active\": true, \"priority\": 1}",
                     description = "Field to required value, all of which must match; combined with query when both are given. No query syntax needed.") Map<String, Object> filter) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String dv = displayValue(display);
         String query = withFilter(q, filter);
         if (orderBy != null && !orderBy.isBlank()) {
@@ -180,7 +193,7 @@ public final class ServiceNowPackage {
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | display_value")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -188,6 +201,10 @@ public final class ServiceNowPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return; all when empty.") List<Object> fields,
             @Input(name = "display_value", type = OoaType.STRING, required = false, defaultValue = "\"true\"", enumValues = {"true", "false", "all"}, description = D_DISPLAY) String display) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String dv = displayValue(display);
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("sysparm_display_value", dv);
@@ -209,13 +226,17 @@ public final class ServiceNowPackage {
     @Output(name = "number", type = OoaType.STRING, description = "Record number, e.g. INC0012345.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The new record as the instance returned it.")
     public Map<String, Object> create(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value, e.g. {\"short_description\": \"...\", \"urgency\": \"2\"}.") Map<String, Object> fields,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values (e.g. a user's name for caller_id) that the instance should look up.") boolean inputDisplay) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         Map<String, Object> r = result(auth(HttpJson.req(P, "POST", api(instance) + "/table/" + table(t) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
         return Out.of("sys_id", r.get("sys_id"), "number", r.get("number"), "record", r);
     }
@@ -229,7 +250,7 @@ public final class ServiceNowPackage {
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | input_display_value")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The record after the change, as the instance returned it.")
     public Map<String, Object> update(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to new value.") Map<String, Object> fields,
@@ -237,6 +258,10 @@ public final class ServiceNowPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values that the instance should look up.") boolean inputDisplay) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         Map<String, Object> r = result(auth(HttpJson.req(P, "PATCH", api(instance) + "/table/" + table(t) + "/" + sysId(id) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
         return Map.of("record", r);
     }
@@ -249,7 +274,7 @@ public final class ServiceNowPackage {
     @Action(id = "add_comment", name = "Add comment or work note", category = "Records", capabilities = "network", description = "Add a customer-visible comment or an internal work note.",
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, text, internal")
     public Map<String, Object> comment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "text", type = OoaType.STRING, description = "Comment text.") String text,
@@ -257,6 +282,10 @@ public final class ServiceNowPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         auth(HttpJson.req(P, "PATCH", api(instance) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).json(Map.of(internal ? "work_notes" : "comments", text)).send(ctx);
         return Map.of();
     }
@@ -265,7 +294,7 @@ public final class ServiceNowPackage {
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, path | file_name, content_type")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id.")
     public Map<String, Object> attach(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "path", type = OoaType.FILE, description = "File to attach.") String path,
@@ -274,6 +303,10 @@ public final class ServiceNowPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to give the attachment; the local file name when empty.") String fileName,
             @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/pdf", description = "Content type; guessed from the file when empty.") String contentType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         Path p = ctx.resolvePath(path);
         byte[] data;
         String type;
@@ -297,11 +330,15 @@ public final class ServiceNowPackage {
     @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Delete an attachment by its sys_id.",
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id")
     public Map<String, Object> deleteAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         auth(HttpJson.req(P, "DELETE", api(instance) + "/attachment/" + sysId(id)), user, password, token).send(ctx);
         return Map.of();
     }
@@ -311,12 +348,16 @@ public final class ServiceNowPackage {
     @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record by sys_id.",
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id")
     public Map<String, Object> delete(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         auth(HttpJson.req(P, "DELETE", api(instance) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).send(ctx);
         return Map.of();
     }
@@ -326,12 +367,16 @@ public final class ServiceNowPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: sys_id, file_name, content_type, size_bytes, created_on.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of attachments.")
     public Map<String, Object> listAttachments(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String url = api(instance) + "/attachment?" + HttpJson.query(Map.of("sysparm_query", "table_name=" + table(t) + "^table_sys_id=" + sysId(id), "sysparm_limit", 1000));
         List<?> res = (List<?>) auth(HttpJson.req(P, "GET", url), user, password, token).send(ctx).map().getOrDefault("result", List.of());
         List<Object> rows = new ArrayList<>();
@@ -347,7 +392,7 @@ public final class ServiceNowPackage {
             panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id, folder | file_name, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -355,6 +400,10 @@ public final class ServiceNowPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to save the file under; the attachment's own name when empty.") String fileName,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; when off, the action stops with an error instead.") boolean overwrite) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String base = api(instance) + "/attachment/" + sysId(id);
         Map<String, Object> meta = result(auth(HttpJson.req(P, "GET", base), user, password, token).send(ctx));
         Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
@@ -380,7 +429,7 @@ public final class ServiceNowPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "latest", type = OoaType.STRING, description = "Newest sys_updated_on seen; pass it as since on the next poll (equal to since when nothing changed).")
     public Map<String, Object> changed(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "since", type = OoaType.STRING, example = "2026-10-19 08:00:00", description = "UTC time; records updated strictly after it are returned.") String since,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true", description = "Extra encoded query to narrow the records.") String q,
@@ -389,6 +438,10 @@ public final class ServiceNowPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String s = since == null ? "" : since.trim().replace('T', ' ');
         if (!STAMP.matcher(s).matches()) throw new ActionException(P + ".BAD_TIME", "Invalid time '" + since + "'", "Use yyyy-MM-dd HH:mm:ss in UTC, e.g. 2026-10-19 08:00:00.");
         if (s.length() == 10) s += " 00:00:00"; else if (s.length() == 16) s += ":00";
@@ -423,5 +476,22 @@ public final class ServiceNowPackage {
             offset += pageSize;
         }
         return Out.of("table", recs.isEmpty() ? Values.table(List.of(), new ArrayList<>()) : Values.coerce(recs, "Table", "records"), "count", BigDecimal.valueOf(recs.size()), "latest", latest);
+    }
+
+    // ------------------------------------------------------------------ G6 (AA parity): a session kept by the sign-in step
+
+    private static Map<String, Object> keepSession(ActionContext ctx, String session, boolean share, Map<String, Object> given, Map<String, Object> out) {
+        Map<String, Object> v = new LinkedHashMap<>(given);
+        v.putAll(out);
+        ApiSession.open(ctx, session, "servicenow", "servicenow", v, share);
+        return out;
+    }
+
+    @Action(id = "end_session", name = "End session", category = "Connection",
+            description = "Forget the open ServiceNow session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionServicenow(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "servicenow"));
     }
 }

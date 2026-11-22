@@ -24,11 +24,18 @@ public final class WorkdayPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, descriptor, primary_work_email, business_title.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of workers.")
     public Map<String, Object> searchWorkers(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
-            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "OAuth access token from the vault.") Object token,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, required = false, description = "Tenant name.") String tenant,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault.") Object token,
             @Input(name = "search", type = OoaType.STRING, required = false, description = "Name or id text; all workers when empty.") String search,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum workers.") int max) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        tenant = ApiSession.text(__ss, "tenant", tenant);
+        ApiSession.require("WORKDAY", tenant, "tenant");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("WORKDAY", token, "access token");
         List<Object> rows = new ArrayList<>();
         int offset = 0;
         while (rows.size() < max) {
@@ -52,9 +59,14 @@ public final class WorkdayPackage {
             panel = "host, path, access_token")
     @Output(name = "json", description = "Response body.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "path", type = OoaType.STRING, example = "/ccx/api/v1/acme/workers/3aa5550b7fe348b98d7b5741afc65534", description = "Path starting with /ccx/.") String path,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "OAuth access token from the vault.") Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        token = ApiSession.value(__ss, "access_token", token);
+        ApiSession.requireSecret("WORKDAY", token, "access token");
         if (!path.startsWith("/ccx/") || path.contains("..")) throw new ActionException(P + ".BAD_PATH", "The path must start with /ccx/", "Example: /ccx/service/customreport2/acme/owner/Report?format=json");
         return Out.of("json", HttpJson.req(P, "GET", host.replaceAll("/+$", "") + path).bearer(token).timeout(240).send(ctx).json());
     }
@@ -72,7 +84,7 @@ public final class WorkdayPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
     @Output(name = "path", type = OoaType.FILE, description = "The saved file, when save_to_file was given.")
     public Map<String, Object> getReport(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "report_path", type = OoaType.STRING, example = "/ccx/service/customreport2/acme/isu_reports/Active_Workers", description = "Report path starting with /ccx/service/customreport2/.") String path,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Report prompts, e.g. {\"Effective_as_of_Date\": \"2026-10-01\"}.") Map<String, Object> params,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"json\"", enumValues = {"json", "csv", "simple_xml", "workday_xml"},
@@ -81,6 +93,10 @@ public final class WorkdayPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
             @Input(name = "save_to_file", type = OoaType.FILE, required = false, description = "Also save Workday's answer, unchanged, to this file; nothing is saved when empty.") String saveTo) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        token = ApiSession.value(__ss, "access_token", token);
         String p = path == null ? "" : path.trim();
         if (!p.startsWith("/ccx/service/customreport2/") || p.contains("..") || p.contains("?"))
             throw new ActionException(P + ".BAD_PATH", "The report path must start with /ccx/service/customreport2/ and have no query", "Example: /ccx/service/customreport2/acme/isu_reports/Active_Workers; put prompts in parameters.");
@@ -156,9 +172,13 @@ public final class WorkdayPackage {
         row.put(key, old == null ? value : old + "; " + value);
     }
 
+    public Map<String, Object> authenticate(ActionContext ctx, String host, String tenant, String clientId, Object clientSecret, Object refreshToken) {
+        return authenticate(ctx, host, tenant, clientId, clientSecret, refreshToken, null, false);
+    }
+
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
             description = "Get an OAuth access token for a registered API client from its refresh token, for the other Workday actions.",
-            panel = "host, tenant, client_id, client_secret, refresh_token")
+            panel = "host, tenant, client_id, client_secret, refresh_token | session, share")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires, when Workday says.")
     public Map<String, Object> authenticate(ActionContext ctx,
@@ -166,7 +186,9 @@ public final class WorkdayPackage {
             @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the API client registered in Workday.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
-            @Input(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token issued to the API client, from the vault.") Object refreshToken) {
+            @Input(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token issued to the API client, from the vault.") Object refreshToken,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6).") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session (G6).") boolean share) {
         if (tenant == null || !TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'", "Use the tenant name as it appears in your Workday address (letters, digits, _ and -).");
         if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required", "Fill in the API client id in the connection (Register API Client in Workday).");
         EnterpriseAuth.secret(clientSecret, P, "client secret");
@@ -175,7 +197,7 @@ public final class WorkdayPackage {
         form.put("grant_type", "refresh_token");
         form.put("refresh_token", refreshToken);
         Map<String, Object> r = EnterpriseAuth.token(ctx, P, host.replaceAll("/+$", "") + "/ccx/oauth2/" + tenant + "/token", form, clientId.strip(), clientSecret);
-        return Out.of("access_token", EnterpriseAuth.credential(r, "workday/session"), "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in")));
+        return keepSession(ctx, session, share, Out.of("host", host, "tenant", tenant), Out.of("access_token", EnterpriseAuth.credential(r, "workday/session"), "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in"))));
     }
 
     /** Nested groups become Group.Field columns; repeated values are joined with "; ". */
@@ -257,8 +279,8 @@ public final class WorkdayPackage {
             panel = "host, tenant, id_type, integration_system_id, parameters | (Sign in with: User name and password = user, password / An access token = access_token), version")
     @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
     public Map<String, Object> launchIntegration(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
-            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, required = false, description = "Tenant name.") String tenant,
             @Input(name = "integration_system_id", type = OoaType.STRING, example = "INT_Worker_Load", description = "Integration System ID of the integration to start.") String integrationId,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant, e.g. isu_int@acme (basic sign-in).") String user,
@@ -268,6 +290,12 @@ public final class WorkdayPackage {
                     description = "Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID).") String idType,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, example = "{\"Effective_Date\": \"2026-11-01\", \"Include_Terminated\": false}",
                     description = "Launch parameter name to value; text, numbers, true/false and dates are sent with their Workday type.") Map<String, Object> parameters) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        tenant = ApiSession.text(__ss, "tenant", tenant);
+        ApiSession.require("WORKDAY", tenant, "tenant");
+        token = ApiSession.value(__ss, "access_token", token);
         if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'", "Use the integration system's id as Workday shows it (letters, digits, _ and -).");
         boolean wid = "wid".equals(idType);
         if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
@@ -307,8 +335,8 @@ public final class WorkdayPackage {
             panel = "host, tenant, id_type, integration_system_id, file, file_field | (Sign in with: User name and password = user, password / An access token = access_token), content_type, version")
     @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
     public Map<String, Object> launchEib(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
-            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, required = false, description = "Tenant name.") String tenant,
             @Input(name = "integration_system_id", type = OoaType.STRING, example = "INT_Worker_Load", description = "Integration System ID of the EIB to start.") String integrationId,
             @Input(name = "file", type = OoaType.FILE, description = "File to load: the EIB's spreadsheet template filled in, or XML.") String file,
             @Input(name = "file_field", type = OoaType.STRING, example = "Attachment",
@@ -321,6 +349,12 @@ public final class WorkdayPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
             @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"integration_system_id\"", enumValues = {"integration_system_id", "wid"},
                     description = "Whether integration_system_id holds the Integration System ID or the EIB's Workday ID (WID).") String idType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        tenant = ApiSession.text(__ss, "tenant", tenant);
+        ApiSession.require("WORKDAY", tenant, "tenant");
+        token = ApiSession.value(__ss, "access_token", token);
         if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'", "Use the integration system's id as Workday shows it (letters, digits, _ and -).");
         boolean wid = "wid".equals(idType);
         if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
@@ -373,8 +407,8 @@ public final class WorkdayPackage {
     @Output(name = "completed", type = OoaType.STRING, description = "Completion time; empty while running.")
     @Output(name = "done", type = OoaType.BOOLEAN, description = "True once the run has finished, whether it succeeded or not.")
     public Map<String, Object> getIntegrationEvent(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
-            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "host", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, required = false, description = "Tenant name.") String tenant,
             @Input(name = "event_id", type = OoaType.STRING, description = "Integration event WID from Launch integration.") String eventId,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant (basic sign-in).") String user,
@@ -383,6 +417,12 @@ public final class WorkdayPackage {
             @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"WID\"", example = "WID",
                     description = "Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type "
                             + "your tenant accepts for integration event references, written exactly as Workday names it.") String idType) {
+        ApiSession __ss = ApiSession.find(ctx, null, "workday", "workday");   // G6: an open session fills what the step leaves empty
+        host = ApiSession.text(__ss, "host", host);
+        ApiSession.require("WORKDAY", host, "host");
+        tenant = ApiSession.text(__ss, "tenant", tenant);
+        ApiSession.require("WORKDAY", tenant, "tenant");
+        token = ApiSession.value(__ss, "access_token", token);
         String type = idType == null || idType.isBlank() ? "WID" : idType.strip();
         if (!ID_TYPE.matcher(type).matches()) throw new ActionException(P + ".BAD_ID_TYPE", "Invalid id type '" + idType + "'", "Use WID, or a Workday ID type name such as the ones shown in the event's reference ids.");
         boolean wid = type.equalsIgnoreCase("WID");
@@ -404,5 +444,22 @@ public final class WorkdayPackage {
         boolean done = completed != null && !completed.isEmpty() || s.startsWith("completed") || s.startsWith("failed") || s.startsWith("cancel") || s.startsWith("error");
         return Out.of("status", status, "percent_complete", pct == null || pct.isEmpty() ? null : new BigDecimal(pct),
                 "started", text(d, "Initiated_DateTime"), "completed", completed, "done", done);
+    }
+
+    // ------------------------------------------------------------------ G6 (AA parity): a session kept by the sign-in step
+
+    private static Map<String, Object> keepSession(ActionContext ctx, String session, boolean share, Map<String, Object> given, Map<String, Object> out) {
+        Map<String, Object> v = new LinkedHashMap<>(given);
+        v.putAll(out);
+        ApiSession.open(ctx, session, "workday", "workday", v, share);
+        return out;
+    }
+
+    @Action(id = "end_session", name = "End session", category = "Connection",
+            description = "Forget the open Workday session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionWorkday(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "workday"));
     }
 }

@@ -55,7 +55,7 @@ public final class KafkaPackage {
     @Output(name = "offset", type = OoaType.NUMBER, description = "Position of the message in that partition.")
     @Output(name = "timestamp", type = OoaType.STRING, description = "Time Kafka recorded for the message.")
     public Map<String, Object> produce(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "topic", type = OoaType.STRING, example = "orders", description = "Topic to write to.") String t,
             @Input(name = "value", type = OoaType.ANY, description = "Message content: text, or a dictionary or list sent as JSON.") Object value,
             @Input(name = "key", type = OoaType.STRING, required = false, description = "Message key. Messages with the same key always go to the same partition, so they stay in order.") String key,
@@ -66,6 +66,13 @@ public final class KafkaPackage {
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        clusterId = ApiSession.text(__ss, "cluster_id", clusterId);
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         if (value instanceof SecureString) throw Values.secureLeak("a Kafka message");
         Map<String, Object> body = new LinkedHashMap<>();
         if (partition != null) body.put("partition_id", partition);
@@ -92,12 +99,19 @@ public final class KafkaPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: topic, partitions, replication_factor, internal.")
     @Output(name = "names", type = OoaType.LIST, description = "Topic names only.")
     public Map<String, Object> listTopics(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "include_internal", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also list Kafka's own internal topics, whose names usually start with an underscore.") boolean internal,
             @Input(name = "cluster_id", type = OoaType.STRING, required = false, description = D_CLUSTER) String clusterId,
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        clusterId = ApiSession.text(__ss, "cluster_id", clusterId);
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         List<Object> rows = new ArrayList<>();
         List<Object> names = new ArrayList<>();
         String url = root(base) + "/v3/clusters/" + cluster(ctx, base, clusterId, apiKey, secret, bearer) + "/topics";
@@ -122,7 +136,7 @@ public final class KafkaPackage {
             panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topic, partitions, replication_factor | settings, fail_if_exists, cluster_id")
     @Output(name = "created", type = OoaType.BOOLEAN, description = "True if the topic was created, false if it was already there.")
     public Map<String, Object> createTopic(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "topic", type = OoaType.STRING, description = "Name of the new topic.") String t,
             @Input(name = "partitions", type = OoaType.NUMBER, required = false, defaultValue = "6", description = "Number of partitions; more partitions let more readers work in parallel.") int partitions,
             @Input(name = "replication_factor", type = OoaType.NUMBER, required = false, description = "Copies of each message kept on different servers. Leave empty for the cluster default.") Integer replicas,
@@ -132,6 +146,13 @@ public final class KafkaPackage {
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        clusterId = ApiSession.text(__ss, "cluster_id", clusterId);
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("topic_name", topic(t));
         body.put("partitions_count", Math.max(1, partitions));
@@ -157,12 +178,19 @@ public final class KafkaPackage {
     @Output(name = "info", type = OoaType.DICTIONARY, description = "topic, partitions, replication_factor, internal.")
     @Output(name = "settings", type = OoaType.DICTIONARY, description = "Topic settings, e.g. retention.ms and cleanup.policy.")
     public Map<String, Object> getTopic(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "topic", type = OoaType.STRING, description = "Topic to look up.") String t,
             @Input(name = "cluster_id", type = OoaType.STRING, required = false, description = D_CLUSTER) String clusterId,
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        clusterId = ApiSession.text(__ss, "cluster_id", clusterId);
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         String url = root(base) + "/v3/clusters/" + cluster(ctx, base, clusterId, apiKey, secret, bearer) + "/topics/" + topic(t);
         Map<String, Object> r = req("GET", url, apiKey, secret, bearer).send(ctx).map();
         Map<String, Object> info = new LinkedHashMap<>();
@@ -184,7 +212,7 @@ public final class KafkaPackage {
     @Output(name = "messages", type = OoaType.LIST, description = "Each message as a dictionary; JSON values stay structured.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages read.")
     public Map<String, Object> read(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "topics", type = OoaType.LIST, description = "Topics to read, e.g. [\"orders\"].") List<Object> topics,
             @Input(name = "consumer_group", type = OoaType.STRING, example = "ooa-order-agent", description = "Reader group name. Agents with the same group share the work and never get the same message twice.") String group,
             @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Stop once this many messages have arrived. The last batch is kept whole, so a few more can come back.") int max,
@@ -196,6 +224,12 @@ public final class KafkaPackage {
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         if (group == null || !GROUP.matcher(group.trim()).matches()) throw new ActionException(P + ".BAD_GROUP", "Invalid consumer group '" + group + "'", "Use letters, digits, dot, underscore and dash.");
         if (topics == null || topics.isEmpty()) throw new ActionException(P + ".BAD_TOPIC", "Give at least one topic", "Example: [\"orders\"].");
         List<String> ts = new ArrayList<>();
@@ -251,7 +285,7 @@ public final class KafkaPackage {
             panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), consumer_group, topic, partition, offset")
     @Output(name = "next_offset", type = OoaType.NUMBER, description = "Offset the group reads next in that partition (offset + 1).")
     public Map<String, Object> commitOffsets(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "consumer_group", type = OoaType.STRING, example = "ooa-order-agent", description = "Reader group whose position is changed.") String group,
             @Input(name = "topic", type = OoaType.STRING, example = "orders", description = "Topic of the messages.") String t,
             @Input(name = "partition", type = OoaType.NUMBER, description = "Partition number, as shown in the partition column of Read messages.") Integer partition,
@@ -259,6 +293,12 @@ public final class KafkaPackage {
             @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
             @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        ApiSession __ss = ApiSession.find(ctx, null, "kafka", "kafka");   // G6: an open session fills what the step leaves empty
+        base = ApiSession.text(__ss, "base_url", base);
+        ApiSession.require("KAFKA", base, "base url");
+        apiKey = ApiSession.text(__ss, "api_key", apiKey);
+        secret = ApiSession.value(__ss, "api_secret", secret);
+        bearer = ApiSession.value(__ss, "access_token", bearer);
         if (group == null || !GROUP.matcher(group.trim()).matches()) throw new ActionException(P + ".BAD_GROUP", "Invalid consumer group '" + group + "'", "Use letters, digits, dot, underscore and dash.");
         String tp = topic(t);
         if (partition == null || partition < 0) throw new ActionException(P + ".BAD_PARTITION", "A partition number of 0 or more is required", "Use the partition column from Read messages.");
@@ -281,5 +321,31 @@ public final class KafkaPackage {
             catch (RuntimeException e) { ctx.warn("Could not close the Kafka reader: " + e.getMessage()); }
         }
         return Out.of("next_offset", BigDecimal.valueOf(offset + 1));
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =) | cluster_id, session, share")
+    public Map<String, Object> connectKafka(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = "The base url the later steps use (G6).") String baseUrl,
+            @Input(name = "api_key", type = OoaType.STRING, required = false, description = "The api key the later steps use (G6).") String apiKey,
+            @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = "The api secret the later steps use (G6).") Object apiSecret,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "The access token the later steps use (G6).") Object accessToken,
+            @Input(name = "cluster_id", type = OoaType.STRING, required = false, description = "The cluster id the later steps use (G6).") String clusterId,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the toolkit's default session when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        Object[] kv = {"base_url", baseUrl, "api_key", apiKey, "api_secret", apiSecret, "access_token", accessToken, "cluster_id", clusterId};
+        for (int i = 0; i < kv.length; i += 2) v.put((String) kv[i], kv[i + 1]);
+        ApiSession.open(ctx, session, "kafka", "kafka", v, share);
+        return Map.of();
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the open Kafka session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionKafka(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "kafka"));
     }
 }
