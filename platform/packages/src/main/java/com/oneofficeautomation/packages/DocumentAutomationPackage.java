@@ -19,9 +19,12 @@ import java.util.function.Function;
 public final class DocumentAutomationPackage {
     private static final Set<String> READABLE = Set.of("pdf", "png", "jpg", "jpeg", "tif", "tiff");
 
+    /** Before G6 (kept for callers in Java). */
+    public Map<String, Object> send(ActionContext ctx, String process, String path, boolean wait) { return send(ctx, process, path, wait, null); }
+
     @Action(id = "send", name = "Send document to process", category = "Document Automation", timeoutSeconds = 900, capabilities = "filesystem",
             description = "Send a document to a live Document Automation process. Optionally wait until it is read, to use its fields and status in the agent.",
-            panel = "process, path, [Wait for the fields: wait]")
+            panel = "process, path, [Wait for the fields: wait] | process_version")
     @Output(name = "document_id", type = OoaType.STRING, description = "The document's id in Document Automation.")
     @Output(name = "status", type = OoaType.STRING, description = "processing, success (read and checked), validation (waits for a reviewer), invalid or failed.")
     @Output(name = "needs_review", type = OoaType.BOOLEAN, description = "True when a person must review it (only known when waiting).")
@@ -31,13 +34,18 @@ public final class DocumentAutomationPackage {
             @Input(name = "process", type = OoaType.STRING, description = "The process's name (or id) as shown in Document Automation. It must be live.") String process,
             @Input(name = "path", type = OoaType.FILE, description = "The document: PDF, PNG, JPG or TIFF.") String path,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Wait until the document is read (up to 15 minutes) and return its status and fields.") boolean wait) {
+                    description = "Wait until the document is read (up to 15 minutes) and return its status and fields.") boolean wait,
+            @Input(name = "process_version", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Only send when the process's setup is still this version (G6), so a changed setup never reads the document unnoticed: "
+                            + "a different version stops the step with DOCS.VERSION_CHANGED. Empty: whatever version is live.") Integer processVersion) {
         if (process == null || process.isBlank()) throw new ActionException("DOCS.NO_PROCESS", "Choose the process to send the document to", "Use the process's name as shown in Document Automation.");
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Document not found: " + p, "Check the path.");
         String name = p.getFileName().toString(), ext = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT) : "";
         if (!READABLE.contains(ext)) throw new ActionException("DOCS.FILE_TYPE", "Document Automation reads PDF, PNG, JPG and TIFF files, not ." + ext, "Convert the file first.");
-        Map<String, Object> r = docflow(ctx).apply(Map.of("process", process.trim(), "file", p.toAbsolutePath().toString(), "wait", wait));
+        Map<String, Object> req = new LinkedHashMap<>(Map.of("process", process.trim(), "file", p.toAbsolutePath().toString(), "wait", wait));
+        if (processVersion != null && processVersion > 0) req.put("process_version", processVersion);
+        Map<String, Object> r = docflow(ctx).apply(req);
         ctx.info("Sent " + name + " to " + r.getOrDefault("process", process) + ": " + r.get("status"));
         return Out.of("document_id", r.get("document_id"), "status", String.valueOf(r.get("status")), "needs_review", Boolean.TRUE.equals(r.get("needs_review")),
                 "fields", r.get("fields") instanceof Map<?, ?> f ? f : Map.of());
@@ -169,6 +177,82 @@ public final class DocumentAutomationPackage {
         if (collector != null && !collector.isBlank()) req.put("collector", collector.strip());
         Map<String, Object> r = ask(ctx, req);
         return Out.of("marked", num(r.get("marked")), "already_collected", num(r.get("already_collected")));
+    }
+
+    // ---------- writing back and saving results (G6) ----------
+
+    @Action(id = "update_result", name = "Update document result", category = "Document Automation",
+            description = "Write corrected field values back to a read document (G6). The values are kept as a review by the run's user, so the document then counts as approved.",
+            panel = "document_id, fields")
+    @Output(name = "status", type = OoaType.STRING, description = "The document's status after the change (validated when approved).")
+    @Output(name = "fields", type = OoaType.DICTIONARY, description = "The document's fields after the change, by name.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateResult(ActionContext ctx,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC_ID) String documentId,
+            @Input(name = "fields", type = OoaType.ANY,
+                    description = "The corrected values by field name: a Dictionary, or JSON text such as {\"total\": \"110.00\"}. Fields left out keep their values.") Object fields) {
+        Map<String, Object> f = fieldsOf(fields);
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("op", "update");
+        req.put("document_id", id(documentId));
+        req.put("fields", f);
+        Map<String, Object> r = ask(ctx, req);
+        ctx.info("Updated " + f.size() + " field(s) of document " + req.get("document_id"));
+        return Out.of("status", String.valueOf(r.get("status")), "fields", r.get("fields") instanceof Map<?, ?> m ? m : Map.of());
+    }
+
+    /** Corrected values: a Dictionary, or JSON text of an object; at least one field. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> fieldsOf(Object fields) {
+        Object v = fields;
+        if (v instanceof String s) {
+            if (s.isBlank()) v = null;
+            else try { v = JsonLite.parse(s); }
+            catch (IllegalArgumentException e) { throw new ActionException("DOCS.BAD_FIELDS", "The fields are not valid JSON", "Give a Dictionary, or JSON text such as {\"total\": \"110.00\"}."); }
+        }
+        if (v == null) throw new ActionException("DOCS.BAD_FIELDS", "Give the corrected fields", "Give a Dictionary of field names and values.");
+        if (!(v instanceof Map<?, ?> m)) throw new ActionException("DOCS.BAD_FIELDS", "The fields must be a Dictionary of field names and values", "Give a Dictionary, or JSON text of an object.");
+        if (m.isEmpty()) throw new ActionException("DOCS.BAD_FIELDS", "Give at least one field to correct", "Add the field names and their corrected values.");
+        Map<String, Object> out = new LinkedHashMap<>();
+        ((Map<Object, Object>) m).forEach((k, x) -> out.put(String.valueOf(k), Values.toJsonable(x)));
+        return out;
+    }
+
+    static final List<String> DOWNLOAD_KINDS = List.of("csv", "json", "original");
+
+    @Action(id = "download", name = "Download document", category = "Document Automation", timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Save a document's results (CSV or JSON), or the file that was sent, to a folder (G6). A file of the same name there is replaced.",
+            panel = "document_id, kind, folder | delete_after")
+    @Output(name = "path", type = OoaType.FILE, description = "The saved file.")
+    @Output(name = "deleted", type = OoaType.BOOLEAN, description = "True when Document Automation's copy was removed.")
+    public Map<String, Object> download(ActionContext ctx,
+            @Input(name = "document_id", type = OoaType.STRING, description = D_DOC_ID) String documentId,
+            @Input(name = "kind", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", enumValues = {"csv", "json", "original"},
+                    description = "csv: one row per field (field, value, confidence, page, corrected). json: everything that was read. original: the document as it was sent.") String kind,
+            @Input(name = "folder", type = OoaType.STRING, required = false,
+                    description = "The folder to save in. Empty: the run's temporary folder (the path output says where).") String folder,
+            @Input(name = "delete_after", type = OoaType.BOOLEAN, required = false, defaultValue = "true", tone = "danger",
+                    description = "Ask Document Automation to remove its copy once the file is saved. When the service keeps documents, the step says so and goes on.") boolean deleteAfter) {
+        String k = kind == null || kind.isBlank() ? "csv" : kind.strip();
+        if (!DOWNLOAD_KINDS.contains(k)) throw new ActionException("DOCS.BAD_KIND", "Unknown kind '" + kind + "'", "Use csv, json or original.");
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("op", "download");
+        req.put("document_id", id(documentId));
+        req.put("kind", k);
+        req.put("delete_after", deleteAfter);
+        Map<String, Object> r = ask(ctx, req);
+        byte[] data;
+        try { data = Base64.getDecoder().decode(String.valueOf(r.getOrDefault("data", ""))); }
+        catch (IllegalArgumentException e) { throw new ActionException("DOCS.BAD_ANSWER", "Document Automation sent an unreadable file", "Try again; tell support if it keeps happening."); }
+        String name = r.get("file_name") instanceof String n && !n.isBlank() ? n : req.get("document_id") + (k.equals("original") ? "" : "." + k);
+        String dir = folder == null || folder.isBlank() ? null : folder.endsWith("/") || folder.endsWith("\\") ? folder : folder + "/";
+        Path out = ctx.outputPath(dir, name);
+        try { Files.write(out, data); }
+        catch (java.io.IOException e) { throw new ActionException("FILE.IO", "Cannot save " + out + ": " + e.getMessage(), "Check the runner may write to the folder."); }
+        boolean deleted = Boolean.TRUE.equals(r.get("deleted"));
+        if (deleteAfter && !deleted) ctx.warn("Document Automation kept its copy of " + req.get("document_id") + (r.get("delete_note") == null ? "" : ": " + r.get("delete_note")));
+        ctx.info("Saved " + out.getFileName() + " (" + data.length + " bytes)");
+        return Out.of("path", out.toString(), "deleted", deleted);
     }
 
     private static Map<String, Object> ask(ActionContext ctx, Map<String, Object> req) {

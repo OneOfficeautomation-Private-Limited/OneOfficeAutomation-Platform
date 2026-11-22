@@ -308,6 +308,14 @@ public final class ControlRoomServer {
         return q;
     }
 
+    /** The request body as it came, within the Largest upload setting (G6: webhooks check signatures over these bytes). */
+    static byte[] rawBody(HttpExchange ex) throws IOException {
+        int limit = maxBody.getAsInt();
+        byte[] b = ex.getRequestBody().readNBytes(limit + 1);
+        if (b.length > limit) throw new OoaException("CR.TOO_LARGE", "The request is larger than the Largest upload setting allows", "Raise Settings > Largest upload, or send a smaller file");
+        return b;
+    }
+
     static Object body(HttpExchange ex) throws IOException {
         int limit = maxBody.getAsInt();
         byte[] b = ex.getRequestBody().readNBytes(limit + 1);
@@ -513,8 +521,10 @@ public final class ControlRoomServer {
             return;
         }
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("hooks")) {
-            String secret = ex.getRequestHeaders().getFirst("X-OOA-Secret");
-            sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
+            // G6: any content type (JSON, form, text or XML), signature and header checks, address-check challenges
+            com.oneofficeautomation.controlroom.runs.Webhooks.Reply r = cr.webhook(seg[1], name -> ex.getRequestHeaders().getFirst(name), rawBody(ex),
+                    ex.getRequestHeaders().getFirst("Content-Type"), ip);
+            sendJson(ex, r.status(), r.body());
             return;
         }
         // approving from e-mail, Teams or a phone (G43): the signed link is the sign-in; the page asks to confirm first

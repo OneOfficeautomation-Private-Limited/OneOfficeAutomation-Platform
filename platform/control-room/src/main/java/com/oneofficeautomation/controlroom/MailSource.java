@@ -29,9 +29,20 @@ public interface MailSource {
     /** After reading (mail rules): moves the message to a folder (made when it does not exist). */
     default void move(Map<String, Object> message, String folder) throws IOException { throw new IOException("This mailbox cannot move emails"); }
 
-    /** True when the message passes the trigger's from and subject filters (case-insensitive "contains"). */
+    /**
+     * True when the message passes the trigger's from and subject filters (case-insensitive "contains"); G6: from_any and
+     * subject_any are lists where one match is enough, and has_attachment keeps only emails with attached files.
+     */
     static boolean matches(Map<String, Object> msg, Map<String, Object> config) {
-        return contains(msg.get("from"), config.get("from_contains")) && contains(msg.get("subject"), config.get("subject_contains"));
+        return contains(msg.get("from"), config.get("from_contains")) && contains(msg.get("subject"), config.get("subject_contains"))
+                && containsAny(msg.get("from"), config.get("from_any")) && containsAny(msg.get("subject"), config.get("subject_any"))
+                && (!Boolean.TRUE.equals(config.get("has_attachment")) || Boolean.TRUE.equals(msg.get("has_attachments")));
+    }
+
+    private static boolean containsAny(Object value, Object filters) {
+        if (!(filters instanceof Collection<?> c) || c.isEmpty()) return true;
+        for (Object f : c) if (contains(value, f) && f != null && !String.valueOf(f).isBlank()) return true;
+        return false;
     }
 
     private static boolean contains(Object value, Object filter) {

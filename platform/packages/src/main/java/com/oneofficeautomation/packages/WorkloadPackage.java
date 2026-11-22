@@ -604,22 +604,67 @@ public final class WorkloadPackage {
         return Map.of("count", BigDecimal.valueOf(done.size()), "skipped", BigDecimal.valueOf(skipped));
     }
 
+    /** Before G6 (kept for callers in Java): new items, one at a time. */
+    public Iterable<Object> eachItem(ActionContext ctx, String queue, int max) { return eachItem(ctx, queue, max, "new", 1); }
+
+    /** The item states the loop can work (G6), mapped to the states the queue keeps. */
+    static final List<String> LOOP_STATES = List.of("new", "on_hold", "data_error", "failed");
+
     @LoopIterator(id = "each_item", name = "Each available work item", description = "Take items one by one until the queue is empty; mark each completed or failed inside the loop.")
     public Iterable<Object> eachItem(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
-            @Input(name = "max_items", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Stop after this many items.") int max) {
+            @Input(name = "max_items", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Stop after this many items.") int max,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"new\"", enumValues = {"new", "on_hold", "data_error", "failed"},
+                    description = "Which items to work (G6). new: new items, and deferred ones that are due. on_hold: items put on hold or deferred, due or not. "
+                            + "data_error: failed items whose error was marked a business exception. failed: other failed items (system errors).") String status,
+            @Input(name = "fetch_count", type = OoaType.NUMBER, required = false, defaultValue = "1", newStepDefault = "100", min = 1, max = 1000,
+                    description = "How many items to take from the queue in one go (G6); each is marked in progress when taken. "
+                            + "Items taken but not reached when the loop stops early stay in progress until unlocked.") int fetchCount) {
+        String st = status == null || status.isBlank() ? "new" : status.strip();
+        if (!LOOP_STATES.contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'", "Use new, on_hold, data_error or failed.");
+        int batch = Math.max(1, Math.min(1000, fetchCount));
         return () -> new Iterator<>() {
-            int taken = 0; Map<String, Object> next;
+            int taken = 0; boolean empty; final Deque<Map<String, Object>> ready = new ArrayDeque<>();
             public boolean hasNext() {
-                if (next == null && taken < max) { Map<String, Object> r = getNext(ctx, queue); if (Boolean.TRUE.equals(r.get("found"))) next = r; }
-                return next != null;
+                if (ready.isEmpty() && !empty && taken < max) {
+                    ready.addAll(takeMany(ctx, queue, st, Math.min(batch, max - taken)));
+                    if (ready.isEmpty()) empty = true;
+                }
+                return !ready.isEmpty();
             }
             public Object next() {
                 if (!hasNext()) throw new NoSuchElementException();
-                Map<String, Object> r = next; next = null; taken++;
+                Map<String, Object> r = ready.poll(); taken++;
                 return Out.of("item_id", r.get("item_id"), "data", r.get("data"), "attempt", r.get("attempt"));
             }
         };
+    }
+
+    /** True when an item is in the loop's state (G6): new (or deferred and due), on hold, data error or failed. */
+    static boolean inLoopState(Map<String, Object> it, String state, String now) {
+        Object s = it.get("status");
+        return switch (state) {
+            case "on_hold" -> "deferred".equals(s);
+            case "data_error" -> "failed".equals(s) && "business".equals(it.get("error_kind"));
+            case "failed" -> "failed".equals(s) && !"business".equals(it.get("error_kind"));
+            default -> "new".equals(s) || ("deferred".equals(s) && String.valueOf(it.getOrDefault("defer_until", "")).compareTo(now) <= 0);
+        };
+    }
+
+    /** Takes up to count items in the state, oldest first, and marks them in progress, under one lock (G6). */
+    static List<Map<String, Object>> takeMany(ActionContext ctx, String queue, String state, int count) {
+        return update(ctx, queue, true, items -> {
+            String t = now();
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (Map<String, Object> it : items) {
+                if (out.size() >= count) break;
+                if (!inLoopState(it, state, t)) continue;
+                int attempt = Values.toNumber(it.getOrDefault("attempts", BigDecimal.ZERO)).intValue() + 1;
+                it.put("status", "in_progress"); it.put("attempts", BigDecimal.valueOf(attempt)); it.put("updated", t); it.put("run_id", ctx.runId());
+                out.add(Out.of("item_id", it.get("id"), "data", it.get("data"), "attempt", BigDecimal.valueOf(attempt)));
+            }
+            return out;
+        });
     }
 
     @Condition(id = "has_items", name = "Queue has items", description = "True when the queue has items waiting (new, or deferred and due).")
