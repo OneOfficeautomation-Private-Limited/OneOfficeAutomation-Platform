@@ -198,8 +198,8 @@ public final class BrowserPackage {
             panel = "open_in, window, browser, url | download_folder, headless, keep_open, engine, session, timeout_ms")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open.") String url,
-            @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"},
-                    visibleWhen = "open_in=new_window", description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB).") String which,
+            @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", newStepDefault = "\"default\"", enumValues = {"default", "edge", "chrome", "chromium", "firefox"},
+                    visibleWhen = "open_in=new_window", description = "default: the browser Windows opens web links with (G4); edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright the first time they are used (about 150 MB).") String which,
             @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "open_in=new_window", description = "Run without a visible window (for unattended agents).") boolean headless,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, visibleWhen = "open_in=new_window", description = "Where downloads are saved.") String downloads,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
@@ -214,6 +214,7 @@ public final class BrowserPackage {
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, visibleWhen = "open_in!=new_window", description = "For new_tab and existing_tab: the tab to use. " + BrowserWindows.D_WINDOW) Object window,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "240000", min = 1000, description = "How long to wait for the page to load.") double timeout) {
         url = localPage(ctx, url);
+        if (which == null || which.isBlank() || "default".equals(which)) which = defaultBrowser();
         if (openIn != null && !openIn.equals("new_window")) {
             String s = BrowserWindows.use(ctx, session, window, Math.min(timeout, 30000));
             if (!s.equals(session)) { Object found = ctx.sessions().get(s); ctx.sessions().put(session, found); }
@@ -321,6 +322,23 @@ public final class BrowserPackage {
             if (pw != null) pw.close();
             throw pw(e, "Opening the browser");
         }
+    }
+
+    /** The browser Windows opens https links with (Edge, Chrome or Firefox); Edge when it cannot tell, or off Windows Chrome. */
+    static String defaultBrowser() {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) return "chrome";
+        try {
+            Process p = new ProcessBuilder("reg", "query", "HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice", "/v", "ProgId")
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+            return browserOfProgId(out);
+        } catch (Exception e) { return "edge"; }
+    }
+
+    static String browserOfProgId(String progId) {
+        String s = progId == null ? "" : progId.toLowerCase(Locale.ROOT);
+        return s.contains("chromehtml") ? "chrome" : s.contains("firefox") ? "firefox" : "edge";
     }
 
     @Action(id = "navigate", name = "Go to URL", category = "Browser", timeoutSeconds = 120, capabilities = {"browser", "network"}, description = "Open a URL in the current tab and wait for it to load.",
@@ -803,19 +821,21 @@ public final class BrowserPackage {
 
     @Action(id = "run_javascript", name = "Run JavaScript", category = "Page", timeoutSeconds = 120, capabilities = "browser",
             description = "Run JavaScript in the page and return its result: an expression such as document.title, or statements with return.",
-            panel = "window, (Script: Type it here = script / Run a file = script_file) | frame, session")
+            panel = "window, (Script: Type it here = script / Run a file = script_file) | frame, session, timeout_ms")
     @Output(name = "result", description = "Value returned by the script.")
     public Map<String, Object> runJs(ActionContext ctx,
             @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", visibleWhen = "script_file=", description = "JavaScript typed here: an expression, a function, or statements that end with return.") String script,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "script_file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
-            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Run the script inside this iframe instead of the main page: the captured iframe element.") Object frame) {
+            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Run the script inside this iframe instead of the main page: the captured iframe element.") Object frame,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "60000", newStepDefault = "240000", min = 1000,
+                    description = "How long to wait for the browser to answer (G4).") double timeout) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         script = scriptText(ctx, script, scriptFile);
         if (tab(ctx, session) != null) {
             if (frame != null) throw frameNotOnTab();
-            return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
+            return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), timeout)));
         }
         try { return Out(Values.toJsonable(evaluate(ctx, session, frame, script))); }
         catch (PlaywrightException e) {
@@ -831,6 +851,10 @@ public final class BrowserPackage {
     }
 
     /** Run JavaScript on the main page (the signature before the frame input was added). */
+    public Map<String, Object> runJs(ActionContext ctx, String script, String session, String scriptFile, Object window, Object frame) {
+        return runJs(ctx, script, session, scriptFile, window, frame, 60000);
+    }
+
     public Map<String, Object> runJs(ActionContext ctx, String script, String session, String scriptFile, Object window) {
         return runJs(ctx, script, session, scriptFile, window, null);
     }
@@ -878,14 +902,16 @@ public final class BrowserPackage {
 
     @Action(id = "get_page_source", name = "Get page source", category = "Page", timeoutSeconds = 120, capabilities = "browser",
             description = "Return the current HTML of the page (after scripts have run), and optionally save it to a file.",
-            panel = "window, (Read from: The whole page = / One iframe = frame), [Also save it to a file: path] | session")
+            panel = "window, (Read from: The whole page = / One iframe = frame), [Also save it to a file: path] | session, timeout_ms")
     @Output(name = "source", type = OoaType.STRING, description = "HTML of the page.")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file, or empty.")
     public Map<String, Object> getPageSource(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Also save the HTML to this file.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "The source of this iframe instead of the whole page: the captured iframe element.") Object frame,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "60000", newStepDefault = "240000", min = 1000,
+                    description = "How long to wait for the browser to answer (G4).") double timeout) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         String html;
         if (frame != null && tab(ctx, session) != null) html = String.valueOf(onElement(ctx, tab(ctx, session), frame, null, "get_frame_html", null, 30000, Map.of()));
@@ -897,7 +923,7 @@ public final class BrowserPackage {
                 html = f.content();
             } catch (PlaywrightException e) { throw pw(e, "Reading the iframe's source"); }
         }
-        else if (tab(ctx, session) != null) html = String.valueOf(onTab(tab(ctx, session), "page_source", Map.of(), 60000));
+        else if (tab(ctx, session) != null) html = String.valueOf(onTab(tab(ctx, session), "page_source", Map.of(), timeout));
         else try { html = s(ctx, session).page.content(); } catch (PlaywrightException e) { throw pw(e, "Reading the page source"); }
         String saved = "";
         if (path != null && !path.isBlank()) {
@@ -911,6 +937,10 @@ public final class BrowserPackage {
         return Map.of("source", html, "path", saved);
     }
 
+    public Map<String, Object> getPageSource(ActionContext ctx, String path, String session, Object frame, Object window) {
+        return getPageSource(ctx, path, session, frame, window, 60000);
+    }
+
     /** Resolves a dotted name from window, calls it with the arguments and returns its (awaited) result. */
     static final String CALL_FUNCTION_JS = """
             async ([name, args]) => {
@@ -922,7 +952,7 @@ public final class BrowserPackage {
 
     @Action(id = "call_javascript_function", name = "Call JavaScript function", category = "Page", timeoutSeconds = 120, capabilities = "browser",
             description = "Call a function defined by the page (e.g. app.calculateTotal) with arguments and return its result.",
-            panel = "window, function, arguments, return_type | frame, session")
+            panel = "window, function, arguments, return_type | argument_types, frame, session, timeout_ms")
     @Output(name = "result", description = "Value returned by the function (awaited when it returns a promise).")
     public Map<String, Object> callJsFunction(ActionContext ctx,
             @Input(name = "function", type = OoaType.STRING, example = "app.calculateTotal", description = "Function name, reachable from window; dots for nested objects.") String function,
@@ -931,15 +961,20 @@ public final class BrowserPackage {
             @Input(name = "return_type", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "none", "text", "number", "boolean", "list", "dictionary"},
                     description = "What the function returns: the result is checked and converted (none ignores it).") String returnType,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
-            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Call the function inside this iframe instead of the main page: the captured iframe element.") Object frame) {
+            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Call the function inside this iframe instead of the main page: the captured iframe element.") Object frame,
+            @Input(name = "argument_types", type = OoaType.LIST, required = false, example = "[\"text\", \"number\"]",
+                    description = "The type of each argument, in order (G4): auto, text, number, boolean, list, dictionary or date; auto when left out.") List<Object> types,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "60000", newStepDefault = "240000", min = 1000,
+                    description = "How long to wait for the browser to answer (G4).") double timeout) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
             throw new ActionException("BROWSER.BAD_FUNCTION", "Invalid JavaScript function name '" + function + "'", "Give a name such as calculateTotal or app.utils.calculateTotal.");
         List<Object> plain = new ArrayList<>();
-        if (args != null) for (Object a : args) plain.add(jsValue(Values.toJsonable(a)));
+        if (args != null) for (int i = 0; i < args.size(); i++)
+            plain.add(jsValue(Values.toJsonable(typed(args.get(i), types != null && i < types.size() ? Values.text(types.get(i)) : "auto", i + 1))));
         if (tab(ctx, session) != null) {
             if (frame != null) throw frameNotOnTab();
-            return Out(asReturnType(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)), returnType));
+            return Out(asReturnType(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), timeout)), returnType));
         }
         try {
             Object v = frame != null ? frameOf(ctx, session, frame).evaluate(CALL_FUNCTION_JS, List.of(function, plain))
@@ -952,6 +987,32 @@ public final class BrowserPackage {
     /** Call a JavaScript function on the main page (the signature before the frame input was added). */
     public Map<String, Object> callJsFunction(ActionContext ctx, String function, List<Object> args, String session, String returnType, Object window) {
         return callJsFunction(ctx, function, args, session, returnType, window, null);
+    }
+
+    public Map<String, Object> callJsFunction(ActionContext ctx, String function, List<Object> args, String session, String returnType, Object window, Object frame) {
+        return callJsFunction(ctx, function, args, session, returnType, window, frame, null, 60000);
+    }
+
+    /** One argument converted to the type the step gives for it (G4). */
+    static Object typed(Object v, String type, int n) {
+        String t = type == null || type.isBlank() ? "auto" : type.strip().toLowerCase(Locale.ROOT);
+        try {
+            return switch (t) {
+                case "auto" -> v;
+                case "text" -> v == null ? "" : Values.text(v);
+                case "number" -> v instanceof Number ? v : new BigDecimal(Values.text(v).strip());
+                case "boolean" -> v instanceof Boolean ? v : switch (Values.text(v).strip().toLowerCase(Locale.ROOT)) {
+                    case "true", "yes", "1" -> true; case "false", "no", "0", "" -> false;
+                    default -> throw new NumberFormatException(); };
+                case "list" -> v instanceof List ? v : v == null ? List.of() : List.of(v);
+                case "dictionary" -> { if (v instanceof Map) yield v; throw new NumberFormatException(); }
+                case "date" -> Values.toDateTime(v).toString();
+                default -> throw new ActionException("BROWSER.BAD_TYPE", "Argument " + n + " has the unknown type " + type, "Use auto, text, number, boolean, list, dictionary or date.");
+            };
+        } catch (NumberFormatException | com.oneofficeautomation.sdk.OoaException e) {
+            if (e instanceof ActionException ae && ae.code().equals("BROWSER.BAD_TYPE")) throw ae;
+            throw new ActionException("BROWSER.BAD_ARGUMENT", "Argument " + n + " (" + Values.text(v) + ") is not a " + t, "Change the argument or its type.");
+        }
     }
 
     /** Playwright serialises Integer and Double (not Long or BigDecimal): whole numbers in int range become Integer, others Double. */
@@ -1271,19 +1332,21 @@ public final class BrowserPackage {
     }
 
     @Action(id = "history", name = "Back, forward or refresh", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Go back, go forward or reload the page.",
-            panel = "window, action, steps, error_if_too_many | session")
+            panel = "window, action, steps, error_if_too_many | session, timeout_ms")
     public Map<String, Object> history(ActionContext ctx,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"back", "forward", "refresh"}, description = "What to do.") String action,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "steps", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "action=back|forward", min = 1, description = "back: how many pages to go back (e.g. 3).") int steps,
             @Input(name = "error_if_too_many", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     visibleWhen = "action=back|forward", description = "back: fail when the tab has visited fewer pages than the steps asked for.") boolean strict,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "60000", newStepDefault = "240000", min = 1000,
+                    description = "How long to wait for the browser to answer (G4).") double timeout) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         int n = Math.max(1, steps);
         if (tab(ctx, session) != null) {
             Map<String, Object> a = action.equals("back") ? Map.of("steps", n, "strict", strict) : Map.of();
-            onTab(tab(ctx, session), switch (action) { case "back" -> "back"; case "forward" -> "forward"; default -> "reload"; }, a, 60000);
+            onTab(tab(ctx, session), switch (action) { case "back" -> "back"; case "forward" -> "forward"; default -> "reload"; }, a, timeout);
             return Map.of();
         }
         Page p = s(ctx, session).page;
@@ -1292,10 +1355,18 @@ public final class BrowserPackage {
                 int len = ((Number) p.evaluate("() => history.length")).intValue();
                 if (n >= len) throw new ActionException("BROWSER.HISTORY_TOO_SHORT", "The tab has only " + (len - 1) + " page(s) to go back to, not " + n, "Lower the steps, or turn off error_if_too_many.");
             }
-            switch (action) { case "back" -> { for (int i = 0; i < n; i++) p.goBack(); } case "forward" -> p.goForward(); default -> p.reload(); }
-            p.waitForLoadState(LoadState.LOAD);
+            switch (action) {
+                case "back" -> { for (int i = 0; i < n; i++) p.goBack(new Page.GoBackOptions().setTimeout(timeout)); }
+                case "forward" -> p.goForward(new Page.GoForwardOptions().setTimeout(timeout));
+                default -> p.reload(new Page.ReloadOptions().setTimeout(timeout));
+            }
+            p.waitForLoadState(LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(timeout));
         } catch (PlaywrightException e) { throw pw(e, action); }
         return Map.of();
+    }
+
+    public Map<String, Object> history(ActionContext ctx, String action, String session, int steps, boolean strict, Object window) {
+        return history(ctx, action, session, steps, strict, window, 60000);
     }
 
     @Action(id = "switch_tab", name = "Switch tab", category = "Browser", capabilities = "browser", description = "Make another tab current, by number (0 = first) or by title text; new tabs opened by links are included.",
@@ -1874,7 +1945,7 @@ public final class BrowserPackage {
     @Action(id = "element_action", name = "Capture: element action", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
             description = "Do one action on a captured element: click, type, read text, attributes or all properties, select, check, hover, drag, upload, wait and more. "
                     + "The element is the captured object (properties you choose, each with its own match rule) or a selector.",
-            panel = "window, object, selector, action, value, row, column, run_in_background | typing, key_delay_ms, clear_first, click_method, modifiers, offset_x, offset_y, force, wait_after_ms, use_captured_page, alternatives, session, timeout_ms, wait_for_page_ms, if_not_found")
+            panel = "window, object, selector, action, value, row, column, find_text, click_kind, run_in_background | index_from_one, typing, key_delay_ms, clear_first, click_method, modifiers, offset_x, offset_y, force, wait_after_ms, use_captured_page, alternatives, session, timeout_ms, wait_for_page_ms, if_not_found")
     @Output(name = "result", description = "Value returned by get, is, count, wait and coordinate actions.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the element was not found (if_not_found = continue).")
     public Map<String, Object> elementAction(ActionContext ctx,
@@ -1887,13 +1958,15 @@ public final class BrowserPackage {
                     "get_children_text", "get_table", "select_by_text", "select_by_value", "select_by_index", "get_selected", "get_options", "check", "uncheck",
                     "is_checked", "is_visible", "is_enabled", "is_present", "count", "scroll_into_view", "highlight", "wait_to_appear", "wait_to_disappear",
                     "drag_to", "upload_file", "screenshot", "get_status", "toggle", "select", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns",
-                    "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "set_position", "get_control_type"},
+                    "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "set_position", "get_control_type",
+                    "click_cell_by_text", "set_cell_by_text", "expand", "collapse", "select_path", "get_children_values"},
                     description = "What to do with the element. OneAgentStudio lists the actions that suit the captured control type.") String action,
             @Input(name = "value", required = false, description = "Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, "
                     + "the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text.") Object value,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"mouse\"", enumValues = {"mouse", "javascript"},
-                    description = "mouse: a real click at the element (scrolls it into view and waits until it can be clicked); javascript: fire the click event directly, for elements that are covered or off screen.") String clickMethod,
+            @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"mouse\"", enumValues = {"mouse", "javascript", "debugger"},
+                    description = "mouse: a real click at the element (scrolls it into view and waits until it can be clicked); javascript: fire the click event directly, for elements that are covered or off screen; "
+                            + "debugger: a click sent through the browser's debugging channel with no script put into the page, for sites whose security rules block scripts (G4).") String clickMethod,
             @Input(name = "modifiers", type = OoaType.STRING, required = false, description = "Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT.") String modifiers,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, description = "Click this many pixels from the element's left edge instead of its centre.") Double offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, description = "Click this many pixels from the element's top edge instead of its centre.") Double offsetY,
@@ -1915,10 +1988,16 @@ public final class BrowserPackage {
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Table cell actions: the row, 1 for the first.") Integer row,
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cell actions: the column, 1 for the first.") Integer column,
             @Input(name = "run_in_background", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Leave the browser window where it is: the tab is not brought to the front and clicks are sent to the page (not with the mouse), so other work on the screen can go on.") boolean runInBackground) {
+                    description = "Leave the browser window where it is: the tab is not brought to the front and clicks are sent to the page (not with the mouse), so other work on the screen can go on.") boolean runInBackground,
+            @Input(name = "find_text", type = OoaType.STRING, required = false, visibleWhen = "action=click_cell_by_text|set_cell_by_text",
+                    description = "click_cell_by_text and set_cell_by_text: the text of the cell to find (an exact match first, else the first cell containing it) (G4).") String findText,
+            @Input(name = "click_kind", type = OoaType.STRING, required = false, defaultValue = "\"click\"", enumValues = {"click", "double_click", "right_click"},
+                    visibleWhen = "action=click_cell|click_cell_by_text", description = "How a table cell is clicked (G4).") String clickKind,
+            @Input(name = "index_from_one", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true",
+                    description = "select_by_index counts from 1 for the first item, as Get selected index does; off counts from 0 as older steps did (G4).") boolean indexFromOne) {
         if ("continue".equals(ifNotFound)) {
             try { return elementAction(ctx, objectArg, sel, action, value, timeout, clickMethod, modifiers, offsetX, offsetY, typing, keyDelay, clearFirst, force, waitAfter,
-                    useCapturedPage, session, alternatives, window, waitForPage, "error", row, column, runInBackground); }
+                    useCapturedPage, session, alternatives, window, waitForPage, "error", row, column, runInBackground, findText, clickKind, indexFromOne); }
             catch (ActionException e) {
                 if (!NOT_THERE.contains(e.code())) throw e;
                 ctx.warn("Skipped '" + action + "': " + e.getMessage());
@@ -1927,10 +2006,22 @@ public final class BrowserPackage {
                 return out;
             }
         }
+        if ("debugger".equals(clickMethod)) clickMethod = "mouse";   // a real input event; nothing is put into the page
+        if (indexFromOne && "select_by_index".equals(action) && value != null && !(value instanceof SecureString)) {
+            try {
+                int i = Integer.parseInt(Values.text(value).strip());
+                if (i < 1) throw new ActionException("BROWSER.BAD_INDEX", "select_by_index counts from 1; " + i + " is not an item", "Give 1 for the first item.");
+                value = String.valueOf(i - 1);
+            } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number", "Give the item's position as a whole number, from 1."); }
+        }
+        if ((action.equals("click_cell_by_text") || action.equals("set_cell_by_text")) && (findText == null || findText.isBlank()))
+            throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs find_text, the text of the cell to find", "Fill in find_text.");
         session = BrowserWindows.use(ctx, session, window, timeout, runInBackground);
         if (tab(ctx, session) != null) {
             Map<String, Object> opts = new LinkedHashMap<>();
             opts.put("click_method", clickMethod == null ? "mouse" : clickMethod);
+            if (findText != null) opts.put("find", findText);
+            opts.put("kind", clickKind == null ? "click" : clickKind);
             if (modifiers != null) opts.put("modifiers", modifiers);
             if (offsetX != null) opts.put("offset_x", offsetX);
             if (offsetY != null) opts.put("offset_y", offsetY);
@@ -2038,6 +2129,8 @@ public final class BrowserPackage {
                 case "focus" -> l.focus(new Locator.FocusOptions().setTimeout(timeout));
                 case "set_text" -> {
                     String text = value instanceof SecureString ? v : need.get();
+                    if (!(value instanceof SecureString) && "password".equalsIgnoreCase(String.valueOf(l.getAttribute("type", new Locator.GetAttributeOptions().setTimeout(timeout)))))
+                        ctx.warn("A password is typed from plain text; take it from the credential vault instead (G4)");
                     if ("keystrokes".equals(typing)) {
                         if (clearFirst) l.clear(new Locator.ClearOptions().setTimeout(timeout).setForce(force));
                         else { l.click(new Locator.ClickOptions().setTimeout(timeout)); l.press("End"); }
@@ -2100,14 +2193,28 @@ public final class BrowserPackage {
                 case "toggle" -> { if (l.isChecked(new Locator.IsCheckedOptions().setTimeout(timeout))) l.uncheck(new Locator.UncheckOptions().setTimeout(timeout).setForce(force));
                     else l.check(new Locator.CheckOptions().setTimeout(timeout).setForce(force)); result = l.isChecked(); }
                 case "select" -> { l.check(new Locator.CheckOptions().setTimeout(timeout).setForce(force)); result = true; }
+                case "select_path" -> {
+                    // G4: menus and trees by the names on the way, e.g. File > Save; later parts may open outside the element
+                    List<String> parts = new ArrayList<>();
+                    for (String p : need.get().split(">")) if (!p.isBlank()) parts.add(p.strip());
+                    Locator scope = l;
+                    for (int i = 0; i < parts.size(); i++) {
+                        Locator hit = (i == 0 ? scope : bs.page.locator("body")).getByText(parts.get(i), new Locator.GetByTextOptions().setExact(true)).first();
+                        hit.click(new Locator.ClickOptions().setTimeout(timeout));
+                        if (i < parts.size() - 1) bs.page.waitForTimeout(250);
+                    }
+                    result = true;
+                }
                 case "get_status", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns", "get_cell_text", "get_cell_index_by_text",
-                     "set_cell_text", "click_cell", "set_position", "get_control_type" -> {
+                     "set_cell_text", "click_cell", "set_position", "get_control_type", "click_cell_by_text", "set_cell_by_text", "expand", "collapse", "get_children_values" -> {
                     if (action.endsWith("_cell") || action.startsWith("get_cell_text") || action.equals("set_cell_text"))
                         if (row == null || column == null) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a row and a column (1 for the first)", "Fill in row and column, from 1.");
                     Map<String, Object> a = new LinkedHashMap<>();
                     if (row != null) a.put("row", row);
                     if (column != null) a.put("column", column);
                     a.put("text", v == null ? "" : v);
+                    if (findText != null) a.put("find", findText);
+                    a.put("kind", clickKind == null ? "click" : clickKind);
                     l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
                     result = Values.toJsonable(l.evaluate(EXTRA_JS, Map.of("op", action, "a", a)));
                 }
@@ -2115,9 +2222,17 @@ public final class BrowserPackage {
             }
         } catch (PlaywrightException e) { throw pw(e, action + " on " + what);
         } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage(), "Check that the screenshot's folder exists and that the runner's account may write there.");
-        } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number", "Give the option's position as a whole number, from 0."); }
+        } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number", "Give the option's position as a whole number."); }
         if (waitAfter > 0) { try { bs.page.waitForTimeout(waitAfter); } catch (PlaywrightException ignored) { } }
         return single(result);
+    }
+
+    /** The element action before G4 (find_text, click_kind, index_from_one). */
+    public Map<String, Object> elementAction(ActionContext ctx, Object objectArg, String sel, String action, Object value, double timeout, String clickMethod, String modifiers,
+                                             Double offsetX, Double offsetY, String typing, double keyDelay, boolean clearFirst, boolean force, double waitAfter, boolean useCapturedPage,
+                                             String session, Map<String, Object> alternatives, Object window, double waitForPage, String ifNotFound, Integer row, Integer column, boolean runInBackground) {
+        return elementAction(ctx, objectArg, sel, action, value, timeout, clickMethod, modifiers, offsetX, offsetY, typing, keyDelay, clearFirst, force, waitAfter,
+                useCapturedPage, session, alternatives, window, waitForPage, ifNotFound, row, column, runInBackground, null, "click", false);
     }
 
     /** The actions shared with the browser connector (ooa-page.js): status, list counts, table cells, slider position. */

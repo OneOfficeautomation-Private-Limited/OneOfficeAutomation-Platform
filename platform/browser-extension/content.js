@@ -255,7 +255,21 @@
       }
       case "get_status": case "get_selected_index": case "get_total_items": case "get_total_rows": case "get_total_columns": case "get_cell_text":
       case "get_cell_index_by_text": case "set_cell_text": case "click_cell": case "set_position": case "get_control_type":
-        return out(__extra(el, act, { row: req.row, column: req.column, text: v == null ? "" : v }));
+      case "click_cell_by_text": case "set_cell_by_text": case "expand": case "collapse": case "get_children_values":
+        return out(__extra(el, act, { row: req.row, column: req.column, text: v == null ? "" : v, find: req.find, kind: req.kind }));
+      case "select_path": {
+        // menus and trees by the names on the way (File > Save); later parts may open outside the element
+        const parts = String(v || "").split(">").map((p) => p.trim()).filter(Boolean);
+        for (let i = 0; i < parts.length; i++) {
+          const scope = i === 0 ? el : document.body;
+          const hit = Array.from(scope.querySelectorAll("[role=menuitem],[role=treeitem],[role=tab],[role=option],a,button,li,span,div"))
+            .find((x) => (x.innerText || "").trim() === parts[i] && x.getBoundingClientRect().width > 0);
+          if (!hit) throw Object.assign(new Error("No item named " + parts[i] + " is showing"), { code: "BROWSER.OBJECT_NOT_FOUND" });
+          hit.click();
+          await sleep(250);
+        }
+        return out(true);
+      }
       default: throw Object.assign(new Error("The action '" + act + "' is not available through the browser connector"), { code: "BROWSER.NOT_SUPPORTED" });
     }
   }

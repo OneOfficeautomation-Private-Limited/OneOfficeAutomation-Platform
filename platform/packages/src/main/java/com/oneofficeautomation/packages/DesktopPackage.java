@@ -4,10 +4,7 @@ import com.oneofficeautomation.packages.ui.DesktopEvents;
 import com.oneofficeautomation.sdk.*;
 
 import javax.imageio.ImageIO;
-import javax.swing.JDialog;
 import javax.swing.JOptionPane;
-import javax.swing.JPasswordField;
-import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.JFileChooser;
@@ -408,7 +405,7 @@ public final class DesktopPackage {
                     description = "paste uses the clipboard (restored afterwards); keystrokes types letters and digits one by one.") String method,
             @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "20", visibleWhen = "method=keystrokes", min = 0, description = "Delay between keystrokes.") int delay,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "special_keys", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+            @Input(name = "special_keys", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true",
                     description = "Read keys in square brackets: [ENTER], [TAB 3], [CTRL+S], [SHIFT DOWN] ... [SHIFT UP]; [[ types a [.") boolean special,
             @Input(name = "restore_clipboard", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "method=paste", description = "With paste, put the previous clipboard content back afterwards.") boolean restore,
             @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this long after bringing the window to the front, before typing.") int before,
@@ -477,7 +474,7 @@ public final class DesktopPackage {
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Region width.") Integer w,
             @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height.") Integer h,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp"}, description = "Image format.") String format,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
             @Input(name = "all_screens", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Capture every monitor together instead of the main one (when no region or window is given).") boolean allScreens,
             @Input(name = "window", type = OoaType.STRING, required = false, description = "Capture only this window (title text, pattern with * or ?, or re:regex); x and y are then measured from the window and default to its whole area.") String window,
             @Input(name = "jpeg_quality", type = OoaType.NUMBER, required = false, defaultValue = "90", min = 1, max = 100, visibleWhen = "format=jpg",
@@ -576,15 +573,6 @@ public final class DesktopPackage {
         return ref.get();
     }
 
-    private static JDialog dialog(JOptionPane pane, String title, int timeoutSeconds, boolean onTop) {
-        JDialog d = pane.createDialog(null, title == null || title.isBlank() ? "ONEOFFICEAUTOMATION" : title);
-        d.setAlwaysOnTop(onTop);
-        d.setModal(true);
-        if (timeoutSeconds > 0) { javax.swing.Timer t = new javax.swing.Timer(timeoutSeconds * 1000, e -> d.dispose()); t.setRepeats(false); t.start(); }
-        return d;
-    }
-
-    private static final String D_TITLE = "Window title of the dialog.";
     private static final String D_ON_TOP = "Keep the dialog in front of other windows.";
 
     static int optionType(String buttons) {
@@ -620,39 +608,37 @@ public final class DesktopPackage {
     }
 
     /** Long messages are shown in a scrolling text box once they have more lines than the limit (0 never scrolls). */
-    static boolean scrolls(String message, int scrollAfterLines) {
-        return scrollAfterLines > 0 && message != null && message.split("\r?\n", -1).length > scrollAfterLines;
+    static boolean scrolls(String message, int scrollAfterLines) { return OoaDialog.scrolls(message, scrollAfterLines); }
+
+    /** A dialog in the shared look (design A) titled with the step's title, else the agent's name. */
+    private static OoaDialog.Spec look(ActionContext ctx, String title, String defaultTitle) {
+        String agent = ctx == null ? "" : ctx.agentName();
+        return OoaDialog.spec().title(OoaDialog.windowTitle(title, agent, defaultTitle), OoaDialog.heading(title, agent));
     }
 
+    private static final String D_DIALOG_TITLE = "Title shown in bold at the top and as the window's title; the agent's name when empty.";
+
     @Action(id = "message_box", name = "Message box", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Show a message to the user (attended agents) with a choice of buttons and icon; can close automatically after a timeout.",
-            panel = "title, message, scroll_after_lines, [Close it automatically: timeout_seconds] | buttons, icon, always_on_top")
+            description = "Show a message to the person at the screen with a choice of buttons and an icon; it can close by itself after some seconds.",
+            panel = "title, message, scroll_after_lines, [Close by itself after: timeout_seconds] | buttons, icon, always_on_top")
     @Output(name = "button", type = OoaType.STRING, description = "Button chosen: ok, cancel, yes or no; closed when the window was closed; timeout when it closed by itself.")
     public Map<String, Object> messageBox(ActionContext ctx,
-            @Input(name = "message", type = OoaType.STRING, description = "Message text.") String message,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = "Window title.") String title,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Close automatically after this many seconds; 0 waits for OK.") int timeout,
-            @Input(name = "buttons", type = OoaType.STRING, required = false, defaultValue = "\"ok\"", enumValues = {"ok", "ok_cancel", "yes_no", "yes_no_cancel"}, description = "Buttons to show.") String buttons,
-            @Input(name = "icon", type = OoaType.STRING, required = false, defaultValue = "\"information\"", enumValues = {"information", "warning", "error", "question", "none"}, description = "Icon next to the message.") String icon,
-            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "30", min = 0, description = "Show the message in a scrolling box when it has more lines than this; 0 never scrolls.") int scrollAfter,
+            @Input(name = "message", type = OoaType.STRING, description = "Message text; it can be selected and copied.") String message,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = D_DIALOG_TITLE) String title,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, example = "5",
+                    description = "Close by itself after this many seconds, showing the time left; 0 waits for a button.") int timeout,
+            @Input(name = "buttons", type = OoaType.STRING, required = false, defaultValue = "\"ok\"", enumValues = {"ok", "ok_cancel", "yes_no", "yes_no_cancel"}, description = "Buttons to show; Enter presses the first, Esc means cancel or no.") String buttons,
+            @Input(name = "icon", type = OoaType.STRING, required = false, defaultValue = "\"information\"", enumValues = {"information", "warning", "error", "question", "none"}, description = "Icon next to the title; it also colours the top edge.") String icon,
+            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "30", min = 0,
+                    description = "Show the message in a scroll box when it has more lines than this; 0 never scrolls.") int scrollAfter,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         String btn = choice("buttons", buttons, "ok", "ok", "ok_cancel", "yes_no", "yes_no_cancel");
         String ic = choice("icon", icon, "information", "information", "warning", "error", "question", "none");
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The message box");
-        String text = message == null ? "" : message;
-        Object chosen = onEdt(() -> {
-            Object body = text;
-            if (scrolls(text, scrollAfter)) {
-                JTextArea area = new JTextArea(text, scrollAfter, 60);
-                area.setEditable(false); area.setLineWrap(true); area.setWrapStyleWord(true);
-                body = new JScrollPane(area);
-            }
-            JOptionPane pane = new JOptionPane(body, messageType(ic), optionType(btn));
-            dialog(pane, title, timeout, onTop).setVisible(true);
-            return pane.getValue();
-        });
-        return Map.of("button", buttonName(btn, chosen));
+        OoaDialog.Spec spec = look(ctx, title, null).message(message).icon(ic).buttons(btn).scrollAfter(scrollAfter).timeout(timeout).onTop(onTop);
+        OoaDialog.Result r = onEdt(spec::show);
+        return Map.of("button", r.answer());
     }
 
     // ---------- callout (gap G16, 3 Nov 2026) ----------
@@ -742,34 +728,19 @@ public final class DesktopPackage {
             @Input(name = "question", type = OoaType.STRING, description = "Question to show.") String question,
             @Input(name = "default", type = OoaType.STRING, required = false, description = "Pre-filled answer.") String def,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = D_DIALOG_TITLE) String title,
             @Input(name = "masked", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Show dots instead of the typed characters. The value is still plain text; use Prompt for password for secrets.") boolean masked,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The prompt");
-        boolean[] timedOut = {false};
-        String v = onEdt(() -> {
-            if (masked) {
-                JPasswordField f = new JPasswordField(def == null ? "" : def, 24);
-                JOptionPane pane = new JOptionPane(new Object[]{question, f}, JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
-                dialog(pane, title, timeout, onTop).setVisible(true);
-                timedOut[0] = pane.getValue() == JOptionPane.UNINITIALIZED_VALUE;
-                if (!Objects.equals(pane.getValue(), JOptionPane.OK_OPTION)) return null;
-                char[] pw = f.getPassword();
-                String s = new String(pw);
-                Arrays.fill(pw, '\0');
-                return s;
-            }
-            JOptionPane pane = new JOptionPane(question, JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
-            pane.setWantsInput(true);
-            if (def != null) pane.setInitialSelectionValue(def);
-            dialog(pane, title, timeout, onTop).setVisible(true);
-            timedOut[0] = pane.getValue() == JOptionPane.UNINITIALIZED_VALUE;   // the timer closed it: nobody pressed a button
-            Object in = pane.getInputValue();
-            return Objects.equals(pane.getValue(), JOptionPane.OK_OPTION) && in != JOptionPane.UNINITIALIZED_VALUE ? String.valueOf(in) : null;
-        });
-        if (timedOut[0]) return Out.of("value", def == null ? "" : def, "cancelled", true, "timed_out", true);
+        OoaDialog.Spec spec = look(ctx, title, null).message(question).icon("question").buttons("ok_cancel")
+                .input(masked ? "password" : "text", def).timeout(timeout).onTop(onTop);
+        OoaDialog.Result r = onEdt(spec::show);
+        if (r.timedOut()) return Out.of("value", def == null ? "" : def, "cancelled", true, "timed_out", true);
+        String v = null;
+        if (r.secret() != null) { v = new String(r.secret()); Arrays.fill(r.secret(), '\0'); }
+        else if (r.text() != null) v = r.text();
         return Out.of("value", v == null ? "" : v, "cancelled", v == null, "timed_out", false);
     }
 
@@ -780,17 +751,13 @@ public final class DesktopPackage {
     public Map<String, Object> promptYesNo(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, description = "Question to show.") String question,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Answer No after this many seconds; 0 waits.") int timeout,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = D_DIALOG_TITLE) String title,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
             @Input(name = "answer_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "timeout_seconds!=0", description = "Answer used when the prompt times out or is closed without a choice.") boolean onTimeout) {
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The yes/no prompt");
-        Object v = onEdt(() -> {
-            JOptionPane pane = new JOptionPane(question, JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION);
-            dialog(pane, title, timeout, onTop).setVisible(true);
-            return pane.getValue();
-        });
-        String b = buttonName("yes_no", v);
+        OoaDialog.Spec spec = look(ctx, title, null).message(question).icon("question").buttons("yes_no").timeout(timeout).onTop(onTop);
+        String b = onEdt(spec::show).answer();
         boolean answered = b.equals("yes") || b.equals("no");
         return Map.of("answer", answered ? b.equals("yes") : onTimeout, "timed_out", !answered);
     }
@@ -801,17 +768,14 @@ public final class DesktopPackage {
     @Output(name = "password", type = OoaType.CREDENTIAL, description = "Entered password as a Credential.")
     public Map<String, Object> promptPassword(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, required = false, defaultValue = "\"Enter password\"", description = "Prompt text.") String question,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = D_DIALOG_TITLE) String title,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop waiting after this many seconds (the step then fails as cancelled); 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The password prompt");
-        char[] pw = onEdt(() -> {
-            JPasswordField f = new JPasswordField(24);
-            JOptionPane pane = new JOptionPane(new Object[]{question, f}, JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
-            dialog(pane, title, timeout, onTop).setVisible(true);
-            return Objects.equals(pane.getValue(), JOptionPane.OK_OPTION) ? f.getPassword() : null;
-        });
+        OoaDialog.Spec spec = look(ctx, title, null).message(question).icon("question").buttons("ok_cancel")
+                .input("password", null).timeout(timeout).onTop(onTop);
+        char[] pw = onEdt(spec::show).secret();
         if (pw == null) throw new ActionException("DESKTOP.CANCELLED", "The user cancelled the password prompt, or it timed out", "Type the password when the prompt opens, or raise the step's time limit.");
         SecureString s = new SecureString(new String(pw), "prompt");
         Arrays.fill(pw, '\0');
@@ -848,30 +812,17 @@ public final class DesktopPackage {
         DesktopSupport.requireDesktop();
         DesktopSupport.requirePerson(timeout, "The file or folder picker");
         List<String> chosen = onEdt(() -> {
-            JFileChooser fc = new JFileChooser(startIn == null ? ctx.workDir().toFile() : ctx.resolvePath(startIn).toFile()) {
-                @Override protected JDialog createDialog(Component parent) {
-                    JDialog d = super.createDialog(parent);
-                    d.setAlwaysOnTop(onTop);
-                    JTextArea text = pickerMessage(message);
-                    if (text != null) {
-                        // wrap the text to the dialog's width instead of widening the dialog
-                        text.setSize(Math.max(200, d.getWidth() - 24), Short.MAX_VALUE);
-                        d.getContentPane().add(text, BorderLayout.NORTH);
-                        d.setSize(d.getWidth(), d.getHeight() + text.getPreferredSize().height);
-                        d.setLocationRelativeTo(parent);
-                    }
-                    return d;
-                }
-            };
-            fc.setDialogTitle(title);
+            // the list sits inside the shared card (design A): title, message, list, Choose / Cancel, countdown
+            JFileChooser fc = new JFileChooser(startIn == null ? ctx.workDir().toFile() : ctx.resolvePath(startIn).toFile());
             fc.setFileSelectionMode(folders ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
             fc.setMultiSelectionEnabled(multiple);
             if (!types.isEmpty()) fc.setFileFilter(new FileNameExtensionFilter(String.join(", ", types), types.toArray(String[]::new)));
-            if (timeout > 0) { javax.swing.Timer t = new javax.swing.Timer(timeout * 1000, e -> fc.cancelSelection()); t.setRepeats(false); t.start(); }
-            if (fc.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return null;
-            File[] all = multiple ? fc.getSelectedFiles() : new File[]{fc.getSelectedFile()};
+            OoaDialog.Result r = look(ctx, title, folders ? "Choose a folder" : "Choose a file")
+                    .message(message == null ? "" : message.strip()).icon("question").buttons("ok_cancel")
+                    .chooser(fc, "Choose").timeout(timeout).onTop(onTop).show();
+            if (!"ok".equals(r.answer()) || r.files().isEmpty()) return null;
             List<String> paths = new ArrayList<>();
-            for (File f : all) if (f != null) paths.add(f.getAbsolutePath());
+            for (File f : r.files()) paths.add(f.getAbsolutePath());
             return paths;
         });
         List<Object> paths = chosen == null ? new ArrayList<>() : new ArrayList<>(chosen);
@@ -884,10 +835,10 @@ public final class DesktopPackage {
     @Output(name = "paths", type = OoaType.LIST, description = "All chosen files.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
     public Map<String, Object> promptFile(ActionContext ctx,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a file\"", description = "Dialog title.") String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a file\"", description = "Title shown in bold at the top; the window's title is the agent's name unless you change this.") String title,
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
             @Input(name = "file_types", type = OoaType.STRING, required = false, example = "pdf, xlsx", description = "Only show files with these extensions; all files when empty.") String fileTypes,
-            @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Let the user choose several files.") boolean multiple,
+            @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Let the user choose several files; paths lists them all.") boolean multiple,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
             @Input(name = "message", type = OoaType.STRING, required = false, example = "Pick this month's bank statement.", description = D_PICK_MESSAGE) String message) {
@@ -905,7 +856,7 @@ public final class DesktopPackage {
     @Output(name = "path", type = OoaType.FILE, description = "Chosen folder, empty when cancelled.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
     public Map<String, Object> promptFolder(ActionContext ctx,
-            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a folder\"", description = "Dialog title.") String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a folder\"", description = "Title shown in bold at the top; the window's title is the agent's name unless you change this.") String title,
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,

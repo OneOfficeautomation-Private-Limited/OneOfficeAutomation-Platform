@@ -19,6 +19,12 @@ final class VtScreen {
     private int state;
     private final StringBuilder params = new StringBuilder();
     private final StringBuilder replies = new StringBuilder();
+    /** G4: write past the right edge onto the next line (on), or keep overwriting the last column (off). */
+    volatile boolean autoWrap = true;
+    /** G4: what the terminal answers when the host asks what it is (Device Attributes). */
+    volatile String deviceAttributes = "\033[?1;2c";
+    /** G4: lines that scrolled off the top of the whole screen, oldest first, at most 5,000. */
+    private final java.util.ArrayDeque<String> history = new java.util.ArrayDeque<>();
 
     VtScreen(int rows, int cols) {
         this.rows = rows; this.cols = cols;
@@ -85,7 +91,14 @@ final class VtScreen {
     private void print(char c) {
         if (wrapNext) { col = 0; lineFeed(); wrapNext = false; }
         cells[row][col] = c;
-        if (col == cols - 1) wrapNext = true; else col++;
+        if (col == cols - 1) wrapNext = autoWrap; else col++;
+    }
+
+    /** The lines scrolled off the top, then the screen (G4). */
+    synchronized List<String> withHistory() {
+        List<String> all = new ArrayList<>(history);
+        all.addAll(lines());
+        return all;
     }
 
     private void lineFeed() { if (row == bottom) scrollUp(top, bottom, 1); else if (row < rows - 1) row++; }
@@ -93,6 +106,7 @@ final class VtScreen {
     private void reverseIndex() { if (row == top) scrollDown(top, bottom, 1); else if (row > 0) row--; }
 
     private void scrollUp(int from, int to, int n) {
+        if (from == 0 && to == rows - 1) for (int k = 0; k < Math.min(n, rows); k++) { history.add(new String(cells[k]).stripTrailing()); if (history.size() > 5000) history.removeFirst(); }
         for (int i = 0; i < n; i++) {
             for (int r = from; r < to; r++) cells[r] = cells[r + 1];
             cells[to] = blankRow();
@@ -193,7 +207,7 @@ final class VtScreen {
                 if (mode == 6) replies.append("\033[").append(row + 1).append(';').append(Math.min(col, cols - 1) + 1).append('R');
                 else if (mode == 5) replies.append("\033[0n");
             }
-            case 'c' -> { if (!priv && mode == 0) replies.append("\033[?1;2c"); }
+            case 'c' -> { if (!priv && mode == 0) replies.append(deviceAttributes); }
             case 'h', 'l' -> {
                 if (!priv) return;
                 for (int m : n) if (m == 47 || m == 1047 || m == 1049) alternate(f == 'h', m == 1049);

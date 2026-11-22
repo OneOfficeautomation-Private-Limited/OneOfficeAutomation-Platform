@@ -31,6 +31,9 @@ final class VtSshSession extends TerminalPackage.Session {
     private final com.jcraft.jsch.Session ssh;
     private final ChannelShell shell;
     private final OutputStream toHost;
+    /** G4: a host reached over Telnet instead of SSH (then ssh and shell are null). */
+    private final java.net.Socket telnet;
+    private final java.nio.charset.Charset charset;
     private final Object signal = new Object();
     private volatile long lastOutput = System.nanoTime(), lastSent = System.nanoTime(), outputs, sentMark;
     private volatile boolean ended;
@@ -38,15 +41,32 @@ final class VtSshSession extends TerminalPackage.Session {
     private int[] intended;
 
     private VtSshSession(com.jcraft.jsch.Session ssh, ChannelShell shell, InputStream fromHost, OutputStream toHost, VtScreen screen) {
-        this.ssh = ssh; this.shell = shell; this.toHost = toHost; this.screen = screen;
+        this(ssh, shell, null, StandardCharsets.UTF_8, fromHost, toHost, screen);
+    }
+
+    private VtSshSession(com.jcraft.jsch.Session ssh, ChannelShell shell, java.net.Socket telnet, java.nio.charset.Charset charset, InputStream fromHost, OutputStream toHost, VtScreen screen) {
+        this.ssh = ssh; this.shell = shell; this.telnet = telnet; this.charset = charset; this.toHost = toHost; this.screen = screen;
         Thread reader = new Thread(() -> read(fromHost), "ooa-terminal-vt");
         reader.setDaemon(true);
         reader.start();
     }
 
     /** Signs in, opens a shell with a pseudo-terminal of the given size, and starts reading the screen. */
+    /** G4: how new screens are set up (auto-wrap, the device-attributes answer) before the host sends anything. */
+    static VtScreen screen(int rows, int cols, boolean autoWrap, String deviceAttributes) {
+        VtScreen sc = new VtScreen(rows, cols);
+        sc.autoWrap = autoWrap;
+        if (deviceAttributes != null) sc.deviceAttributes = deviceAttributes;
+        return sc;
+    }
+
     static VtSshSession open(String host, int port, String user, String password, Path keyFile, String keyPassphrase, String fingerprint,
                              String term, int rows, int cols, int timeoutMs, Consumer<String> warn) {
+        return open(host, port, user, password, keyFile, keyPassphrase, fingerprint, term, rows, cols, timeoutMs, warn, StandardCharsets.UTF_8, true, null);
+    }
+
+    static VtSshSession open(String host, int port, String user, String password, Path keyFile, String keyPassphrase, String fingerprint,
+                             String term, int rows, int cols, int timeoutMs, Consumer<String> warn, java.nio.charset.Charset charset, boolean autoWrap, String deviceAttributes) {
         com.jcraft.jsch.Session s = null;
         try {
             JSch j = new JSch();
@@ -74,7 +94,7 @@ final class VtSshSession extends TerminalPackage.Session {
             InputStream in = ch.getInputStream();
             OutputStream out = ch.getOutputStream();
             ch.connect(timeoutMs);
-            return new VtSshSession(s, ch, in, out, new VtScreen(rows, cols));
+            return new VtSshSession(s, ch, null, charset, in, out, screen(rows, cols, autoWrap, deviceAttributes));
         } catch (JSchException e) {
             if (s != null) s.disconnect();
             String m = String.valueOf(e.getMessage());
@@ -89,9 +109,51 @@ final class VtSshSession extends TerminalPackage.Session {
         }
     }
 
+    /**
+     * G4: a VT host over Telnet (no SSH): connects, answers the Telnet option questions with the terminal type and screen
+     * size, and signs in when a user is given (the user at the login prompt, then the password at its prompt).
+     */
+    static VtSshSession openTelnet(String host, int port, String user, String password, String term, int rows, int cols, int timeoutMs,
+                                   java.nio.charset.Charset charset, Consumer<String> warn, boolean autoWrap, String deviceAttributes) {
+        java.net.Socket so = new java.net.Socket();
+        try {
+            so.connect(new java.net.InetSocketAddress(host, port), timeoutMs);
+            OutputStream out = so.getOutputStream();
+            VtSshSession s = new VtSshSession(null, null, so, charset, new TelnetIn(so.getInputStream(), out, term, rows, cols), out, screen(rows, cols, autoWrap, deviceAttributes));
+            warn.accept("Telnet sends everything unencrypted, sign-in included; use SSH where the host offers it");
+            if (user != null && !user.isBlank()) {
+                s.waitForScreen("(?is).*(login|user ?name|user ?id)\\s*:?\\s*$", timeoutMs);
+                s.send(user + "\r");
+                if (password != null) { s.waitForScreen("(?is).*password\\s*:?\\s*$", timeoutMs); s.send(password + "\r"); }
+            }
+            return s;
+        } catch (IOException e) {
+            try { so.close(); } catch (IOException ignored) { }
+            throw new ActionException("TERMINAL.CONNECT_FAILED", "Could not connect to " + host + ":" + port + " over Telnet: " + e.getMessage(), "Check the host, port (23 for Telnet) and network.", true);
+        }
+    }
+
+    /** Waits until the screen text, up to the cursor, matches (the sign-in prompts). */
+    private void waitForScreen(String regex, int timeoutMs) {
+        long end = System.currentTimeMillis() + timeoutMs;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex);
+        while (System.currentTimeMillis() < end) {
+            int[] c = screen.cursor();
+            List<String> l = screen.lines();
+            StringBuilder upTo = new StringBuilder();
+            for (int r = 0; r < c[0] && r < l.size(); r++) upTo.append(l.get(r)).append('\n');
+            if (c[0] < l.size()) upTo.append(l.get(c[0]), 0, Math.min(c[1], l.get(c[0]).length()));
+            if (p.matcher(upTo.toString().stripTrailing()).matches()) return;
+            if (ended) break;
+            try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        throw new ActionException("TERMINAL.NO_PROMPT", "The host did not ask for the " + (regex.contains("password") ? "password" : "user name") + " in time",
+                "Leave user empty and sign in with Type text steps, or check the host.");
+    }
+
     private void read(InputStream fromHost) {
         char[] buf = new char[8192];
-        try (Reader r = new InputStreamReader(fromHost, StandardCharsets.UTF_8)) {
+        try (Reader r = new InputStreamReader(fromHost, charset)) {
             for (int n; (n = r.read(buf)) >= 0; ) {
                 screen.feed(new String(buf, 0, n));
                 String reply = screen.takeReplies();
@@ -106,9 +168,9 @@ final class VtSshSession extends TerminalPackage.Session {
     }
 
     private void send(String s) {
-        if (ended || !shell.isConnected()) throw new ActionException("TERMINAL.ENDED", "The host closed the connection", "Connect again; the host may have signed the session out.");
+        if (ended || (shell != null && !shell.isConnected())) throw new ActionException("TERMINAL.ENDED", "The host closed the connection", "Connect again; the host may have signed the session out.");
         try {
-            synchronized (toHost) { toHost.write(s.getBytes(StandardCharsets.UTF_8)); toHost.flush(); }
+            synchronized (toHost) { toHost.write(s.getBytes(charset)); toHost.flush(); }
         } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         synchronized (signal) { lastSent = System.nanoTime(); sentMark = outputs; }
     }
@@ -125,6 +187,7 @@ final class VtSshSession extends TerminalPackage.Session {
     @Override synchronized List<String> cmd(String action) {
         Matcher m;
         if (action.equals("Ascii()")) return screen.lines();
+        if (action.equals("History()")) return screen.withHistory();
         if ((m = ASCII.matcher(action)).matches()) return List.of(screen.text(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))));
         if (action.equals("Query(Cursor)")) { int[] c = screen.cursor(); return List.of(c[0] + " " + c[1]); }
         if ((m = MOVE.matcher(action)).matches()) { moveTo(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))); return List.of(); }
@@ -231,8 +294,9 @@ final class VtSshSession extends TerminalPackage.Session {
     }
 
     private void disconnect() {
-        shell.disconnect();
-        ssh.disconnect();
+        if (shell != null) shell.disconnect();
+        if (ssh != null) ssh.disconnect();
+        if (telnet != null) try { telnet.close(); } catch (IOException ignored) { }
     }
 
     @Override public void close() { disconnect(); }
@@ -240,7 +304,7 @@ final class VtSshSession extends TerminalPackage.Session {
     /** The terminal names a VT host may be told it is talking to. */
     static String termName(String emulation) {
         String e = emulation == null || emulation.isBlank() ? "vt100" : emulation.trim().toLowerCase(Locale.ROOT);
-        if (!List.of("vt100", "vt220", "xterm", "ansi").contains(e))
+        if (!List.of("vt100", "vt220", "xterm", "ansi", "linux", "scoansi").contains(e))
             throw new ActionException("TERMINAL.BAD_EMULATION", "Unknown emulation '" + emulation + "'", "Use vt100, vt220, xterm or ansi.");
         return e;
     }

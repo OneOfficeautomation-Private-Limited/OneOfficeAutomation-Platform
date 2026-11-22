@@ -132,9 +132,44 @@ const __extra = (el, op, a) => {
   const fire = (x) => { x.dispatchEvent(new Event('input', { bubbles: true })); x.dispatchEvent(new Event('change', { bubbles: true })); };
   const on = () => !!el.checked || el.getAttribute('aria-checked') === 'true';
   const cell = () => { const c = (__grid(el)[Number(a.row) - 1] || [])[Number(a.column) - 1]; if (!c) fail('The table has no cell at row ' + a.row + ', column ' + a.column); return c; };
+  // G4: the cell with this text (an exact match first, else the first containing it), clicks of three kinds, items of lists, tabs and trees
+  const byText = () => {
+    const want = String(a.find || '').trim(), all = [].concat(...__grid(el));
+    const c = all.find((x) => (x.innerText || '').trim() === want) || all.find((x) => (x.innerText || '').includes(want));
+    if (!c) fail('No cell of the table has the text ' + want);
+    return c;
+  };
+  const clickAs = (x) => {
+    x.scrollIntoView({ block: 'center' });
+    const t = x.querySelector('a,button,input') || x, r = t.getBoundingClientRect();
+    const at = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    if (a.kind === 'right_click') t.dispatchEvent(new MouseEvent('contextmenu', Object.assign({ button: 2 }, at)));
+    else if (a.kind === 'double_click') { t.click(); t.click(); t.dispatchEvent(new MouseEvent('dblclick', at)); }
+    else t.click();
+    return true;
+  };
+  const setIn = (c) => {
+    const f = c.querySelector('input,textarea,select,[contenteditable=true]') || (c.isContentEditable ? c : null);
+    if (!f) fail('The cell has no field to type into');
+    if (f.isContentEditable) f.textContent = String(a.text); else f.value = String(a.text);
+    fire(f); return true;
+  };
+  const items = () => Array.from(el.querySelectorAll('[role=option],[role=tab],[role=treeitem],[role=menuitem],li'));
+  const expanded = () => el.tagName === 'DETAILS' ? el.open : el.getAttribute('aria-expanded') === 'true';
+  const setOpen = (open) => {
+    if (el.tagName === 'DETAILS') el.open = open;
+    else if (el.hasAttribute('aria-expanded')) { if (expanded() !== open) el.click(); }
+    else if (el.tagName === 'SELECT') fail('A drop-down list opens only for a person; use select_by_text instead');
+    else fail('The element cannot be expanded or collapsed (it is not a details, tree node, menu or drop-down)');
+    return expanded();
+  };
   switch (op) {
     case 'get_status': return (el.type === 'radio' || el.getAttribute('role') === 'radio') ? (on() ? 'selected' : 'deselected') : (on() ? 'checked' : 'unchecked');
-    case 'get_selected_index': return el.options ? (el.selectedIndex >= 0 ? el.selectedIndex + 1 : 0) : 0;
+    case 'get_selected_index': {
+      if (el.options) return el.selectedIndex >= 0 ? el.selectedIndex + 1 : 0;
+      const i = items().findIndex((x) => x.getAttribute('aria-selected') === 'true' || x.classList.contains('selected') || x.classList.contains('active'));
+      return i + 1;
+    }
     case 'get_total_items': return el.options ? el.options.length : el.querySelectorAll('[role=option],[role=menuitem],[role=tab],[role=treeitem],li').length;
     case 'get_total_rows': return __grid(el).length;
     case 'get_total_columns': return Math.max(0, ...__grid(el).map((r) => r.length));
@@ -150,7 +185,18 @@ const __extra = (el, op, a) => {
       if (f.isContentEditable) f.textContent = String(a.text); else f.value = String(a.text);
       fire(f); return true;
     }
-    case 'click_cell': { const c = cell(); c.scrollIntoView({ block: 'center' }); (c.querySelector('a,button,input') || c).click(); return true; }
+    case 'click_cell': return clickAs(cell());
+    case 'click_cell_by_text': return clickAs(byText());
+    case 'set_cell_by_text': return setIn(byText());
+    case 'expand': return setOpen(true);
+    case 'collapse': return !setOpen(false);
+    case 'get_children_values': return Array.from(el.children).map((c) => {
+      const f = c.matches('input,select,textarea') ? c : c.querySelector('input,select,textarea');
+      const name = (f && (__labelOf(f) || f.getAttribute('aria-label') || f.name)) || (c.innerText || c.textContent || '').trim().split('\n')[0];
+      const value = !f ? (c.innerText || '').trim() : f.type === 'checkbox' || f.type === 'radio' ? String(!!f.checked)
+        : f.tagName === 'SELECT' ? (f.selectedIndex >= 0 ? f.options[f.selectedIndex].text : '') : f.value;
+      return { name: String(name || '').trim(), value: value };
+    });
     case 'set_position': el.value = String(a.text); fire(el); return el.value;
     case 'get_control_type': return __controlType(el);
     default: return fail('Unknown action ' + op);

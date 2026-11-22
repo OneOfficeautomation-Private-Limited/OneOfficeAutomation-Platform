@@ -109,7 +109,11 @@ public final class OoaJavaAgent {
             for (String o : out) { if (sb.length() > 1) sb.append(','); sb.append(o); }
             return sb.append(']').toString();
         }
-        if (op.equals("act")) {    // act  window  path  action  value
+        if (op.equals("at")) {     // at  x  y: the control under a screen point (G4, for Pick)
+            String r = JavaControls.at(windows(""), Integer.parseInt(arg(f, 2)), Integer.parseInt(arg(f, 3)));
+            return r == null ? "null" : r;
+        }
+        if (op.equals("act")) {    // act  window  path  action  value  [row  column  kind]
             Accessible a = byPath(windows(arg(f, 2)), arg(f, 3));
             AccessibleContext ac = a.getAccessibleContext();
             String action = arg(f, 4);
@@ -139,6 +143,11 @@ public final class OoaJavaAgent {
                 c.requestFocus();
                 return "true";
             }
+            String more;
+            try { more = JavaControls.act(a, ac, action, arg(f, 5), arg(f, 6), arg(f, 7), arg(f, 8)); }
+            catch (RuntimeException e) { throw e; }
+            catch (Exception e) { throw new IllegalStateException(e.getMessage(), e); }
+            if (more != null) return more;
             throw new IllegalArgumentException("Unknown action '" + action + "'");
         }
         throw new IllegalArgumentException("Unknown request '" + op + "'");

@@ -310,9 +310,31 @@ public final class OcrPackage {
         throw new ActionException("OCR.LANGUAGE_FAILED", "Could not add the OCR language " + language + ": " + ApplicationPackage.tail(why), "Check the runner can reach Windows Update.", true);
     }
 
+    /** G4 (AA parity): how a PDF is read with OCR; the PDF toolkit sets it (this module cannot render PDFs itself). */
+    public interface PdfOcr {
+        Map<String, Object> read(ActionContext ctx, String path, Object password, String pages, String lang, int psm, String after, String before, boolean trim);
+    }
+
+    public static volatile PdfOcr pdfOcr;
+
+    static boolean isPdf(Path p) { return p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf"); }
+
+    static Map<String, Object> readPdf(ActionContext ctx, Path p, Object password, String pages, String lang, int psm, String after, String before, boolean trim) {
+        if (pdfOcr == null) try { Class.forName("com.oneofficeautomation.packages.pdf.PdfPackage", true, OcrPackage.class.getClassLoader()); } catch (ClassNotFoundException | LinkageError ignored) { }
+        PdfOcr r = pdfOcr;
+        if (r == null) throw new ActionException("OCR.NO_PDF", "Reading PDFs needs the PDF toolkit, which is not installed on this runner", "Install the PDF toolkit, or turn the PDF into images first.");
+        Map<String, Object> m = r.read(ctx, p.toString(), password, pages, lang, psm, after, before, trim);
+        return Map.of("text", m.getOrDefault("text", ""));
+    }
+
+    public Map<String, Object> readImage(ActionContext ctx, String path, String lang, int psm, String after, String before, boolean trim, double scale, String mode,
+                                         Integer x, Integer y, Integer w, Integer h) {
+        return readImage(ctx, path, lang, psm, after, before, trim, scale, mode, x, y, w, h, null, null);
+    }
+
     @Action(id = "read_image", name = "Read text from image", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Extract text from an image file (PNG, JPG, TIFF, BMP), or from a region of it, optionally keeping only the text between two markers.",
-            panel = "path, [Keep only part of the text: after_text, before_text], trim, language | [Read only an area: x, y, width, height], page_mode, scale, image_mode")
+            description = "Extract text from an image file (PNG, JPG, TIFF, BMP) or a PDF, or from a region of an image, optionally keeping only the text between two markers.",
+            panel = "path, [The PDF has a password: password], [Only some PDF pages: pages], [Keep only part of the text: after_text, before_text], trim, language | [Read only an area: x, y, width, height], page_mode, scale, image_mode")
     @Output(name = "text", type = OoaType.STRING, description = "Recognised text.")
     public Map<String, Object> readImage(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Image file.") String path,
@@ -326,11 +348,33 @@ public final class OcrPackage {
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Region left in pixels; the whole image when the region is empty.") Integer x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Region top in pixels.") Integer y,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Region width in pixels.") Integer w,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height in pixels.") Integer h) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height in pixels.") Integer h,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "A PDF's password (G4).") Object password,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "A PDF's pages to read, e.g. 1,3,5-7; every page when empty (G4).") String pages) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Image not found: " + p, "Check the path.");
+        if (isPdf(p)) return readPdf(ctx, p, password, pages, lang, psm, after, before, trim);
         String raw = plain(x, y, w, h, scale, mode) ? tess(ctx, p, lang, psm, false, false).stdout() : ocr(ctx, prepare(readFile(p), x, y, w, h, scale, mode), lang, psm, scale > 1);
         return Map.of("text", filterText(raw, after, before, trim));
+    }
+
+    /** Downloads a file over http or https (an image or a PDF), refusing other schemes. */
+    static byte[] fetch(String url, int timeoutSeconds) {
+        URI u;
+        try { u = URI.create(url.trim()); } catch (IllegalArgumentException e) { throw new ActionException("OCR.BAD_URL", "'" + url + "' is not a URL", "Use an http or https address."); }
+        if (u.getScheme() == null || !(u.getScheme().equalsIgnoreCase("http") || u.getScheme().equalsIgnoreCase("https")))
+            throw new ActionException("OCR.BAD_URL", "Only http and https image addresses are supported", "Download the file first for other locations.");
+        try {
+            HttpClient c = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(timeoutSeconds)).build();
+            HttpResponse<byte[]> r = c.send(HttpRequest.newBuilder(u).timeout(Duration.ofSeconds(timeoutSeconds)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (r.statusCode() / 100 != 2) throw new ActionException("OCR.DOWNLOAD_FAILED", "The server answered " + r.statusCode() + " for " + u, "Check the address is reachable without signing in.", r.statusCode() >= 500);
+            return r.body();
+        } catch (IOException e) {
+            throw new ActionException("OCR.DOWNLOAD_FAILED", "Cannot download " + u + ": " + e.getMessage(), "Check the address and the network.", true);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
+        }
     }
 
     /** Downloads an image over http or https, refusing other schemes and anything that is not an image. */
@@ -354,9 +398,13 @@ public final class OcrPackage {
         }
     }
 
+    public Map<String, Object> readUrl(ActionContext ctx, String url, String lang, int psm, String after, String before, boolean trim, double scale, String mode, int timeout) {
+        return readUrl(ctx, url, lang, psm, after, before, trim, scale, mode, timeout, null, null);
+    }
+
     @Action(id = "read_url", name = "Read text from image URL", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Download an image from an http or https address and extract its text, optionally keeping only the text between two markers.",
-            panel = "url, [Keep only part of the text: after_text, before_text], trim, language | page_mode, scale, image_mode, timeout_seconds")
+            description = "Download an image or a PDF from an http or https address and extract its text, optionally keeping only the text between two markers.",
+            panel = "url, [The PDF has a password: password], [Only some PDF pages: pages], [Keep only part of the text: after_text, before_text], trim, language | page_mode, scale, image_mode, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Recognised text.")
     public Map<String, Object> readUrl(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, example = "https://example.com/scan.png", description = "Address of the image.") String url,
@@ -367,9 +415,23 @@ public final class OcrPackage {
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
             @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Maximum time for the download.") int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Maximum time for the download.") int timeout,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "A PDF's password (G4).") Object password,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "A PDF's pages to read, e.g. 1,3,5-7; every page when empty (G4).") String pages) {
         checkLanguage(lang);
-        BufferedImage img = download(url, Math.max(1, timeout));
+        byte[] body = fetch(url, Math.max(1, timeout));
+        if (body.length > 4 && new String(body, 0, 5, java.nio.charset.StandardCharsets.ISO_8859_1).startsWith("%PDF")) {
+            Path tmp = null;
+            try {
+                tmp = Files.createTempFile(ctx.workDir(), "ooa-ocr-", ".pdf");
+                Files.write(tmp, body);
+                return readPdf(ctx, tmp, password, pages, lang, psm, after, before, trim);
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the agent's folder may be written.");
+            } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
+        }
+        BufferedImage img;
+        try { img = ImageIO.read(new java.io.ByteArrayInputStream(body)); } catch (IOException e) { img = null; }
+        if (img == null) throw new ActionException("OCR.UNSUPPORTED_IMAGE", "The address did not return a readable image or PDF", "Use the direct address of a PNG, JPG, BMP, GIF image or a PDF.");
         return Map.of("text", filterText(ocr(ctx, prepare(img, null, null, null, null, scale, mode), lang, psm, scale > 1), after, before, trim));
     }
 
@@ -438,7 +500,7 @@ public final class OcrPackage {
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
             @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
-            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs,
+            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "300", min = 0, description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs,
             @Input(name = "window", type = OoaType.STRING, required = false, example = "Invoice entry*",
                     description = "Read from this window (title text, a pattern with * or ?, or re:regex): it is brought to the front and x, y are measured from its top-left corner; the whole window when the area is empty.") String window) {
         checkLanguage(lang);
@@ -540,6 +602,66 @@ public final class OcrPackage {
         r.mouseMove(cx, cy);
         for (int i = 0; i < (dbl ? 2 : 1); i++) { r.mousePress(mask); r.mouseRelease(mask); r.delay(40); }
         return Out.of("x", BigDecimal.valueOf(cx), "y", BigDecimal.valueOf(cy));
+    }
+
+    /** G4: the area next to a label, in screen pixels (the label's box is from a capture at twice the size). */
+    static Rectangle beside(int[] labelBox2x, String where, int gap, int width, int height) {
+        int lx = labelBox2x[0] / 2, ly = labelBox2x[1] / 2, lw = Math.max(1, labelBox2x[2] / 2), lh = Math.max(1, labelBox2x[3] / 2);
+        int h = height > 0 ? height : Math.max(lh + 8, 20);
+        return switch (where == null ? "right" : where.strip().toLowerCase(Locale.ROOT)) {
+            case "below" -> new Rectangle(lx, ly + lh + gap, width, h);
+            case "left" -> new Rectangle(Math.max(0, lx - gap - width), ly - (h - lh) / 2, width, h);
+            case "above" -> new Rectangle(lx, Math.max(0, ly - gap - h), width, h);
+            case "right" -> new Rectangle(lx + lw + gap, ly - (h - lh) / 2, width, h);
+            default -> throw new ActionException("OCR.BAD_INPUT", "where must be right, below, left or above", "Pick where the field sits from its label.");
+        };
+    }
+
+    @Action(id = "act_near_label", name = "Act next to a label", category = "OCR", timeoutSeconds = 300, capabilities = "desktop",
+            description = "Find a label on the screen with OCR (e.g. Invoice number:) and click, type into or read the field next to it: for remote desktops and screens without accessible controls (G4).",
+            panel = "label, where, action, text | occurrence, gap, field_width, field_height, language, wait_seconds")
+    @Output(name = "text", type = OoaType.STRING, description = "read: the text of the field; otherwise empty.")
+    @Output(name = "x", type = OoaType.NUMBER, description = "Centre x of the field on the screen.")
+    @Output(name = "y", type = OoaType.NUMBER, description = "Centre y of the field on the screen.")
+    public Map<String, Object> actNearLabel(ActionContext ctx,
+            @Input(name = "label", type = OoaType.STRING, example = "Invoice number", description = "The label's text as the screen shows it.") String label,
+            @Input(name = "where", type = OoaType.STRING, required = false, defaultValue = "\"right\"", enumValues = {"right", "below", "left", "above"}, description = "Where the field is from its label.") String where,
+            @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "click", "type"}, description = "What to do with the field.") String action,
+            @Input(name = "text", type = OoaType.STRING, required = false, acceptsCredential = true, visibleWhen = "action=type", description = "type: the text to type; it may come from the vault.") String text,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which appearance of the label, counting in reading order from 1.") int occurrence,
+            @Input(name = "gap", type = OoaType.NUMBER, required = false, defaultValue = "8", min = 0, description = "Pixels between the label and the field.") int gap,
+            @Input(name = "field_width", type = OoaType.NUMBER, required = false, defaultValue = "220", min = 10, description = "Width of the field in pixels.") int width,
+            @Input(name = "field_height", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Height of the field in pixels; a little more than the label when 0.") int height,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 600, description = "Keep looking for the label this many seconds; 0 looks once.") double wait) {
+        if (label == null || label.isBlank()) throw new ActionException("OCR.BAD_INPUT", "Give the label to look for", "Fill in label.");
+        int[][] found = new int[1][];
+        ctx.keepTrying(wait, () -> {
+            Path img = capture(ctx, null, null, null, null, 2);
+            try { found[0] = locate(words(tess(ctx, img, lang, 11, true, true).stdout()), label.strip(), Math.max(1, occurrence)); }
+            finally { try { Files.deleteIfExists(img); } catch (IOException ignored) { } }
+            return found[0] != null;
+        });
+        if (found[0] == null) throw new ActionException("OCR.TEXT_NOT_FOUND", "The label '" + label + "' was not found on the screen", "Check the window is visible, or try a shorter part of the label.", true);
+        Rectangle f = beside(found[0], where, gap, width, height);
+        int cx = f.x + f.width / 2, cy = f.y + f.height / 2;
+        String a = action == null ? "read" : action.strip().toLowerCase(Locale.ROOT);
+        String read = "";
+        switch (a) {
+            case "read" -> read = String.valueOf(readScreen(ctx, f.x, f.y, f.width, f.height, lang, 7).get("text"));
+            case "click", "type" -> {
+                Robot r = DesktopSupport.robot();
+                r.mouseMove(cx, cy);
+                r.mousePress(java.awt.event.InputEvent.BUTTON1_DOWN_MASK);
+                r.mouseRelease(java.awt.event.InputEvent.BUTTON1_DOWN_MASK);
+                if (a.equals("type")) {
+                    r.delay(150);
+                    new DesktopPackage().typeText(ctx, text == null ? "" : text, "paste", 20, null, false, true, 0, null);
+                }
+            }
+            default -> throw new ActionException("OCR.BAD_INPUT", "action must be read, click or type", "Pick one of them.");
+        }
+        return Out.of("text", read, "x", BigDecimal.valueOf(cx), "y", BigDecimal.valueOf(cy));
     }
 
     @Condition(id = "text_on_screen", name = "Text is on screen", description = "True when the word or phrase is visible on the screen (OCR).")

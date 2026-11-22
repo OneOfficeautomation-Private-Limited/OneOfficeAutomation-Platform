@@ -551,21 +551,24 @@ public final class WindowPackage {
 
     @Action(id = "close_all", name = "Close all matching windows", category = "Window", capabilities = "desktop",
             description = "Ask every visible window whose title matches to close (like clicking each X); programs may still ask to save.",
-            panel = "title, keep | use_regex")
+            panel = "[Only windows whose title matches: title], keep | use_regex")
     @Output(name = "closed", type = OoaType.LIST, description = "Titles of the windows asked to close.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows asked to close.")
     public Map<String, Object> closeAll(ActionContext ctx,
-            @Input(name = "title", type = OoaType.STRING, example = " - Notepad", description = "Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do.") String title,
+            @Input(name = "title", type = OoaType.STRING, required = false, example = " - Notepad", description = "Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do. Empty: every window except those to keep (G4).") String title,
             @Input(name = "use_regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat title as a regular expression.") boolean regex,
             @Input(name = "keep", type = OoaType.LIST, required = false,
                     description = "Windows to leave open: text in their titles (case-insensitive), e.g. [\"Invoices.xlsx\"]. The agent's own windows are always kept.") List<Object> keep) {
-        java.util.function.Predicate<String> m = matcher(title, regex);
+        boolean every = title == null || title.isBlank();
+        java.util.function.Predicate<String> m = every ? t -> true : matcher(title, regex);
+        if (every) ctx.warn("Closing every window except the ones to keep");
         List<String> keepTexts = new ArrayList<>();
         if (keep != null) for (Object k : keep) if (k != null && !String.valueOf(k).isBlank()) keepTexts.add(String.valueOf(k).strip().toLowerCase(Locale.ROOT));
         long self = ProcessHandle.current().pid();
         List<Object> closed = new ArrayList<>();
         for (Win w : all()) {
             if (!m.test(w.title())) continue;
+            if (w.title().equals("Program Manager")) continue;   // the Windows desktop itself
             String lower = w.title().toLowerCase(Locale.ROOT);
             if (keepTexts.stream().anyMatch(lower::contains)) continue;
             IntByReference pid = new IntByReference();
@@ -830,10 +833,14 @@ public final class WindowPackage {
     }
 
     @Condition(id = "exists", name = "Window exists", description = "True when a visible window title matches (text in it, * or ? pattern, or re:).")
-    public boolean exists(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title) {
+    public boolean exists(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it is true; 0 checks once (G4).") double wait) {
         java.util.function.Predicate<String> q = titleRule(title);
-        return all().stream().anyMatch(w -> q.test(w.title()));
+        return ctx.keepTrying(wait, () -> all().stream().anyMatch(w -> q.test(w.title())));
     }
+
+    public boolean exists(ActionContext ctx, String title) { return exists(ctx, title, 0); }
 
     @Action(id = "capture", name = "Capture window", category = "Window", capabilities = {"desktop", "filesystem"}, description = "Save a PNG screenshot of one window.",
             panel = "title, path, overwrite | activate, alternatives, timeout_seconds, process_id")
@@ -844,7 +851,7 @@ public final class WindowPackage {
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Bring the window to the front first so nothing covers it.") boolean activate,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) {
         if (!overwrite && Files.exists(ctx.resolvePath(path))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(path), "Set overwrite to true or choose another name.");
         Win w = target(ctx, title, processId, alternatives, wait);
@@ -864,10 +871,17 @@ public final class WindowPackage {
 
 
     @Condition(id = "is_active", name = "Window is active", description = "True when the window in front has a matching title (text in it, * or ? pattern, or re:).")
-    public boolean isActive(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title) {
+    public boolean isActive(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it is true; 0 checks once (G4).") double wait) {
         windows();
-        char[] buf = new char[512];
-        User32.INSTANCE.GetWindowText(User32.INSTANCE.GetForegroundWindow(), buf, buf.length);
-        return titleRule(title).test(Native.toString(buf));
+        java.util.function.Predicate<String> q = titleRule(title);
+        return ctx.keepTrying(wait, () -> {
+            char[] buf = new char[512];
+            User32.INSTANCE.GetWindowText(User32.INSTANCE.GetForegroundWindow(), buf, buf.length);
+            return q.test(Native.toString(buf));
+        });
     }
+
+    public boolean isActive(ActionContext ctx, String title) { return isActive(ctx, title, 0); }
 }

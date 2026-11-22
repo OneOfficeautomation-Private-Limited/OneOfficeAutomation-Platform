@@ -219,11 +219,15 @@ public final class DesktopUiPackage {
     // ---------- actions ----------
     public static final String[] ACTIONS = {"click", "set_text", "get_text", "get_property", "get_all_properties", "select_item", "expand", "collapse",
             "toggle", "check", "uncheck", "invoke", "focus", "get_children", "get_list_items", "get_table", "wait_appear", "wait_disappear",
-            "scroll_into_view", "get_coordinates"};
+            "scroll_into_view", "get_coordinates",
+            // G4 (AA parity)
+            "get_status", "select", "get_total_rows", "get_total_columns", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell",
+            "click_cell_by_text", "set_cell_by_text", "get_selected", "get_selected_index", "get_total_items", "select_path", "set_date", "set_position", "scroll",
+            "click_toolbar_button", "get_focused", "get_all_text", "get_children_values"};
 
     @Action(id = "object_action", name = "Desktop object action", category = "Capture", timeoutSeconds = 600, capabilities = "desktop",
             description = "Find a captured control in a Windows application and act on it: click, set or read text, read properties, select, expand, toggle, check, list items, read a grid, wait for it or get its position.",
-            panel = "object, action, click_type, text, property, item | click_method, offset_x, offset_y, clear_first, text_method, type_delay_ms, item_index, timeout_seconds, if_not_found, run_in_background")
+            panel = "object, action, click_type, text, property, item, row, column, find_text, scroll_direction | click_method, offset_x, offset_y, clear_first, text_method, type_delay_ms, item_index, index_from_one, scroll_amount, scroll_times, timeout_seconds, if_not_found, run_in_background")
     @Output(name = "result", type = OoaType.ANY, description = "What the action returns: text for get_text, a value for get_property, a dictionary for get_all_properties and get_coordinates, a list for get_children and get_list_items, a table for get_table, true/false for the wait actions.")
     @Output(name = "healed_by", type = OoaType.STRING, description = "Empty when the object was found by its used properties; otherwise the recorded property that found it (update the object).")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the object was not found (if_not_found = continue).")
@@ -231,7 +235,10 @@ public final class DesktopUiPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
             @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"click\"", enumValues = {"click", "set_text", "get_text", "get_property", "get_all_properties",
                     "select_item", "expand", "collapse", "toggle", "check", "uncheck", "invoke", "focus", "get_children", "get_list_items", "get_table", "wait_appear",
-                    "wait_disappear", "scroll_into_view", "get_coordinates"}, description = "What to do with the object.") String action,
+                    "wait_disappear", "scroll_into_view", "get_coordinates", "get_status", "select", "get_total_rows", "get_total_columns", "get_cell_text",
+                    "get_cell_index_by_text", "set_cell_text", "click_cell", "click_cell_by_text", "set_cell_by_text", "get_selected", "get_selected_index", "get_total_items",
+                    "select_path", "set_date", "set_position", "scroll", "click_toolbar_button", "get_focused", "get_all_text", "get_children_values"},
+                    description = "What to do with the object.") String action,
             @Input(name = "click_type", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "double", "middle"},
                     description = "click: which click to make.") String clickType,
             @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "pattern", "mouse"},
@@ -250,9 +257,21 @@ public final class DesktopUiPackage {
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
                     description = "When the object is not there in time: error stops with an error; continue skips this step (result is empty, found is false) and carries on.") String ifNotFound,
             @Input(name = "run_in_background", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Work through UI Automation only: the window is not brought to the front and the mouse and keyboard are not used, so the application can stay behind other windows or minimised. Clicks and text then need a control that supports it (a single left click; text set directly).") boolean runInBackground) {
+                    description = "Work through UI Automation only: the window is not brought to the front and the mouse and keyboard are not used, so the application can stay behind other windows or minimised. Clicks and text then need a control that supports it (a single left click; text set directly).") boolean runInBackground,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, visibleWhen = "action=get_cell_text|set_cell_text|click_cell", description = "Grid cell actions: the row, 1 for the first (G4).") Integer row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, visibleWhen = "action=get_cell_text|set_cell_text|click_cell", description = "Grid cell actions: the column, 1 for the first (G4).") Integer column,
+            @Input(name = "find_text", type = OoaType.STRING, required = false, visibleWhen = "action=get_cell_index_by_text|click_cell_by_text|set_cell_by_text",
+                    description = "The text of the cell to find (an exact match first, else the first containing it) (G4).") String findText,
+            @Input(name = "scroll_direction", type = OoaType.STRING, required = false, defaultValue = "\"down\"", enumValues = {"up", "down", "left", "right"}, visibleWhen = "action=scroll",
+                    description = "scroll: which way (G4).") String scrollDirection,
+            @Input(name = "scroll_amount", type = OoaType.STRING, required = false, defaultValue = "\"line\"", enumValues = {"line", "page"}, visibleWhen = "action=scroll",
+                    description = "scroll: a line or a page at a time (G4).") String scrollAmount,
+            @Input(name = "scroll_times", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 1000, visibleWhen = "action=scroll", description = "scroll: how many times (G4).") int scrollTimes,
+            @Input(name = "index_from_one", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true",
+                    description = "item_index counts from 1 for the first item, as Get selected index does; off counts from 0 as older steps did (G4).") boolean indexFromOne) {
         if ("continue".equals(ifNotFound)) {
-            try { return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, "error", runInBackground); }
+            try { return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, "error", runInBackground,
+                    row, column, findText, scrollDirection, scrollAmount, scrollTimes, indexFromOne); }
             catch (ActionException e) {
                 if (!Set.of("DESKTOP_UI.OBJECT_NOT_FOUND", "DESKTOP_UI.WAIT_TIMEOUT").contains(e.code())) throw e;
                 ctx.warn("Skipped '" + action + "': " + e.getMessage());
@@ -279,11 +298,18 @@ public final class DesktopUiPackage {
             clickMethod = "pattern";
             textMethod = "set_value";
         }
+        if (a.equals("select_item") && indexFromOne && itemIndex != null && (item == null || item.isEmpty())) {
+            if (itemIndex < 1) throw new ActionException("DESKTOP_UI.NO_ITEM", "item_index counts from 1; " + itemIndex + " is not an item", "Give 1 for the first item.");
+            itemIndex = itemIndex - 1;
+        }
         SelfHealing.Found<Element> f = locate(ctx, o, timeout);
         String healed = f.healed() ? f.by().strategy() : "";
         Map<String, Object> opt = new LinkedHashMap<>();
         Object result;
-        try { result = act(ctx, a, f, opt, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex); }
+        try {
+            Object more = more(ctx, a, f, opt, clickType, text, row, column, findText, scrollDirection, scrollAmount, scrollTimes, itemIndex == null ? null : itemIndex + (indexFromOne ? 0 : 1));   // the tool bar counts from 1
+            result = more != NOT_MINE ? more : act(ctx, a, f, opt, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex);
+        }
         catch (ActionException e) {
             if (!runInBackground || !"DESKTOP_UI.NOT_SUPPORTED".equals(e.code())) throw e;
             throw new ActionException("DESKTOP_UI.NOT_IN_BACKGROUND", "This " + describe(o) + " cannot be used without the mouse and keyboard: " + e.getMessage(),
@@ -334,6 +360,104 @@ public final class DesktopUiPackage {
             case "scroll_into_view" -> act(ctx, f.element(), "scroll_into_view", opt);
             default -> act(ctx, f.element(), a, opt);   // expand, collapse, check, uncheck, invoke, focus
         };
+    }
+
+    /** The action before G4 added grid, list, menu, slider and scroll actions. */
+    public Map<String, Object> objectAction(ActionContext ctx, Map<String, Object> object, String action, String clickType, String clickMethod, int offsetX, int offsetY,
+            Object text, boolean clearFirst, String textMethod, int typeDelay, String property, String item, Integer itemIndex, double timeout, String ifNotFound, boolean runInBackground) {
+        return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, ifNotFound,
+                runInBackground, null, null, null, "down", "line", 1, false);
+    }
+
+    private static final Object NOT_MINE = new Object();
+
+    /** G4 (AA parity): states, grid cells, selections, menu paths, dates, sliders, scrolling, tool bars, focus and all text. */
+    @SuppressWarnings("unchecked")
+    private static Object more(ActionContext ctx, String a, SelfHealing.Found<Element> f, Map<String, Object> opt, String clickType, Object text,
+                               Integer row, Integer column, String findText, String dir, String amount, int times, Integer toolbarIndex) {
+        String t = text instanceof SecureString s ? s.reveal() : text == null ? "" : String.valueOf(text);
+        java.util.function.Supplier<String> need = () -> {
+            if (t.isEmpty()) throw new ActionException("DESKTOP_UI.NO_TEXT", "The action '" + a + "' needs text", "Fill in text.");
+            return t;
+        };
+        java.util.function.Supplier<String> find = () -> {
+            if (findText == null || findText.isBlank()) throw new ActionException("DESKTOP_UI.NO_TEXT", "The action '" + a + "' needs find_text, the text of the cell to find", "Fill in find_text.");
+            return findText;
+        };
+        java.util.function.Consumer<String> cellAt = (what) -> {
+            if (row == null || column == null) throw new ActionException("DESKTOP_UI.NO_CELL", "The action '" + a + "' needs a row and a column (1 for the first)", "Fill in row and column.");
+            opt.put("row", BigDecimal.valueOf(row)); opt.put("column", BigDecimal.valueOf(column));
+        };
+        return switch (a) {
+            case "get_status" -> act(ctx, f.element(), "get_status", opt);
+            case "select" -> act(ctx, f.element(), "select", opt);
+            case "get_total_rows", "get_total_columns" -> {
+                Map<String, Object> size = (Map<String, Object>) act(ctx, f.element(), "grid_size", opt);
+                yield new BigDecimal(String.valueOf(size.get(a.equals("get_total_rows") ? "rows" : "columns")));
+            }
+            case "get_cell_text" -> { cellAt.accept(a); yield act(ctx, f.element(), "cell_text", opt); }
+            case "set_cell_text" -> { cellAt.accept(a); opt.put("text", t); yield act(ctx, f.element(), "set_cell_text", opt); }
+            case "click_cell" -> { cellAt.accept(a); opt.put("button", clickType == null ? "left" : clickType); yield act(ctx, f.element(), "click_cell", opt); }
+            case "get_cell_index_by_text" -> { opt.put("text", find.get()); yield numbers((Map<String, Object>) act(ctx, f.element(), "find_cell", opt)); }
+            case "click_cell_by_text", "set_cell_by_text" -> {
+                opt.put("text", find.get());
+                Map<String, Object> at = (Map<String, Object>) act(ctx, f.element(), "find_cell", opt);
+                int r = ((Number) at.get("row")).intValue(), c = ((Number) at.get("column")).intValue();
+                if (r == 0) throw new ActionException("DESKTOP_UI.ITEM_NOT_FOUND", "No cell of the grid has the text " + findText, "Check the text, or read the grid with get_table.");
+                Map<String, Object> o2 = new LinkedHashMap<>(Map.of("row", BigDecimal.valueOf(r), "column", BigDecimal.valueOf(c)));
+                if (a.equals("set_cell_by_text")) { o2.put("text", t); act(ctx, f.element(), "set_cell_text", o2); }
+                else { o2.put("button", clickType == null ? "left" : clickType); act(ctx, f.element(), "click_cell", o2); }
+                yield true;
+            }
+            case "get_selected" -> {
+                List<Object> names = (List<Object>) act(ctx, f.element(), "selected", opt);
+                yield names.isEmpty() ? "" : names.size() == 1 ? names.get(0) : names;
+            }
+            case "get_selected_index" -> new BigDecimal(String.valueOf(act(ctx, f.element(), "selected_index", opt)));
+            case "get_total_items" -> new BigDecimal(String.valueOf(act(ctx, f.element(), "total_items", opt)));
+            case "select_path" -> { opt.put("text", need.get()); yield act(ctx, f.element(), "select_path", opt); }
+            case "set_date" -> {   // a date picker takes the date as its own text shows it
+                opt.put("text", need.get()); opt.put("clear_first", true); opt.put("method", "auto"); opt.put("delay_ms", BigDecimal.ZERO);
+                act(ctx, f.element(), "set_text", opt);
+                yield true;
+            }
+            case "set_position" -> { opt.put("text", need.get()); yield act(ctx, f.element(), "set_position", opt); }
+            case "scroll" -> {
+                opt.put("direction", dir == null ? "down" : dir); opt.put("amount", amount == null ? "line" : amount); opt.put("times", BigDecimal.valueOf(Math.max(1, times)));
+                yield act(ctx, f.element(), "scroll", opt);
+            }
+            case "click_toolbar_button" -> {
+                if (toolbarIndex == null) throw new ActionException("DESKTOP_UI.NO_ITEM", "Give item_index, the button's position on the tool bar", "Fill in item_index.");
+                opt.put("item_index", BigDecimal.valueOf(toolbarIndex)); opt.put("button", "right".equals(clickType) ? "right" : "left");
+                yield act(ctx, f.element(), "toolbar_button", opt);
+            }
+            case "get_focused" -> call(ctx, "focused", Map.of());
+            case "get_all_text" -> act(ctx, f.element(), "all_text", opt);
+            case "get_children_values" -> {
+                List<Object> out = new ArrayList<>();
+                for (Object o : (List<Object>) act(ctx, f.element(), "children", opt))
+                    if (o instanceof Map<?, ?> m) out.add(new LinkedHashMap<>(Map.of("name", String.valueOf(m.get("Name")), "value", String.valueOf(m.get("Value")))));
+                yield out;
+            }
+            default -> NOT_MINE;
+        };
+    }
+
+    private static Map<String, Object> numbers(Map<String, Object> m) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        m.forEach((k, v) -> out.put(k, v instanceof Number n ? BigDecimal.valueOf(n.longValue()) : v));
+        return out;
+    }
+
+    @Action(id = "get_text_at_point", name = "Get text at a point", category = "Capture", idempotent = true, capabilities = "desktop",
+            description = "Read the text of whatever control is at a point on the screen, e.g. a scrolling text area or a label (G4).",
+            panel = "x, y")
+    @Output(name = "text", type = OoaType.STRING, description = "The control's text, or empty.")
+    public Map<String, Object> textAtPoint(ActionContext ctx,
+            @Input(name = "x", type = OoaType.NUMBER, description = "Screen position from the left, in pixels.") int x,
+            @Input(name = "y", type = OoaType.NUMBER, description = "Screen position from the top, in pixels.") int y) {
+        Object t = call(ctx, "text_at", Map.of("x", BigDecimal.valueOf(x), "y", BigDecimal.valueOf(y)));
+        return Map.of("text", t == null ? "" : String.valueOf(t));
     }
 
     static Map<String, Object> out(Object result, String healed) {
@@ -681,18 +805,28 @@ public final class DesktopUiPackage {
             description = "True when the captured control can be found now in a Windows application (self-healing applies), and, when asked, is enabled or has the keyboard focus.")
     public boolean objectExists(ActionContext ctx, @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"exists\"", enumValues = {"exists", "enabled", "focused"},
-                    description = "G1 (AA parity): what to check besides being there: nothing more, that it can be used (enabled), or that it has the keyboard focus.") String state) {
+                    description = "G1 (AA parity): what to check besides being there: nothing more, that it can be used (enabled), or that it has the keyboard focus.") String state,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it is so; 0 checks once (G4).") double wait) {
         String want = state == null || state.isBlank() ? "exists" : state.strip();
         if (!List.of("exists", "enabled", "focused").contains(want))
             throw new ActionException("DESKTOP_UI.BAD_STATE", "Unknown state '" + state + "'", "Use exists, enabled or focused.");
-        SelfHealing.Found<Element> f;
-        try { f = locate(ctx, DesktopObject.parse(object), 0); }
-        catch (ActionException e) { if ("DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code())) return false; throw e; }
-        if (want.equals("exists")) return true;
-        Object v = property(ctx, f.element(), want.equals("enabled") ? "IsEnabled" : "HasKeyboardFocus");
-        return Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        DesktopObject o = DesktopObject.parse(object);
+        return ctx.keepTrying(wait, () -> {
+            SelfHealing.Found<Element> f;
+            try { f = locate(ctx, o, 0); }
+            catch (ActionException e) { if ("DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code())) return false; throw e; }
+            if (want.equals("exists")) return true;
+            Object v = property(ctx, f.element(), want.equals("enabled") ? "IsEnabled" : "HasKeyboardFocus");
+            return Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        });
     }
 
-    /** The condition as before (no state): saved agents and callers keep working. */
-    public boolean objectExists(ActionContext ctx, Map<String, Object> object) { return objectExists(ctx, object, "exists"); }
+    /** The condition as before (no state, no wait): saved agents and callers keep working. */
+    public boolean objectExists(ActionContext ctx, Map<String, Object> object) { return objectExists(ctx, object, "exists", 0); }
+
+    public boolean objectExists(ActionContext ctx, Map<String, Object> object, String state) { return objectExists(ctx, object, state, 0); }
+
+    public boolean objectExists(ActionContext ctx, Map<String, Object> object, double wait) { return objectExists(ctx, object, "exists", wait); }
+
 }

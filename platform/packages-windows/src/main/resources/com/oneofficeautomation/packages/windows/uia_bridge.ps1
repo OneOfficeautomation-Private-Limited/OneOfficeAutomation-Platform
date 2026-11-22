@@ -281,6 +281,8 @@ public static class Bridge {
             case "msaa_find": return Msaa.Find(req);
             case "msaa_act": return Msaa.Act(req);
             case "msaa_at": return Msaa.At(Int(req, "x", 0), Int(req, "y", 0));
+            case "text_at": { AutomationElement a = AutomationElement.FromPoint(new System.Windows.Point(Int(req, "x", 0), Int(req, "y", 0))); return a == null ? "" : Text(a); }
+            case "focused": { AutomationElement f = AutomationElement.FocusedElement; return f == null ? null : (object)Detail(f, false); }
             default: throw new BridgeError("BAD_REQUEST", "Unknown operation '" + op + "'");
         }
     }
@@ -585,6 +587,69 @@ public static class Bridge {
         } finally { if (expanded) CollapseQuietly(e); }
     }
 
+    /**
+     * A grid's cells as rows (G4): from the Grid pattern, else from the row children as Get table reads them, without
+     * a header row ("Top Left Header Cell") and without a row-header column ("Row 1", "Row 2" ...).
+     */
+    static List<List<AutomationElement>> Grid(AutomationElement e) {
+        List<List<AutomationElement>> rows = new List<List<AutomationElement>>();
+        object p;
+        if (e.TryGetCurrentPattern(GridPattern.Pattern, out p)) {
+            GridPattern g = (GridPattern)p;
+            for (int r = 0; r < Math.Min(g.Current.RowCount, 10000); r++) {
+                List<AutomationElement> row = new List<AutomationElement>();
+                for (int c = 0; c < g.Current.ColumnCount; c++) { AutomationElement x = null; try { x = g.GetItem(r, c); } catch (Exception) { } row.Add(x); }
+                rows.Add(row);
+            }
+            return rows;
+        }
+        Condition rowCond = new OrCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.DataItem),
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem),
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem),
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Custom));
+        foreach (AutomationElement r in e.FindAll(TreeScope.Children, rowCond)) {
+            if (rows.Count >= 10000) break;
+            List<AutomationElement> row = new List<AutomationElement>();
+            foreach (AutomationElement c in r.FindAll(TreeScope.Children, Condition.TrueCondition)) row.Add(c);
+            if (row.Count == 0) row.Add(r);
+            rows.Add(row);
+        }
+        if (rows.Count == 0) throw new BridgeError("NOT_SUPPORTED", "This object has no rows to read as a grid (" + e.Current.ControlType.ProgrammaticName.Replace("ControlType.", "") + " '" + e.Current.Name + "')");
+        if (rows.Count > 0 && rows[0].Count > 0 && (rows[0][0].Current.Name ?? "") == "Top Left Header Cell") rows.RemoveAt(0);
+        bool rowHeaders = rows.Count > 0;
+        foreach (List<AutomationElement> r in rows) if (r.Count == 0 || !System.Text.RegularExpressions.Regex.IsMatch(r[0].Current.Name ?? "", "^Row [0-9]+$")) { rowHeaders = false; break; }
+        if (rowHeaders) foreach (List<AutomationElement> r in rows) r.RemoveAt(0);
+        return rows;
+    }
+
+    /** A grid's cell, row and column counted from 1 (G4). */
+    static AutomationElement Cell(AutomationElement e, int row, int column) {
+        List<List<AutomationElement>> g = Grid(e);
+        if (row < 1 || column < 1 || row > g.Count || column > g[row - 1].Count || g[row - 1][column - 1] == null)
+            throw new BridgeError("ITEM_NOT_FOUND", "The grid has " + g.Count + " row(s); there is no cell at row " + row + ", column " + column);
+        return g[row - 1][column - 1];
+    }
+
+    static readonly Condition PathItems = new OrCondition(
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+
+    /** The first showing menu, tree, tab or list item with this name under the scope; from the desktop, only inside open menus. */
+    static AutomationElement Named(AutomationElement scope, string name, bool menusOnly = false) {
+        AutomationElementCollection roots = menusOnly
+            ? scope.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Menu))
+            : null;
+        IEnumerable search = roots != null ? (IEnumerable)roots : new AutomationElement[] { scope };
+        foreach (AutomationElement r in search)
+            foreach (AutomationElement x in r.FindAll(TreeScope.Descendants, PathItems))
+                if (string.Equals((x.Current.Name ?? "").Replace("&", "").Trim(), name, StringComparison.OrdinalIgnoreCase) && !x.Current.IsOffscreen) return x;
+        return null;
+    }
+
     static void SetToggle(AutomationElement e, bool on) {
         object p;
         if (e.TryGetCurrentPattern(TogglePattern.Pattern, out p)) {
@@ -735,6 +800,138 @@ public static class Bridge {
                 } finally { if (expanded) CollapseQuietly(e); }
             }
             case "table": return Table(e, Int(req, "max_rows", 10000));
+            // ---- G4 (AA parity): states, grids, lists, menus, sliders, scrolling, tool bars and all text
+            case "get_status": {
+                object p;
+                if (e.TryGetCurrentPattern(TogglePattern.Pattern, out p)) {
+                    ToggleState s = ((TogglePattern)p).Current.ToggleState;
+                    return s == ToggleState.On ? "checked" : s == ToggleState.Off ? "unchecked" : "indeterminate";
+                }
+                if (e.TryGetCurrentPattern(SelectionItemPattern.Pattern, out p)) return ((SelectionItemPattern)p).Current.IsSelected ? "selected" : "deselected";
+                throw new BridgeError("NOT_SUPPORTED", "This object has no checked or selected state");
+            }
+            case "select": Pattern<SelectionItemPattern>(e, SelectionItemPattern.Pattern, "selected").Select(); return true;
+            case "grid_size": {
+                List<List<AutomationElement>> g = Grid(e);
+                int width = 0;
+                foreach (List<AutomationElement> r in g) width = Math.Max(width, r.Count);
+                Dictionary<string, object> d = new Dictionary<string, object>();
+                d["rows"] = g.Count; d["columns"] = width;
+                return d;
+            }
+            case "cell_text": return CellText(Cell(e, Int(req, "row", 0), Int(req, "column", 0)));
+            case "find_cell": {
+                List<List<AutomationElement>> g = Grid(e);
+                string want = Str(req, "text", "");
+                for (int pass = 0; pass < 2; pass++)
+                    for (int r = 0; r < g.Count; r++)
+                        for (int c = 0; c < g[r].Count; c++) {
+                            AutomationElement x = g[r][c];
+                            string t = x == null ? "" : (CellText(x) ?? "").Trim();
+                            if (pass == 0 ? t == want.Trim() : t.IndexOf(want.Trim(), StringComparison.OrdinalIgnoreCase) >= 0) {
+                                Dictionary<string, object> d = new Dictionary<string, object>();
+                                d["row"] = r + 1; d["column"] = c + 1;
+                                return d;
+                            }
+                        }
+                Dictionary<string, object> none = new Dictionary<string, object>();
+                none["row"] = 0; none["column"] = 0;
+                return none;
+            }
+            case "set_cell_text": {
+                AutomationElement c = Cell(e, Int(req, "row", 0), Int(req, "column", 0));
+                object p;
+                if (c.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly) { ((ValuePattern)p).SetValue(Str(req, "text", "")); return true; }
+                MouseClick(c, "left", 2, 0, 0);
+                Thread.Sleep(150);
+                Native.SelectAllAndDelete();
+                Native.Type(Str(req, "text", ""), 0);
+                return true;
+            }
+            case "click_cell": {
+                string kind = Str(req, "button", "left");
+                MouseClick(Cell(e, Int(req, "row", 0), Int(req, "column", 0)), kind == "double" ? "left" : kind, kind == "double" ? 2 : 1, 0, 0);
+                return true;
+            }
+            case "selected": {
+                object p;
+                List<object> names = new List<object>();
+                if (e.TryGetCurrentPattern(SelectionPattern.Pattern, out p)) foreach (AutomationElement s in ((SelectionPattern)p).Current.GetSelection()) names.Add(s.Current.Name ?? "");
+                else if (e.TryGetCurrentPattern(ValuePattern.Pattern, out p)) names.Add(((ValuePattern)p).Current.Value ?? "");
+                return names;
+            }
+            case "selected_index": {
+                bool expanded = ExpandIfCollapsed(e);
+                try {
+                    AutomationElementCollection items = e.FindAll(TreeScope.Descendants, ItemCondition);
+                    for (int i = 0; i < items.Count; i++) { object p; if (items[i].TryGetCurrentPattern(SelectionItemPattern.Pattern, out p) && ((SelectionItemPattern)p).Current.IsSelected) return i + 1; }
+                    return 0;
+                } finally { if (expanded) CollapseQuietly(e); }
+            }
+            case "total_items": {
+                bool expanded = ExpandIfCollapsed(e);
+                try { return e.FindAll(TreeScope.Descendants, ItemCondition).Count; } finally { if (expanded) CollapseQuietly(e); }
+            }
+            case "select_path": {
+                string[] parts = Str(req, "text", "").Split('>');
+                AutomationElement scope = e;
+                for (int i = 0; i < parts.Length; i++) {
+                    string name = parts[i].Trim();
+                    if (name == "") continue;
+                    AutomationElement hit = Named(scope, name);
+                    if (hit == null) hit = Named(AutomationElement.RootElement, name, true);   // pop-up menus are windows of their own
+                    if (hit == null) throw new BridgeError("ITEM_NOT_FOUND", "No item named '" + name + "' is showing");
+                    bool last = i == parts.Length - 1;
+                    object p;
+                    if (!last && hit.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out p)) { try { ((ExpandCollapsePattern)p).Expand(); } catch (InvalidOperationException) { if (!PatternClick(hit)) MouseClick(hit, "left", 1, 0, 0); } }
+                    else if (hit.TryGetCurrentPattern(InvokePattern.Pattern, out p)) ((InvokePattern)p).Invoke();
+                    else if (hit.TryGetCurrentPattern(SelectionItemPattern.Pattern, out p)) ((SelectionItemPattern)p).Select();
+                    else MouseClick(hit, "left", 1, 0, 0);
+                    Thread.Sleep(250);
+                    scope = hit;
+                }
+                return true;
+            }
+            case "set_position": {
+                object p;
+                double v = Convert.ToDouble(Str(req, "text", "0"), CultureInfo.InvariantCulture);
+                if (e.TryGetCurrentPattern(RangeValuePattern.Pattern, out p)) { RangeValuePattern rv = (RangeValuePattern)p; rv.SetValue(Math.Max(rv.Current.Minimum, Math.Min(rv.Current.Maximum, v))); return rv.Current.Value; }
+                if (e.TryGetCurrentPattern(ScrollPattern.Pattern, out p)) { ScrollPattern sp = (ScrollPattern)p; sp.SetScrollPercent(sp.Current.HorizontallyScrollable && !sp.Current.VerticallyScrollable ? v : ScrollPattern.NoScroll, sp.Current.VerticallyScrollable ? v : ScrollPattern.NoScroll); return v; }
+                throw new BridgeError("NOT_SUPPORTED", "This object has no position to set (it is not a slider, progress or scroll bar)");
+            }
+            case "scroll": {
+                ScrollPattern sp = Pattern<ScrollPattern>(e, ScrollPattern.Pattern, "scrolled");
+                string dir = Str(req, "direction", "down"), size = Str(req, "amount", "line");
+                ScrollAmount step = size == "page" ? (dir == "up" || dir == "left" ? ScrollAmount.LargeDecrement : ScrollAmount.LargeIncrement)
+                                                   : (dir == "up" || dir == "left" ? ScrollAmount.SmallDecrement : ScrollAmount.SmallIncrement);
+                for (int i = 0; i < Math.Max(1, Int(req, "times", 1)); i++) {
+                    if (dir == "left" || dir == "right") sp.ScrollHorizontal(step); else sp.ScrollVertical(step);
+                }
+                return true;
+            }
+            case "toolbar_button": {
+                int n = Int(req, "item_index", 1);
+                AutomationElementCollection kids = e.FindAll(TreeScope.Children, new OrCondition(
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.SplitButton),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem)));
+                if (n < 1 || n > kids.Count) throw new BridgeError("ITEM_NOT_FOUND", "The tool bar has " + kids.Count + " button(s); there is no button " + n);
+                AutomationElement b = kids[n - 1];
+                if (Str(req, "button", "left") == "right") MouseClick(b, "right", 1, 0, 0);
+                else if (!PatternClick(b)) MouseClick(b, "left", 1, 0, 0);
+                return b.Current.Name ?? "";
+            }
+            case "all_text": {
+                List<string> lines = new List<string>();
+                foreach (AutomationElement x in e.FindAll(TreeScope.Subtree, Condition.TrueCondition)) {
+                    if (lines.Count >= 5000) break;
+                    ControlType ct = x.Current.ControlType;
+                    if (ct != ControlType.Text && ct != ControlType.Edit && ct != ControlType.Document && ct != ControlType.DataItem && ct != ControlType.ListItem) continue;
+                    string t = Text(x);
+                    if (!string.IsNullOrWhiteSpace(t)) lines.Add(t.Trim());
+                }
+                return string.Join("\n", lines.ToArray());
+            }
             default: throw new BridgeError("BAD_REQUEST", "Unknown object action '" + action + "'");
         }
     }

@@ -57,4 +57,25 @@ class PdfOcrTest {
         assertTrue(pages.get(1).toString().contains("99"), pages.toString());
         assertEquals("99", pdf.readTextOcr(c, "scan.pdf", null, "2", "eng", 6, 300, "TOTAL", null, true).get("text"), "markers and chosen pages");
     }
+
+    @Test void ocrReadsAPdfGivenToReadTextFromImage() throws Exception {
+        Path w = Files.createTempDirectory("ooa-g4-ocrpdf");
+        try (PDDocument d = new PDDocument()) {
+            for (String t : List.of("INVOICE 4711", "TOTAL 99")) {
+                PDPage p = new PDPage();
+                d.addPage(p);
+                try (PDPageContentStream cs = new PDPageContentStream(d, p)) { cs.drawImage(LosslessFactory.createFromImage(d, scan(t)), 20, 500, 570, 142); }
+            }
+            d.save(w.resolve("scan.pdf").toFile());
+        }
+        new PdfPackage();   // the PDF toolkit hands itself to OCR as it loads
+        ActionContext c = PdfImagesPropertiesTest.ctx(w);
+        try {
+            Object t = new com.oneofficeautomation.packages.OcrPackage().readImage(c, "scan.pdf", "eng", 6, null, null, true, 1, "none", null, null, null, null, null, "2").get("text");
+            assertTrue(String.valueOf(t).contains("99") && !String.valueOf(t).contains("4711"), String.valueOf(t));
+        } catch (ActionException e) {
+            assertEquals("OCR.NOT_INSTALLED", e.code(), e.getMessage());
+            System.out.println("    (tesseract not installed; OCR itself skipped)");
+        }
+    }
 }
