@@ -33,6 +33,10 @@ public final class GenAiPackage {
         return cfg(provider, model, key, base, temp, max, mask, null, null);
     }
 
+    static LlmClient.Config cfg(String provider, String model, Object key, String base, double temp, int max, boolean mask, Object accessKeyId, String region, Object sessionToken) {
+        return cfg(provider, model, key, base, temp, max, mask, accessKeyId, region).withSessionToken(sessionToken);
+    }
+
     static LlmClient.Config cfg(String provider, String model, Object key, String base, double temp, int max, boolean mask, Object accessKeyId, String region) {
         if (!PROVIDERS.contains(provider))
             throw new ActionException("AI.BAD_PROVIDER", "Unknown provider '" + provider + "'", D_PROVIDER);
@@ -54,8 +58,16 @@ public final class GenAiPackage {
     static final String D_FREQUENCY = "From -2 to 2; higher values make the model repeat itself less (OpenAI-style providers).";
     static final String D_TIMEOUT = "Seconds to wait for the model; 180 when 0.";
 
+    // G6 options
+    static final String D_AWS_SESSION = "AWS Bedrock and AWS SageMaker only: the session token from the vault, when the access key is a temporary one (for example from an assumed role).";
+    static final String D_LOGIT_BIAS = "Make words more or less likely (OpenAI and Azure OpenAI): token id to a weight from -100 (never) to 100 (always), e.g. {\"50256\": -100}.";
+    static final String D_PROVIDER_OPTIONS = "Extra settings for this provider, added to the request as they are, e.g. {\"reasoning_effort\": \"low\"}; a dictionary is merged into the setting of the same name.";
+    static final String D_API_VERSION = "Azure OpenAI only: the API version to call; change it when your resource needs a newer one.";
+    static final String D_IMAGE_DETAIL = "How closely the model looks at pictures (OpenAI and Azure OpenAI): low is quicker and cheaper, high reads fine print; auto lets the model decide.";
+    static final String D_END_USER = "An id for the person the answer is for, passed on for the provider's abuse monitoring (OpenAI-style providers).";
+
     @Action(id = "prompt", name = "Prompt", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"}, description = "Send a prompt and return the model's answer.",
-            panel = "prompt, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, number_of_responses, end_user, timeout_seconds")
+            panel = "prompt, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_session_token, aws_region) | temperature, max_tokens, response_format, mask_pii, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, number_of_responses, end_user, logit_bias, provider_options, api_version, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Answer (the first one when several were asked for).")
     @Output(name = "responses", type = OoaType.LIST, description = "Every answer, when number_of_responses is more than 1.")
     @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
@@ -82,10 +94,14 @@ public final class GenAiPackage {
             @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
             @Input(name = "number_of_responses", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many alternative answers to ask for, 1 to 10 (OpenAI-style providers).") int n,
             @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = "json: ask for one JSON object and also return it parsed.") String format,
-            @Input(name = "end_user", type = OoaType.STRING, required = false, description = "An id for the person the answer is for, passed on for the provider's abuse monitoring (OpenAI-style providers).") String endUser,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
-        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
-                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, endUser, n, timeout));
+            @Input(name = "end_user", type = OoaType.STRING, required = false, description = D_END_USER) String endUser,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
+            @Input(name = "aws_session_token", type = OoaType.CREDENTIAL, required = false, description = D_AWS_SESSION) Object awsSessionToken,
+            @Input(name = "logit_bias", type = OoaType.DICTIONARY, required = false, description = D_LOGIT_BIAS) Map<String, Object> logitBias,
+            @Input(name = "provider_options", type = OoaType.DICTIONARY, required = false, description = D_PROVIDER_OPTIONS) Map<String, Object> providerOptions,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"" + LlmClient.Options.AZURE_API_VERSION + "\"", description = D_API_VERSION) String apiVersion) {
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion, awsSessionToken)
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, endUser, n, timeout).plus(logitBias, null, providerOptions, apiVersion));
         boolean json = "json".equals(format);
         List<Map<String, Object>> m = new ArrayList<>();
         if (system != null && !system.isBlank()) m.add(Map.of("role", "system", "content", system));
@@ -102,6 +118,14 @@ public final class GenAiPackage {
         return prompt(ctx, prompt, system, provider, connection, model, key, base, temp, max, mask, awsKeyId, awsRegion, null, null, null, null, null, null, 1, "text", null, 0);
     }
 
+    /** Earlier signature, kept for callers written before the session token, logit bias, provider options and API version (G6). */
+    public Map<String, Object> prompt(ActionContext ctx, String prompt, String system, String provider, String connection, String model, Object key, String base,
+                                      double temp, int max, boolean mask, Object awsKeyId, String awsRegion, Double topP, Integer topK, List<Object> stop,
+                                      Double presence, Double frequency, Integer seed, int n, String format, String endUser, int timeout) {
+        return prompt(ctx, prompt, system, provider, connection, model, key, base, temp, max, mask, awsKeyId, awsRegion, topP, topK, stop, presence, frequency, seed, n, format, endUser, timeout,
+                null, null, null, null);
+    }
+
     /** One chat conversation: the messages so far (unmasked; masking happens on every call). */
     static final class ChatSession {
         final List<Map<String, Object>> messages = new ArrayList<>();
@@ -116,7 +140,7 @@ public final class GenAiPackage {
 
     @Action(id = "chat", name = "Chat", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
             description = "Send a message in a conversation that remembers earlier messages of the same chat session until End chat.",
-            panel = "message, chat_session, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), images | temperature, max_tokens, response_format, mask_pii, history_limit, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, timeout_seconds")
+            panel = "message, chat_session, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_session_token, aws_region), images | temperature, max_tokens, response_format, mask_pii, history_limit, examples, image_detail, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, end_user, logit_bias, provider_options, api_version, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "The model's reply.")
     @Output(name = "json", description = "The reply parsed as JSON, when response_format is json.")
     @Output(name = "turns", type = OoaType.NUMBER, description = "Number of messages now held in the session (yours and the model's).")
@@ -142,20 +166,30 @@ public final class GenAiPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
-            @Input(name = "images", type = OoaType.LIST, required = false, description = "Pictures sent with this message (file paths: .png, .jpg, .gif, .webp); the model must accept pictures.") List<Object> images,
+            @Input(name = "images", type = OoaType.LIST, required = false, description = D_IMAGES_WITH_LINKS + " The model must accept pictures.") List<Object> images,
             @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = D_TOP_K) Integer topK,
             @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
-            @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = D_FORMAT) String format) {
+            @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = D_FORMAT) String format,
+            @Input(name = "aws_session_token", type = OoaType.CREDENTIAL, required = false, description = D_AWS_SESSION) Object awsSessionToken,
+            @Input(name = "end_user", type = OoaType.STRING, required = false, description = D_END_USER) String endUser,
+            @Input(name = "logit_bias", type = OoaType.DICTIONARY, required = false, description = D_LOGIT_BIAS) Map<String, Object> logitBias,
+            @Input(name = "examples", type = OoaType.DICTIONARY, required = false, example = "{\"Where is my order 123?\": \"intent: order_status\"}",
+                    description = "Sample questions and the answers you want, question to answer; sent before the conversation as earlier turns so the model follows the pattern.") Map<String, Object> examples,
+            @Input(name = "image_detail", type = OoaType.STRING, required = false, enumValues = {"auto", "high", "low"}, description = D_IMAGE_DETAIL) String imageDetail,
+            @Input(name = "provider_options", type = OoaType.DICTIONARY, required = false, description = D_PROVIDER_OPTIONS) Map<String, Object> providerOptions,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"" + LlmClient.Options.AZURE_API_VERSION + "\"", description = D_API_VERSION) String apiVersion) {
         if (message == null || message.isBlank()) throw new ActionException("AI.EMPTY_MESSAGE", "The message is empty", "Fill in the message to send.");
         if (limit < 2 || limit > 500) throw new ActionException("AI.BAD_OPTION", "history_limit must be between 2 and 500", "Set history_limit between 2 and 500.");
+        List<Map<String, Object>> shots = examples(examples);
         String k = chatKey(session);
         ChatSession cs = ctx.sessions().get(k) instanceof ChatSession existing ? existing : new ChatSession();
         if (system != null && !system.isBlank()) cs.system = system;
-        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
-                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout));
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion, awsSessionToken)
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, endUser, null, timeout).plus(logitBias, imageDetail, providerOptions, apiVersion));
         boolean json = "json".equals(format);
         List<Map<String, Object>> m = new ArrayList<>();
         if (cs.system != null) m.add(Map.of("role", "system", "content", cs.system));
+        m.addAll(shots);
         m.addAll(cs.messages);
         Object content = withImages(ctx, message, images);
         m.add(Map.of("role", "user", "content", content));
@@ -181,26 +215,63 @@ public final class GenAiPackage {
         return chat(ctx, message, session, system, provider, connection, model, key, base, temp, max, mask, limit, topP, stop, presence, frequency, timeout, awsKeyId, awsRegion, images, null, null, "text");
     }
 
+    /** Earlier signature, kept for callers written before the session token, examples and the G6 options on chats. */
+    public Map<String, Object> chat(ActionContext ctx, String message, String session, String system, String provider, String connection, String model, Object key, String base,
+                                    double temp, int max, boolean mask, int limit, Double topP, List<Object> stop, Double presence, Double frequency, int timeout, Object awsKeyId, String awsRegion,
+                                    List<Object> images, Integer topK, Integer seed, String format) {
+        return chat(ctx, message, session, system, provider, connection, model, key, base, temp, max, mask, limit, topP, stop, presence, frequency, timeout, awsKeyId, awsRegion,
+                images, topK, seed, format, null, null, null, null, null, null, null);
+    }
+
+    static final String D_IMAGES_WITH_LINKS = "Pictures: file paths (.png, .jpg, .gif, .webp) or web links starting with http:// or https://, which the provider fetches (not Amazon Bedrock).";
+
+    /** G6: sample question-and-answer pairs as earlier turns of the conversation (at most 20). */
+    static List<Map<String, Object>> examples(Map<String, Object> examples) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (examples == null || examples.isEmpty()) return out;
+        if (examples.size() > 20) throw new ActionException("AI.BAD_OPTION", "Give at most 20 examples", "Keep the 20 examples that show the pattern best.");
+        for (var e : examples.entrySet()) {
+            String q = String.valueOf(e.getKey()).strip(), a = e.getValue() == null ? "" : Values.text(Values.toJsonable(e.getValue())).strip();
+            if (e.getValue() instanceof SecureString) throw new ActionException("AI.SECRET_IN_PROMPT", "A Credential cannot be put into a prompt", "Pass non-secret values only.");
+            if (q.isEmpty() || a.isEmpty()) throw new ActionException("AI.BAD_OPTION", "Each example needs a question and an answer", "Fill in both sides of every example, or remove the empty one.");
+            out.add(Map.of("role", "user", "content", q));
+            out.add(Map.of("role", "assistant", "content", a));
+        }
+        return out;
+    }
+
     /** The text alone, or the text followed by the pictures as parts. */
     static Object withImages(ActionContext ctx, String text, List<Object> images) {
-        if (images == null || images.isEmpty()) return text;
-        if (images.size() > 10) throw new ActionException("AI.TOO_MANY_IMAGES", "Send at most 10 pictures at a time", "Send at most 10 pictures in one step.");
+        return withMedia(ctx, text, images, null);
+    }
+
+    /** G6: the text followed by pictures (files, or web links sent as links) and videos (files, Gemini models only). */
+    static Object withMedia(ActionContext ctx, String text, List<Object> images, List<Object> videos) {
+        boolean noImages = images == null || images.isEmpty(), noVideos = videos == null || videos.isEmpty();
+        if (noImages && noVideos) return text;
+        if (!noImages && images.size() > 10) throw new ActionException("AI.TOO_MANY_IMAGES", "Send at most 10 pictures at a time", "Send at most 10 pictures in one step.");
+        if (!noVideos && videos.size() > 5) throw new ActionException("AI.TOO_MANY_VIDEOS", "Send at most 5 videos at a time", "Send at most 5 videos in one step.");
         List<Object> parts = new ArrayList<>();
         parts.add(Map.of("type", "text", "text", text));
-        for (Object i : images) parts.add(LlmClient.imagePart(ctx.resolvePath(Values.text(i))));
+        if (!noImages) for (Object i : images) {
+            String s = Values.text(i).strip();
+            parts.add(s.regionMatches(true, 0, "http://", 0, 7) || s.regionMatches(true, 0, "https://", 0, 8) ? LlmClient.imageUrlPart(s) : LlmClient.imagePart(ctx.resolvePath(s)));
+        }
+        if (!noVideos) for (Object v : videos) parts.add(LlmClient.videoPart(ctx.resolvePath(Values.text(v).strip())));
         return parts;
     }
 
     @Action(id = "prompt_with_images", name = "Prompt with pictures", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
-            description = "Ask about one or more pictures (a scanned form, a screenshot, a photo of a meter) and return the model's answer.",
-            panel = "prompt, images, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, timeout_seconds")
+            description = "Ask about one or more pictures (a scanned form, a screenshot, a photo of a meter), or about videos with Gemini models, and return the model's answer.",
+            panel = "prompt, images, videos, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_session_token, aws_region) | temperature, max_tokens, response_format, mask_pii, image_detail, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, provider_options, api_version, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Answer.")
     @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request (pictures included).")
     @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the answer.")
     public Map<String, Object> promptWithImages(ActionContext ctx,
             @Input(name = "prompt", type = OoaType.STRING, description = "What you want to know about the pictures; ${...} interpolation allowed.") String prompt,
-            @Input(name = "images", type = OoaType.LIST, description = "Picture files: .png, .jpg, .gif or .webp, at most 10, each up to 20 MB.") List<Object> images,
+            @Input(name = "images", type = OoaType.LIST, required = false, description = "Picture files: .png, .jpg, .gif or .webp, at most 10, each up to 20 MB; or web links starting with http:// or https://, "
+                    + "which the provider fetches (not Amazon Bedrock).") List<Object> images,
             @Input(name = "system", type = OoaType.STRING, required = false, defaultValue = "\"You are a precise business assistant.\"", description = "Instructions for the model's role and tone.") String system,
             @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
@@ -219,14 +290,21 @@ public final class GenAiPackage {
             @Input(name = "stop_sequences", type = OoaType.LIST, required = false, description = D_STOP) List<Object> stop,
             @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
             @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
-            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed) {
-        if (images == null || images.isEmpty()) throw new ActionException("AI.NO_IMAGES", "Give at least one picture", "Add at least one picture.");
-        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
-                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout));
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
+            @Input(name = "aws_session_token", type = OoaType.CREDENTIAL, required = false, description = D_AWS_SESSION) Object awsSessionToken,
+            @Input(name = "videos", type = OoaType.LIST, required = false, description = "Video files for Gemini models (provider google_vertex): .mp4, .mov, .mpeg, .avi, .wmv, .webm, .flv or .3gp, "
+                    + "at most 5, each up to 20 MB.") List<Object> videos,
+            @Input(name = "image_detail", type = OoaType.STRING, required = false, enumValues = {"auto", "high", "low"}, description = D_IMAGE_DETAIL) String imageDetail,
+            @Input(name = "provider_options", type = OoaType.DICTIONARY, required = false, description = D_PROVIDER_OPTIONS) Map<String, Object> providerOptions,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"" + LlmClient.Options.AZURE_API_VERSION + "\"", description = D_API_VERSION) String apiVersion) {
+        if ((images == null || images.isEmpty()) && (videos == null || videos.isEmpty())) throw new ActionException("AI.NO_IMAGES", "Give at least one picture or video", "Add at least one picture, or a video for a Gemini model.");
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion, awsSessionToken)
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout).plus(null, imageDetail, providerOptions, apiVersion));
+        if (videos != null && !videos.isEmpty() && !"google_vertex".equals(c.provider())) throw LlmClient.notForVideo(c.provider());
         boolean json = "json".equals(format);
         List<Map<String, Object>> m = new ArrayList<>();
         if (system != null && !system.isBlank()) m.add(Map.of("role", "system", "content", system));
-        m.add(Map.of("role", "user", "content", withImages(ctx, prompt, images)));
+        m.add(Map.of("role", "user", "content", withMedia(ctx, prompt, images, videos)));
         LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, json, "prompt_with_images");
         if (r.text() == null) throw new ActionException("AI.EMPTY", "The model returned no text", "Retry or raise max_tokens.", true);
         return Out.of("text", r.text(), "json", json ? LlmClient.parseJson(r.text()) : null,
@@ -240,9 +318,17 @@ public final class GenAiPackage {
                 null, null, null, null, null, null);
     }
 
+    /** Earlier signature, kept for callers written before videos, picture links and the G6 options. */
+    public Map<String, Object> promptWithImages(ActionContext ctx, String prompt, List<Object> images, String system, String provider, String connection, String model, Object key,
+                                                String base, boolean mask, Object awsKeyId, String awsRegion, double temp, int max, String format, int timeout,
+                                                Double topP, Integer topK, List<Object> stop, Double presence, Double frequency, Integer seed) {
+        return promptWithImages(ctx, prompt, images, system, provider, connection, model, key, base, mask, awsKeyId, awsRegion, temp, max, format, timeout,
+                topP, topK, stop, presence, frequency, seed, null, null, null, null, null);
+    }
+
     @Action(id = "generate_image", name = "Generate picture", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai", "filesystem"},
             description = "Draw pictures from a description and save them as PNG files (OpenAI, Azure OpenAI, OpenAI-compatible, Vertex AI Imagen, Amazon Bedrock).",
-            panel = "prompt, output_folder, number_of_images, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | file_name, size, mask_pii, timeout_seconds")
+            panel = "prompt, output_folder, number_of_images, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_session_token, aws_region) | file_name, size, prompt_strength, steps, seed, mask_pii, timeout_seconds")
     @Output(name = "file", type = OoaType.STRING, description = "The first picture's file.")
     @Output(name = "files", type = OoaType.LIST, description = "Every picture's file.")
     public Map<String, Object> generateImage(ActionContext ctx,
@@ -259,15 +345,26 @@ public final class GenAiPackage {
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
+            @Input(name = "aws_session_token", type = OoaType.CREDENTIAL, required = false, description = D_AWS_SESSION) Object awsSessionToken,
+            @Input(name = "prompt_strength", type = OoaType.NUMBER, required = false, min = 0, max = 35,
+                    description = "How closely the picture follows the description; higher is closer (Amazon Titan and Nova from 1.1 to 10, Stable Diffusion XL up to 35). Model default when empty.") Double promptStrength,
+            @Input(name = "steps", type = OoaType.NUMBER, required = false, min = 10, max = 150,
+                    description = "How many refining passes the model makes, 10 to 150; more is slower and more detailed (Stable Diffusion XL). Model default when empty.") Integer steps,
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, min = 0, max = 2147483646,
+                    description = "Same seed and description give the same picture (Amazon Titan, Nova and Stability models). Random when empty.") Integer seed) {
         if (prompt == null || prompt.isBlank()) throw new ActionException("AI.EMPTY_PROMPT", "Describe the picture", "Describe the picture to make.");
         if (n < 1 || n > 4) throw new ActionException("AI.BAD_OPTION", "number_of_images must be between 1 and 4", "Set number_of_images between 1 and 4.");
+        if (promptStrength != null && (promptStrength < 0 || promptStrength > 35)) throw new ActionException("AI.BAD_OPTION", "prompt_strength must be between 0 and 35", "Set prompt_strength between 0 and 35, or leave it empty.");
+        if (steps != null && (steps < 10 || steps > 150)) throw new ActionException("AI.BAD_OPTION", "steps must be between 10 and 150", "Set steps between 10 and 150, or leave it empty.");
+        if (seed != null && (seed < 0 || seed > 2147483646)) throw new ActionException("AI.BAD_OPTION", "seed must be between 0 and 2147483646", "Set seed between 0 and 2147483646, or leave it empty.");
         java.util.regex.Matcher sz = java.util.regex.Pattern.compile("^(\\d{2,5})x(\\d{2,5})$").matcher(size == null ? "" : size.strip());
         if (!sz.matches()) throw new ActionException("AI.BAD_OPTION", "size is WIDTHxHEIGHT, for example 1024x1024", "Write the size as width x height, for example 1024x1024.");
         if (fileName == null || !fileName.matches("^[A-Za-z0-9 _.-]{1,80}$")) throw new ActionException("AI.BAD_OPTION", "file_name uses letters, digits, spaces, . - and _", "Use letters, digits, spaces, . - and _ in the file name.");
-        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 0, mask, awsKeyId, awsRegion)
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 0, mask, awsKeyId, awsRegion, awsSessionToken)
                 .with(LlmClient.Options.of(null, null, null, null, null, null, null, null, timeout));
-        List<byte[]> pics = LlmClient.generateImages(ctx, c, prompt, n, Integer.parseInt(sz.group(1)), Integer.parseInt(sz.group(2)));
+        List<byte[]> pics = LlmClient.generateImages(ctx, c, prompt, n, Integer.parseInt(sz.group(1)), Integer.parseInt(sz.group(2)),
+                new LlmClient.ImageOptions(promptStrength, steps, seed));
         java.nio.file.Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "generated-images" : folder);
         List<Object> files = new ArrayList<>();
         try {
@@ -279,6 +376,178 @@ public final class GenAiPackage {
             }
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("file", files.get(0), "files", files);
+    }
+
+    /** Earlier signature, kept for callers written before the session token, prompt strength, steps and seed (G6). */
+    public Map<String, Object> generateImage(ActionContext ctx, String prompt, String folder, String fileName, int n, String size, String provider, String connection, String model,
+                                             Object key, String base, boolean mask, Object awsKeyId, String awsRegion, int timeout) {
+        return generateImage(ctx, prompt, folder, fileName, n, size, provider, connection, model, key, base, mask, awsKeyId, awsRegion, timeout, null, null, null, null);
+    }
+
+    static final List<String> ENDPOINT_TYPES = List.of("application/json", "application/jsonlines", "text/csv", "application/x-protobuf", "image/*", "custom");
+
+    /** G6: any Amazon SageMaker endpoint, with the body as it is and the optional InvokeEndpoint settings. */
+    @Action(id = "invoke_endpoint", name = "Call SageMaker endpoint", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai", "filesystem"},
+            description = "Send a request as it is to any Amazon SageMaker endpoint (a model of any kind: forecasting, classification, pictures) and return its answer as text.",
+            panel = "endpoint_name, (Request: Typed here = body / From a file = body_file), content_type, custom_content_type, (Sign-in: A saved connection = connection / Set up here = api_key, aws_access_key_id, aws_session_token, aws_region, base_url) "
+                    + "| accept, custom_attributes, enable_explanations, inference_id, target_container_hostname, target_model, target_variant, timeout_seconds")
+    @Output(name = "text", type = OoaType.STRING, description = "The endpoint's answer as text.")
+    @Output(name = "json", description = "The answer parsed as JSON, when it is JSON.")
+    @Output(name = "content_type", type = OoaType.STRING, description = "The answer's content type, as the endpoint gave it.")
+    @Output(name = "invoked_variant", type = OoaType.STRING, description = "The endpoint variant that answered.")
+    public Map<String, Object> invokeEndpoint(ActionContext ctx,
+            @Input(name = "endpoint_name", type = OoaType.STRING, example = "churn-xgboost-prod", description = "Name of the SageMaker endpoint.") String endpoint,
+            @Input(name = "body", type = OoaType.STRING, required = false, visibleWhen = "body_file=", example = "{\"instances\": [[1.5, 2, 0]]}", description = "The request body, sent as it is.") String body,
+            @Input(name = "body_file", type = OoaType.FILE, required = false, visibleWhen = "body=", description = "A file whose bytes are the request body (a picture, a CSV or protobuf file); at most 25 MB.") String bodyFile,
+            @Input(name = "content_type", type = OoaType.STRING, required = false, defaultValue = "\"application/json\"", enumValues = {"application/json", "application/jsonlines", "text/csv", "application/x-protobuf", "image/*", "custom"},
+                    description = "What the body is; image/* takes the picture type from the file's extension; custom: give it in custom_content_type.") String contentType,
+            @Input(name = "custom_content_type", type = OoaType.STRING, required = false, visibleWhen = "content_type=custom", example = "application/x-npy", description = "The content type, when content_type is custom.") String customType,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
+            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = "The AWS secret access key from the vault (or ACCESS_KEY_ID:SECRET).") Object key,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = "The AWS access key id from the vault.") Object awsKeyId,
+            @Input(name = "aws_session_token", type = OoaType.CREDENTIAL, required = false, description = D_AWS_SESSION) Object awsSessionToken,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, example = "eu-west-1", description = "AWS region of the endpoint.") String awsRegion,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = "Another address for the SageMaker runtime (a private endpoint); https://runtime.sagemaker.REGION.amazonaws.com when empty.") String base,
+            @Input(name = "accept", type = OoaType.STRING, required = false, defaultValue = "\"*/*\"", example = "application/json", description = "The answer type to ask for; any when */*.") String accept,
+            @Input(name = "custom_attributes", type = OoaType.STRING, required = false, description = "Extra information passed to the model's code as it is, up to 1024 characters.") String customAttributes,
+            @Input(name = "enable_explanations", type = OoaType.STRING, required = false, example = "`true`", description = "With SageMaker Clarify explanations set up: an expression saying which answers to explain.") String explanations,
+            @Input(name = "inference_id", type = OoaType.STRING, required = false, description = "Your id for this request, kept with the captured data (up to 64 characters).") String inferenceId,
+            @Input(name = "target_container_hostname", type = OoaType.STRING, required = false, description = "Which container answers, on an endpoint with several containers called directly.") String targetContainer,
+            @Input(name = "target_model", type = OoaType.STRING, required = false, example = "model-42.tar.gz", description = "Which model answers, on a multi-model endpoint.") String targetModel,
+            @Input(name = "target_variant", type = OoaType.STRING, required = false, description = "Which production variant answers, instead of the endpoint's own split.") String targetVariant,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
+        if (endpoint == null || !endpoint.strip().matches("^[A-Za-z0-9](-*[A-Za-z0-9]){0,62}$"))
+            throw new ActionException("AI.BAD_OPTION", "'" + endpoint + "' is not a SageMaker endpoint name", "Use the endpoint's name: letters, digits and hyphens, at most 63 characters.");
+        boolean fromFile = bodyFile != null && !bodyFile.isBlank();
+        if (fromFile && body != null && !body.isEmpty()) throw new ActionException("AI.BAD_OPTION", "Give the body or a body file, not both", "Clear body or body_file.");
+        String type = contentType == null || contentType.isBlank() ? "application/json" : contentType.strip();
+        if (!ENDPOINT_TYPES.contains(type)) throw new ActionException("AI.BAD_OPTION", "Unknown content_type '" + contentType + "'", "Use one of " + String.join(", ", ENDPOINT_TYPES) + ".");
+        if (type.equals("custom")) {
+            if (customType == null || !customType.strip().matches("^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+*-]+(;.*)?$"))
+                throw new ActionException("AI.BAD_OPTION", "custom_content_type is not a content type: '" + customType + "'", "Write it as type/subtype, for example application/x-npy.");
+            type = customType.strip();
+        }
+        byte[] payload;
+        if (fromFile) {
+            java.nio.file.Path p = ctx.resolvePath(bodyFile);
+            try { if (java.nio.file.Files.isRegularFile(p) && java.nio.file.Files.size(p) > 25L * 1024 * 1024) throw new ActionException("AI.BODY_TOO_LARGE", "The body file is larger than 25 MB", "SageMaker real-time endpoints take at most 25 MB; use an asynchronous endpoint for larger requests."); }
+            catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file exists and that the runner's account may read it.", true); }
+            payload = HttpJson.readFile(ctx, bodyFile);
+            if (type.equals("image/*")) type = imageType(p);
+        } else {
+            if (type.equals("image/*")) throw new ActionException("AI.BAD_OPTION", "A picture is sent from a file", "Choose the picture in body_file.");
+            payload = (body == null ? "" : body).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        if (payload.length == 0) throw new ActionException("AI.EMPTY_PROMPT", "The request body is empty", "Type the body, or choose a file holding it.");
+        Map<String, String> headers = new LinkedHashMap<>();
+        header(headers, "X-Amzn-SageMaker-Custom-Attributes", customAttributes, 1024);
+        header(headers, "X-Amzn-SageMaker-Enable-Explanations", explanations, 64);
+        header(headers, "X-Amzn-SageMaker-Inference-Id", inferenceId, 64);
+        header(headers, "X-Amzn-SageMaker-Target-Container-Hostname", targetContainer, 63);
+        header(headers, "X-Amzn-SageMaker-Target-Model", targetModel, 1024);
+        header(headers, "X-Amzn-SageMaker-Target-Variant", targetVariant, 63);
+        LlmClient.Config c = ModelConnections.config(ctx, connection, "aws_bedrock_sagemaker", endpoint.strip(), key, base, 0, 0, false, awsKeyId, awsRegion, awsSessionToken)
+                .with(LlmClient.Options.of(null, null, null, null, null, null, null, null, timeout));
+        String acc = accept == null || accept.isBlank() ? "*/*" : accept.strip();
+        HttpJson.Response r = LlmClient.sagemakerInvoke(ctx, c, payload, type, acc, headers);
+        return answer(r, "invoked_variant", r.header("X-Amzn-Invoked-Production-Variant"));
+    }
+
+    private static void header(Map<String, String> headers, String name, String value, int max) {
+        if (value == null || value.isBlank()) return;
+        String v = value.strip();
+        if (v.length() > max || !v.matches("^[\\x20-\\x7E]+$"))
+            throw new ActionException("AI.BAD_OPTION", name.replace("X-Amzn-SageMaker-", "").replace('-', ' ') + " must be plain text of at most " + max + " characters", "Use printable characters only (no line breaks) and keep it short.");
+        headers.put(name, v);
+    }
+
+    /** The picture type of a file from its extension. */
+    static String imageType(java.nio.file.Path p) {
+        String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".gif")) return "image/gif";
+        if (n.endsWith(".webp")) return "image/webp";
+        if (n.endsWith(".bmp")) return "image/bmp";
+        if (n.endsWith(".tif") || n.endsWith(".tiff")) return "image/tiff";
+        throw new ActionException("AI.BAD_IMAGE", "Cannot tell the picture type of " + p.getFileName(), "Use a .png, .jpg, .gif, .webp, .bmp or .tif file, or choose custom and give the content type.");
+    }
+
+    /** The answer as text and, when it is JSON, parsed; plus its content type and one more named value. */
+    private static Map<String, Object> answer(HttpJson.Response r, String extraName, Object extraValue) {
+        String text = new String(r.bytes() == null ? new byte[0] : r.bytes(), java.nio.charset.StandardCharsets.UTF_8);
+        Object json = null;
+        if (!text.isBlank()) try { json = JsonLite.parse(text.strip()); } catch (IllegalArgumentException ignored) { }
+        String type = r.header("Content-Type");
+        return Out.of("text", text, "json", json, "content_type", type == null ? "" : type, extraName, extraValue == null ? "" : extraValue);
+    }
+
+    /** G6: a Hugging Face model called directly, for any task: a JSON payload, or a file sent as it is. */
+    @Action(id = "huggingface_inference", name = "Hugging Face model", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai", "filesystem"},
+            description = "Call a Hugging Face model for any task (classify, fill in, read a picture or sound) with a JSON payload or a data file, and return its answer.",
+            panel = "model, (Send: A JSON payload = payload / A data file = data_file), api_key | base_url, output_file, timeout_seconds")
+    @Output(name = "text", type = OoaType.STRING, description = "The model's answer as text (empty when it answered with a file).")
+    @Output(name = "json", description = "The answer parsed as JSON, when it is JSON.")
+    @Output(name = "content_type", type = OoaType.STRING, description = "The answer's content type.")
+    @Output(name = "file", type = OoaType.STRING, description = "Where a picture or sound the model made was saved (output_file).")
+    public Map<String, Object> huggingFaceInference(ActionContext ctx,
+            @Input(name = "model", type = OoaType.STRING, example = "facebook/bart-large-mnli", description = "The model's id on Hugging Face, owner/name.") String model,
+            @Input(name = "payload", type = OoaType.STRING, required = false, visibleWhen = "data_file=", example = "{\"inputs\": \"I love this product\"}",
+                    description = "The request as JSON, as the model's task expects it, usually {\"inputs\": ..., \"parameters\": {...}}.") String payload,
+            @Input(name = "data_file", type = OoaType.FILE, required = false, visibleWhen = "payload=", description = "A picture or sound file sent as it is, for tasks that read one (at most 25 MB).") String dataFile,
+            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = "Your Hugging Face access token (hf_...) from the vault; not needed for your own server.") Object key,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = "Address the model id is added to; " + LlmClient.HUGGINGFACE_INFERENCE_URL + " when empty, or your own inference server.") String base,
+            @Input(name = "output_file", type = OoaType.FILE, required = false, example = "out/picture.png", description = "Where to save the answer when the model answers with a picture or sound.") String outputFile,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
+        if (model == null || !model.strip().matches("^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$"))
+            throw new ActionException("AI.BAD_OPTION", "'" + model + "' is not a Hugging Face model id", "Write it as owner/name, for example facebook/bart-large-mnli.");
+        boolean fromFile = dataFile != null && !dataFile.isBlank();
+        if (fromFile && payload != null && !payload.isBlank()) throw new ActionException("AI.BAD_OPTION", "Give a payload or a data file, not both", "Clear payload or data_file.");
+        byte[] body;
+        String type;
+        if (fromFile) {
+            java.nio.file.Path p = ctx.resolvePath(dataFile);
+            try { if (java.nio.file.Files.isRegularFile(p) && java.nio.file.Files.size(p) > 25L * 1024 * 1024) throw new ActionException("AI.BODY_TOO_LARGE", "The data file is larger than 25 MB", "Send a smaller file."); }
+            catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file exists and that the runner's account may read it.", true); }
+            body = HttpJson.readFile(ctx, dataFile);
+            type = dataType(p);
+        } else {
+            if (payload == null || payload.isBlank()) throw new ActionException("AI.EMPTY_PROMPT", "The payload is empty", "Type the JSON payload, or choose a data file.");
+            try { JsonLite.parse(payload.strip()); }
+            catch (IllegalArgumentException e) { throw new ActionException("AI.BAD_OPTION", "The payload is not valid JSON: " + e.getMessage(), "Check quotes, commas and brackets, for example {\"inputs\": \"text\"}."); }
+            body = payload.strip().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            type = "application/json";
+        }
+        LlmClient.Config c = ModelConnections.config(ctx, null, "huggingface", model.strip(), key, base, 0, 0, false, null, null)
+                .with(LlmClient.Options.of(null, null, null, null, null, null, null, null, timeout));
+        HttpJson.Response r = LlmClient.huggingFaceInvoke(ctx, c, body, type);
+        String rt = r.header("Content-Type") == null ? "" : r.header("Content-Type").toLowerCase(Locale.ROOT);
+        boolean textual = rt.isEmpty() || rt.startsWith("text/") || rt.contains("json");
+        if (textual) return answer(r, "file", null);
+        if (outputFile == null || outputFile.isBlank())
+            throw new ActionException("AI.FILE_ANSWER", "The model answered with a file (" + rt + "), not text", "Set output_file to where the answer should be saved.");
+        java.nio.file.Path out = ctx.resolvePath(outputFile);
+        HttpJson.writeFile(out, r.bytes());
+        return Out.of("text", "", "json", null, "content_type", rt, "file", out.toString());
+    }
+
+    /** The content type of a data file sent to a model, from its extension. */
+    static String dataType(java.nio.file.Path p) {
+        String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
+        int dot = n.lastIndexOf('.');
+        return switch (dot < 0 ? "" : n.substring(dot)) {
+            case ".png" -> "image/png";
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".gif" -> "image/gif";
+            case ".webp" -> "image/webp";
+            case ".flac" -> "audio/flac";
+            case ".wav" -> "audio/wav";
+            case ".mp3" -> "audio/mpeg";
+            case ".ogg" -> "audio/ogg";
+            case ".webm" -> "audio/webm";
+            case ".json" -> "application/json";
+            default -> "application/octet-stream";
+        };
     }
 
     @Action(id = "detect_language", name = "Detect language", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
