@@ -23,8 +23,14 @@ public final class GraphMailSource implements MailSource {
     /** An app-only token with the client credentials flow (needs Mail.Read application permission and a mailbox). */
     @SuppressWarnings("unchecked")
     public static String clientCredentialsToken(String loginUrl, String tenant, String clientId, String secret) throws IOException {
+        return clientCredentialsToken(loginUrl, tenant, clientId, secret, null);
+    }
+
+    /** The same for one of Microsoft's clouds (G6): scope is that cloud's Graph scope; null means the global cloud's. */
+    @SuppressWarnings("unchecked")
+    public static String clientCredentialsToken(String loginUrl, String tenant, String clientId, String secret, String scope) throws IOException {
         Object r = PollHttp.postForm((loginUrl == null ? LOGIN : loginUrl.replaceAll("/+$", "")) + "/" + PollHttp.enc(tenant) + "/oauth2/v2.0/token",
-                Map.of("grant_type", "client_credentials", "client_id", clientId, "client_secret", secret, "scope", "https://graph.microsoft.com/.default"));
+                Map.of("grant_type", "client_credentials", "client_id", clientId, "client_secret", secret, "scope", scope == null ? "https://graph.microsoft.com/.default" : scope));
         Object t = r instanceof Map<?, ?> m ? m.get("access_token") : null;
         if (t == null) throw new IOException("Microsoft sign-in returned no access token");
         return String.valueOf(t);

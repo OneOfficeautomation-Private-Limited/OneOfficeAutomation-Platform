@@ -469,7 +469,8 @@ public final class Agent {
                                 return;
                             }
                             Path file = Path.of(String.valueOf(msg.get("file")));
-                            String query = "run_id=" + enc(w.runId) + "&process=" + enc(String.valueOf(msg.get("process"))) + "&wait=" + Boolean.TRUE.equals(msg.get("wait"));
+                            String query = "run_id=" + enc(w.runId) + "&process=" + enc(String.valueOf(msg.get("process"))) + "&wait=" + Boolean.TRUE.equals(msg.get("wait"))
+                                    + (msg.get("process_version") == null ? "" : "&process_version=" + enc(String.valueOf(msg.get("process_version"))));   // G6
                             Map<String, Object> r = client.postFile("docflow/documents?" + query, file.getFileName().toString(), Files.readAllBytes(file));
                             w.send(Map.of("type", "docflow", "id", msg.get("id"), "result", r));
                         } catch (OoaException e) {

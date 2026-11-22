@@ -645,6 +645,7 @@ public final class DocFlowProxy {
         need(new User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false), flow.get("folder"), "run",
                 ctx.folderEntries(), "add documents");
         boolean wait = "true".equals(q.get("wait"));
+        checkVersion(flow, q.get("process_version"));
         String id = String.valueOf(flow.get("id"));
         Map<String, String> headers = Map.of("Content-Type", String.valueOf(ex.getRequestHeaders().getFirst("Content-Type")));
         String person = "Agent " + String.valueOf(run.get("bot_path")).replace(".flow.json", "") + " (" + by + ")";
@@ -673,11 +674,39 @@ public final class DocFlowProxy {
 
     // ------------------------------------------------------------------ an agent picks up results (D1)
 
+    /**
+     * G6: an agent may pin the version of the process's setup it was built for; DocFlow keeps only the live version, so
+     * a different one is refused before the document is sent, rather than read with a setup nobody checked.
+     */
+    static void checkVersion(Map<String, Object> flow, String wanted) {
+        if (wanted == null || wanted.isBlank()) return;
+        long want;
+        try { want = (long) Double.parseDouble(wanted.strip()); } catch (NumberFormatException e) { throw new OoaException("CR.BAD_INPUT", "process_version must be a number"); }
+        Object live = flow.get("version");
+        long have = live instanceof Number n ? n.longValue() : -1;
+        if (have != want)
+            throw new OoaException("DOCS.VERSION_CHANGED", "Process '" + flow.get("name") + "' is at version " + (have < 0 ? "unknown" : have) + ", not " + want,
+                    "Check the process's changes in Document Automation, then set process_version to the live version (or empty it).");
+    }
+
     /** Statuses of a document that is read and needs nothing more: read and checked, approved, or rejected. */
     static final Set<String> FINISHED = Set.of("success", "validated", "invalid");
     /** Statuses of a document still being read. */
     static final Set<String> READING = Set.of("received", "queued", "pending", "processing");
     private static final Pattern DOC_ID = Pattern.compile("[A-Za-z0-9_-]{1,80}");
+    /** The largest file Download document hands to an agent (G6). */
+    static final int MAX_DOWNLOAD = 50 << 20;
+
+    /** DocFlow's reason for refusing a request (its message or detail), else the HTTP status. */
+    private static String refusal(HttpResponse<byte[]> r) {
+        try {
+            if (JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m) {
+                Object msg = m.get("message") != null ? m.get("message") : m.get("detail");
+                if (msg != null) return String.valueOf(msg);
+            }
+        } catch (IllegalArgumentException ignored) { }
+        return "HTTP " + r.statusCode();
+    }
 
     /**
      * Document Automation's "Get document result", "List finished documents" and "Mark collected" (command review D1,
@@ -758,6 +787,44 @@ public final class DocFlowProxy {
                 ctx.audit(user.username(), "docflow.collect", "docflow_document", null,
                         Map.of("collector", collector, "marked", marked, "already", already, "run_id", String.valueOf(run.get("id"))), "success", null);
                 return new LinkedHashMap<>(Map.of("marked", marked, "already_collected", already));
+            }
+            case "update" -> {   // G6: corrected values from an agent, kept as a review by the run's user
+                String id = docId(b.get("document_id"));
+                if (!(b.get("fields") instanceof Map<?, ?> fields) || fields.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Give the corrected fields");
+                ctx.require(user, "docs.review", "correct Document Automation results");
+                Map<String, Object> d = docOf(id);
+                need(user, processFolders().getOrDefault(String.valueOf(d.get("flowId")), ""), "run", all, "correct this document");
+                byte[] in = JsonLite.write(Map.of("fields", fields, "action", "submit")).getBytes(StandardCharsets.UTF_8);
+                HttpResponse<byte[]> r = send("POST", "df/documents/" + id + "/review", null, in, Map.of("Content-Type", "application/json"),
+                        "Agent " + String.valueOf(run.get("bot_path")).replace(".flow.json", "") + " (" + user.username() + ")");
+                if (r.statusCode() >= 300) throw new OoaException("DOCS.REFUSED", "Document Automation did not take the corrections: " + refusal(r),
+                        "Check that the document is read (not still being read) and that the field names are the process's.");
+                for (Map<String, Object> t : openTasks().getOrDefault(id, List.of())) close((String) t.get("id"), "approved", user.username());
+                ctx.audit(user.username(), "docflow.update", "docflow_document", id,
+                        Map.of("fields", new ArrayList<>(((Map<String, Object>) fields).keySet()), "run_id", String.valueOf(run.get("id"))), "success", null);
+                return result(docOf(id));
+            }
+            case "download" -> {   // G6: results as CSV or JSON, or the file that was sent, for an agent to save
+                String id = docId(b.get("document_id"));
+                String kind = String.valueOf(b.getOrDefault("kind", "csv"));
+                if (!Set.of("csv", "json", "original").contains(kind)) throw new OoaException("CR.BAD_INPUT", "Unknown kind '" + kind + "'; use csv, json or original");
+                Map<String, Object> d = docOf(id);
+                need(user, processFolders().getOrDefault(String.valueOf(d.get("flowId")), ""), "view", all, "see this document");
+                HttpResponse<byte[]> r = kind.equals("original") ? send("GET", "documents/" + id + "/file", null, null, null, "Command Center")
+                        : send("GET", "documents/" + id + "/export", "format=" + kind, null, null, "Command Center");
+                if (r.statusCode() == 404) throw new OoaException("CR.NOT_FOUND", "Document " + id + " has no " + (kind.equals("original") ? "file" : "result") + " yet", "Wait until the document is read, then try again.");
+                if (r.statusCode() >= 300) throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: " + refusal(r), "Check that the Document Automation service is running.");
+                if (r.body().length > MAX_DOWNLOAD) throw new OoaException("CR.TOO_LARGE", "The document is larger than " + (MAX_DOWNLOAD >> 20) + " MB", "Open it in Document Automation instead.");
+                String base = d.get("file_name") instanceof String n && !n.isBlank() ? n : id;
+                String name = kind.equals("original") ? base : (base.contains(".") ? base.substring(0, base.lastIndexOf('.')) : base) + "." + kind;
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("file_name", name);
+                out.put("content_type", r.headers().firstValue("Content-Type").orElse("application/octet-stream"));
+                out.put("data", Base64.getEncoder().encodeToString(r.body()));
+                out.put("deleted", false);   // DocFlow keeps every document (it has no way to remove one)
+                if (Boolean.TRUE.equals(b.get("delete_after"))) out.put("delete_note", "the service keeps documents; remove them by its retention settings");
+                ctx.audit(user.username(), "docflow.download", "docflow_document", id, Map.of("kind", kind, "run_id", String.valueOf(run.get("id"))), "success", null);
+                return out;
             }
             default -> throw new OoaException("CR.BAD_INPUT", "Unknown request '" + op + "'");
         }

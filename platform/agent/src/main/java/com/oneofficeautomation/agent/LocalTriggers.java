@@ -75,7 +75,8 @@ final class LocalTriggers {
             if (w == null) {
                 try { w = create(id, t); log.accept("Watching trigger " + id + ": " + w.describe()); }
                 catch (RuntimeException e) { status(id, e.getMessage()); continue; }
-                try { w.poll(); } catch (RuntimeException e) { /* reported by the next regular look */ }   // the first look, right away
+                // the first look, right away; it fires only for "also start if it already exists" (G6)
+                try { for (Map<String, Object> ev : w.poll()) fire(id, ev); } catch (RuntimeException e) { /* reported by the next regular look */ }
             }
             next.put(key, w);
         }
@@ -89,12 +90,15 @@ final class LocalTriggers {
         String kind = String.valueOf(t.getOrDefault("kind", "file"));
         Map<String, Object> cfg = t.get("config") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         return switch (kind) {
-            case "file", "file_changed", "file_deleted", "folder_created", "folder_deleted" ->
+            case "file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "file_renamed", "folder_renamed" ->
                     new FolderWatch(id, kind, Path.of(String.valueOf(t.get("folder"))), t.get("pattern") == null ? "*" : String.valueOf(t.get("pattern")),
-                            Boolean.TRUE.equals(cfg.get("recursive")));
-            case "window_opened", "window_closed" -> new CountWatch(id, kind, "title", TitlePattern.of(String.valueOf(cfg.get("title"))), os::windowTitles, kind.endsWith("opened"));
-            case "process_started", "process_stopped" -> new CountWatch(id, kind, "process", processMatcher(String.valueOf(cfg.get("process"))), os::processNames, kind.endsWith("started"));
-            case "service_started", "service_stopped" -> new ServiceWatch(id, kind, String.valueOf(cfg.get("service")));
+                            Boolean.TRUE.equals(cfg.get("recursive")), Boolean.TRUE.equals(cfg.get("fire_existing")));
+            case "window_opened", "window_closed" -> new CountWatch(id, kind, "title",
+                    Boolean.TRUE.equals(cfg.get("case_sensitive")) ? caseSensitive(String.valueOf(cfg.get("title"))) : TitlePattern.of(String.valueOf(cfg.get("title"))),
+                    os::windowTitles, kind.endsWith("opened") ? 1 : -1);
+            case "process_started", "process_stopped" -> new CountWatch(id, kind, "process", processMatcher(String.valueOf(cfg.get("process"))), os::processNames,
+                    processEvents(kind, cfg.get("events")));
+            case "service_started", "service_stopped", "service_paused" -> new ServiceWatch(id, kind, String.valueOf(cfg.get("service")));
             case "hotkey" -> new HotkeyWatch(id, String.valueOf(cfg.get("hotkey")));
             case "key_pressed", "mouse_clicked" -> new InputWatch(id, kind, cfg);
             default -> throw new IllegalArgumentException("This OneRunner does not know the trigger kind '" + kind + "'; update the runner");
@@ -109,6 +113,33 @@ final class LocalTriggers {
         }
         String want = stripExe(p).toLowerCase(Locale.ROOT);
         return n -> stripExe(n).toLowerCase(Locale.ROOT).equals(want);
+    }
+
+    /** Which changes a process trigger fires for (G6): 1 started, -1 stopped, 0 both; the events setting wins over the kind. */
+    static int processEvents(String kind, Object events) {
+        String e = events == null ? "" : String.valueOf(events);
+        return e.equals("both") ? 0 : e.equals("started") ? 1 : e.equals("stopped") ? -1 : kind.endsWith("started") ? 1 : -1;
+    }
+
+    /**
+     * A window title pattern where case matters (G6): the same forms as {@link TitlePattern} (re:, wildcards, contains),
+     * without ignoring case.
+     */
+    static Predicate<String> caseSensitive(String pattern) {
+        String p = pattern == null ? "" : pattern.trim();
+        if (p.startsWith("re:")) {
+            Pattern re;
+            try { re = Pattern.compile(p.substring(3)); }
+            catch (java.util.regex.PatternSyntaxException e) { throw new IllegalArgumentException("Not a valid regular expression: " + p.substring(3)); }
+            return t -> t != null && re.matcher(t).find();
+        }
+        if (p.contains("*") || p.contains("?")) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : p.toCharArray()) sb.append(c == '*' ? ".*" : c == '?' ? "." : Pattern.quote(String.valueOf(c)));
+            Pattern re = Pattern.compile(sb.toString(), Pattern.DOTALL);
+            return t -> t != null && re.matcher(t).matches();
+        }
+        return t -> t != null && !p.isEmpty() && t.contains(p);
     }
 
     private static String stripExe(String n) { return n.toLowerCase(Locale.ROOT).endsWith(".exe") ? n.substring(0, n.length() - 4) : n; }
@@ -164,15 +195,24 @@ final class LocalTriggers {
 
     /** Polls a folder (optionally with sub-folders) and compares it with the previous look. */
     static final class FolderWatch extends Watch {
-        record Entry(boolean dir, long size, long modified) {}
+        /** key: the file system's own id for the entry (an inode), where it has one; it tells renames apart (G6). */
+        record Entry(boolean dir, long size, long modified, Object key) {
+            Entry(boolean dir, long size, long modified) { this(dir, size, modified, null); }
+            boolean sameAs(Entry o) { return o != null && dir == o.dir && size == o.size && modified == o.modified && Objects.equals(key, o.key); }
+        }
         final String kind; final Path folder; final PathMatcher matcher; final boolean recursive;
+        /** G6: the first look also fires for what is already there (file arrives, folder created). */
+        final boolean fireExisting;
         Map<Path, Entry> previous;
         final Map<Path, Entry> pending = new HashMap<>();   // new or changed files waiting until their size stops changing
         final Map<Path, Integer> pendingPolls = new HashMap<>();
 
-        FolderWatch(String id, String kind, Path folder, String pattern, boolean recursive) {
+        FolderWatch(String id, String kind, Path folder, String pattern, boolean recursive) { this(id, kind, folder, pattern, recursive, false); }
+
+        FolderWatch(String id, String kind, Path folder, String pattern, boolean recursive, boolean fireExisting) {
             super(id);
             this.kind = kind; this.folder = folder; this.recursive = recursive;
+            this.fireExisting = fireExisting && (kind.equals("file") || kind.equals("folder_created"));
             this.matcher = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
         }
 
@@ -186,7 +226,7 @@ final class LocalTriggers {
                     if (p.equals(folder)) return;
                     try {
                         BasicFileAttributes a = Files.readAttributes(p, BasicFileAttributes.class);
-                        out.put(p, new Entry(a.isDirectory(), a.isDirectory() ? 0 : a.size(), a.lastModifiedTime().toMillis()));
+                        out.put(p, new Entry(a.isDirectory(), a.isDirectory() ? 0 : a.size(), a.lastModifiedTime().toMillis(), a.fileKey()));
                     } catch (IOException ignored) { /* removed meanwhile */ }
                 });
             } catch (IOException | java.io.UncheckedIOException e) { throw new IllegalStateException("Cannot read " + folder + ": " + e.getMessage()); }
@@ -207,7 +247,10 @@ final class LocalTriggers {
         List<Map<String, Object>> poll() {
             Map<Path, Entry> now = scan();
             List<Map<String, Object>> out = new ArrayList<>();
-            if (previous == null) { previous = now; return out; }
+            if (previous == null) {
+                if (!fireExisting) { previous = now; return out; }
+                previous = Map.of();   // G6: everything already there counts as new
+            }
             boolean folders = kind.startsWith("folder");
             switch (kind) {
                 case "file", "file_changed" -> {
@@ -239,24 +282,55 @@ final class LocalTriggers {
                         if (e.getValue().dir() && (old == null || !old.dir()) && matches(e.getKey())) out.add(event(e.getKey(), e.getValue()));
                     }
                 }
+                case "file_renamed", "folder_renamed" -> out.addAll(renames(now, folders));
                 default -> { }
             }
             previous = now;
             out.sort(Comparator.comparing(m -> String.valueOf(m.get("path"))));
             return out;
         }
+
+        /**
+         * Renames (G6): an entry that disappeared and one that appeared at the same look with the same size, change time
+         * and file id. Only one-to-one pairs count, so two copies of the same file are never taken for a rename. The
+         * pattern may match the old or the new name.
+         */
+        List<Map<String, Object>> renames(Map<Path, Entry> now, boolean folders) {
+            List<Map.Entry<Path, Entry>> gone = new ArrayList<>(), added = new ArrayList<>();
+            for (var e : previous.entrySet()) if (e.getValue().dir() == folders && !now.containsKey(e.getKey())) gone.add(e);
+            for (var e : now.entrySet()) if (e.getValue().dir() == folders && !previous.containsKey(e.getKey())) added.add(e);
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (var g : gone) {
+                List<Map.Entry<Path, Entry>> to = added.stream().filter(a -> a.getValue().sameAs(g.getValue())).toList();
+                if (to.size() != 1) continue;
+                var a = to.get(0);
+                if (gone.stream().filter(x -> x.getValue().sameAs(a.getValue())).count() != 1) continue;
+                if (!matches(a.getKey()) && !matches(g.getKey())) continue;
+                Map<String, Object> ev = event(a.getKey(), a.getValue());
+                ev.put("old_path", g.getKey().toString());
+                ev.put("old_name", String.valueOf(g.getKey().getFileName()));
+                out.add(ev);
+            }
+            return out;
+        }
     }
 
     /** Counts matching windows or processes; fires when the count of a name goes up (opened, started) or down (closed, stopped). */
     static final class CountWatch extends Watch {
-        final String kind, field; final Predicate<String> match; final java.util.function.Supplier<List<String>> source; final boolean appear;
+        final String kind, field; final Predicate<String> match; final java.util.function.Supplier<List<String>> source;
+        /** 1: fires when one appears; -1: when one goes; 0: both, each event saying which (G6). */
+        final int mode;
         Map<String, Integer> previous;
 
         CountWatch(String id, String kind, String field, Predicate<String> match, java.util.function.Supplier<List<String>> source, boolean appear) {
-            super(id); this.kind = kind; this.field = field; this.match = match; this.source = source; this.appear = appear;
+            this(id, kind, field, match, source, appear ? 1 : -1);
         }
 
-        String describe() { return kind.replace('_', ' '); }
+        CountWatch(String id, String kind, String field, Predicate<String> match, java.util.function.Supplier<List<String>> source, int mode) {
+            super(id); this.kind = kind; this.field = field; this.match = match; this.source = source; this.mode = mode;
+        }
+
+        String describe() { return mode == 0 ? kind.substring(0, kind.indexOf('_')) + " started or stopped" : kind.replace('_', ' '); }
 
         List<Map<String, Object>> poll() {
             Map<String, Integer> now = new TreeMap<>();
@@ -267,7 +341,12 @@ final class LocalTriggers {
                 names.addAll(previous.keySet());
                 for (String n : names) {
                     int diff = now.getOrDefault(n, 0) - previous.getOrDefault(n, 0);
-                    for (int i = 0; i < (appear ? diff : -diff); i++) out.add(new LinkedHashMap<>(Map.of(field, n)));
+                    int times = mode == 0 ? Math.abs(diff) : mode > 0 ? diff : -diff;
+                    for (int i = 0; i < times; i++) {
+                        Map<String, Object> ev = new LinkedHashMap<>(Map.of(field, n));
+                        if (mode == 0) ev.put("event", diff > 0 ? "started" : "stopped");
+                        out.add(ev);
+                    }
                 }
             }
             previous = now;
@@ -275,7 +354,7 @@ final class LocalTriggers {
         }
     }
 
-    /** Polls one Windows service's state and fires on the change to RUNNING (started) or to STOPPED (stopped). */
+    /** Polls one Windows service's state and fires on the change to RUNNING (started), STOPPED (stopped) or PAUSED (paused). */
     final class ServiceWatch extends Watch {
         final String kind, service; String previous;
         ServiceWatch(String id, String kind, String service) { super(id); this.kind = kind; this.service = service; }
@@ -284,7 +363,7 @@ final class LocalTriggers {
             String state = os.serviceState(service);
             if (state == null) throw new IllegalStateException("Service '" + service + "' does not exist on this runner");
             List<Map<String, Object>> out = new ArrayList<>();
-            String wanted = kind.equals("service_started") ? "RUNNING" : "STOPPED";
+            String wanted = kind.equals("service_started") ? "RUNNING" : kind.equals("service_paused") ? "PAUSED" : "STOPPED";   // paused: G6
             if (previous != null && !previous.equals(state) && state.equals(wanted))
                 out.add(new LinkedHashMap<>(Map.of("service", service, "state", state, "previous_state", previous)));
             previous = state;
