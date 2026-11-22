@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1674 codes in 152 areas.
+1718 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -66,12 +66,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AGENT.BAD_CREDENTIALS` | Windows did not accept the user name or password | Check them in My devices > Device credentials, then check again. | agent |
 | `AGENT.BAD_FORM` | Not a form from the form designer: … | Open it in the form designer and save it again. | toolkits/ai |
 | `AGENT.BAD_INPUT` | Give the Windows user with --user<br>Not a Windows account name: …<br>No device credentials were given | Give the Windows user with --user.<br>Write the account as DOMAIN\name or name.<br>Enter them in My account > My devices > Device credentials. | agent |
-| `AGENT.BAD_OPTION` | max_duration_seconds cannot be negative<br>A tool and a form are both named …<br>Two tools are both named … | Set max_duration_seconds to 0 (no limit) or a positive number of seconds.<br>Give the tool or the form another name; the agent tells them apart by name.<br>Give one of the two tools another name; the agent tells them apart by name. | toolkits/ai |
+| `AGENT.BAD_OPTION` | '…' is not a usable credential name<br>The credential '…' is not a vault credential<br>Give the goal as text or as a file, not both | Name each credential as the input of the agent that takes it: letters, digits and _.<br>Choose a Credential from the vault for each name; plain text is not accepted here.<br>Clear goal or goal_file. | toolkits/ai |
 | `AGENT.BAD_PROXY` | The proxy is system, none, windows or http://host:port, not …<br>The proxy setting windows works on Windows runners only | Set the proxy to system, none, windows (Windows sign-in to the proxy) or http://host:port.<br>Use system, none or http://host:port on this computer. | agent |
 | `AGENT.BAD_RESPONSE` | Command Center returned HTTP …<br>One CommandCenter returned HTTP … | Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall). | agent |
 | `AGENT.BAD_URL` | One CommandCenter address starts with https:// (or http://) | Give One CommandCenter's address starting with https:// (or http://). | agent |
 | `AGENT.CA` | Cannot use the certificate file …: … | Export it on One CommandCenter with: ooa tls export-cert --out ooa.cer | agent |
 | `AGENT.FORM_NOT_FOUND` | Form not found: … | Choose a .form.json file made in the form designer. | toolkits/ai |
+| `AGENT.GOAL_NOT_FOUND` | Goal file not found: … | Check the path; the file may have been moved or renamed. | toolkits/ai |
 | `AGENT.HTTP_` | One CommandCenter answered HTTP … for … | Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall). | agent |
 | `AGENT.INTERRUPTED` | Interrupted | Try again; if it keeps happening, an administrator can look in the server log. | agent |
 | `AGENT.KNOWLEDGE_NOT_FOUND` | Knowledge index not found: … | Build it with Knowledge Q&A > Build index. | toolkits/ai |
@@ -80,16 +81,20 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AGENT.MOVE_REFUSED` | One CommandCenter at … did not accept this runner: … | Copy or restore the old One CommandCenter's data there first (its runners come with it), or register this runner again | agent |
 | `AGENT.NOT_ADMIN` | Windows refused: run this from a Command Prompt or PowerShell opened as administrator | Open Command Prompt or PowerShell with Run as administrator and run the command again. | agent |
 | `AGENT.NOT_REGISTERED` | This runner is not registered (no …) | Run: ooa agent register --url <One CommandCenter URL> --key <registration key><br>Register the runner first: ooa agent register --url <One CommandCenter address> --key <registration key>. | agent |
+| `AGENT.NO_GOAL` | The agent has no goal<br>The goal file is empty: … | Type the goal, or choose a file holding it.<br>Write the goal into the file, or type it on the step. | toolkits/ai |
 | `AGENT.NO_TOOLS` | Give the agent at least one agent, form, knowledge index or MCP tool to use | Add at least one tool in the step: an agent it may run, a form, a knowledge index or an MCP server. | toolkits/ai |
+| `AGENT.NO_VAULT` | No vault is available for the credential '…' | Run the agent where a vault is available (in One CommandCenter, or with the Private workspace's vault set up). | toolkits/ai |
+| `AGENT.OUTSIDE_WORKSPACE` | The form … is outside the workspace folder …<br>The knowledge index … is outside the workspace folder … | Move the form into the workspace folder, or choose another folder.<br>Move the index into the workspace folder, or choose another folder. | toolkits/ai |
 | `AGENT.PROXY_AUTH` | The proxy asks for a sign-in Windows cannot give for you (only Basic) | Set proxy_user and proxy_password with the proxy http://host:port instead of windows. | agent |
 | `AGENT.PROXY_PASSWORD` | The proxy password file cannot be read: …<br>The environment variable … is not set<br>The proxy password cannot be read on this computer | Set it again: ooa agent network --proxy-user USER --proxy-password-env VAR<br>Set the environment variable, then start the runner again.<br>Store the proxy password again with ooa agent proxy. | agent, cli |
 | `AGENT.SESSION_FAILED` | Windows did not keep the credential for …: … | Run the command as an administrator; check the account and password. | agent |
 | `AGENT.STOPPED` | …The agent was stopped by a Stop agent step… | Nothing to fix: a Stop agent step ended the run on purpose. | runner |
-| `AGENT.TOOL_NEEDS_SECRET` | Agent '…' needs a Credential input, which a model must never supply | Read the credential inside the agent instead of taking it as an input. | toolkits/ai |
+| `AGENT.TOOL_NEEDS_SECRET` | Agent '…' needs the Credential input '…', which a model must never supply | Hand it over in the step's credentials under the name …, or read the credential inside the agent instead of taking it as an input. | toolkits/ai |
 | `AGENT.TOOL_UNDOCUMENTED` | Agent '…' has no description | Add a description under Properties in OneAgentStudio (with no step selected); the AI agent reads it to decide when to call this agent. | toolkits/ai |
 | `AGENT.TOO_DEEP` | Agents calling agents calling agents are nested too deeply | Simplify the agent's tools. | cli |
 | `AGENT.UNREACHABLE` | Cannot reach One CommandCenter at …: …<br>Cannot reach Command Center at …: … | Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall).<br>Check the URL and network; the agent keeps retrying. | agent |
 | `AGENT.UPDATE` | One CommandCenter sent an empty file list<br>Unexpected file name …<br>The downloaded … does not match its checksum; update stopped | Try the update again later; if it keeps failing, install the runner again from One CommandCenter. | agent |
+| `AGENT.WORKSPACE_NOT_FOUND` | The workspace folder does not exist: … | Create the folder first, or choose another one. | toolkits/ai |
 
 ## AI
 
@@ -97,35 +102,38 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `AI.AUTH_FAILED` | Google did not return an access token | Check that the service account is enabled and may use Vertex AI. | packages |
 | `AI.BAD_CONNECTIONS` | Send {default, connections: [...]}<br>Each connection is an object<br>Connection names are unique and use letters, digits, . _ - (got '…') | Reload the page and save the model connections again.<br>Give each connection its own name of letters, digits, . _ and -.<br>Choose the API key's credential in the connection. | cli, packages |
-| `AI.BAD_IMAGE` | Pictures must be .png, .jpg, .gif or .webp: … | Use a .png, .jpg, .gif or .webp picture. | packages |
+| `AI.BAD_IMAGE` | Cannot tell the picture type of …<br>Not a valid picture link: …<br>Pictures must be .png, .jpg, .gif or .webp: … | Use a .png, .jpg, .gif, .webp, .bmp or .tif file, or choose custom and give the content type.<br>Give a full http:// or https:// address, or a picture file.<br>Use a .png, .jpg, .gif or .webp picture. | packages |
 | `AI.BAD_JSON` | The model did not return valid JSON | Retry, lower the temperature or use a stronger model. | packages |
 | `AI.BAD_KEY` | The service-account key is not valid JSON<br>The service-account private key cannot be used: … | Use the service account's JSON key file as Google Cloud downloads it.<br>Use the JSON key file Google created for the service account. | packages |
-| `AI.BAD_OPTION` | history_limit must be between 2 and 500<br>number_of_images must be between 1 and 4<br>size is WIDTHxHEIGHT, for example 1024x1024 | Set history_limit between 2 and 500.<br>Set number_of_images between 1 and 4.<br>Write the size as width x height, for example 1024x1024. | packages, toolkits/ai |
+| `AI.BAD_OPTION` | history_limit must be between 2 and 500<br>Give at most 20 examples<br>Each example needs a question and an answer | Set history_limit between 2 and 500.<br>Keep the 20 examples that show the pattern best.<br>Fill in both sides of every example, or remove the empty one. | packages, toolkits/ai |
 | `AI.BAD_PROVIDER` | Unknown provider for '…'<br>Unknown provider '…' | Use ….<br>… | cli, packages |
 | `AI.BAD_REGION` | '…' is not an AWS region name | For example eu-west-1. | packages |
 | `AI.BAD_RESPONSE` | The SageMaker endpoint answered in a format this client does not understand<br>The model returned … vectors for … texts<br>The model returned no vector | Use a container with the messages API (TGI 1.4+ or LMI), or one that returns generated_text.<br>Try again; if it keeps happening, check the model's name and that it supports this request. | packages |
 | `AI.BAD_SESSION` | Invalid chat session name '…' | Use letters, digits, spaces, . - and _. | packages |
 | `AI.BAD_SKILL` | Invalid skill name '…'<br>Skill '…' needs at least a "prompt" text<br>Skill '…' is not valid JSON: … | Use letters, digits, - and _.<br>Add a prompt text to the skill: the instruction the model follows.<br>Correct the skill's JSON (a missing comma or quote is the usual cause), or recreate it in Settings > AI skills. | toolkits/ai |
 | `AI.BAD_URL` | Invalid SageMaker URL: …<br>Invalid AWS URL: … | Check the region, endpoint name and base_url.<br>Check the region, model and base_url. | packages |
+| `AI.BAD_VIDEO` | Videos must be .mp4, .mov, .mpeg, .mpg, .avi, .wmv, .webm, .flv or .3gp: … | Use a video in one of those formats. | packages |
+| `AI.BODY_TOO_LARGE` | The body file is larger than 25 MB<br>The data file is larger than 25 MB | SageMaker real-time endpoints take at most 25 MB; use an asynchronous endpoint for larger requests.<br>Send a smaller file. | packages |
 | `AI.BUDGET_REACHED` | … | An administrator raises the budget in Model Connections, or the budget starts again next month. | packages |
 | `AI.CALL_LIMIT` | This run reached the limit of … calls through the model connection '…' | An administrator raises Calls a run in Model Connections. | packages |
 | `AI.CONTENT_FLAGGED` | The model's answer was flagged by the content check……: …, … | Rephrase the prompt, or have a person review this case. | packages |
 | `AI.DISABLED` | AI is switched off in One CommandCenter | Ask an administrator to switch it on (Administration > Settings > AI). | packages |
 | `AI.EMPTY` | The model returned no text | Retry or raise max_tokens. | packages, toolkits/ai |
 | `AI.EMPTY_MESSAGE` | The message is empty | Fill in the message to send. | packages |
-| `AI.EMPTY_PROMPT` | Describe the picture | Describe the picture to make. | packages |
+| `AI.EMPTY_PROMPT` | Describe the picture<br>The request body is empty<br>The payload is empty | Describe the picture to make.<br>Type the body, or choose a file holding it.<br>Type the JSON payload, or choose a data file. | packages |
+| `AI.FILE_ANSWER` | The model answered with a file (…), not text | Set output_file to where the answer should be saved. | packages |
 | `AI.IMAGE_NOT_FOUND` | Picture not found: … | Check the path; the file may have been moved or renamed. | packages |
 | `AI.IMAGE_TOO_LARGE` | Pictures are at most 20 MB: … | Make the picture smaller than 20 MB. | packages |
 | `AI.KEY_IN_FILE` | API keys are never stored in connections | Use api_key_env (an environment variable name) or a vault credential reference. | cli |
 | `AI.KEY_REFUSED` | Only the model connection's own key can be read here | Nothing to do; only the model connection reads its own key. | modules/one-chat |
 | `AI.LABEL_NOT_ALLOWED` | The model answered '…', which is not one of … | Retry or describe the labels more clearly. | packages |
 | `AI.MODEL_NOT_ALLOWED` | …A model set on the action…The model connection '…'… is not allowed by the AI guardrails '…name…' | Use one of these model connections: …, ……. | packages |
-| `AI.NOT_SUPPORTED` | Picture generation is not available for …<br>Embeddings are not available for … | Use openai, azure_openai, openai_compatible, google_vertex or aws_bedrock.<br>Use openai, azure_openai, openai_compatible (Ollama and similar), google_vertex or aws_bedrock. | packages |
+| `AI.NOT_SUPPORTED` | Videos can be sent to Gemini models only, not to …<br>Amazon Bedrock takes pictures as files, not web links<br>Picture generation is not available for … | Choose the google_vertex provider and a Gemini model, or leave videos empty.<br>Download the picture first and give its file.<br>Use openai, azure_openai, openai_compatible, google_vertex or aws_bedrock. | packages |
 | `AI.NO_ACCESS_KEY` | The AWS access key id from the vault is required | Map aws_access_key_id to a Credential, or store the key as ACCESS_KEY_ID:SECRET in one Credential. | packages |
 | `AI.NO_CONNECTION` | No One Model Connection is available to you<br>The model connection … is not available to you<br>There is no model connection named '…' | An administrator adds one in One Model Connections, or allows your role on one.<br>Ask an administrator to allow your role on it.<br>Create it under Model Connections, or pick another name. | modules/one-chat, packages |
 | `AI.NO_ENDPOINT` | Azure OpenAI needs base_url (your resource endpoint)<br>Vertex AI needs base_url: the location's API root | Example: https://myresource.openai.azure.com<br>For example https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4<br>Fill in base_url with your Azure OpenAI resource's endpoint, for example https://NAME.openai.azure.com. | packages |
 | `AI.NO_IMAGE` | The model returned no picture | The provider may have refused the description; change it and retry. | packages |
-| `AI.NO_IMAGES` | Give at least one picture | Add at least one picture. | packages |
+| `AI.NO_IMAGES` | Give at least one picture or video | Add at least one picture, or a video for a Gemini model. | packages |
 | `AI.NO_KEY` | An API key from the vault is required<br>A Hugging Face access token from the vault is required<br>The AWS secret access key from the vault is required | Choose the API key's credential in the step's connection (Manage > Credentials holds it).<br>Map api_key to a Credential variable.<br>Map api_key to a Credential holding your hf_... token. | packages |
 | `AI.NO_LABELS` | Give at least one label | Add at least one label to choose from. | packages |
 | `AI.NO_MODEL` | No model chosen<br>Skill '…' names no model | Pick a Model Connection, or set provider and model on this action.<br>Add "model" or "connection" to the skill, or set the model input. | packages, toolkits/ai |
@@ -135,6 +143,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AI.SECRET_IN_PROMPT` | A Credential cannot be put into a prompt | Pass non-secret values only. | packages |
 | `AI.SKILL_NOT_FOUND` | Prompt Skill '…' not found | Create ai-skills/….json in the workspace. | toolkits/ai |
 | `AI.TOO_MANY_IMAGES` | Send at most 10 pictures at a time | Send at most 10 pictures in one step. | packages |
+| `AI.TOO_MANY_VIDEOS` | Send at most 5 videos at a time | Send at most 5 videos in one step. | packages |
+| `AI.VIDEO_NOT_FOUND` | Video not found: … | Check the path; the file may have been moved or renamed. | packages |
+| `AI.VIDEO_TOO_LARGE` | Videos are at most 20 MB: … | Shorten the video or lower its quality to under 20 MB. | packages |
 | `AI.WORKDIR` | Cannot prepare the AI call: … | Check that the server's data folder has space and that the service account may read and write there. | modules/one-chat |
 
 ## ALERT
@@ -622,8 +633,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DATABRICKS.CLUSTER_FAILED` | Cluster … did not start; its state is … | Check the cluster's event log in Databricks. | toolkits/cloud-data |
 | `DATABRICKS.FILE_EXISTS` | A file already exists at … | Choose another save_as, delete the file first, or turn on overwrite. | toolkits/cloud-data |
 | `DATABRICKS.NOT_FOUND` | No … named '…' | Check the name, or use the …'s id. | toolkits/cloud-data |
+| `DATABRICKS.NO_CLIENT_SECRET` | The service principal's secret is missing | Map client_secret to the OAuth secret kept in the vault. | toolkits/cloud-data |
+| `DATABRICKS.NO_SIGN_IN` | The workspace url is missing | Fill in the workspace url. | toolkits/cloud-data |
 | `DATABRICKS.NO_SQL` | The SQL statement is empty | Write the SQL to run. | toolkits/cloud-data |
 | `DATABRICKS.RUN_FAILED` | Job run … ended with …result_state…: …state_message… | Open the run page for details: …run_page_url… | toolkits/cloud-data |
+| `DATABRICKS.SIGN_IN_FAILED` | Databricks gave no access token for the service principal | Check the client id and secret, and that the service principal may use this workspace. | toolkits/cloud-data |
 | `DATABRICKS.STATEMENT_CANCELED` | The SQL statement was … | Run it again. | toolkits/cloud-data |
 | `DATABRICKS.STATEMENT_FAILED` | The SQL statement failed: … | Check the SQL, table names and your permissions on the warehouse. | toolkits/cloud-data |
 | `DATABRICKS.STILL_RUNNING` | The statement is still running | Wait, then try again, or check it with Get statement status. | toolkits/cloud-data |
@@ -755,6 +769,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `DOCS.BAD_ANSWER` | Document Automation sent an unreadable file | Try again; tell support if it keeps happening. | packages |
+| `DOCS.BAD_FIELDS` | The fields are not valid JSON<br>Give the corrected fields<br>The fields must be a Dictionary of field names and values | Give a Dictionary, or JSON text such as {"total": "110.00"}.<br>Give a Dictionary of field names and values.<br>Give a Dictionary, or JSON text of an object. | packages |
+| `DOCS.BAD_KIND` | Unknown kind '…' | Use csv, json or original. | packages |
 | `DOCS.EMAIL` | DocFlow refused … (HTTP …) | Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer. | modules/document-automation |
 | `DOCS.FILE_TYPE` | Document Automation reads PDF, PNG, JPG and TIFF files, not …<br>Document Automation reads PDF, PNG, JPG and TIFF files, not .… | Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.<br>Convert the file first. | modules/document-automation, packages |
 | `DOCS.MS_SIGNIN` | This inbox's Microsoft sign-in is not known<br>The sign-in with Microsoft is not finished | Choose Sign in with Microsoft again.<br>Finish signing in at Microsoft, or choose Sign in with Microsoft again. | modules/document-automation |
@@ -762,11 +779,12 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DOCS.NOT_SET_UP` | Document Automation is not set up yet: no address for its DocFlow service has been entered | An administrator starts DocFlow and enters its address (http://127.0.0.1:8085 when it runs on this server) and token in Administration > Settings > Document Automation. | modules/document-automation |
 | `DOCS.NO_DOCUMENT` | Give the ids of the documents to mark<br>Give the document id | Use document_ids from List finished documents.<br>Use the document_id that Send document to process gave. | packages |
 | `DOCS.NO_PROCESS` | Choose the process to send the document to<br>Choose the process | Use the process's name as shown in Document Automation. | packages |
-| `DOCS.REFUSED` | Document Automation refused the document: …HTTP …<br>Document Automation did not list the documents: HTTP …<br>Document Automation did not give the document: HTTP … | Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer. | modules/document-automation |
+| `DOCS.REFUSED` | Document Automation refused the document: …HTTP …<br>Document Automation did not list the documents: HTTP …<br>Document Automation did not take the corrections: … | Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.<br>Check that the document is read (not still being read) and that the field names are the process's.<br>Check that the Document Automation service is running. | modules/document-automation |
 | `DOCS.STARTING` | Document Automation is starting: its database is getting ready | Wait a minute and open the page again; the first start after an unclean stop can take a few minutes. | modules/document-automation |
 | `DOCS.TIMEOUT` | No answer from the Command Center about the document | Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer. | agent |
 | `DOCS.TOKEN` | The Document Automation service refused the Command Center's token | Put the same token in DocFlow (DOCAUTO_API_TOKEN) and in the vault credential named by Settings > Document Automation. | modules/document-automation |
 | `DOCS.UNAVAILABLE` | The Document Automation service at … is not answering<br>Interrupted<br>Document Automation answered HTTP … | Check that DocFlow is running (on Windows: the OneOffice DocFlow service, or windows\start.bat), and the address in Administration > Settings > Document Automation.<br>Try again; if it keeps happening, an administrator can look in the server log.<br>Check that the Document Automation service is running. | modules/document-automation |
+| `DOCS.VERSION_CHANGED` | Process '…name…' is at version …unknown…, not … | Check the process's changes in Document Automation, then set process_version to the live version (or empty it). | modules/document-automation |
 | `DOCS.WAIT_TIMEOUT` | Document … is still …status… after … s | …Raise timeout_seconds, or pick the document up later with List finished documents.…Raise timeout_seconds. | packages |
 
 ## DOCUSIGN
@@ -968,10 +986,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
-| `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
+| `FILE.IO` | Cannot save …: …<br>Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write to the folder.<br>Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | packages, sdk |
 | `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
-| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/cloud-data, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
 | `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
 | `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
@@ -1082,17 +1100,19 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `GOOGLE_AI.BAD_CREDENTIAL_TYPE` | Unknown credential_type '…' | Use api_key or access_token. | packages |
+| `GOOGLE_AI.AUTH_FAILED` | Google sign-in gave no access token | Try again; check the service account key. | packages |
+| `GOOGLE_AI.BAD_CREDENTIAL_TYPE` | Unknown credential_type '…' | Use api_key, access_token or service_account_json. | packages |
 | `GOOGLE_AI.BAD_ENDPOINT` | '…' is not an https address | Leave endpoint empty for Google's own addresses. | packages |
+| `GOOGLE_AI.BAD_KEY_FILE` | The service account key is not JSON<br>The JSON is not a service account key (it needs client_email and private_key)<br>The key's token_uri is not an https address | Use the JSON key file downloaded for the service account from the Google Cloud console.<br>Download a JSON key for the service account in the Google Cloud console (IAM > Service accounts > Keys).<br>Use the key file as Google gave it. | packages |
 | `GOOGLE_AI.BAD_LANGUAGE` | '…' is not a language code | Use a code such as en, de or ja, or leave it empty. | packages |
 | `GOOGLE_AI.BAD_LOCATION` | '…' is not a location | Use us or eu. | packages |
-| `GOOGLE_AI.BAD_PROCESSOR` | '…' is not a processor id<br>'…' is not a processor version id | Copy the id from the processor's page in the Google Cloud console.<br>Leave it empty for the default version. | packages |
-| `GOOGLE_AI.BAD_PROJECT` | '…' is not a project id | Use the project id, e.g. acme-ai-prod, or its number. | packages |
+| `GOOGLE_AI.BAD_PROCESSOR` | The processor id is not valid<br>'…' is not a processor version id | Copy the id from the processor's page in the Google Cloud console.<br>Leave it empty for the default version. | packages |
+| `GOOGLE_AI.BAD_PROJECT` | '…' is not a project id<br>The project is not a project id | Use the project id, e.g. acme-ai-prod, or its number. | packages |
 | `GOOGLE_AI.BAD_URL` | Invalid address: … | Check the endpoint given to Connect. | packages |
 | `GOOGLE_AI.IMAGE_ERROR` | Cloud Vision could not read the picture: …message… | Check the file is a supported, undamaged picture. | packages |
-| `GOOGLE_AI.NO_CREDENTIAL` | An API key or access token from the vault is required | Map credential to a Credential. | packages |
+| `GOOGLE_AI.NO_CREDENTIAL` | A service account key is required<br>An API key or access token from the vault is required | Map credential to the key in the vault, or give key_file.<br>Map credential to a Credential. | packages |
 | `GOOGLE_AI.NO_PROJECT` | No project given to Connect | Give Connect the project id that owns the processor. | packages |
-| `GOOGLE_AI.TOKEN_REQUIRED` | Document AI does not take API keys | Connect with credential_type access_token and an OAuth token of a service account that may use the processor. | packages |
+| `GOOGLE_AI.TOKEN_REQUIRED` | Document AI does not take API keys | Connect with credential_type access_token or service_account_json, as a service account that may use the processor. | packages |
 | `GOOGLE_AI.UNKNOWN_FILE_TYPE` | Cannot tell the file type of … | Give mime_type, e.g. application/pdf or image/png. | packages |
 
 ## GOTO
@@ -1108,7 +1128,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `HTTP.BAD_CERTIFICATE` | Cannot open client certificate …: … | Check the file is PKCS#12 (.p12/.pfx) and the password is right. | packages |
 | `HTTP.BAD_PROXY` | Invalid proxy '…'<br>Invalid proxy port in '…' | Use host:port, e.g. proxy.example.com:8080.<br>Use a port between 1 and 65535. | packages |
 | `HTTP.CERTIFICATE_NOT_FOUND` | Client certificate not found: … | Give a .p12 or .pfx file. | packages |
-| `HTTP.TLS_SETUP_FAILED` | Cannot set up TLS: … | Check the client certificate and its password. | packages |
+| `HTTP.TLS_SETUP_FAILED` | Cannot set up TLS: … | Check the certificate files and the client certificate password.<br>Check the client certificate and its password. | packages |
 
 ## IDP
 
@@ -1239,6 +1259,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `KAFKA.NO_TOKEN` | Sign-in details are required | Map api_key and api_secret, or access_token, to vault values. | toolkits/cloud-data |
 | `KAFKA.PRODUCE_FAILED` | Kafka did not accept the message: …message… | Check the topic exists and the account may write to it. | toolkits/cloud-data |
 | `KAFKA.TOPIC_EXISTS` | Topic '…' already exists | Use another name, or turn off fail_if_exists. | toolkits/cloud-data |
+| `KAFKA.WRITE_FAILED` | Cannot write …: … | Check the folder exists and can be written. | toolkits/cloud-data |
 
 ## KNOWLEDGE
 
@@ -1491,7 +1512,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `OKTA.BAD_INPUT` | Give either name_starts_with or search, not both | Clear one of the two inputs. | toolkits/enterprise |
 | `OKTA.BAD_USER` | A user id or login is required | The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com. | toolkits/enterprise |
 | `OKTA.GROUP_NOT_FOUND` | No Okta group is named '…' | Check the spelling, or use the group's id. | toolkits/enterprise |
-| `OKTA.NOTHING_TO_UPDATE` | No profile values were given | Fill profile_fields with at least one value. | toolkits/enterprise |
+| `OKTA.NOTHING_TO_UPDATE` | No profile values were given | Fill at least one of the named fields or profile_fields. | toolkits/enterprise |
 | `OKTA.NO_TOKEN` | An Okta API token or access token from the vault is required | Map api_token (or access_token) to a Credential variable. | toolkits/enterprise |
 
 ## OUTLOOK
@@ -1676,8 +1697,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `REST.AUTH_UNSUPPORTED` | Signing in as the current Windows user works only on Windows runners | Use windows_auth user_password with basic_user and basic_password, or run the agent on a Windows runner. | packages |
-| `REST.BAD_AUTH` | Unknown windows_auth '…'<br>windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls or accept_cookies<br>windows_auth cannot be combined with bearer_token, a proxy, a client certificate or insecure_tls | Use current_user or user_password.<br>Use Windows sign-in alone (the runner's proxy settings apply). | packages |
-| `REST.BAD_BODY` | More than one body was given | Give only one of json, form, multipart, body or body_file. | packages |
+| `REST.BAD_AUTH` | Unknown windows_auth '…'<br>windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls, trust_certificate or accept_cookies<br>windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls or trust_certificate | Use current_user or user_password.<br>Use Windows sign-in alone (the runner's proxy settings apply). | packages |
+| `REST.BAD_BODY` | More than one body was given<br>replace_in_body fills placeholders in a text body, but there is no body | Give only one of json, form, multipart, body or body_file.<br>Write the text body with { {name}} placeholders, or leave replace_in_body empty. | packages |
 | `REST.BAD_HEADER` | content_type may not contain line breaks | Write the content type on one line, for example application/json. | packages |
 | `REST.BAD_URL` | Invalid URL: … | Check the address, e.g. https://intranet.example.com/api.<br>Check the address, e.g. https://api.example.com/orders. | packages |
 | `REST.FILE_ERROR` | Cannot read …: …<br>Cannot write into …: …<br>Cannot save …: … | Check the file is not locked.<br>Check the folder exists and is writable.<br>Close the file if it is open and check the folder is writable. | packages |
@@ -1755,19 +1776,22 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `SALESFORCE.AMBIGUOUS_EXTERNAL_ID` | More than one … record has … = … | Use a field whose values are unique, or read the record by its Salesforce id. | toolkits/enterprise |
 | `SALESFORCE.BAD_BATCH` | The batch size must be between 200 and 2000 | Set the batch size between 200 and 2000. | toolkits/enterprise |
+| `SALESFORCE.BAD_EXTENSION` | Invalid file extension '…' | Write extensions like pdf, docx or .xlsx, separated by commas. | toolkits/enterprise |
 | `SALESFORCE.BAD_FIELD` | Invalid field name '…' | Example: Name, Email or Account.Industry. | toolkits/enterprise |
 | `SALESFORCE.BAD_GRANT` | Unknown grant type '…' | Use client_credentials or password. | toolkits/enterprise |
 | `SALESFORCE.BAD_ID` | Invalid record id '…'<br>Invalid file id '…' | Salesforce ids are 15 or 18 characters.<br>A file (ContentDocument) id starts with 069 and has 15 or 18 characters. | toolkits/enterprise |
+| `SALESFORCE.BAD_LOGIN_SITE` | Unknown sign-in site '…' | Use production, sandbox or custom. | toolkits/enterprise |
 | `SALESFORCE.BAD_OBJECT` | Invalid object name '…' | Example: Account, Contact, Case or My_Object__c. | toolkits/enterprise |
 | `SALESFORCE.BAD_ORDER` | Sort by one field, then ASC or DESC | Example: CreatedDate DESC. | toolkits/enterprise |
 | `SALESFORCE.BAD_PARAMETER` | An empty list cannot go into SOQL | Give at least one value, or leave the condition out. | toolkits/enterprise |
 | `SALESFORCE.BAD_VISIBILITY` | Unknown visibility '…' | Use AllUsers, InternalUsers or SharedUsers. | toolkits/enterprise |
+| `SALESFORCE.FILE_NOT_FOUND` | No file has the id … | Check the id, and that the signed-in user may see the file. | toolkits/enterprise |
 | `SALESFORCE.NO_CLIENT` | The client id (consumer key) is required | Fill in the connected app's consumer key in the connection. | toolkits/enterprise |
 | `SALESFORCE.NO_EXTERNAL_ID` | The external id value is empty<br>Upsert needs the external id field | Put the external id value in id.<br>Example: ERP_Number__c.<br>Map external_id_value to the key from the source system. | toolkits/enterprise |
 | `SALESFORCE.NO_ID_COLUMN` | Update needs an Id column | Add the record ids in a column named Id. | toolkits/enterprise |
-| `SALESFORCE.NO_RECORD` | No record id given | Fill in record_id, or content_document_id to upload a new version of a file. | toolkits/enterprise |
+| `SALESFORCE.NO_LOGIN_URL` | A custom sign-in site needs its login URL | Fill in login_url, e.g. your My Domain address https://yourcompany.my.salesforce.com. | toolkits/enterprise |
+| `SALESFORCE.NO_RECORD` | No record id given | Fill in record_id, or content_document_id to get one file.<br>Fill in record_id, or content_document_id to upload a new version of a file. | toolkits/enterprise |
 | `SALESFORCE.NO_USER` | The password grant needs a user name and password | Fill in User name and Password in the connection, or choose another way to sign in. | toolkits/enterprise |
-| `SALESFORCE.VISIBILITY_WITH_VERSION` | Visibility cannot be set when uploading a new version | Leave visibility empty: a new version keeps the sharing of the existing file. | toolkits/enterprise |
 
 ## SAP
 
@@ -1852,6 +1876,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `SERVICENOW.BAD_API_VERSION` | Unknown API version '…' | Use v1, v2 or latest. | toolkits/enterprise |
 | `SERVICENOW.BAD_CONTENT_TYPE` | Invalid content type '…' | Use a content type such as application/pdf or image/png. | toolkits/enterprise |
 | `SERVICENOW.BAD_FIELD` | Invalid field name '…'<br>Invalid filter field '…'<br>Invalid order_by field '…' | Use the field's column name as ServiceNow shows it (for example short_description).<br>Use the field's column name, e.g. assignment_group.<br>Use a column name as ServiceNow shows it (for example sys_created_on); add DESC to sort the other way. | toolkits/enterprise |
 | `SERVICENOW.BAD_FILTER` | The value for … contains ^ | Use the query input for values with ^. | toolkits/enterprise |
@@ -1861,6 +1886,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SERVICENOW.BAD_TABLE` | Invalid table '…' | Example: incident, sc_request, change_request. | toolkits/enterprise |
 | `SERVICENOW.BAD_TIME` | Invalid time '…' | Use yyyy-MM-dd HH:mm:ss in UTC, e.g. 2026-10-19 08:00:00. | toolkits/enterprise |
 | `SERVICENOW.FILE_EXISTS` | … already exists | Turn on overwrite or pick another name. | toolkits/enterprise |
+| `SERVICENOW.NO_ATTACHMENT_FILTER` | Say which attachments to list | Fill in table and sys_id, an attachment id, or an encoded query. | toolkits/enterprise |
 | `SERVICENOW.NO_CLIENT` | The client id is required | Fill in the OAuth client id in the connection (System OAuth > Application Registry in ServiceNow). | toolkits/enterprise |
 | `SERVICENOW.NO_USER` | The password grant needs a user and password | Fill in User and Password in the connection, or choose another way to sign in. | toolkits/enterprise |
 
@@ -1931,27 +1957,45 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `SNOWFLAKE.BAD_FORMAT` | Unknown format '…' | Use csv, tsv or json_lines. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_COMPRESSION` | Unknown compression '…'<br>Snappy compression is only for parquet files | Use none, gzip, auto or snappy.<br>Use gzip, or choose the parquet format. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_FILE_NAME` | The file path has a quote in it: … | Rename the file or folder without the quote. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_FORMAT` | Unknown format '…' | Use csv, tsv, json_lines or parquet.<br>Use csv or parquet. | toolkits/cloud-data |
 | `SNOWFLAKE.BAD_HANDLE` | Invalid statement handle '…' | Use the statement_handle returned by Run SQL statement. | toolkits/cloud-data |
 | `SNOWFLAKE.BAD_NAME` | A name is empty<br>A table name is required | Give a database, schema, table or column name.<br>Example: SALES.PUBLIC.ORDERS or ORDERS. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_ON_ERROR` | Give the number of bad rows after which a file is skipped<br>Give the percent of bad rows after which a file is skipped<br>Unknown on_error '…' | Set on_error_limit to 1 or more.<br>Set on_error_limit between 1 and 100.<br>Use abort, continue, skip_file, skip_file_after_rows or skip_file_after_percent. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_PARAMETERS` | The parameters must be a list or a dictionary | Example: ["2026-10"] or {"MONTH": "2026-10"}. | toolkits/cloud-data |
+| `SNOWFLAKE.BAD_STAGE` | Invalid stage path '…' | Example: @MY_STAGE/orders/ or @%ORDERS. | toolkits/cloud-data |
 | `SNOWFLAKE.FILE_EXISTS` | A file already exists at … | Set overwrite to true, or choose another file. | toolkits/cloud-data |
+| `SNOWFLAKE.NOTHING_TO_UPDATE` | No new values were given | Fill values with column names and their new values. | toolkits/cloud-data |
 | `SNOWFLAKE.NO_COLUMNS` | The data table has no columns | Build the table with column names that match the target table. | toolkits/cloud-data |
+| `SNOWFLAKE.NO_FILE` | No file given | Give a file on this machine, or a stage path such as @MY_STAGE/orders/. | toolkits/cloud-data |
+| `SNOWFLAKE.NO_KEYS` | No key values were given | Give the key values of the rows to change; an empty list would change every row. | toolkits/cloud-data |
 | `SNOWFLAKE.NO_SQL` | The SQL statement is empty | Write the SQL to run. | toolkits/cloud-data |
+| `SNOWFLAKE.PARQUET_VALUE` | The value '…' does not fit a parquet … column | Cast the column to text in the SQL, or export as csv. | toolkits/cloud-data |
 | `SNOWFLAKE.STATEMENT_FAILED` | … | Check the SQL, the object names and the role's privileges. | toolkits/cloud-data |
 | `SNOWFLAKE.STILL_RUNNING` | Snowflake did not finish listing in time<br>The statement is still running<br>The statement did not finish within … seconds | Try again in a moment.<br>Wait, then try again, or check it with Get statement status.<br>Raise wait_seconds, or use Get statement status with the handle …. | toolkits/cloud-data |
+| `SNOWFLAKE.UPLOAD_FAILED` | Snowflake did not take the file: … | Check the role may write to the stage. If uploads are not accepted over this connection, put the file on a stage first and give its @stage path in file. | toolkits/cloud-data |
 | `SNOWFLAKE.WRITE_FAILED` | Cannot write …: … | Check the folder exists and can be written. | toolkits/cloud-data |
 
 ## SOAP
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `SOAP.BAD_AUTH` | windows_auth cannot be combined with trust_certificate | Use Windows sign-in alone (the runner's certificate settings apply). | packages |
+| `SOAP.BAD_BODY` | Both body and wsdl were given<br>There is no body to send | Write the XML in body, or build it from the WSDL; not both.<br>Write the SOAP body (or the whole envelope), or build it from the service's WSDL. | packages |
+| `SOAP.BAD_OUTPUT` | Unknown xpath_output '…'<br>Unknown delimiter '…' | Use values, joined, inner_xml or outer_xml.<br>Use none, pipe, semicolon or custom. | packages |
+| `SOAP.BAD_PREFIX` | '…' cannot be a namespace prefix | Use letters and digits, starting with a letter, e.g. ns or tem. | packages |
 | `SOAP.BAD_RESPONSE` | The answer is not a SOAP envelope (a <…> document, often a proxy or sign-in page): … | Check the endpoint URL and the proxy between the runner and the service. | packages |
-| `SOAP.BAD_URL` | Invalid URL: … | Give the address starting with https:// or http://. | packages |
-| `SOAP.BAD_WSDL` | Give the WSDL address or file<br>This is not a WSDL 1.1 document<br>The WSDL has no SOAP operations | Fill in either WSDL address or WSDL file.<br>Give the service's ?wsdl address or file.<br>Check it describes a SOAP service with a service and port. | packages |
+| `SOAP.BAD_URL` | The WSDL gives no address for operation '…'<br>Invalid URL: … | Give the service's address in url.<br>Give the address starting with https:// or http://. | packages |
+| `SOAP.BAD_WSDL` | Building the body from a WSDL needs the operation<br>Give the WSDL address or file<br>This is not a WSDL 1.1 document | Give the operation's name, as Read WSDL lists it.<br>Fill in either WSDL address or WSDL file.<br>Give the service's ?wsdl address or file. | packages |
 | `SOAP.BAD_XPATH` | Invalid XPath '…': … | Use e.g. //*[local-name()='Price']. | packages |
 | `SOAP.FAULT` | SOAP fault: …unknown… | Check the request against the service's WSDL. | packages |
 | `SOAP.FILE_ERROR` | Cannot save the response to …: … | Check the folder is writable. | packages |
 | `SOAP.HTTP_ERROR` | Service returned HTTP ……: …<br>Service returned HTTP …: …<br>Service returned HTTP … | Check the service's address and the sign-in in the connection; the message has the service's answer.<br>…Give basic_user and basic_password.… | packages |
+| `SOAP.UNKNOWN_OPERATION` | The WSDL has no operation '…' | Use one of: …, …. | packages |
+| `SOAP.UNKNOWN_PARAMETER` | The operation has no field …, … | Its fields are: …, … (a path such as Customer/Name picks one of several fields with the same name). | packages |
+| `SOAP.UNKNOWN_PORT` | Operation '…' is not offered by the given service and port<br>The WSDL has no port '…'… in service '…'…… | Check service and port against the WSDL (Read WSDL lists each operation's address), or leave them empty.<br>Use one of: …, …, or leave port empty. | packages |
+| `SOAP.UNKNOWN_SERVICE` | The WSDL has no service '…' | Use one of: …, …, or leave service empty. | packages |
 | `SOAP.UNREACHABLE` | Cannot reach …: … | Check the URL and network access.<br>Check the address and network access. | packages |
 
 ## SOUND
