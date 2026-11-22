@@ -249,14 +249,16 @@ public final class DocuSignPackage {
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "changed_since", type = OoaType.DATETIME, required = false, description = "Only envelopes changed on or after this date. Leave empty for the last 30 days.") Object from,
             @Input(name = "changed_before", type = OoaType.DATETIME, required = false, description = "Only envelopes changed before this date.") Object to,
-            @Input(name = "status", type = OoaType.STRING, required = false, example = "completed", description = "Only these statuses, separated by commas, e.g. sent,delivered.") String status,
+            @Input(name = "status", required = false, example = "[\"sent\", \"delivered\"]",
+                    description = "Only these statuses: a list, or text separated by commas; created, sent, delivered, signed, completed, declined, voided (G5: a list).") Object status,
             @Input(name = "search_text", type = OoaType.STRING, required = false, description = "Only envelopes whose subject, sender or recipients contain this text.") String text,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most envelopes to return.") int max,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("from_date", from == null || Values.text(from).isBlank() ? LocalDate.now().minusDays(30).toString() : Values.toDateTime(from).toString());
         if (to != null && !Values.text(to).isBlank()) q.put("to_date", Values.toDateTime(to).toString());
-        if (status != null && !status.isBlank()) q.put("status", status.replace(" ", ""));
+        String st = status instanceof List<?> l ? String.join(",", l.stream().map(Values::text).toList()) : status == null ? "" : Values.text(status);
+        if (!st.isBlank()) q.put("status", st.replace(" ", ""));
         if (text != null && !text.isBlank()) q.put("search_text", text);
         List<Object> rows = new ArrayList<>();
         int start = 0;
@@ -380,11 +382,12 @@ public final class DocuSignPackage {
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "document_id", type = OoaType.STRING, example = "1", description = "Document number from List envelope documents, or certificate for the signing certificate, or archive for a zip of everything.") String doc,
-            @Input(name = "save_as", type = OoaType.FILE, description = "Where to save it, e.g. signed/contract.pdf. Missing folders are created.") String saveAs,
+            @Input(name = "save_as", type = OoaType.FILE, required = false, description = "Where to save it, e.g. signed/contract.pdf, or a folder; the run's temporary folder when empty (G5). Missing folders are created.") String saveAs,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         if (doc == null || !DOC_ID.matcher(doc.trim()).matches())
             throw new ActionException(P + ".BAD_DOCUMENT", "Invalid document id '" + doc + "'", "Use a number such as 1, or certificate, combined or archive.");
-        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/" + doc.trim(), saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/" + doc.trim(), saveAs, token,
+                "envelope-" + env.trim() + "-" + doc.trim() + (doc.trim().equals("archive") ? ".zip" : ".pdf"));
     }
 
     @Action(id = "download_combined_pdf", name = "Download combined PDF", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -395,10 +398,10 @@ public final class DocuSignPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
-            @Input(name = "save_as", type = OoaType.FILE, description = "Where to save the PDF, e.g. signed/all.pdf. Missing folders are created.") String saveAs,
+            @Input(name = "save_as", type = OoaType.FILE, required = false, description = "Where to save the PDF, e.g. signed/all.pdf, or a folder; the run's temporary folder when empty (G5).") String saveAs,
             @Input(name = "include_certificate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Add the signing certificate as the last pages.") boolean cert,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/combined?certificate=" + cert, saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/combined?certificate=" + cert, saveAs, token, "envelope-" + env.trim() + ".pdf");
     }
 
     @Action(id = "download_zip", name = "Download signed ZIP", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -409,9 +412,9 @@ public final class DocuSignPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
-            @Input(name = "save_as", type = OoaType.FILE, description = "Where to save the ZIP, e.g. signed/contract.zip. Missing folders are created.") String saveAs,
+            @Input(name = "save_as", type = OoaType.FILE, required = false, description = "Where to save the ZIP, e.g. signed/contract.zip, or a folder; the run's temporary folder when empty (G5).") String saveAs,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/archive", saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/archive", saveAs, token, "envelope-" + env.trim() + ".zip");
     }
 
     @Action(id = "add_recipients", name = "Add recipients", category = "Recipients", capabilities = "network",
@@ -444,6 +447,14 @@ public final class DocuSignPackage {
         if (!copies.isEmpty()) body.put("carbonCopies", copies);
         send(ctx, req("POST", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(body));
         return Out.of("count", java.math.BigDecimal.valueOf(signers.size() + copies.size()));
+    }
+
+    /** G5: where a download goes: the file given, a folder (with the default name), or the run's temporary folder. */
+    private static Map<String, Object> save(ActionContext ctx, String url, String saveAs, Object token, String defaultName) {
+        Path out = saveAs == null || saveAs.isBlank() ? ctx.outputPath(null, defaultName)
+                : saveAs.endsWith("/") || saveAs.endsWith("\\") || java.nio.file.Files.isDirectory(ctx.resolvePath(saveAs)) ? ctx.outputPath(saveAs.replaceAll("[/\\\\]*$", "/"), defaultName)
+                : ctx.resolvePath(saveAs);
+        return save(ctx, url, out.toString(), token);
     }
 
     private static Map<String, Object> save(ActionContext ctx, String url, String saveAs, Object token) {

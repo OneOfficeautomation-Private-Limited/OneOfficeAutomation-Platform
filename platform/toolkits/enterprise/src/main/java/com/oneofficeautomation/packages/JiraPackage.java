@@ -381,8 +381,13 @@ public final class JiraPackage {
         return Map.of();
     }
 
+    public Map<String, Object> createProject(ActionContext ctx, String site, String pk, String name, String type, String leadId, String leadName, String template, String description,
+                                             String email, Object apiToken, Object pat) {
+        return createProject(ctx, site, pk, name, type, leadId, leadName, template, description, email, apiToken, pat, null, null);
+    }
+
     @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network", description = "Create a project with a key, name, type and project lead.",
-            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key, project_name, project_type, template_key, project_description, lead_account_id | lead_user_name")
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key, project_name, project_type, template_key, project_description, lead_account_id, category | lead_user_name, assignee_type")
     @Output(name = "id", type = OoaType.STRING, description = "Project id.")
     @Output(name = "key", type = OoaType.STRING, description = "Project key.")
     public Map<String, Object> createProject(ActionContext ctx,
@@ -390,15 +395,19 @@ public final class JiraPackage {
             @Input(name = "project_key", type = OoaType.STRING, example = "OPS", description = "New project key (upper-case letters and digits).") String pk,
             @Input(name = "project_name", type = OoaType.STRING, description = "Project name.") String name,
             @Input(name = "project_type", type = OoaType.STRING, required = false, defaultValue = "\"software\"", enumValues = {"software", "business", "service_desk"}, description = "Project type key.") String type,
-            @Input(name = "lead_account_id", type = OoaType.STRING, required = false, description = "Project lead's account id (Cloud).") String leadId,
+            @Input(name = "lead_account_id", type = OoaType.STRING, required = false, description = "Project lead: an email address (looked up, G5), or the account id (Cloud).") String leadId,
             @Input(name = "lead_user_name", type = OoaType.STRING, required = false, description = "Project lead's user name (Data Center).") String leadName,
             @Input(name = "template_key", type = OoaType.STRING, required = false, description = "Project template key; the site default when empty.") String template,
             @Input(name = "project_description", type = OoaType.STRING, required = false, description = "Project description.") String description,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
+            @Input(name = "assignee_type", type = OoaType.STRING, required = false, enumValues = {"project_lead", "unassigned"}, description = "Who new issues go to by default (G5).") String assigneeType,
+            @Input(name = "category", type = OoaType.STRING, required = false, description = "A project category, by name or id (G5).") String category) {
         if ((leadId == null || leadId.isBlank()) && (leadName == null || leadName.isBlank()))
             throw new ActionException(P + ".NO_LEAD", "A project lead is required", "Give lead_account_id (Cloud) or lead_user_name (Data Center).");
+        if (leadId != null && leadId.contains("@")) leadId = String.valueOf(user(ctx, site, leadId.strip(), email, apiToken, pat).values().iterator().next());
+        if (leadName != null && leadName.contains("@")) leadName = String.valueOf(user(ctx, site, leadName.strip(), email, apiToken, pat).values().iterator().next());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("key", projectKey(pk));
         body.put("name", name);
@@ -406,12 +415,23 @@ public final class JiraPackage {
         if (leadId != null && !leadId.isBlank()) body.put("leadAccountId", leadId); else body.put("lead", leadName);
         if (template != null && !template.isBlank()) body.put("projectTemplateKey", template);
         if (description != null) body.put("description", description);
+        if (assigneeType != null && !assigneeType.isBlank()) body.put("assigneeType", assigneeType.strip().equalsIgnoreCase("unassigned") ? "UNASSIGNED" : "PROJECT_LEAD");
+        if (category != null && !category.isBlank()) body.put("categoryId", categoryId(ctx, site, category, email, apiToken, pat));
         Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/project"), email, apiToken, pat).json(body).send(ctx).map();
         return Out.of("id", r.get("id") == null ? null : Values.text(r.get("id")), "key", r.getOrDefault("key", pk));
     }
 
+    /** G5: a project category's id, by its name (not case-sensitive) or its id. */
+    static Object categoryId(ActionContext ctx, String site, String category, String email, Object apiToken, Object pat) {
+        String c = category.strip();
+        if (c.matches("\\d+")) return Long.parseLong(c);
+        Object j = auth(HttpJson.req(P, "GET", api(site) + "/projectCategory"), email, apiToken, pat).send(ctx).json();
+        if (j instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m && c.equalsIgnoreCase(String.valueOf(m.get("name")))) return Long.parseLong(String.valueOf(m.get("id")));
+        throw new ActionException(P + ".NO_CATEGORY", "No project category named '" + c + "'", "Check the name in Jira's project categories.");
+    }
+
     @Action(id = "get_projects", name = "Get projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the projects the account can see as a table.",
-            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), query, project_type, max_results, start_at")
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), query, project_type, keys, category, max_results, start_at")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, key, name, project_type, lead.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects.")
     public Map<String, Object> getProjects(ActionContext ctx,
@@ -422,8 +442,12 @@ public final class JiraPackage {
             @Input(name = "query", type = OoaType.STRING, required = false, description = "Only projects whose key or name contains this text.") String query,
             @Input(name = "project_type", type = OoaType.STRING, required = false, enumValues = {"software", "business", "service_desk"}, description = "Only projects of this type.") String type,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum projects.") int max,
-            @Input(name = "start_at", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Skip this many projects first (for paging).") int startAt) {
+            @Input(name = "start_at", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Skip this many projects first (for paging).") int startAt,
+            @Input(name = "keys", type = OoaType.LIST, required = false, description = "Only these project keys (G5).") List<Object> keys,
+            @Input(name = "category", type = OoaType.STRING, required = false, description = "Only projects in this category, by name (G5).") String category) {
         Object j = auth(HttpJson.req(P, "GET", api(site) + "/project?expand=lead,description"), email, apiToken, pat).timeout(120).send(ctx).json();
+        Set<String> wantKeys = new HashSet<>();
+        if (keys != null) for (Object k : keys) if (!Values.text(k).isBlank()) wantKeys.add(Values.text(k).strip().toUpperCase(Locale.ROOT));
         List<Object> rows = new ArrayList<>();
         String q = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
         int skipped = 0;
@@ -431,6 +455,8 @@ public final class JiraPackage {
             Map<?, ?> p = (Map<?, ?>) o;
             if (!q.isEmpty() && !String.valueOf(p.get("key")).toLowerCase(Locale.ROOT).contains(q) && !String.valueOf(p.get("name")).toLowerCase(Locale.ROOT).contains(q)) continue;
             if (type != null && !type.isBlank() && !type.equals(p.get("projectTypeKey"))) continue;
+            if (!wantKeys.isEmpty() && !wantKeys.contains(String.valueOf(p.get("key")).toUpperCase(Locale.ROOT))) continue;
+            if (category != null && !category.isBlank() && !(p.get("projectCategory") instanceof Map<?, ?> pc && category.strip().equalsIgnoreCase(String.valueOf(pc.get("name"))))) continue;
             if (skipped++ < Math.max(0, startAt)) continue;
             if (rows.size() >= Math.max(0, max)) break;
             rows.add(new ArrayList<>(Arrays.asList(p.get("id"), p.get("key"), p.get("name"), p.get("projectTypeKey"), name(p.get("lead")))));
@@ -440,6 +466,10 @@ public final class JiraPackage {
 
     /** Earlier signature, kept for callers written before the filters. */
     public Map<String, Object> getProjects(ActionContext ctx, String site, String email, Object apiToken, Object pat) { return getProjects(ctx, site, email, apiToken, pat, null, null, 1000, 0); }
+
+    public Map<String, Object> getProjects(ActionContext ctx, String site, String email, Object apiToken, Object pat, String query, String type, int max, int startAt) {
+        return getProjects(ctx, site, email, apiToken, pat, query, type, max, startAt, null, null);
+    }
 
     @Action(id = "update_project", name = "Update project", category = "Projects", idempotent = true, capabilities = "network", description = "Change project details such as its name, lead, description, default assignee or category.",
             panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key, project_name, project_description, assignee_type, category_id, fields | lead")

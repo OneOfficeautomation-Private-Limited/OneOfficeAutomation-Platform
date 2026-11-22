@@ -368,4 +368,123 @@ public final class SlackPackage {
         for (String k : List.of("id", "name", "domain", "email_domain")) o.put(k, nested(t, k));
         return Map.of("workspace", o);
     }
+
+    // ------------------------------------------------------------------ G5 (AA parity): channels by type, conversations by members, loops
+
+    static String types(List<Object> types) {
+        List<String> ok = List.of("public_channel", "private_channel", "im", "mpim");
+        List<String> t = new ArrayList<>();
+        if (types != null) for (Object o : types) {
+            String v = String.valueOf(o).strip().toLowerCase(Locale.ROOT);
+            if (v.isEmpty()) continue;
+            if (!ok.contains(v)) throw new ActionException(P + ".BAD_INPUT", "Unknown conversation type " + o, "Use public_channel, private_channel, im or mpim.");
+            t.add(v);
+        }
+        return t.isEmpty() ? "public_channel" : String.join(",", t);
+    }
+
+    private static List<Map<String, Object>> conversations(ActionContext ctx, Object token, String base, String method, Map<String, Object> args0, int max) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String next = null;
+        for (int page = 0; page < 200 && out.size() < max; page++) {
+            Map<String, Object> args = new LinkedHashMap<>(args0);
+            args.put("limit", 1000);
+            if (next != null) args.put("cursor", next);
+            Map<String, Object> r = form(ctx, base, method, token, args);
+            for (Object o : (List<?>) r.getOrDefault("channels", List.of())) {
+                if (out.size() >= max) break;
+                Map<String, Object> c = new LinkedHashMap<>();
+                for (String k : List.of("id", "name", "is_private", "is_archived", "is_im", "is_mpim", "user", "num_members", "created")) c.put(k, nested(o, k));
+                out.add(c);
+            }
+            if ((next = cursor(r)) == null) break;
+        }
+        return out;
+    }
+
+    private static Object table(List<Map<String, Object>> rows) {
+        List<Object> r = new ArrayList<>();
+        for (Map<String, Object> m : rows) r.add(new ArrayList<>(m.values()));
+        return com.oneofficeautomation.runner.Values.table(List.of("id", "name", "is_private", "is_archived", "is_im", "is_mpim", "user", "num_members", "created"), r);
+    }
+
+    @Action(id = "list_channels", name = "List channels", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the workspace's channels and conversations of the kinds asked for (G5).", panel = "bot_token, types | include_archived, max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, is_private, is_archived, is_im, is_mpim, user, num_members, created.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many.")
+    public Map<String, Object> listChannels(ActionContext ctx,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "types", type = OoaType.LIST, required = false, example = "[\"public_channel\", \"private_channel\"]",
+                    description = "Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty.") List<Object> types,
+            @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also archived channels.") boolean archived,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "At most this many.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        List<Map<String, Object>> rows = conversations(ctx, token, base, "conversations.list", Map.of("types", types(types), "exclude_archived", !archived), max);
+        return Map.of("table", table(rows), "count", java.math.BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "list_user_conversations", name = "List a person's conversations", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the channels and conversations a person (or the agent) belongs to (G5).", panel = "bot_token, user, types | include_archived, max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, is_private, is_archived, is_im, is_mpim, user, num_members, created.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many.")
+    public Map<String, Object> userConversations(ActionContext ctx,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Member id (U...); the agent itself when empty.") String user,
+            @Input(name = "types", type = OoaType.LIST, required = false, example = "[\"public_channel\", \"private_channel\"]",
+                    description = "Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty.") List<Object> types,
+            @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also archived channels.") boolean archived,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "At most this many.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        Map<String, Object> args = new LinkedHashMap<>(Map.of("types", types(types), "exclude_archived", !archived));
+        if (user != null && !user.isBlank()) args.put("user", user.strip());
+        List<Map<String, Object>> rows = conversations(ctx, token, base, "users.conversations", args, max);
+        return Map.of("table", table(rows), "count", java.math.BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "open_conversation", name = "Open conversation with members", category = "Channels", capabilities = "network",
+            description = "Open (or find) the direct or group conversation with the given members and return its id (G5).", panel = "bot_token, members | base_url")
+    @Output(name = "channel_id", type = OoaType.STRING, description = "The conversation's id.")
+    public Map<String, Object> openConversation(ActionContext ctx,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "members", type = OoaType.LIST, description = "Member ids (U...), 1 to 8 people.") List<Object> members,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        List<String> ids = new ArrayList<>();
+        if (members != null) for (Object m : members) if (!String.valueOf(m).isBlank()) ids.add(String.valueOf(m).strip());
+        if (ids.isEmpty() || ids.size() > 8) throw new ActionException(P + ".BAD_INPUT", "Give 1 to 8 members", "Fill in members with member ids.");
+        Object c = form(ctx, base, "conversations.open", token, Map.of("users", String.join(",", ids), "return_im", true)).get("channel");
+        return Out.of("channel_id", nested(c, "id"));
+    }
+
+    @LoopIterator(id = "channels", name = "Each Slack channel", description = "Go through the workspace's channels and conversations of the kinds asked for, one per turn (G5).")
+    public Iterable<Object> eachChannel(ActionContext ctx,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "types", type = OoaType.LIST, required = false, example = "[\"public_channel\", \"private_channel\"]",
+                    description = "Which kinds: public_channel, private_channel, im (direct messages), mpim (group direct messages); public channels when empty.") List<Object> types,
+            @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also archived channels.") boolean archived,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "At most this many.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        return new ArrayList<>(conversations(ctx, token, base, "conversations.list", Map.of("types", types(types), "exclude_archived", !archived), max));
+    }
+
+    @LoopIterator(id = "messages", name = "Each Slack message", description = "Go through the messages of a channel or thread between two times, one per turn: ts, user, text, thread_ts, reply_count, subtype (G5).")
+    @SuppressWarnings("unchecked")
+    public Iterable<Object> eachMessage(ActionContext ctx,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "channel", type = OoaType.STRING, description = "Channel id, or a channel name such as #ops-alerts.") String channel,
+            @Input(name = "oldest", type = OoaType.STRING, required = false, example = "2026-11-01", description = "Only messages after this date or time (UTC).") String oldest,
+            @Input(name = "latest", type = OoaType.STRING, required = false, description = "Only messages before this date or time (UTC).") String latest,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Maximum messages.") int max,
+            @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "The replies of this thread instead of the channel.") String thread,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        Map<String, Object> t = (Map<String, Object>) history(ctx, token, channel, oldest, latest, max, thread, false, base).get("table");
+        List<String> cols = (List<String>) t.get("columns");
+        List<Object> out = new ArrayList<>();
+        for (Object r : (List<Object>) t.get("rows")) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            List<?> row = (List<?>) r;
+            for (int i = 0; i < cols.size(); i++) m.put(cols.get(i), row.get(i));
+            out.add(m);
+        }
+        return out;
+    }
 }
