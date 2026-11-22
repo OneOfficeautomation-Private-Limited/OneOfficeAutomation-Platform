@@ -21,20 +21,20 @@ public final class RestPackage {
             panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token"
                     + " / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth"
                     + " / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method"
-                    + " / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects, base_url")
+                    + " / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body, replace_in_body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, content_type, query, fail_on_error, insecure_tls, trust_certificate, accept_cookies, follow_redirects, base_url")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")
     @Output(name = "headers", type = OoaType.DICTIONARY, description = "Response headers.")
     @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "With an OAuth 2.0 refresh token: the newest refresh token (the server may issue a new one); save it to the vault for the next run. Empty otherwise.")
     public Map<String, Object> request(ActionContext ctx,
-            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", description = "Absolute URL, or a path such as /invoices/42 when base_url (or a connection) gives the address.") String url,
+            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", acceptsCredential = true, description = "Absolute URL, or a path such as /invoices/42 when base_url (or a connection) gives the address. It may come from the vault; then only its scheme and host are logged (G6).") String url,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"GET\"", enumValues = {"GET", "POST", "PUT", "PATCH", "DELETE"}, description = "HTTP method.") String method,
             @Input(name = "query", type = OoaType.DICTIONARY, required = false, description = "Query parameters, URL-encoded automatically.") Map<String, Object> query,
             @Input(name = "headers", type = OoaType.DICTIONARY, required = false, description = "Request headers.") Map<String, Object> headers,
             @Input(name = "json", required = false, visibleWhen = "method!=GET;form=;body=", description = "JSON body (sets Content-Type).") Object json,
             @Input(name = "form", type = OoaType.DICTIONARY, required = false, visibleWhen = "method!=GET;json=;body=", description = "Form fields (application/x-www-form-urlencoded).") Map<String, Object> form,
-            @Input(name = "body", type = OoaType.STRING, required = false, visibleWhen = "method!=GET;json=;form=", description = "Raw text body.") String body,
+            @Input(name = "body", type = OoaType.STRING, required = false, visibleWhen = "method!=GET;json=;form=", acceptsCredential = true, description = "Raw text body; it may also come from the vault as a whole (G6).") String body,
             @Input(name = "basic_user", type = OoaType.STRING, required = false, description = "Basic auth user name.") String basicUser,
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object basicPassword,
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
@@ -77,7 +77,11 @@ public final class RestPackage {
             @Input(name = "ntlm_domain", label = "Windows domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain of the NTLM user; empty when the user name already has it (DOMAIN\\user or user@domain).") String ntlmDomain,
             @Input(name = "ntlm_password", label = "Windows password", type = OoaType.CREDENTIAL, required = false, description = "Windows password of the NTLM user, from the vault.") Object ntlmPassword,
             @Input(name = "base_url", type = OoaType.STRING, required = false, example = "https://api.example.com/v2",
-                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl) {
+                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl,
+            @Input(name = "trust_certificate", type = OoaType.FILE, required = false,
+                    description = "Certificate of a private certificate authority (.cer, .crt or .pem) to trust as well as the usual ones, so a company server's certificate is still checked without insecure_tls (G6).") String trustCert,
+            @Input(name = "replace_in_body", type = OoaType.DICTIONARY, required = false, visibleWhen = "method!=GET;json=;form=",
+                    description = "Placeholders in the text body filled just before sending: name to a Credential (or text); every {{name}} in body becomes the value, which stays masked in the log (G6).") Map<String, Object> replaceInBody) {
         url = WebSignIn.address("REST", baseUrl, url);
         IntegratedAuthHttp.check(windowsAuth);
         // one sign-in option at a time, checked as for every web step (WebSignIn)
@@ -90,11 +94,15 @@ public final class RestPackage {
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects);
         long bodies = java.util.stream.Stream.of(json, form, multipart, body, bodyFile).filter(Objects::nonNull).count();
         if (bodies > 1) throw new ActionException("REST.BAD_BODY", "More than one body was given", "Give only one of json, form, multipart, body or body_file.");
+        if (replaceInBody != null && !replaceInBody.isEmpty() && body == null)
+            throw new ActionException("REST.BAD_BODY", "replace_in_body fills placeholders in a text body, but there is no body", "Write the text body with {{name}} placeholders, or leave replace_in_body empty.");
+        body = HttpJson.replacePlaceholders(ctx, body, replaceInBody);
+        String shown = shown(ctx, url);   // G6: a URL from the vault is logged as its scheme and host only
         StringBuilder u = new StringBuilder(url);
         if (query != null && !query.isEmpty()) u.append(url.contains("?") ? "&" : "?").append(encode(query));
         HttpRequest.Builder b;
         try { b = HttpRequest.newBuilder(URI.create(u.toString())).timeout(Duration.ofSeconds(timeout)); }
-        catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + url, "Check the address, e.g. https://api.example.com/orders."); }
+        catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + shown, "Check the address, e.g. https://api.example.com/orders."); }
         if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
         HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
         if (json != null) { pub = HttpRequest.BodyPublishers.ofString(JsonLite.write(HttpJson.revealed(json))); b.header("Content-Type", "application/json"); }
@@ -118,25 +126,25 @@ public final class RestPackage {
             }
         }
         if (windowsAuth != null && !windowsAuth.isBlank()) {
-            if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()) || cookies)
-                throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls or accept_cookies",
+            if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()) || cookies || given(trustCert))
+                throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls, trust_certificate or accept_cookies",
                         "Use Windows sign-in alone (the runner's proxy settings apply).");
             HttpRequest built = b.method(method, pub).build();
             Map<String, String> hs = new LinkedHashMap<>();
             built.headers().map().forEach((k, v) -> hs.put(k, String.join(", ", v)));
             byte[] bytes = bodyBytes(ctx, json, form, multipart, body, bodyFile, hs);
-            ctx.info(method + " " + masked(url) + " (Windows sign-in: " + windowsAuth.replace('_', ' ') + ")");
+            ctx.info(method + " " + shown + " (Windows sign-in: " + windowsAuth.replace('_', ' ') + ")");
             IntegratedAuthHttp.Response r = IntegratedAuthHttp.send(ctx, windowsAuth, method, u.toString(), hs, bytes, basicUser, basicPassword, timeout, redirects, null);
-            return result(method, url, r.status(), r.text(), new LinkedHashMap<>(r.headers()), failOnError);
+            return result(method, shown, r.status(), r.text(), new LinkedHashMap<>(r.headers()), failOnError);
         }
         if (basicUser != null && vaultSecret(basicPassword, "basic_password") instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         if (vaultSecret(bearer, "bearer_token") instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
         b.method(method, pub);
-        ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"));
-        HttpClient client = opts.client(ctx, CLIENT);
+        ctx.info(method + " " + shown);
+        HttpClient client = HttpJson.clientTrusting(ctx, opts, CLIENT, trustCert, "REST");
         HttpResponse<String> resp;
-        if (o2 == null && o1 == null) resp = sendHonouringRateLimit(ctx, client, b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        if (o2 == null && o1 == null) resp = sendHonouringRateLimit(ctx, client, b.build(), HttpResponse.BodyHandlers.ofString(), shown, timeout);
         else {
             List<String[]> formFields = new ArrayList<>();
             if (form != null) form.forEach((k, v) -> formFields.add(new String[]{k, HttpJson.sendable(v)}));
@@ -144,16 +152,34 @@ public final class RestPackage {
                 HttpRequest.Builder rb = b.copy();
                 rb.setHeader("Authorization", o2 != null ? RestSignIn.authorization(ctx, client, o2, attempt > 0, timeout)
                         : RestSignIn.oauth1Header(o1, method, u.toString(), formFields));
-                resp = sendHonouringRateLimit(ctx, client, rb.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+                resp = sendHonouringRateLimit(ctx, client, rb.build(), HttpResponse.BodyHandlers.ofString(), shown, timeout);
                 if (resp.statusCode() != 401 || o2 == null || attempt > 0) break;
                 ctx.info("HTTP 401: getting a new OAuth token and sending once more");
             }
         }
         Map<String, Object> hdrs = new LinkedHashMap<>();
         resp.headers().map().forEach((k, v) -> hdrs.put(k, String.join(", ", v)));
-        Map<String, Object> out = result(method, url, resp.statusCode(), resp.body(), hdrs, failOnError);
+        Map<String, Object> out = result(method, shown, resp.statusCode(), resp.body(), hdrs, failOnError);
         if (o2 != null) out.put("refresh_token", RestSignIn.latestRefreshToken(ctx, o2));
         return out;
+    }
+
+    /** Signature before the G6 rows (trust_certificate, replace_in_body), kept for callers written before them. */
+    public Map<String, Object> request(ActionContext ctx, String url, String method, Map<String, Object> query, Map<String, Object> headers, Object json, Map<String, Object> form, String body, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, String contentType, boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, boolean cookies, boolean redirects, Map<String, Object> multipart, String bodyFile, String windowsAuth, String oauthTokenUrl, String oauthClientId, Object oauthClientSecret, Object oauthRefreshToken, String oauthScope, String oauthAudience, String oauthResource, String oauthClientAuth, String oauth1ConsumerKey, Object oauth1ConsumerSecret, Object oauth1Token, Object oauth1TokenSecret, String oauth1Method, String ntlmUser, String ntlmDomain, Object ntlmPassword, String baseUrl) {
+        return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, multipart, bodyFile, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken, oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method, ntlmUser, ntlmDomain, ntlmPassword, baseUrl, null, null);
+    }
+
+    /**
+     * G6: the address as it is logged and named in errors. A URL that holds a vault secret (the whole URL from the
+     * vault, or a secret inside it) shows only its scheme and host; any other has secret-looking query values masked.
+     */
+    static String shown(ActionContext ctx, String url) {
+        if (url == null) return "";
+        if (ctx.redact(url).equals(url)) return masked(url);
+        try {
+            URI u = URI.create(url);
+            return u.getScheme() == null || u.getHost() == null ? "****" : u.getScheme() + "://" + u.getHost() + "/****";
+        } catch (IllegalArgumentException e) { return "****"; }
     }
 
     private static boolean given(Object v) { return v != null && !(v instanceof String s && s.isBlank()); }
@@ -269,12 +295,12 @@ public final class RestPackage {
     }
 
     /** Builder with URL, query, headers and authentication set the same way as Send request. */
-    private static HttpRequest.Builder builder(String url, Map<String, Object> query, Map<String, Object> headers, String basicUser, Object basicPassword, Object bearer, int timeout) {
+    private static HttpRequest.Builder builder(String url, String shown, Map<String, Object> query, Map<String, Object> headers, String basicUser, Object basicPassword, Object bearer, int timeout) {
         StringBuilder u = new StringBuilder(url);
         if (query != null && !query.isEmpty()) u.append(url.contains("?") ? "&" : "?").append(encode(query));
         HttpRequest.Builder b;
         try { b = HttpRequest.newBuilder(URI.create(u.toString())).timeout(Duration.ofSeconds(Math.max(1, timeout))); }
-        catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + url, "Check the address, e.g. https://api.example.com/orders."); }
+        catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + shown, "Check the address, e.g. https://api.example.com/orders."); }
         if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
         if (basicUser != null && vaultSecret(basicPassword, "basic_password") instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
@@ -317,20 +343,20 @@ public final class RestPackage {
 
     @Action(id = "download_file", name = "Download file", category = "HTTP", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Download a URL straight to a file (any file type, including large binaries), with the same headers and authentication as Send request.",
-            panel = "url, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, path, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, query, overwrite, insecure_tls, base_url")
+            panel = "url, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, path, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | windows_auth, query, overwrite, insecure_tls, trust_certificate, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "size_bytes", type = OoaType.NUMBER, description = "File size in bytes.")
     @Output(name = "content_type", type = OoaType.STRING, description = "Content-Type reported by the server, or empty.")
     public Map<String, Object> downloadFile(ActionContext ctx,
-            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", description = "Absolute URL of the file, or a path when base_url (or a connection) gives the address.") String url,
+            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", acceptsCredential = true, description = "Absolute URL of the file, or a path when base_url (or a connection) gives the address. It may come from the vault; then only its scheme and host are logged (G6).") String url,
             @Input(name = "path", type = OoaType.FILE, description = "File to save to, or a folder to keep the server's file name.") String path,
             @Input(name = "query", type = OoaType.DICTIONARY, required = false, description = "Query parameters, URL-encoded automatically.") Map<String, Object> query,
             @Input(name = "headers", type = OoaType.DICTIONARY, required = false, description = "Request headers.") Map<String, Object> headers,
             @Input(name = "basic_user", type = OoaType.STRING, required = false, description = "Basic auth user name.") String basicUser,
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object basicPassword,
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing file; off for new steps, so a file already there is not lost (G6).") boolean overwrite,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, description = "Time allowed for the whole download.") int timeout,
             @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
             @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
@@ -362,7 +388,9 @@ public final class RestPackage {
             @Input(name = "ntlm_domain", label = "Windows domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain of the NTLM user; empty when the user name already has it (DOMAIN\\user or user@domain).") String ntlmDomain,
             @Input(name = "ntlm_password", label = "Windows password", type = OoaType.CREDENTIAL, required = false, description = "Windows password of the NTLM user, from the vault.") Object ntlmPassword,
             @Input(name = "base_url", type = OoaType.STRING, required = false, example = "https://api.example.com/v2",
-                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl) {
+                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl,
+            @Input(name = "trust_certificate", type = OoaType.FILE, required = false,
+                    description = "Certificate of a private certificate authority (.cer, .crt or .pem) to trust as well as the usual ones, so a company server's certificate is still checked without insecure_tls (G6).") String trustCert) {
         url = WebSignIn.address("REST", baseUrl, url);
         WebSignIn signIn = WebSignIn.of("REST", basicUser, basicPassword, bearer, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken,
                 oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method,
@@ -370,8 +398,9 @@ public final class RestPackage {
         basicUser = signIn.basicUser; basicPassword = signIn.basicPassword; windowsAuth = signIn.windowsAuth;
         boolean windows = signIn.windows();
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
-        HttpRequest req = builder(url, query, headers, windows ? null : basicUser, windows ? null : basicPassword, bearer, timeout).GET().build();
-        ctx.info("GET " + masked(url) + " (download)");
+        String shown = shown(ctx, url);   // G6: a URL from the vault is logged as its scheme and host only
+        HttpRequest req = builder(url, shown, query, headers, windows ? null : basicUser, windows ? null : basicPassword, bearer, timeout).GET().build();
+        ctx.info("GET " + shown + " (download)");
         java.nio.file.Path target = ctx.resolvePath(path);
         java.nio.file.Path folder = java.nio.file.Files.isDirectory(target) ? target : target.getParent();
         java.nio.file.Path temp;
@@ -382,24 +411,24 @@ public final class RestPackage {
         try {
             int status; String disposition, finalPath, type;
             if (windows) {
-                if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()))
-                    throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate or insecure_tls",
+                if (bearer != null || insecure || (proxy != null && !proxy.isBlank()) || (clientCert != null && !clientCert.isBlank()) || given(trustCert))
+                    throw new ActionException("REST.BAD_AUTH", "windows_auth cannot be combined with bearer_token, a proxy, a client certificate, insecure_tls or trust_certificate",
                             "Use Windows sign-in alone (the runner's proxy settings apply).");
                 Map<String, String> hs = new LinkedHashMap<>();
                 req.headers().map().forEach((k, v) -> hs.put(k, String.join(", ", v)));
                 IntegratedAuthHttp.Response r = IntegratedAuthHttp.send(ctx, windowsAuth, "GET", req.uri().toString(), hs, null, basicUser, basicPassword, timeout, true, temp);
                 status = r.status();
-                if (status >= 400) throw httpError("GET", url, status, r.text().length() > 2000 ? r.text().substring(0, 2000) : r.text());
+                if (status >= 400) throw httpError("GET", shown, status, r.text().length() > 2000 ? r.text().substring(0, 2000) : r.text());
                 disposition = r.headers().get("content-disposition");
                 finalPath = URI.create(r.finalUrl()).getPath();
                 type = r.headers().getOrDefault("content-type", "");
             } else {
-                HttpResponse<java.nio.file.Path> resp = signIn.send(ctx, opts.client(ctx, CLIENT), HttpRequest.newBuilder(req, (n, v) -> true), HttpResponse.BodyHandlers.ofFile(temp), "GET", req.uri().toString(), null, url, timeout);
+                HttpResponse<java.nio.file.Path> resp = signIn.send(ctx, HttpJson.clientTrusting(ctx, opts, CLIENT, trustCert, "REST"), HttpRequest.newBuilder(req, (n, v) -> true), HttpResponse.BodyHandlers.ofFile(temp), "GET", req.uri().toString(), null, shown, timeout);
                 status = resp.statusCode();
                 if (status >= 400) {
                     String body;
                     try { byte[] b = java.nio.file.Files.readAllBytes(temp); body = new String(b, 0, Math.min(b.length, 2000), StandardCharsets.UTF_8); } catch (IOException e) { body = ""; }
-                    throw httpError("GET", url, status, body);
+                    throw httpError("GET", shown, status, body);
                 }
                 disposition = resp.headers().firstValue("Content-Disposition").orElse(null);
                 finalPath = resp.uri().getPath();
@@ -419,6 +448,11 @@ public final class RestPackage {
         } finally {
             try { java.nio.file.Files.deleteIfExists(temp); } catch (IOException ignored) { }
         }
+    }
+
+    /** Signature before trust_certificate (G6), kept for callers written before it. */
+    public Map<String, Object> downloadFile(ActionContext ctx, String url, String path, Map<String, Object> query, Map<String, Object> headers, String basicUser, Object basicPassword, Object bearer, boolean overwrite, int timeout, boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, String windowsAuth, String oauthTokenUrl, String oauthClientId, Object oauthClientSecret, Object oauthRefreshToken, String oauthScope, String oauthAudience, String oauthResource, String oauthClientAuth, String oauth1ConsumerKey, Object oauth1ConsumerSecret, Object oauth1Token, Object oauth1TokenSecret, String oauth1Method, String ntlmUser, String ntlmDomain, Object ntlmPassword, String baseUrl) {
+        return downloadFile(ctx, url, path, query, headers, basicUser, basicPassword, bearer, overwrite, timeout, insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken, oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method, ntlmUser, ntlmDomain, ntlmPassword, baseUrl, null);
     }
 
     /** Earlier signature, kept for callers written before the other sign-ins and base_url (R2). */
@@ -442,12 +476,12 @@ public final class RestPackage {
 
     @Action(id = "upload_file", name = "Upload file", category = "HTTP", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Send a file to a URL as a multipart form upload, optionally with extra form fields.",
-            panel = "url, path, field_name, form, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | query, fail_on_error, insecure_tls, base_url, windows_auth")
+            panel = "url, path, field_name, form, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | query, fail_on_error, insecure_tls, trust_certificate, base_url, windows_auth")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")
     public Map<String, Object> uploadFile(ActionContext ctx,
-            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", description = "Absolute URL that accepts the upload, or a path when base_url (or a connection) gives the address.") String url,
+            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", acceptsCredential = true, description = "Absolute URL that accepts the upload, or a path when base_url (or a connection) gives the address. It may come from the vault; then only its scheme and host are logged (G6).") String url,
             @Input(name = "path", type = OoaType.FILE, description = "File to upload.") String path,
             @Input(name = "field_name", type = OoaType.STRING, required = false, defaultValue = "\"file\"", description = "Form field name the server expects for the file.") String field,
             @Input(name = "form", type = OoaType.DICTIONARY, required = false, description = "Other form fields sent with the file.") Map<String, Object> form,
@@ -489,7 +523,9 @@ public final class RestPackage {
             @Input(name = "ntlm_domain", label = "Windows domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain of the NTLM user; empty when the user name already has it (DOMAIN\\user or user@domain).") String ntlmDomain,
             @Input(name = "ntlm_password", label = "Windows password", type = OoaType.CREDENTIAL, required = false, description = "Windows password of the NTLM user, from the vault.") Object ntlmPassword,
             @Input(name = "base_url", type = OoaType.STRING, required = false, example = "https://api.example.com/v2",
-                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl) {
+                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl,
+            @Input(name = "trust_certificate", type = OoaType.FILE, required = false,
+                    description = "Certificate of a private certificate authority (.cer, .crt or .pem) to trust as well as the usual ones, so a company server's certificate is still checked without insecure_tls (G6).") String trustCert) {
         // the upload is Send request with a multipart body, so it has every sign-in Send request has (R2)
         java.nio.file.Path f = ctx.resolvePath(path);
         if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("REST.FILE_NOT_FOUND", "File not found: " + f, "Check the path.");
@@ -501,8 +537,13 @@ public final class RestPackage {
         Map<String, Object> r = request(ctx, url, m, query, headers, null, null, null, basicUser, basicPassword, bearer, timeout, failOnError, null, insecure, proxy,
                 proxyUser, proxyPassword, clientCert, clientCertPassword, false, true, parts, null, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret,
                 oauthRefreshToken, oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret,
-                oauth1Method, ntlmUser, ntlmDomain, ntlmPassword, baseUrl);
+                oauth1Method, ntlmUser, ntlmDomain, ntlmPassword, baseUrl, trustCert, null);
         return Out.of("status", r.get("status"), "body", r.get("body"), "json", r.get("json"));
+    }
+
+    /** Signature before trust_certificate (G6), kept for callers written before it. */
+    public Map<String, Object> uploadFile(ActionContext ctx, String url, String path, String field, Map<String, Object> form, String method, Map<String, Object> query, Map<String, Object> headers, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, String windowsAuth, String oauthTokenUrl, String oauthClientId, Object oauthClientSecret, Object oauthRefreshToken, String oauthScope, String oauthAudience, String oauthResource, String oauthClientAuth, String oauth1ConsumerKey, Object oauth1ConsumerSecret, Object oauth1Token, Object oauth1TokenSecret, String oauth1Method, String ntlmUser, String ntlmDomain, Object ntlmPassword, String baseUrl) {
+        return uploadFile(ctx, url, path, field, form, method, query, headers, basicUser, basicPassword, bearer, timeout, failOnError, insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken, oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method, ntlmUser, ntlmDomain, ntlmPassword, baseUrl, null);
     }
 
     /** Earlier signature, kept for callers written before the other sign-ins and base_url (R2). */
