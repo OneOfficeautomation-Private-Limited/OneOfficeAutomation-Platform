@@ -1,0 +1,3396 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_salesforce",
+  "name": "UT Salesforce",
+  "description": "Unit tests of every Salesforce command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sf_token",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_instance",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_total",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_soql",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_rec",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_created",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_results",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_bad",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_fields",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_obj",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_version",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_doc",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_closed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_spare",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Salesforce command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Salesforce started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.salesforce/authenticate - client credentials on a custom sign-in site"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "Authenticate gets an access token from the connected app (client credentials) and keeps it, with the instance address Salesforce gives back, as the Salesforce session for the next steps. Checks the instance address and that a token came back."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s46",
+              "action": "ooa.salesforce/authenticate",
+              "args": {
+                "login_site": "custom",
+                "login_url": "${standin_url}/biz/salesforce",
+                "grant_type": "client_credentials",
+                "client_id": "ut-consumer-key",
+                "client_secret": {
+                  "$credential": "unit_tests/salesforce/client_secret"
+                }
+              },
+              "out": {
+                "access_token": "sf_token",
+                "instance_url": "sf_instance"
+              },
+              "description": "Sign in to the stand-in"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_instance$",
+                  "right": "/biz/salesforce"
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the instance address",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the instance address: expected contains \"/biz/salesforce\", got ${sf_instance}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sf_token$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the access token",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the access token: expected notEmpty , got ${sf_token}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/authenticate: client credentials on a custom sign-in site\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/authenticate: client credentials on a custom sign-in site: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.salesforce/authenticate - client credentials on a custom sign-in site"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.salesforce/query - SOQL with a parameter, in the session"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Query (SOQL) runs a query and returns every matching record as a table; :ind is filled in safely from parameters. No address or token on the step: the session gives them. Checks two Retail accounts."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s60",
+              "action": "ooa.salesforce/query",
+              "args": {
+                "soql": "SELECT Id, Name FROM Account WHERE Industry = :ind ORDER BY Name",
+                "parameters": {
+                  "ind": "Retail"
+                }
+              },
+              "out": {
+                "table": "sf_table",
+                "count": "sf_count",
+                "total_size": "sf_total"
+              },
+              "description": "Retail accounts"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 2, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_total$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_total",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_total: expected eq 2, got ${sf_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/query: SOQL with a parameter, in the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/query: SOQL with a parameter, in the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.salesforce/query - SOQL with a parameter, in the session"
+    },
+    {
+      "id": "s71",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.salesforce/query - deleted records too (queryAll)"
+      },
+      "children": [
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "With include_deleted on, Query also returns deleted records (queryAll). Checks the deleted Healthcare account is found, with an apostrophe in its name passed as a parameter."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s74",
+              "action": "ooa.salesforce/query",
+              "args": {
+                "soql": "SELECT Id, Name FROM Account WHERE Name = :name",
+                "parameters": {
+                  "name": "O'Brien Pharmacy"
+                },
+                "include_deleted": true
+              },
+              "out": {
+                "count": "sf_count"
+              },
+              "description": "Look for the deleted account"
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 1, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/query: deleted records too (queryAll)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/query: deleted records too (queryAll): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.salesforce/query - deleted records too (queryAll)"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.salesforce/find_records - any of two industries, sorted"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Find records builds the SOQL from field values (a list means any of them) and runs it. Checks three accounts are found and the SOQL that was run."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.salesforce/find_records",
+              "args": {
+                "object": "Account",
+                "conditions": {
+                  "Industry": [
+                    "Retail",
+                    "Banking"
+                  ]
+                },
+                "fields": [
+                  "Id",
+                  "Name",
+                  "Industry"
+                ],
+                "order_by": "Name ASC"
+              },
+              "out": {
+                "table": "sf_table",
+                "count": "sf_count",
+                "soql": "sf_soql"
+              },
+              "description": "Retail or Banking accounts"
+            },
+            {
+              "id": "s86",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s88",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 3, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_soql$",
+                  "right": "Industry IN ('Retail', 'Banking')"
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the SOQL",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the SOQL: expected contains \"Industry IN ('Retail', 'Banking')\", got ${sf_soql}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/find_records: any of two industries, sorted\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/find_records: any of two industries, sorted: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.salesforce/find_records - any of two industries, sorted"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.salesforce/get_record - by Salesforce id"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Get record reads one record by its id, here only two fields. Checks the account's name."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s99",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Account",
+                "id": "001UT0000000001AAA",
+                "fields": [
+                  "Name",
+                  "Industry"
+                ]
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read Northwind Traders"
+            },
+            {
+              "id": "s100",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Name$",
+                  "right": "Northwind Traders"
+                }
+              },
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s102",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"Northwind Traders\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Industry$",
+                  "right": "Retail"
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the industry",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the industry: expected eq \"Retail\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/get_record: by Salesforce id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/get_record: by Salesforce id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.salesforce/get_record - by Salesforce id"
+    },
+    {
+      "id": "s110",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.salesforce/get_record - by external id"
+      },
+      "children": [
+        {
+          "id": "s111",
+          "action": "core/comment",
+          "args": {
+            "text": "Get record can also find the record by an external id field's value. Checks it is Contoso Bank."
+          }
+        },
+        {
+          "id": "s112",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s113",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Account",
+                "id": "ERP-1002",
+                "external_id_field": "ERP_Number__c"
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read the account with ERP number ERP-1002"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Id$",
+                  "right": "001UT0000000002AAA"
+                }
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the record id",
+              "else": [
+                {
+                  "id": "s116",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the record id: expected eq \"001UT0000000002AAA\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/get_record: by external id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/get_record: by external id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.salesforce/get_record - by external id"
+    },
+    {
+      "id": "s121",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.salesforce/create_record - a new case"
+      },
+      "children": [
+        {
+          "id": "s122",
+          "action": "core/comment",
+          "args": {
+            "text": "Create record makes a record and returns its id. The case reads it back to check the subject."
+          }
+        },
+        {
+          "id": "s123",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s124",
+              "action": "ooa.salesforce/create_record",
+              "args": {
+                "object": "Case",
+                "fields": {
+                  "Subject": "UT printer jam",
+                  "Priority": "High"
+                }
+              },
+              "out": {
+                "id": "sf_id"
+              },
+              "description": "Create a case"
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sf_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new id",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new id: expected notEmpty , got ${sf_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Case",
+                "id": "$sf_id$"
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read the new case"
+            },
+            {
+              "id": "s129",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Subject$",
+                  "right": "UT printer jam"
+                }
+              },
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the subject",
+              "else": [
+                {
+                  "id": "s131",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the subject: expected eq \"UT printer jam\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s133",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/create_record: a new case\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s135",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/create_record: a new case: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.salesforce/create_record - a new case"
+    },
+    {
+      "id": "s136",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.salesforce/update_record - change one field"
+      },
+      "children": [
+        {
+          "id": "s137",
+          "action": "core/comment",
+          "args": {
+            "text": "Update record changes fields of an existing record. The case creates an account, changes its rating and reads it back."
+          }
+        },
+        {
+          "id": "s138",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s139",
+              "action": "ooa.salesforce/create_record",
+              "args": {
+                "object": "Account",
+                "fields": {
+                  "Name": "UT Update Ltd",
+                  "Industry": "UT-Update",
+                  "Rating": "Cold"
+                }
+              },
+              "out": {
+                "id": "sf_id"
+              },
+              "description": "Create an account to change"
+            },
+            {
+              "id": "s140",
+              "action": "ooa.salesforce/update_record",
+              "args": {
+                "object": "Account",
+                "id": "$sf_id$",
+                "fields": {
+                  "Rating": "Hot"
+                }
+              },
+              "description": "Make the rating Hot"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Account",
+                "id": "$sf_id$",
+                "fields": [
+                  "Rating"
+                ]
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Rating$",
+                  "right": "Hot"
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the rating",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the rating: expected eq \"Hot\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/update_record: change one field\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/update_record: change one field: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.salesforce/update_record - change one field"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.salesforce/delete_record - delete, then it cannot be read"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete record sends a record to the recycle bin. The case creates an account, deletes it and checks that reading it fails."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s152",
+              "action": "ooa.salesforce/create_record",
+              "args": {
+                "object": "Account",
+                "fields": {
+                  "Name": "UT Delete Ltd",
+                  "Industry": "UT-Delete"
+                }
+              },
+              "out": {
+                "id": "sf_id"
+              },
+              "description": "Create an account to delete"
+            },
+            {
+              "id": "s153",
+              "action": "ooa.salesforce/delete_record",
+              "args": {
+                "object": "Account",
+                "id": "$sf_id$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s155",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "ooa.salesforce/get_record",
+                  "args": {
+                    "object": "Account",
+                    "id": "$sf_id$"
+                  },
+                  "out": {
+                    "record": "sf_rec"
+                  },
+                  "description": "Try to read the deleted account"
+                }
+              ],
+              "description": "These steps should fail with SALESFORCE.*",
+              "catch": [
+                {
+                  "codes": [
+                    "SALESFORCE.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s157",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SALESFORCE.*",
+              "else": [
+                {
+                  "id": "s160",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SALESFORCE.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/delete_record: delete, then it cannot be read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/delete_record: delete, then it cannot be read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.salesforce/delete_record - delete, then it cannot be read"
+    },
+    {
+      "id": "s165",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.salesforce/upsert_by_external_id - existing external id is updated"
+      },
+      "children": [
+        {
+          "id": "s166",
+          "action": "core/comment",
+          "args": {
+            "text": "Upsert by external id updates the record whose external id matches. Checks created is false and the new rating is stored."
+          }
+        },
+        {
+          "id": "s167",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s168",
+              "action": "ooa.salesforce/upsert_by_external_id",
+              "args": {
+                "object": "Account",
+                "external_id_field": "ERP_Number__c",
+                "external_id_value": "ERP-1003",
+                "fields": {
+                  "Rating": "Warm"
+                }
+              },
+              "out": {
+                "id": "sf_id",
+                "created": "sf_created"
+              },
+              "description": "Upsert ERP-1003"
+            },
+            {
+              "id": "s169",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_created$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_created",
+              "else": [
+                {
+                  "id": "s171",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_created: expected eq false, got ${sf_created}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s172",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Account",
+                "id": "ERP-1003",
+                "external_id_field": "ERP_Number__c"
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s173",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Rating$",
+                  "right": "Warm"
+                }
+              },
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the rating",
+              "else": [
+                {
+                  "id": "s175",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the rating: expected eq \"Warm\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/upsert_by_external_id: existing external id is updated\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s179",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/upsert_by_external_id: existing external id is updated: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.salesforce/upsert_by_external_id - existing external id is updated"
+    },
+    {
+      "id": "s180",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.salesforce/upsert_by_external_id - new external id creates a record"
+      },
+      "children": [
+        {
+          "id": "s181",
+          "action": "core/comment",
+          "args": {
+            "text": "When no record has the external id, Upsert creates one. Checks created is true; the case then deletes the record so the next run starts the same way."
+          }
+        },
+        {
+          "id": "s182",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s183",
+              "action": "ooa.salesforce/upsert_by_external_id",
+              "args": {
+                "object": "Account",
+                "external_id_field": "ERP_Number__c",
+                "external_id_value": "ERP-NEW-1",
+                "fields": {
+                  "Name": "UT Upsert Ltd",
+                  "Industry": "UT-Upsert"
+                }
+              },
+              "out": {
+                "id": "sf_id",
+                "created": "sf_created"
+              },
+              "description": "Upsert ERP-NEW-1"
+            },
+            {
+              "id": "s184",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_created$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_created",
+              "else": [
+                {
+                  "id": "s186",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_created: expected eq true, got ${sf_created}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sf_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new id",
+              "else": [
+                {
+                  "id": "s189",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new id: expected notEmpty , got ${sf_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s190",
+              "action": "ooa.salesforce/delete_record",
+              "args": {
+                "object": "Account",
+                "id": "$sf_id$"
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s192",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/upsert_by_external_id: new external id creates a record\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s194",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/upsert_by_external_id: new external id creates a record: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.salesforce/upsert_by_external_id - new external id creates a record"
+    },
+    {
+      "id": "s195",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.salesforce/save_records - create many, one row is refused"
+      },
+      "children": [
+        {
+          "id": "s196",
+          "action": "core/comment",
+          "args": {
+            "text": "Save many records writes the rows of a table as records (200 a call) and gives a result per row. One row has no Name, so Salesforce refuses it. Checks 2 written and 1 failed."
+          }
+        },
+        {
+          "id": "s197",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s198",
+              "action": "ooa.salesforce/save_records",
+              "args": {
+                "object": "Account",
+                "operation": "create",
+                "records": {
+                  "columns": [
+                    "Name",
+                    "Industry"
+                  ],
+                  "rows": [
+                    [
+                      "UT Batch One",
+                      "UT-Batch"
+                    ],
+                    [
+                      "UT Batch Two",
+                      "UT-Batch"
+                    ],
+                    [
+                      "",
+                      "UT-Batch"
+                    ]
+                  ]
+                }
+              },
+              "out": {
+                "results": "sf_results",
+                "succeeded": "sf_ok",
+                "failed": "sf_bad"
+              },
+              "description": "Create three accounts"
+            },
+            {
+              "id": "s199",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_ok$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s200",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_ok",
+              "else": [
+                {
+                  "id": "s201",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_ok: expected eq 2, got ${sf_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s202",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_bad$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_bad",
+              "else": [
+                {
+                  "id": "s204",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_bad: expected eq 1, got ${sf_bad}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s205",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s206",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/save_records: create many, one row is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/save_records: create many, one row is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.salesforce/save_records - create many, one row is refused"
+    },
+    {
+      "id": "s209",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.salesforce/save_records - upsert by external id"
+      },
+      "children": [
+        {
+          "id": "s210",
+          "action": "core/comment",
+          "args": {
+            "text": "With operation upsert, rows are matched on the external id field: ERP-1001 exists and is updated. Checks one record written and the rating stored."
+          }
+        },
+        {
+          "id": "s211",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s212",
+              "action": "ooa.salesforce/save_records",
+              "args": {
+                "object": "Account",
+                "operation": "upsert",
+                "external_id_field": "ERP_Number__c",
+                "records": {
+                  "columns": [
+                    "ERP_Number__c",
+                    "Rating"
+                  ],
+                  "rows": [
+                    [
+                      "ERP-1001",
+                      "Hot"
+                    ]
+                  ]
+                }
+              },
+              "out": {
+                "succeeded": "sf_ok",
+                "failed": "sf_bad"
+              },
+              "description": "Upsert one account"
+            },
+            {
+              "id": "s213",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_ok$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_ok",
+              "else": [
+                {
+                  "id": "s215",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_ok: expected eq 1, got ${sf_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s216",
+              "action": "ooa.salesforce/get_record",
+              "args": {
+                "object": "Account",
+                "id": "001UT0000000001AAA",
+                "fields": [
+                  "Rating"
+                ]
+              },
+              "out": {
+                "record": "sf_rec"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s217",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rec.Rating$",
+                  "right": "Hot"
+                }
+              },
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the rating",
+              "else": [
+                {
+                  "id": "s219",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the rating: expected eq \"Hot\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/save_records: upsert by external id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s223",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/save_records: upsert by external id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.salesforce/save_records - upsert by external id"
+    },
+    {
+      "id": "s224",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.salesforce/describe_object - fields of Account"
+      },
+      "children": [
+        {
+          "id": "s225",
+          "action": "core/comment",
+          "args": {
+            "text": "Describe object reads an object's fields (labels, types, required, picklist values, lookups) and facts about the object. Checks the key prefix and that five fields are listed."
+          }
+        },
+        {
+          "id": "s226",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s227",
+              "action": "ooa.salesforce/describe_object",
+              "args": {
+                "object": "Account"
+              },
+              "out": {
+                "fields": "sf_fields",
+                "object": "sf_obj"
+              },
+              "description": "Describe Account"
+            },
+            {
+              "id": "s228",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_obj.key_prefix$",
+                  "right": "001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the key prefix",
+              "else": [
+                {
+                  "id": "s230",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the key prefix: expected eq \"001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s231",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_obj.label_plural$",
+                  "right": "Accounts"
+                }
+              },
+              "children": [
+                {
+                  "id": "s232",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the plural label",
+              "else": [
+                {
+                  "id": "s233",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the plural label: expected eq \"Accounts\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s235",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/describe_object: fields of Account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s237",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/describe_object: fields of Account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.salesforce/describe_object - fields of Account"
+    },
+    {
+      "id": "s238",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.salesforce/get_attachments - list a record's files and attachments"
+      },
+      "children": [
+        {
+          "id": "s239",
+          "action": "core/comment",
+          "args": {
+            "text": "Get attachments lists the Salesforce Files and classic attachments on a record. Checks two files and one attachment are found."
+          }
+        },
+        {
+          "id": "s240",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s241",
+              "action": "ooa.salesforce/get_attachments",
+              "args": {
+                "record_id": "001UT0000000001AAA"
+              },
+              "out": {
+                "table": "sf_table",
+                "count": "sf_count"
+              },
+              "description": "List what Northwind Traders has"
+            },
+            {
+              "id": "s242",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s244",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 3, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/get_attachments: list a record's files and attachments\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/get_attachments: list a record's files and attachments: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.salesforce/get_attachments - list a record's files and attachments"
+    },
+    {
+      "id": "s249",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.salesforce/get_attachments - download only the PDF"
+      },
+      "children": [
+        {
+          "id": "s250",
+          "action": "core/comment",
+          "args": {
+            "text": "With a download folder and an extension filter, only matching files are saved. Checks one file was saved under its name."
+          }
+        },
+        {
+          "id": "s251",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s252",
+              "action": "ooa.salesforce/get_attachments",
+              "args": {
+                "record_id": "001UT0000000001AAA",
+                "download_folder": "ut_salesforce_files",
+                "extension": "pdf"
+              },
+              "out": {
+                "count": "sf_count",
+                "files": "sf_files",
+                "path": "sf_path"
+              },
+              "description": "Download PDFs of Northwind Traders"
+            },
+            {
+              "id": "s253",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s255",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 1, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s256",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_path$",
+                  "right": "Signed contract.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s257",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file",
+              "else": [
+                {
+                  "id": "s258",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file: expected contains \"Signed contract.pdf\", got ${sf_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/get_attachments: download only the PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s262",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/get_attachments: download only the PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.salesforce/get_attachments - download only the PDF"
+    },
+    {
+      "id": "s263",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.salesforce/get_attachments - one file by its id"
+      },
+      "children": [
+        {
+          "id": "s264",
+          "action": "core/comment",
+          "args": {
+            "text": "Given a file id (069...), Get attachments looks at just that file, with no record id. Checks it is the price list."
+          }
+        },
+        {
+          "id": "s265",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s266",
+              "action": "ooa.salesforce/get_attachments",
+              "args": {
+                "content_document_id": "069UT0000000002AAA"
+              },
+              "out": {
+                "count": "sf_count",
+                "table": "sf_table"
+              },
+              "description": "Look at file 069UT0000000002AAA"
+            },
+            {
+              "id": "s267",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s269",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 1, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s271",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/get_attachments: one file by its id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s273",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/get_attachments: one file by its id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.salesforce/get_attachments - one file by its id"
+    },
+    {
+      "id": "s274",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.salesforce/upload_attachment - upload, then a new version"
+      },
+      "children": [
+        {
+          "id": "s275",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload attachment uploads a file and links it to a record with the chosen visibility; given the file id, a second upload becomes a new version of the same file. Checks both ids."
+          }
+        },
+        {
+          "id": "s276",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s277",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_sf_quote.txt",
+                "text": "Quote 42: 3 printers"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s278",
+              "action": "ooa.salesforce/upload_attachment",
+              "args": {
+                "record_id": "001UT0000000002AAA",
+                "path": "ut_sf_quote.txt",
+                "title": "Quote 42",
+                "visibility": "AllUsers"
+              },
+              "out": {
+                "content_version_id": "sf_version",
+                "content_document_id": "sf_doc"
+              },
+              "description": "Attach it to Contoso Bank"
+            },
+            {
+              "id": "s279",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sf_version$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s280",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the version id",
+              "else": [
+                {
+                  "id": "s281",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the version id: expected notEmpty , got ${sf_version}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s282",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sf_doc$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file id",
+              "else": [
+                {
+                  "id": "s284",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file id: expected notEmpty , got ${sf_doc}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s285",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_sf_quote.txt",
+                "text": "Quote 42: 4 printers"
+              },
+              "description": "Change the file"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.salesforce/upload_attachment",
+              "args": {
+                "content_document_id": "$sf_doc$",
+                "path": "ut_sf_quote.txt"
+              },
+              "out": {
+                "content_document_id": "sf_id"
+              },
+              "description": "Upload it as a new version"
+            },
+            {
+              "id": "s287",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_id$",
+                  "right": "$sf_doc$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s288",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file id of the new version",
+              "else": [
+                {
+                  "id": "s289",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file id of the new version: expected eq \"sf_doc\", got ${sf_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s290",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s291",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/upload_attachment: upload, then a new version\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s292",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s293",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/upload_attachment: upload, then a new version: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.salesforce/upload_attachment - upload, then a new version"
+    },
+    {
+      "id": "s294",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.salesforce/end_session - forget the session, then sign in on the step"
+      },
+      "children": [
+        {
+          "id": "s295",
+          "action": "core/comment",
+          "args": {
+            "text": "End session forgets the Salesforce session; later steps give their own instance address and token. Checks a session was open, then queries with the step's own sign-in."
+          }
+        },
+        {
+          "id": "s296",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s297",
+              "action": "ooa.salesforce/end_session",
+              "args": {},
+              "out": {
+                "closed": "sf_closed"
+              },
+              "description": "Close the Salesforce session"
+            },
+            {
+              "id": "s298",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s299",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_closed",
+              "else": [
+                {
+                  "id": "s300",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_closed: expected eq true, got ${sf_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s301",
+              "action": "ooa.salesforce/query",
+              "args": {
+                "instance_url": "${standin_url}/biz/salesforce",
+                "access_token": {
+                  "$credential": "unit_tests/salesforce/token"
+                },
+                "soql": "SELECT Id FROM Account WHERE Industry = 'Banking'"
+              },
+              "out": {
+                "count": "sf_count"
+              },
+              "description": "Query with the step's own address and token"
+            },
+            {
+              "id": "s302",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_count",
+              "else": [
+                {
+                  "id": "s304",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_count: expected eq 1, got ${sf_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/end_session: forget the session, then sign in on the step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/end_session: forget the session, then sign in on the step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.salesforce/end_session - forget the session, then sign in on the step"
+    },
+    {
+      "id": "s309",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.salesforce/revoke_authentication - a revoked token no longer works"
+      },
+      "children": [
+        {
+          "id": "s310",
+          "action": "core/comment",
+          "args": {
+            "text": "Revoke authentication makes a token unusable. The case signs in for a spare token, revokes it, and checks a query with it is refused."
+          }
+        },
+        {
+          "id": "s311",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s312",
+              "action": "ooa.salesforce/authenticate",
+              "args": {
+                "login_site": "custom",
+                "login_url": "${standin_url}/biz/salesforce",
+                "client_id": "ut-consumer-key",
+                "client_secret": {
+                  "$credential": "unit_tests/salesforce/client_secret"
+                },
+                "session": "sf_spare"
+              },
+              "out": {
+                "access_token": "sf_spare"
+              },
+              "description": "Get a spare token"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.salesforce/revoke_authentication",
+              "args": {
+                "instance_url": "${standin_url}/biz/salesforce",
+                "access_token": "$sf_spare$"
+              },
+              "description": "Revoke the spare token"
+            },
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s315",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "ooa.salesforce/query",
+                  "args": {
+                    "instance_url": "${standin_url}/biz/salesforce",
+                    "access_token": "$sf_spare$",
+                    "soql": "SELECT Id FROM Account"
+                  },
+                  "out": {
+                    "count": "sf_count"
+                  },
+                  "description": "Query with the revoked token"
+                }
+              ],
+              "description": "These steps should fail with SALESFORCE.*",
+              "catch": [
+                {
+                  "codes": [
+                    "SALESFORCE.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s317",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SALESFORCE.*",
+              "else": [
+                {
+                  "id": "s320",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SALESFORCE.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s321",
+              "action": "ooa.salesforce/end_session",
+              "args": {
+                "session": "sf_spare"
+              },
+              "description": "Close the spare session"
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.salesforce/revoke_authentication: a revoked token no longer works\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.salesforce/revoke_authentication: a revoked token no longer works: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.salesforce/revoke_authentication - a revoked token no longer works"
+    },
+    {
+      "id": "s326",
+      "action": "core/step",
+      "args": {
+        "title": "21. Summary"
+      },
+      "children": [
+        {
+          "id": "s327",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s328",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s329",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s330",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "21. Summary"
+    }
+  ]
+}

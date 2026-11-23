@@ -1,0 +1,3183 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_okta",
+  "name": "UT Okta",
+  "description": "Unit tests of every Okta command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ok_user",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_profile",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_status",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_names",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_done",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_temp",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok_closed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Okta command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Okta started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.okta/connect - keep the org and API token for later steps"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the Okta address and API token as the Okta session, so the next steps leave them empty. Checks a step without its own address then reads Ann's record."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.okta/connect",
+              "args": {
+                "org_url": "${standin_url}/biz/okta",
+                "api_token": {
+                  "$credential": "unit_tests/okta/api_token"
+                }
+              },
+              "description": "Open the Okta session"
+            },
+            {
+              "id": "s26",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "ann.lee@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Ann using the session"
+            },
+            {
+              "id": "s27",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.first_name$",
+                  "right": "Ann"
+                }
+              },
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ann's first name",
+              "else": [
+                {
+                  "id": "s29",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ann's first name: expected eq \"Ann\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/connect: keep the org and API token for later steps\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/connect: keep the org and API token for later steps: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.okta/connect - keep the org and API token for later steps"
+    },
+    {
+      "id": "s34",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.okta/get_user - look up by sign-in name"
+      },
+      "children": [
+        {
+          "id": "s35",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user reads one person by Okta id or login and gives back a summary and the whole profile. Checks the id and the profile's email."
+          }
+        },
+        {
+          "id": "s36",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s37",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "out": {
+                "user": "ok_user",
+                "profile": "ok_profile"
+              },
+              "description": "Read Ben"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.id$",
+                  "right": "00uut000000000000002"
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ben's id",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ben's id: expected eq \"00uut000000000000002\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_profile.email$",
+                  "right": "ben.ray@ut.example"
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the profile email",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the profile email: expected eq \"ben.ray@ut.example\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/get_user: look up by sign-in name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/get_user: look up by sign-in name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.okta/get_user - look up by sign-in name"
+    },
+    {
+      "id": "s48",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.okta/create_user - new active user with a password and a group"
+      },
+      "children": [
+        {
+          "id": "s49",
+          "action": "core/comment",
+          "args": {
+            "text": "Create user adds a person with a starting password (from the vault) and puts them in a group found by name. A leftover from an earlier run is removed first. Checks the new user is ACTIVE and in the group."
+          }
+        },
+        {
+          "id": "s50",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s51",
+              "action": "ooa.okta/delete_user",
+              "args": {
+                "user": "erin.park@ut.example"
+              },
+              "continueOnError": true,
+              "description": "Remove a leftover from an earlier run (may not exist)"
+            },
+            {
+              "id": "s52",
+              "action": "ooa.okta/create_user",
+              "args": {
+                "first_name": "Erin",
+                "last_name": "Park",
+                "email": "erin.park@ut.example",
+                "password": {
+                  "$credential": "unit_tests/okta/new_password"
+                },
+                "groups": [
+                  "UT Sales"
+                ],
+                "phone": "+44 20 7946 0001"
+              },
+              "out": {
+                "user_id": "ok_id",
+                "status": "ok_status"
+              },
+              "description": "Create Erin Park"
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_status$",
+                  "right": "ACTIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_status",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_status: expected eq \"ACTIVE\", got ${ok_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ok_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new user id",
+              "else": [
+                {
+                  "id": "s58",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new user id: expected notEmpty , got ${ok_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "ooa.okta/list_user_groups",
+              "args": {
+                "user": "$ok_id$"
+              },
+              "out": {
+                "names": "ok_names"
+              },
+              "description": "Erin's groups"
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ok_names$",
+                  "right": "UT Sales"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Erin's groups",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Erin's groups: expected contains \"UT Sales\", got ${ok_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/create_user: new active user with a password and a group\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/create_user: new active user with a password and a group: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.okta/create_user - new active user with a password and a group"
+    },
+    {
+      "id": "s67",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.okta/update_user - change a name and a profile field"
+      },
+      "children": [
+        {
+          "id": "s68",
+          "action": "core/comment",
+          "args": {
+            "text": "Update user profile changes only the values given: here the first name and a custom title field. Checks the returned user and the stored profile."
+          }
+        },
+        {
+          "id": "s69",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.okta/update_user",
+              "args": {
+                "user": "ben.ray@ut.example",
+                "first_name": "Benjamin",
+                "profile_fields": {
+                  "title": "Sales lead"
+                }
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Rename Ben and set his title"
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.first_name$",
+                  "right": "Benjamin"
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new first name",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new first name: expected eq \"Benjamin\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "out": {
+                "profile": "ok_profile"
+              },
+              "description": "Read Ben again"
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_profile.title$",
+                  "right": "Sales lead"
+                }
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the title field",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the title field: expected eq \"Sales lead\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/update_user: change a name and a profile field\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/update_user: change a name and a profile field: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.okta/update_user - change a name and a profile field"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.okta/activate_user - activate a staged account without email"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Activate user activates a staged account; with send_email off Okta gives back a one-time activation link. The case creates a staged user first. Checks the link and the ACTIVE status."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.okta/delete_user",
+              "args": {
+                "user": "sam.staged@ut.example"
+              },
+              "continueOnError": true,
+              "description": "Remove a leftover from an earlier run (may not exist)"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.okta/create_user",
+              "args": {
+                "first_name": "Sam",
+                "last_name": "Staged",
+                "email": "sam.staged@ut.example",
+                "activate": false
+              },
+              "out": {
+                "user_id": "ok_id",
+                "status": "ok_status"
+              },
+              "description": "Create a staged user"
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_status$",
+                  "right": "STAGED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_status",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_status: expected eq \"STAGED\", got ${ok_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "ooa.okta/activate_user",
+              "args": {
+                "user": "$ok_id$",
+                "send_email": false
+              },
+              "out": {
+                "activation_url": "ok_url"
+              },
+              "description": "Activate Sam"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ok_url$",
+                  "right": "/welcome/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the activation link",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the activation link: expected contains \"/welcome/\", got ${ok_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "$ok_id$"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Sam"
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.status$",
+                  "right": "ACTIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Sam's status",
+              "else": [
+                {
+                  "id": "s97",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Sam's status: expected eq \"ACTIVE\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/activate_user: activate a staged account without email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s101",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/activate_user: activate a staged account without email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.okta/activate_user - activate a staged account without email"
+    },
+    {
+      "id": "s102",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.okta/deactivate_user - turn off an account"
+      },
+      "children": [
+        {
+          "id": "s103",
+          "action": "core/comment",
+          "args": {
+            "text": "Deactivate user turns an account off. Checks Sam's status is DEPROVISIONED afterwards."
+          }
+        },
+        {
+          "id": "s104",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s105",
+              "action": "ooa.okta/deactivate_user",
+              "args": {
+                "user": "sam.staged@ut.example",
+                "send_email": false
+              },
+              "description": "Deactivate Sam"
+            },
+            {
+              "id": "s106",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "sam.staged@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Sam"
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.status$",
+                  "right": "DEPROVISIONED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Sam's status",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Sam's status: expected eq \"DEPROVISIONED\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/deactivate_user: turn off an account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/deactivate_user: turn off an account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.okta/deactivate_user - turn off an account"
+    },
+    {
+      "id": "s114",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.okta/delete_user - remove an account for good"
+      },
+      "children": [
+        {
+          "id": "s115",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete user removes a person (deactivating first when needed). Checks reading Sam afterwards fails with OKTA.NOT_FOUND."
+          }
+        },
+        {
+          "id": "s116",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s117",
+              "action": "ooa.okta/delete_user",
+              "args": {
+                "user": "sam.staged@ut.example"
+              },
+              "description": "Delete Sam"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s119",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "ooa.okta/get_user",
+                  "args": {
+                    "user": "sam.staged@ut.example"
+                  },
+                  "out": {
+                    "user": "ok_user"
+                  },
+                  "description": "Read Sam (should be gone)"
+                }
+              ],
+              "description": "These steps should fail with OKTA.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "OKTA.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s121",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error OKTA.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error OKTA.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/delete_user: remove an account for good\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/delete_user: remove an account for good: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.okta/delete_user - remove an account for good"
+    },
+    {
+      "id": "s129",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.okta/suspend_user - block sign-in for now"
+      },
+      "children": [
+        {
+          "id": "s130",
+          "action": "core/comment",
+          "args": {
+            "text": "Suspend user blocks an active account for now. Checks Ben is SUSPENDED, then lets him back in."
+          }
+        },
+        {
+          "id": "s131",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s132",
+              "action": "ooa.okta/suspend_user",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "description": "Suspend Ben"
+            },
+            {
+              "id": "s133",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Ben"
+            },
+            {
+              "id": "s134",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.status$",
+                  "right": "SUSPENDED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ben's status",
+              "else": [
+                {
+                  "id": "s136",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ben's status: expected eq \"SUSPENDED\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s137",
+              "action": "ooa.okta/unsuspend_user",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "description": "Let Ben back in"
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/suspend_user: block sign-in for now\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/suspend_user: block sign-in for now: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.okta/suspend_user - block sign-in for now"
+    },
+    {
+      "id": "s142",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.okta/unsuspend_user - let a suspended person in again"
+      },
+      "children": [
+        {
+          "id": "s143",
+          "action": "core/comment",
+          "args": {
+            "text": "Unsuspend user lets a suspended person sign in again. Dev starts suspended; checks he is ACTIVE afterwards, and suspends him again so the next run starts the same."
+          }
+        },
+        {
+          "id": "s144",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s145",
+              "action": "ooa.okta/unsuspend_user",
+              "args": {
+                "user": "dev.rao@ut.example"
+              },
+              "description": "Unsuspend Dev"
+            },
+            {
+              "id": "s146",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "dev.rao@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Dev"
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.status$",
+                  "right": "ACTIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Dev's status",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Dev's status: expected eq \"ACTIVE\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "ooa.okta/suspend_user",
+              "args": {
+                "user": "dev.rao@ut.example"
+              },
+              "description": "Suspend Dev again"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s152",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/unsuspend_user: let a suspended person in again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s154",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/unsuspend_user: let a suspended person in again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.okta/unsuspend_user - let a suspended person in again"
+    },
+    {
+      "id": "s155",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.okta/unlock_user - unlock a locked-out person"
+      },
+      "children": [
+        {
+          "id": "s156",
+          "action": "core/comment",
+          "args": {
+            "text": "Unlock user lets a person locked out by wrong passwords sign in again. Checks Cara is ACTIVE."
+          }
+        },
+        {
+          "id": "s157",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s158",
+              "action": "ooa.okta/unlock_user",
+              "args": {
+                "user": "cara.ng@ut.example"
+              },
+              "description": "Unlock Cara"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "user": "cara.ng@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Cara"
+            },
+            {
+              "id": "s160",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.status$",
+                  "right": "ACTIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Cara's status",
+              "else": [
+                {
+                  "id": "s162",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Cara's status: expected eq \"ACTIVE\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/unlock_user: unlock a locked-out person\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/unlock_user: unlock a locked-out person: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.okta/unlock_user - unlock a locked-out person"
+    },
+    {
+      "id": "s167",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.okta/expire_password - temporary password"
+      },
+      "children": [
+        {
+          "id": "s168",
+          "action": "core/comment",
+          "args": {
+            "text": "Expire password makes the person choose a new password at next sign-in; with temporary_password on Okta makes a temporary one, kept secret in logs. Checks one came back."
+          }
+        },
+        {
+          "id": "s169",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s170",
+              "action": "ooa.okta/expire_password",
+              "args": {
+                "user": "ann.lee@ut.example",
+                "temporary_password": true
+              },
+              "out": {
+                "temporary_password": "ok_temp"
+              },
+              "description": "Expire Ann's password"
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ok_temp$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the temporary password",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the temporary password: expected notEmpty , got ${ok_temp}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/expire_password: temporary password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/expire_password: temporary password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.okta/expire_password - temporary password"
+    },
+    {
+      "id": "s178",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.okta/reset_password - reset link instead of an email"
+      },
+      "children": [
+        {
+          "id": "s179",
+          "action": "core/comment",
+          "args": {
+            "text": "Reset password starts a reset; with send_email off Okta gives back a one-time reset link. Checks the link."
+          }
+        },
+        {
+          "id": "s180",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s181",
+              "action": "ooa.okta/reset_password",
+              "args": {
+                "user": "ann.lee@ut.example",
+                "send_email": false
+              },
+              "out": {
+                "reset_url": "ok_url"
+              },
+              "description": "Start Ann's reset"
+            },
+            {
+              "id": "s182",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ok_url$",
+                  "right": "/reset_password/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the reset link",
+              "else": [
+                {
+                  "id": "s184",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the reset link: expected contains \"/reset_password/\", got ${ok_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/reset_password: reset link instead of an email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/reset_password: reset link instead of an email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.okta/reset_password - reset link instead of an email"
+    },
+    {
+      "id": "s189",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.okta/clear_sessions - sign someone out everywhere"
+      },
+      "children": [
+        {
+          "id": "s190",
+          "action": "core/comment",
+          "args": {
+            "text": "Clear user sessions ends a person's Okta sessions and revokes app tokens. Checks it works for Ann and fails with OKTA.NOT_FOUND for an unknown person."
+          }
+        },
+        {
+          "id": "s191",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s192",
+              "action": "ooa.okta/clear_sessions",
+              "args": {
+                "user": "ann.lee@ut.example",
+                "revoke_app_tokens": true
+              },
+              "description": "Sign Ann out everywhere"
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s194",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "ooa.okta/clear_sessions",
+                  "args": {
+                    "user": "nobody@ut.example"
+                  },
+                  "description": "Unknown person"
+                }
+              ],
+              "description": "These steps should fail with OKTA.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "OKTA.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s196",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error OKTA.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error OKTA.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/clear_sessions: sign someone out everywhere\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s202",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/clear_sessions: sign someone out everywhere: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.okta/clear_sessions - sign someone out everywhere"
+    },
+    {
+      "id": "s204",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.okta/list_users - quick text search"
+      },
+      "children": [
+        {
+          "id": "s205",
+          "action": "core/comment",
+          "args": {
+            "text": "List users with search_text finds people whose name or email starts with the text. Checks one match."
+          }
+        },
+        {
+          "id": "s206",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s207",
+              "action": "ooa.okta/list_users",
+              "args": {
+                "search_text": "cara"
+              },
+              "out": {
+                "table": "ok_table",
+                "count": "ok_count"
+              },
+              "description": "Users starting with cara"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_count",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_count: expected eq 1, got ${ok_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/list_users: quick text search\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/list_users: quick text search: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.okta/list_users - quick text search"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.okta/list_users - search expression"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "List users with an Okta filter expression. Checks the one user with last name Ray."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "ooa.okta/list_users",
+              "args": {
+                "filter": "profile.lastName eq \"Ray\""
+              },
+              "out": {
+                "count": "ok_count"
+              },
+              "description": "Users whose last name is Ray"
+            },
+            {
+              "id": "s219",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s220",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_count",
+              "else": [
+                {
+                  "id": "s221",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_count: expected eq 1, got ${ok_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/list_users: search expression\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s225",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/list_users: search expression: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.okta/list_users - search expression"
+    },
+    {
+      "id": "s226",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.okta/list_groups - name starts with"
+      },
+      "children": [
+        {
+          "id": "s227",
+          "action": "core/comment",
+          "args": {
+            "text": "List groups returns groups whose name starts with the text. Checks UT Sales is the only match."
+          }
+        },
+        {
+          "id": "s228",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s229",
+              "action": "ooa.okta/list_groups",
+              "args": {
+                "name_starts_with": "UT S"
+              },
+              "out": {
+                "table": "ok_table",
+                "count": "ok_count"
+              },
+              "description": "Groups starting with UT S"
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_count",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_count: expected eq 1, got ${ok_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "ooa.okta/list_groups",
+              "args": {
+                "search": "type eq \"APP_GROUP\""
+              },
+              "out": {
+                "count": "ok_count"
+              },
+              "description": "Groups made by apps"
+            },
+            {
+              "id": "s234",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_count",
+              "else": [
+                {
+                  "id": "s236",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_count: expected eq 1, got ${ok_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s237",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s238",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/list_groups: name starts with\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s240",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/list_groups: name starts with: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.okta/list_groups - name starts with"
+    },
+    {
+      "id": "s241",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.okta/add_user_to_group - add by group name"
+      },
+      "children": [
+        {
+          "id": "s242",
+          "action": "core/comment",
+          "args": {
+            "text": "Add user to group makes a person a member of a group given by name. Checks done and Ben's groups."
+          }
+        },
+        {
+          "id": "s243",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s244",
+              "action": "ooa.okta/add_user_to_group",
+              "args": {
+                "user": "ben.ray@ut.example",
+                "group": "UT Finance"
+              },
+              "out": {
+                "done": "ok_done"
+              },
+              "description": "Add Ben to UT Finance"
+            },
+            {
+              "id": "s245",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_done$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_done",
+              "else": [
+                {
+                  "id": "s247",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_done: expected eq true, got ${ok_done}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s248",
+              "action": "ooa.okta/list_user_groups",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "out": {
+                "names": "ok_names"
+              },
+              "description": "Ben's groups"
+            },
+            {
+              "id": "s249",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ok_names$",
+                  "right": "UT Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ben's groups",
+              "else": [
+                {
+                  "id": "s251",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ben's groups: expected contains \"UT Finance\", got ${ok_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/add_user_to_group: add by group name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s255",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/add_user_to_group: add by group name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.okta/add_user_to_group - add by group name"
+    },
+    {
+      "id": "s256",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.okta/list_user_groups - every group of a person"
+      },
+      "children": [
+        {
+          "id": "s257",
+          "action": "core/comment",
+          "args": {
+            "text": "List user's groups gives every group a person belongs to, as a table and a list of names. Ann is in two."
+          }
+        },
+        {
+          "id": "s258",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s259",
+              "action": "ooa.okta/list_user_groups",
+              "args": {
+                "user": "ann.lee@ut.example"
+              },
+              "out": {
+                "table": "ok_table",
+                "names": "ok_names"
+              },
+              "description": "Ann's groups"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ok_n",
+                "value": {
+                  "expr": "len($ok_names$)"
+                }
+              },
+              "description": "Count the names"
+            },
+            {
+              "id": "s261",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_n",
+              "else": [
+                {
+                  "id": "s263",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_n: expected eq 2, got ${ok_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/list_user_groups: every group of a person\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/list_user_groups: every group of a person: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.okta/list_user_groups - every group of a person"
+    },
+    {
+      "id": "s268",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.okta/remove_user_from_group - remove by group id"
+      },
+      "children": [
+        {
+          "id": "s269",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove user from group takes a person out of a group given by id. Checks done and that Ben is no longer in UT Finance."
+          }
+        },
+        {
+          "id": "s270",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s271",
+              "action": "ooa.okta/add_user_to_group",
+              "args": {
+                "user": "ben.ray@ut.example",
+                "group": "00gut000000000000001"
+              },
+              "description": "Make sure Ben is in UT Finance"
+            },
+            {
+              "id": "s272",
+              "action": "ooa.okta/remove_user_from_group",
+              "args": {
+                "user": "ben.ray@ut.example",
+                "group": "00gut000000000000001"
+              },
+              "out": {
+                "done": "ok_done"
+              },
+              "description": "Remove Ben from UT Finance"
+            },
+            {
+              "id": "s273",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_done$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s274",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_done",
+              "else": [
+                {
+                  "id": "s275",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_done: expected eq true, got ${ok_done}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s276",
+              "action": "ooa.okta/list_user_groups",
+              "args": {
+                "user": "ben.ray@ut.example"
+              },
+              "out": {
+                "names": "ok_names"
+              },
+              "description": "Ben's groups"
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ok_n",
+                "value": {
+                  "expr": "len($ok_names$)"
+                }
+              },
+              "description": "Count the names"
+            },
+            {
+              "id": "s278",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_n",
+              "else": [
+                {
+                  "id": "s280",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_n: expected eq 0, got ${ok_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s281",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s282",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/remove_user_from_group: remove by group id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s284",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/remove_user_from_group: remove by group id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.okta/remove_user_from_group - remove by group id"
+    },
+    {
+      "id": "s285",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.okta/disconnect - forget the session"
+      },
+      "children": [
+        {
+          "id": "s286",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the Okta session; later steps give their own address and sign-in (here an OAuth access token). Checks a session was open and the next step still works with its own sign-in."
+          }
+        },
+        {
+          "id": "s287",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s288",
+              "action": "ooa.okta/disconnect",
+              "args": {},
+              "out": {
+                "closed": "ok_closed"
+              },
+              "description": "Close the Okta session"
+            },
+            {
+              "id": "s289",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok_closed",
+              "else": [
+                {
+                  "id": "s291",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok_closed: expected eq true, got ${ok_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s292",
+              "action": "ooa.okta/get_user",
+              "args": {
+                "org_url": "${standin_url}/biz/okta",
+                "access_token": {
+                  "$credential": "unit_tests/okta/access_token"
+                },
+                "user": "ann.lee@ut.example"
+              },
+              "out": {
+                "user": "ok_user"
+              },
+              "description": "Read Ann with the step's own address and access token"
+            },
+            {
+              "id": "s293",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok_user.login$",
+                  "right": "ann.lee@ut.example"
+                }
+              },
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ann's login",
+              "else": [
+                {
+                  "id": "s295",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ann's login: expected eq \"ann.lee@ut.example\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s296",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s297",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.okta/disconnect: forget the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s299",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.okta/disconnect: forget the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.okta/disconnect - forget the session"
+    },
+    {
+      "id": "s300",
+      "action": "core/step",
+      "args": {
+        "title": "21. Summary"
+      },
+      "children": [
+        {
+          "id": "s301",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s302",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s303",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s304",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "21. Summary"
+    }
+  ]
+}

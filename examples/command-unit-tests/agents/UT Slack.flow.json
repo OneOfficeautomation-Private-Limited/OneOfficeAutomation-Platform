@@ -1,0 +1,3024 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_slack",
+  "name": "UT Slack",
+  "description": "Unit tests of every Slack command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sl_conn",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_channel",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_ts",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_ts2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_user",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_ws",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_item",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sl_dm",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Slack command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Slack started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s54",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.slack/connect - use a saved connection for the later steps"
+      },
+      "children": [
+        {
+          "id": "s55",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect names a saved connection (address and bot token from the vault); the later Slack steps use it when they give no token of their own. The case saves the connection ut_slack in the run folder first. Checks the connection's name comes back and a step without a token works."
+          }
+        },
+        {
+          "id": "s56",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s57",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "connections.json",
+                "text": "{\"ut_slack\": {\"package\": \"ooa.slack\", \"values\": {\"base_url\": \"${standin_url}/biz/slack/api\"}, \"credentials\": {\"bot_token\": \"unit_tests/slack/bot_token\"}}}"
+              },
+              "description": "Save the connection ut_slack (stand-in address, token from the vault)"
+            },
+            {
+              "id": "s58",
+              "action": "ooa.slack/connect",
+              "args": {
+                "connection": "ut_slack"
+              },
+              "out": {
+                "connection": "sl_conn"
+              },
+              "description": "Connect with ut_slack"
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_conn$",
+                  "right": "ut_slack"
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_conn",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_conn: expected eq \"ut_slack\", got ${sl_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "ooa.slack/get_workspace_details",
+              "args": {
+                "bot_token": ""
+              },
+              "out": {
+                "workspace": "sl_ws"
+              },
+              "description": "Read the workspace through the connection"
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_ws.id$",
+                  "right": "TUT00001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the workspace id",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the workspace id: expected eq \"TUT00001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/connect: use a saved connection for the later steps\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/connect: use a saved connection for the later steps: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.slack/connect - use a saved connection for the later steps"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.slack/get_channel_id_by_name - find a channel's id"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Get channel id by name looks through the channels for the name (with or without #). Checks ut-ops' id."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "ooa.slack/get_channel_id_by_name",
+              "args": {
+                "name": "#ut-ops",
+                "bot_token": ""
+              },
+              "out": {
+                "channel_id": "sl_id"
+              },
+              "description": "Look up #ut-ops"
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_id$",
+                  "right": "CUT0001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_id",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_id: expected eq \"CUT0001\", got ${sl_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_channel_id_by_name: find a channel's id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_channel_id_by_name: find a channel's id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.slack/get_channel_id_by_name - find a channel's id"
+    },
+    {
+      "id": "s81",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.slack/get_channel_details - topic and member count"
+      },
+      "children": [
+        {
+          "id": "s82",
+          "action": "core/comment",
+          "args": {
+            "text": "Get channel details reads a channel's name, topic, purpose, privacy and member count; a #name is looked up first. Checks the topic and the three members."
+          }
+        },
+        {
+          "id": "s83",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s84",
+              "action": "ooa.slack/get_channel_details",
+              "args": {
+                "channel": "#ut-ops",
+                "bot_token": ""
+              },
+              "out": {
+                "channel": "sl_channel"
+              },
+              "description": "Read #ut-ops"
+            },
+            {
+              "id": "s85",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_channel.topic$",
+                  "right": "Operations alerts"
+                }
+              },
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the topic",
+              "else": [
+                {
+                  "id": "s87",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the topic: expected eq \"Operations alerts\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_channel.num_members$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the member count",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the member count: expected eq 3"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_channel_details: topic and member count\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_channel_details: topic and member count: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.slack/get_channel_details - topic and member count"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.slack/post_message - post with blocks to a named channel"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Post message posts to a channel given by name, here with a Block Kit layout and the text as the notification fallback. Checks a message timestamp id came back and the newest message has the text."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s98",
+              "action": "ooa.slack/post_message",
+              "args": {
+                "channel": "#ut-ops",
+                "text": "Run 42 finished",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Run 42* finished"
+                    }
+                  }
+                ],
+                "unfurl_links": false,
+                "bot_token": ""
+              },
+              "out": {
+                "ts": "sl_ts"
+              },
+              "description": "Post to #ut-ops"
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sl_ts$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the message id",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the message id: expected notEmpty , got ${sl_ts}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "ooa.slack/get_conversation_history",
+              "args": {
+                "channel": "CUT0001",
+                "max_messages": 1,
+                "bot_token": ""
+              },
+              "out": {
+                "table": "sl_table"
+              },
+              "description": "Read the newest message"
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_table.rows[0][2]$",
+                  "right": "Run 42 finished"
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the newest message",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the newest message: expected eq \"Run 42 finished\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/post_message: post with blocks to a named channel\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/post_message: post with blocks to a named channel: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.slack/post_message - post with blocks to a named channel"
+    },
+    {
+      "id": "s110",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.slack/post_message - reply in a thread"
+      },
+      "children": [
+        {
+          "id": "s111",
+          "action": "core/comment",
+          "args": {
+            "text": "Post message with thread_ts answers in a thread. Checks the reply is in the thread's replies."
+          }
+        },
+        {
+          "id": "s112",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s113",
+              "action": "ooa.slack/post_message",
+              "args": {
+                "channel": "CUT0001",
+                "text": "Reply from the agent",
+                "thread_ts": "1767600000.000100",
+                "bot_token": ""
+              },
+              "out": {
+                "ts": "sl_ts"
+              },
+              "description": "Reply in the nightly-run thread"
+            },
+            {
+              "id": "s114",
+              "action": "ooa.slack/get_conversation_history",
+              "args": {
+                "channel": "CUT0001",
+                "thread_ts": "1767600000.000100",
+                "bot_token": ""
+              },
+              "out": {
+                "count": "sl_count",
+                "table": "sl_table"
+              },
+              "description": "Read the thread"
+            },
+            {
+              "id": "s115",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$sl_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s116",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the replies",
+              "else": [
+                {
+                  "id": "s117",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the replies: expected ge 3, got ${sl_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/post_message: reply in a thread\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/post_message: reply in a thread: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.slack/post_message - reply in a thread"
+    },
+    {
+      "id": "s122",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.slack/update_message - edit a posted message"
+      },
+      "children": [
+        {
+          "id": "s123",
+          "action": "core/comment",
+          "args": {
+            "text": "Update message changes the text of a message the agent posted. Checks the channel shows the new text."
+          }
+        },
+        {
+          "id": "s124",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s125",
+              "action": "ooa.slack/post_message",
+              "args": {
+                "channel": "CUT0001",
+                "text": "Progress 10%",
+                "bot_token": ""
+              },
+              "out": {
+                "ts": "sl_ts"
+              },
+              "description": "Post a progress message"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.slack/update_message",
+              "args": {
+                "channel": "#ut-ops",
+                "ts": "$sl_ts$",
+                "text": "Progress 100%",
+                "bot_token": ""
+              },
+              "description": "Change it to 100%"
+            },
+            {
+              "id": "s127",
+              "action": "ooa.slack/get_conversation_history",
+              "args": {
+                "channel": "CUT0001",
+                "max_messages": 1,
+                "bot_token": ""
+              },
+              "out": {
+                "table": "sl_table"
+              },
+              "description": "Read the newest message"
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_table.rows[0][2]$",
+                  "right": "Progress 100%"
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the edited text",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the edited text: expected eq \"Progress 100%\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/update_message: edit a posted message\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/update_message: edit a posted message: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.slack/update_message - edit a posted message"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.slack/get_conversation_history - messages between two dates"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "Get conversation history reads a channel's messages newest first; oldest and latest take dates. Checks the two seeded January messages."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.slack/get_conversation_history",
+              "args": {
+                "channel": "#ut-ops",
+                "oldest": "2026-01-05",
+                "latest": "2026-01-06",
+                "bot_token": ""
+              },
+              "out": {
+                "table": "sl_table",
+                "count": "sl_count"
+              },
+              "description": "Messages of 5 January 2026"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_count",
+              "else": [
+                {
+                  "id": "s141",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_count: expected eq 2, got ${sl_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_table.rows[0][2]$",
+                  "right": "Invoices loaded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the newest of the two",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the newest of the two: expected eq \"Invoices loaded\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_conversation_history: messages between two dates\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_conversation_history: messages between two dates: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.slack/get_conversation_history - messages between two dates"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.slack/upload_file - share a file with a comment"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload file shares local files in a channel (Slack's external upload: get an address, send the bytes, complete). Checks one file id came back."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s152",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_slack_report.csv",
+                "text": "run,result\n42,ok\n"
+              },
+              "description": "Prepare the file to share"
+            },
+            {
+              "id": "s153",
+              "action": "ooa.slack/upload_file",
+              "args": {
+                "channel": "#ut-ops",
+                "files": [
+                  "ut_slack_report.csv"
+                ],
+                "comment": "Report of run 42",
+                "bot_token": ""
+              },
+              "out": {
+                "file_ids": "sl_files"
+              },
+              "description": "Share the report in #ut-ops"
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "sl_n",
+                "value": {
+                  "expr": "len($sl_files$)"
+                }
+              },
+              "description": "Count the file ids"
+            },
+            {
+              "id": "s155",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_n",
+              "else": [
+                {
+                  "id": "s157",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_n: expected eq 1, got ${sl_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/upload_file: share a file with a comment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/upload_file: share a file with a comment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.slack/upload_file - share a file with a comment"
+    },
+    {
+      "id": "s162",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.slack/send_direct_message - message a person by email"
+      },
+      "children": [
+        {
+          "id": "s163",
+          "action": "core/comment",
+          "args": {
+            "text": "Send direct message opens the direct conversation with a person found by email and posts there. Checks the conversation id (D...) and the message id."
+          }
+        },
+        {
+          "id": "s164",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s165",
+              "action": "ooa.slack/send_direct_message",
+              "args": {
+                "user": "ben.ray@ut.example",
+                "text": "Your invoices are ready",
+                "bot_token": ""
+              },
+              "out": {
+                "ts": "sl_ts",
+                "channel": "sl_dm"
+              },
+              "description": "Message Ben"
+            },
+            {
+              "id": "s166",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$sl_dm$",
+                  "right": "^D"
+                }
+              },
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the direct conversation id",
+              "else": [
+                {
+                  "id": "s168",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the direct conversation id: expected matches \"^D\", got ${sl_dm}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s169",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sl_ts$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the message id",
+              "else": [
+                {
+                  "id": "s171",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the message id: expected notEmpty , got ${sl_ts}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/send_direct_message: message a person by email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/send_direct_message: message a person by email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.slack/send_direct_message - message a person by email"
+    },
+    {
+      "id": "s176",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.slack/open_conversation - group conversation with two people"
+      },
+      "children": [
+        {
+          "id": "s177",
+          "action": "core/comment",
+          "args": {
+            "text": "Open conversation with members opens (or finds) the conversation with the given members. Checks a group conversation id (G...) and that opening it again gives the same id."
+          }
+        },
+        {
+          "id": "s178",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s179",
+              "action": "ooa.slack/open_conversation",
+              "args": {
+                "members": [
+                  "UUT0001",
+                  "UUT0002"
+                ],
+                "bot_token": ""
+              },
+              "out": {
+                "channel_id": "sl_id"
+              },
+              "description": "Open with Ann and Ben"
+            },
+            {
+              "id": "s180",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$sl_id$",
+                  "right": "^G"
+                }
+              },
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the conversation id",
+              "else": [
+                {
+                  "id": "s182",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the conversation id: expected matches \"^G\", got ${sl_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s183",
+              "action": "ooa.slack/open_conversation",
+              "args": {
+                "members": [
+                  "UUT0002",
+                  "UUT0001"
+                ],
+                "bot_token": ""
+              },
+              "out": {
+                "channel_id": "sl_dm"
+              },
+              "description": "Open it again"
+            },
+            {
+              "id": "s184",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_dm$",
+                  "right": "$sl_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the same conversation",
+              "else": [
+                {
+                  "id": "s186",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the same conversation: expected eq \"sl_id\", got ${sl_dm}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/open_conversation: group conversation with two people\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s190",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/open_conversation: group conversation with two people: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.slack/open_conversation - group conversation with two people"
+    },
+    {
+      "id": "s191",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.slack/get_user_details - by email and by member id"
+      },
+      "children": [
+        {
+          "id": "s192",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user details looks a person up by email or member id. Checks the title and the time zone."
+          }
+        },
+        {
+          "id": "s193",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s194",
+              "action": "ooa.slack/get_user_details",
+              "args": {
+                "user": "ann.lee@ut.example",
+                "bot_token": ""
+              },
+              "out": {
+                "user": "sl_user"
+              },
+              "description": "Look up Ann by email"
+            },
+            {
+              "id": "s195",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_user.title$",
+                  "right": "Ops lead"
+                }
+              },
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ann's title",
+              "else": [
+                {
+                  "id": "s197",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ann's title: expected eq \"Ops lead\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s198",
+              "action": "ooa.slack/get_user_details",
+              "args": {
+                "user": "UUT0002",
+                "bot_token": ""
+              },
+              "out": {
+                "user": "sl_user"
+              },
+              "description": "Look up Ben by id"
+            },
+            {
+              "id": "s199",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_user.time_zone$",
+                  "right": "Asia/Kolkata"
+                }
+              },
+              "children": [
+                {
+                  "id": "s200",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Ben's time zone",
+              "else": [
+                {
+                  "id": "s201",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Ben's time zone: expected eq \"Asia/Kolkata\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_user_details: by email and by member id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s205",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_user_details: by email and by member id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.slack/get_user_details - by email and by member id"
+    },
+    {
+      "id": "s206",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.slack/get_workspace_id_by_name - among the installed workspaces"
+      },
+      "children": [
+        {
+          "id": "s207",
+          "action": "core/comment",
+          "args": {
+            "text": "Get workspace id by name finds a workspace by name or domain among those the app is installed in. Checks UT Sandbox's id."
+          }
+        },
+        {
+          "id": "s208",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s209",
+              "action": "ooa.slack/get_workspace_id_by_name",
+              "args": {
+                "name": "ut sandbox",
+                "bot_token": ""
+              },
+              "out": {
+                "workspace_id": "sl_id"
+              },
+              "description": "Find UT Sandbox"
+            },
+            {
+              "id": "s210",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_id$",
+                  "right": "TUT00002"
+                }
+              },
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_id",
+              "else": [
+                {
+                  "id": "s212",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_id: expected eq \"TUT00002\", got ${sl_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_workspace_id_by_name: among the installed workspaces\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_workspace_id_by_name: among the installed workspaces: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.slack/get_workspace_id_by_name - among the installed workspaces"
+    },
+    {
+      "id": "s217",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.slack/get_workspace_details - the token's workspace"
+      },
+      "children": [
+        {
+          "id": "s218",
+          "action": "core/comment",
+          "args": {
+            "text": "Get workspace details reads the workspace's id, name and domain. Checks the domain."
+          }
+        },
+        {
+          "id": "s219",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s220",
+              "action": "ooa.slack/get_workspace_details",
+              "args": {
+                "bot_token": ""
+              },
+              "out": {
+                "workspace": "sl_ws"
+              },
+              "description": "Read the workspace"
+            },
+            {
+              "id": "s221",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_ws.domain$",
+                  "right": "ut-workspace"
+                }
+              },
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the domain",
+              "else": [
+                {
+                  "id": "s223",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the domain: expected eq \"ut-workspace\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s224",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s225",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/get_workspace_details: the token's workspace\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s226",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s227",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/get_workspace_details: the token's workspace: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.slack/get_workspace_details - the token's workspace"
+    },
+    {
+      "id": "s228",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.slack/list_channels - public and private, archived too"
+      },
+      "children": [
+        {
+          "id": "s229",
+          "action": "core/comment",
+          "args": {
+            "text": "List channels lists the conversations of the kinds asked for. Checks all three seeded channels with archived ones included, and two without."
+          }
+        },
+        {
+          "id": "s230",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s231",
+              "action": "ooa.slack/list_channels",
+              "args": {
+                "types": [
+                  "public_channel",
+                  "private_channel"
+                ],
+                "include_archived": true,
+                "bot_token": ""
+              },
+              "out": {
+                "table": "sl_table",
+                "count": "sl_count"
+              },
+              "description": "Public and private, archived too"
+            },
+            {
+              "id": "s232",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_count",
+              "else": [
+                {
+                  "id": "s234",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_count: expected eq 3, got ${sl_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s235",
+              "action": "ooa.slack/list_channels",
+              "args": {
+                "types": [
+                  "public_channel",
+                  "private_channel"
+                ],
+                "bot_token": ""
+              },
+              "out": {
+                "count": "sl_count"
+              },
+              "description": "Public and private, not archived"
+            },
+            {
+              "id": "s236",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s237",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_count",
+              "else": [
+                {
+                  "id": "s238",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_count: expected eq 2, got ${sl_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/list_channels: public and private, archived too\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s242",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/list_channels: public and private, archived too: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.slack/list_channels - public and private, archived too"
+    },
+    {
+      "id": "s243",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.slack/list_user_conversations - a person's channels"
+      },
+      "children": [
+        {
+          "id": "s244",
+          "action": "core/comment",
+          "args": {
+            "text": "List a person's conversations lists the channels a member belongs to. Ben is in ut-ops and ut-finance."
+          }
+        },
+        {
+          "id": "s245",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s246",
+              "action": "ooa.slack/list_user_conversations",
+              "args": {
+                "user": "UUT0002",
+                "types": [
+                  "public_channel",
+                  "private_channel"
+                ],
+                "bot_token": ""
+              },
+              "out": {
+                "table": "sl_table",
+                "count": "sl_count"
+              },
+              "description": "Ben's channels"
+            },
+            {
+              "id": "s247",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_count",
+              "else": [
+                {
+                  "id": "s249",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_count: expected eq 2, got ${sl_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/list_user_conversations: a person's channels\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/list_user_conversations: a person's channels: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.slack/list_user_conversations - a person's channels"
+    },
+    {
+      "id": "s254",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.slack/channels - loop over channels"
+      },
+      "children": [
+        {
+          "id": "s255",
+          "action": "core/comment",
+          "args": {
+            "text": "The channels loop visits each channel of the kinds asked for, one record per pass. Checks two passes and that ut-finance was seen."
+          }
+        },
+        {
+          "id": "s256",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s257",
+              "action": "core/set",
+              "args": {
+                "variable": "sl_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s258",
+              "action": "core/set",
+              "args": {
+                "variable": "sl_id",
+                "value": ""
+              }
+            },
+            {
+              "id": "s259",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.slack/channels",
+                "iterator_args": {
+                  "types": [
+                    "public_channel",
+                    "private_channel"
+                  ],
+                  "bot_token": ""
+                },
+                "as": "sl_item"
+              },
+              "children": [
+                {
+                  "id": "s260",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sl_n",
+                    "value": {
+                      "expr": "$sl_n$ + 1"
+                    }
+                  },
+                  "description": "Count the channel"
+                },
+                {
+                  "id": "s261",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$sl_item.name$",
+                      "right": "ut-finance"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s262",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "sl_id",
+                        "value": "$sl_item.id$"
+                      },
+                      "description": "Keep its id"
+                    }
+                  ],
+                  "description": "Is it ut-finance?"
+                }
+              ],
+              "description": "For each public or private channel"
+            },
+            {
+              "id": "s263",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s264",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_n",
+              "else": [
+                {
+                  "id": "s265",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_n: expected eq 2, got ${sl_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s266",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_id$",
+                  "right": "CUT0002"
+                }
+              },
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_id",
+              "else": [
+                {
+                  "id": "s268",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_id: expected eq \"CUT0002\", got ${sl_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s269",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/channels: loop over channels\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/channels: loop over channels: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.slack/channels - loop over channels"
+    },
+    {
+      "id": "s273",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.slack/messages - loop over a thread's messages"
+      },
+      "children": [
+        {
+          "id": "s274",
+          "action": "core/comment",
+          "args": {
+            "text": "The messages loop visits each message of a channel or thread, newest first. Checks the seeded thread has at least two messages and the first is the opening one."
+          }
+        },
+        {
+          "id": "s275",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s276",
+              "action": "core/set",
+              "args": {
+                "variable": "sl_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "sl_id",
+                "value": ""
+              }
+            },
+            {
+              "id": "s278",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.slack/messages",
+                "iterator_args": {
+                  "channel": "#ut-ops",
+                  "thread_ts": "1767600000.000100",
+                  "bot_token": ""
+                },
+                "as": "sl_item"
+              },
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sl_n",
+                    "value": {
+                      "expr": "$sl_n$ + 1"
+                    }
+                  },
+                  "description": "Count the message"
+                },
+                {
+                  "id": "s280",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$sl_n$",
+                      "right": 1
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s281",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "sl_id",
+                        "value": "$sl_item.text$"
+                      },
+                      "description": "Keep its text"
+                    }
+                  ],
+                  "description": "The first one?"
+                }
+              ],
+              "description": "For each message of the nightly-run thread"
+            },
+            {
+              "id": "s282",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$sl_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the messages",
+              "else": [
+                {
+                  "id": "s284",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the messages: expected ge 2, got ${sl_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s285",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_id$",
+                  "right": "Nightly run started"
+                }
+              },
+              "children": [
+                {
+                  "id": "s286",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sl_id",
+              "else": [
+                {
+                  "id": "s287",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sl_id: expected eq \"Nightly run started\", got ${sl_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/messages: loop over a thread's messages\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/messages: loop over a thread's messages: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.slack/messages - loop over a thread's messages"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.slack/disconnect - forget the connection"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps then give their own bot token and address. Checks a step without a token now fails, and one with its own token works."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s295",
+              "action": "ooa.slack/disconnect",
+              "args": {},
+              "description": "Forget ut_slack"
+            },
+            {
+              "id": "s296",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s297",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "ooa.slack/get_workspace_details",
+                  "args": {
+                    "bot_token": ""
+                  },
+                  "out": {
+                    "workspace": "sl_ws"
+                  },
+                  "description": "No token now: should fail"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s299",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "ooa.slack/get_workspace_details",
+              "args": {
+                "bot_token": {
+                  "$credential": "unit_tests/slack/bot_token"
+                },
+                "base_url": "${standin_url}/biz/slack/api"
+              },
+              "out": {
+                "workspace": "sl_ws"
+              },
+              "description": "With the step's own token and address"
+            },
+            {
+              "id": "s304",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sl_ws.name$",
+                  "right": "UT Workspace"
+                }
+              },
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the workspace name",
+              "else": [
+                {
+                  "id": "s306",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the workspace name: expected eq \"UT Workspace\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s308",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.slack/disconnect: forget the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s310",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.slack/disconnect: forget the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.slack/disconnect - forget the connection"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "19. Summary"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s314",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s315",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "19. Summary"
+    }
+  ]
+}
