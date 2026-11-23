@@ -51,12 +51,57 @@
       "default": ""
     },
     {
-      "name": "k",
+      "name": "ji_conn",
       "type": "Any",
       "direction": "local"
     },
     {
-      "name": "n",
+      "name": "ji_key",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_issue",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_raw",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_comment",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_author",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ji_created",
       "type": "Any",
       "direction": "local"
     },
@@ -95,75 +140,78 @@
       "description": "0. About this agent"
     },
     {
-      "id": "s4",
+      "id": "s41",
       "action": "core/step",
       "args": {
-        "title": "1. ooa.jira/create_issue - create issue with labels"
+        "title": "1. ooa.jira/connect - use a saved connection for the later steps"
       },
       "children": [
         {
-          "id": "s5",
+          "id": "s42",
           "action": "core/comment",
           "args": {
-            "text": "Shows ooa.jira/create_issue (create issue with labels) and checks its result."
+            "text": "Connect names a saved connection (site address and a Data Center access token from the vault); the later Jira steps of the agent use it and need no site or sign-in of their own. The case first saves the connection in the run folder, as a workspace keeps it. Checks the connection's name."
           }
         },
         {
-          "id": "s6",
+          "id": "s43",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "action": "ooa.jira/create_issue",
+              "id": "s44",
+              "action": "ooa.file/write_text",
               "args": {
-                "site_url": "{mock}",
-                "project": "OPS",
-                "summary": "Disk full",
-                "labels": [
-                  "infra"
-                ],
-                "email": "bot@acme.test",
-                "api_token": "$tok"
+                "path": "connections.json",
+                "text": "{\"ut_jira\": {\"package\": \"ooa.jira\", \"values\": {\"site_url\": \"${standin_url}/biz/jira\"}, \"credentials\": {\"personal_access_token\": \"unit_tests/jira/token\"}}}"
               },
-              "out": {
-                "key": "k"
-              },
-              "id": "s7"
+              "description": "Save the connection ut_jira (connections.json)"
             },
             {
-              "id": "s8",
+              "id": "s45",
+              "action": "ooa.jira/connect",
+              "args": {
+                "connection": "ut_jira"
+              },
+              "out": {
+                "connection": "ji_conn"
+              },
+              "description": "Connect with ut_jira"
+            },
+            {
+              "id": "s46",
               "action": "core/if",
               "args": {
                 "condition": {
                   "op": "eq",
-                  "left": "$k$",
-                  "right": "OPS-7"
+                  "left": "$ji_conn$",
+                  "right": "ut_jira"
                 }
               },
               "children": [
                 {
-                  "id": "s9",
+                  "id": "s47",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
                   }
                 }
               ],
-              "description": "Check k",
+              "description": "Check ji_conn",
               "else": [
                 {
-                  "id": "s10",
+                  "id": "s48",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "k: expected eq \"OPS-7\", got ${k}"
+                    "message": "ji_conn: expected eq \"ut_jira\", got ${ji_conn}"
                   },
                   "description": "Stop the case: the check failed"
                 }
               ]
             },
             {
-              "id": "s11",
+              "id": "s49",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -174,11 +222,11 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s12",
+              "id": "s50",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.jira/create_issue: create issue with labels\n"
+                "value": "${ut_report}PASS  ooa.jira/connect: use a saved connection for the later steps\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -191,7 +239,7 @@
               ],
               "children": [
                 {
-                  "id": "s13",
+                  "id": "s51",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -202,11 +250,11 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s14",
+                  "id": "s52",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.jira/create_issue: create issue with labels: ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.jira/connect: use a saved connection for the later steps: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -216,74 +264,1152 @@
           ]
         }
       ],
-      "description": "1. ooa.jira/create_issue - create issue with labels"
+      "description": "1. ooa.jira/connect - use a saved connection for the later steps"
     },
     {
-      "id": "s15",
+      "id": "s53",
       "action": "core/step",
       "args": {
-        "title": "2. ooa.jira/search - JQL to a table"
+        "title": "2. ooa.jira/create_issue - a task with priority, labels, assignee and due date"
       },
       "children": [
         {
-          "id": "s16",
+          "id": "s54",
           "action": "core/comment",
           "args": {
-            "text": "Shows ooa.jira/search (JQL to a table) and checks its result."
+            "text": "Create issue makes an issue and returns its key, id and browser link; the assignee is given by email and looked up. Checks the key and reads the issue back."
           }
         },
         {
-          "id": "s17",
+          "id": "s55",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "action": "ooa.jira/search",
+              "id": "s56",
+              "action": "ooa.jira/create_issue",
               "args": {
-                "site_url": "{mock}",
-                "jql": "project = OPS",
-                "email": "bot@acme.test",
-                "api_token": "$tok"
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT renew TLS certificate",
+                "description": "Expires on 15 December",
+                "priority": "High",
+                "labels": [
+                  "ut-created",
+                  "certificates"
+                ],
+                "assignee": "bruno.silva@ut.example",
+                "due_date": "2026-12-10"
               },
               "out": {
-                "count": "n"
+                "key": "ji_key",
+                "id": "ji_id",
+                "url": "ji_url"
               },
-              "id": "s18"
+              "description": "Create a task in UTOPS"
             },
             {
-              "id": "s19",
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ji_key$",
+                  "right": "UTOPS-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the key",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the key: expected contains \"UTOPS-\", got ${ji_key}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ji_url$",
+                  "right": "/browse/UTOPS-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the link",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the link: expected contains \"/browse/UTOPS-\", got ${ji_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "$ji_key$",
+                "extra_fields": [
+                  "labels",
+                  "duedate"
+                ]
+              },
+              "out": {
+                "issue": "ji_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s64",
               "action": "core/if",
               "args": {
                 "condition": {
                   "op": "eq",
-                  "left": "$n$",
+                  "left": "$ji_issue.assignee$",
+                  "right": "Bruno Silva"
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the assignee",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the assignee: expected eq \"Bruno Silva\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.duedate$",
+                  "right": "2026-12-10"
+                }
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the due date",
+              "else": [
+                {
+                  "id": "s69",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the due date: expected eq \"2026-12-10\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/create_issue: a task with priority, labels, assignee and due date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/create_issue: a task with priority, labels, assignee and due date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.jira/create_issue - a task with priority, labels, assignee and due date"
+    },
+    {
+      "id": "s74",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.jira/create_issue - a sub-task under a parent"
+      },
+      "children": [
+        {
+          "id": "s75",
+          "action": "core/comment",
+          "args": {
+            "text": "With parent_key, Create issue makes a sub-task of another issue. Checks the parent is set."
+          }
+        },
+        {
+          "id": "s76",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s77",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Sub-task",
+                "parent_key": "UTOPS-1",
+                "summary": "UT clean old logs",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create a sub-task of UTOPS-1"
+            },
+            {
+              "id": "s78",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "$ji_key$",
+                "extra_fields": [
+                  "parent"
+                ]
+              },
+              "out": {
+                "issue": "ji_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.parent$",
+                  "right": "UTOPS-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the parent",
+              "else": [
+                {
+                  "id": "s81",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the parent: expected eq \"UTOPS-1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/create_issue: a sub-task under a parent\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/create_issue: a sub-task under a parent: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.jira/create_issue - a sub-task under a parent"
+    },
+    {
+      "id": "s86",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.jira/get_issue - main fields and extra fields"
+      },
+      "children": [
+        {
+          "id": "s87",
+          "action": "core/comment",
+          "args": {
+            "text": "Get issue reads an issue's main fields (status, assignee, priority...) and the extra fields asked for. Checks status, priority and labels."
+          }
+        },
+        {
+          "id": "s88",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "UTOPS-1",
+                "extra_fields": [
+                  "labels"
+                ]
+              },
+              "out": {
+                "issue": "ji_issue",
+                "raw": "ji_raw"
+              },
+              "description": "Read UTOPS-1"
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.summary$",
+                  "right": "UT disk full on db01"
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the summary",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the summary: expected eq \"UT disk full on db01\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.priority$",
+                  "right": "High"
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the priority",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the priority: expected eq \"High\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ji_issue.labels$",
+                  "right": "database"
+                }
+              },
+              "children": [
+                {
+                  "id": "s97",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the labels",
+              "else": [
+                {
+                  "id": "s98",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the labels: expected contains \"database\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_raw.id$",
+                  "right": "900"
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the raw issue's id",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the raw issue's id: expected eq \"900\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/get_issue: main fields and extra fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/get_issue: main fields and extra fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.jira/get_issue - main fields and extra fields"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.jira/search - JQL with the Data Center sign-in"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "Search issues (JQL) finds issues with a JQL query and returns them as a table. With the connection's access token Jira Data Center's search is used. Checks the two seeded UTOPS issues."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s109",
+              "action": "ooa.jira/search",
+              "args": {
+                "jql": "project = UTOPS AND labels = seed ORDER BY created DESC",
+                "extra_fields": [
+                  "labels"
+                ]
+              },
+              "out": {
+                "table": "ji_table",
+                "count": "ji_count"
+              },
+              "description": "Seeded UTOPS issues"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 2, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/search: JQL with the Data Center sign-in\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/search: JQL with the Data Center sign-in: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.jira/search - JQL with the Data Center sign-in"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.jira/add_comment - a comment only a role can see"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "Add comment posts a comment, here visible only to the Administrators role. Checks the comment id and author."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT reset VPN token",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.jira/add_comment",
+              "args": {
+                "key": "$ji_key$",
+                "text": "Token reset done.",
+                "visible_to_role": "Administrators"
+              },
+              "out": {
+                "comment_id": "ji_comment",
+                "author": "ji_author",
+                "created": "ji_created"
+              },
+              "description": "Comment for administrators"
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ji_comment$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the comment id",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the comment id: expected notEmpty , got ${ji_comment}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_author$",
+                  "right": "Asha Patel"
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_author",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_author: expected eq \"Asha Patel\", got ${ji_author}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/add_comment: a comment only a role can see\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/add_comment: a comment only a role can see: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.jira/add_comment - a comment only a role can see"
+    },
+    {
+      "id": "s132",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.jira/get_comments - comments of an issue"
+      },
+      "children": [
+        {
+          "id": "s133",
+          "action": "core/comment",
+          "args": {
+            "text": "Get comments lists an issue's comments, oldest first, as a table. Checks the two comments the case added."
+          }
+        },
+        {
+          "id": "s134",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s135",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT order new laptops",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s136",
+              "action": "ooa.jira/add_comment",
+              "args": {
+                "key": "$ji_key$",
+                "text": "Quote requested."
+              },
+              "description": "First comment"
+            },
+            {
+              "id": "s137",
+              "action": "ooa.jira/add_comment",
+              "args": {
+                "key": "$ji_key$",
+                "text": "Quote approved."
+              },
+              "description": "Second comment"
+            },
+            {
+              "id": "s138",
+              "action": "ooa.jira/get_comments",
+              "args": {
+                "key": "$ji_key$",
+                "max_results": 10
+              },
+              "out": {
+                "table": "ji_table",
+                "count": "ji_count"
+              },
+              "description": "List the comments"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s141",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 2, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/get_comments: comments of an issue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/get_comments: comments of an issue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.jira/get_comments - comments of an issue"
+    },
+    {
+      "id": "s146",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.jira/update_comment - replace a comment's text"
+      },
+      "children": [
+        {
+          "id": "s147",
+          "action": "core/comment",
+          "args": {
+            "text": "Update comment replaces the text of a comment. The case adds one, changes it and lists the comments to check there is still one."
+          }
+        },
+        {
+          "id": "s148",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s149",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT move printer",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s150",
+              "action": "ooa.jira/add_comment",
+              "args": {
+                "key": "$ji_key$",
+                "text": "Moving on Monday."
+              },
+              "out": {
+                "comment_id": "ji_comment"
+              },
+              "description": "Add a comment"
+            },
+            {
+              "id": "s151",
+              "action": "ooa.jira/update_comment",
+              "args": {
+                "key": "$ji_key$",
+                "comment_id": "$ji_comment$",
+                "text": "Moving on Tuesday."
+              },
+              "description": "Change it"
+            },
+            {
+              "id": "s152",
+              "action": "ooa.jira/get_comments",
+              "args": {
+                "key": "$ji_key$"
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "List the comments"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
                   "right": 1
                 }
               },
               "children": [
                 {
-                  "id": "s20",
+                  "id": "s154",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
                   }
                 }
               ],
-              "description": "Check n",
+              "description": "Check ji_count",
               "else": [
                 {
-                  "id": "s21",
+                  "id": "s155",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "n: expected eq 1, got ${n}"
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
                   },
                   "description": "Stop the case: the check failed"
                 }
               ]
             },
             {
-              "id": "s22",
+              "id": "s156",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -294,11 +1420,11 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s23",
+              "id": "s157",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.jira/search: JQL to a table\n"
+                "value": "${ut_report}PASS  ooa.jira/update_comment: replace a comment's text\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -311,7 +1437,7 @@
               ],
               "children": [
                 {
-                  "id": "s24",
+                  "id": "s158",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -322,11 +1448,11 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s25",
+                  "id": "s159",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.jira/search: JQL to a table: ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.jira/update_comment: replace a comment's text: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -336,38 +1462,392 @@
           ]
         }
       ],
-      "description": "2. ooa.jira/search - JQL to a table"
+      "description": "8. ooa.jira/update_comment - replace a comment's text"
     },
     {
-      "id": "s26",
+      "id": "s160",
       "action": "core/step",
       "args": {
-        "title": "3. ooa.jira/create_issue - connection for another toolkit is refused (connection)"
+        "title": "9. ooa.jira/delete_comment - remove a comment"
       },
       "children": [
         {
-          "id": "s27",
+          "id": "s161",
           "action": "core/comment",
           "args": {
-            "text": "Shows ooa.jira/create_issue (connection for another toolkit is refused (connection)) and checks its result."
+            "text": "Delete comment removes a comment from an issue. Checks the issue has no comments afterwards."
           }
         },
         {
-          "id": "s28",
+          "id": "s162",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s29",
-              "action": "ooa.file/write_text",
+              "id": "s163",
+              "action": "ooa.jira/create_issue",
               "args": {
-                "path": "connections.json",
-                "text": "{\"ServiceNow test\": {\"package\": \"ooa.servicenow\", \"values\": {\"instance_url\": \"{mock}\", \"user\": \"bot\"}, \"credentials\": {\"password\": \"test/snow/password\"}}}"
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT wrong comment",
+                "labels": [
+                  "ut-created"
+                ]
               },
-              "description": "Prepare the test file connections.json"
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
             },
             {
-              "id": "s31",
+              "id": "s164",
+              "action": "ooa.jira/add_comment",
+              "args": {
+                "key": "$ji_key$",
+                "text": "Posted by mistake."
+              },
+              "out": {
+                "comment_id": "ji_comment"
+              },
+              "description": "Add a comment"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.jira/delete_comment",
+              "args": {
+                "key": "$ji_key$",
+                "comment_id": "$ji_comment$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s166",
+              "action": "ooa.jira/get_comments",
+              "args": {
+                "key": "$ji_key$"
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "List the comments"
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 0, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/delete_comment: remove a comment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/delete_comment: remove a comment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.jira/delete_comment - remove a comment"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.jira/transition - move to Done with a comment"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Move issue (transition) moves an issue through its workflow by transition or status name, here with a comment and a resolution. Checks the status is Done and the comment was added."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s177",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT replace mouse",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.jira/transition",
+              "args": {
+                "key": "$ji_key$",
+                "transition": "Done",
+                "comment": "Replaced.",
+                "fields": {
+                  "resolution": {
+                    "name": "Fixed"
+                  }
+                }
+              },
+              "description": "Move it to Done"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "$ji_key$"
+              },
+              "out": {
+                "issue": "ji_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s180",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.status$",
+                  "right": "Done"
+                }
+              },
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the status",
+              "else": [
+                {
+                  "id": "s182",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the status: expected eq \"Done\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s183",
+              "action": "ooa.jira/get_comments",
+              "args": {
+                "key": "$ji_key$"
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "List the comments"
+            },
+            {
+              "id": "s184",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s186",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/transition: move to Done with a comment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s190",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/transition: move to Done with a comment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.jira/transition - move to Done with a comment"
+    },
+    {
+      "id": "s191",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.jira/transition - unknown transition is refused"
+      },
+      "children": [
+        {
+          "id": "s192",
+          "action": "core/comment",
+          "args": {
+            "text": "When the workflow has no such transition, the step fails with JIRA.NO_TRANSITION."
+          }
+        },
+        {
+          "id": "s193",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s194",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT no such move",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s195",
               "action": "core/set",
               "args": {
                 "variable": "ut_got_error",
@@ -375,29 +1855,29 @@
               }
             },
             {
-              "id": "s32",
+              "id": "s196",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "action": "ooa.jira/create_issue",
-                  "connection": "ServiceNow test",
+                  "id": "s197",
+                  "action": "ooa.jira/transition",
                   "args": {
-                    "project": "OPS",
-                    "summary": "x"
+                    "key": "$ji_key$",
+                    "transition": "Archived"
                   },
-                  "id": "s30"
+                  "description": "Try a move that does not exist"
                 }
               ],
-              "description": "These steps should fail with CONNECTION.WRONG_TOOLKIT",
+              "description": "These steps should fail with JIRA.NO_TRANSITION",
               "catch": [
                 {
                   "codes": [
-                    "CONNECTION.WRONG_TOOLKIT"
+                    "JIRA.NO_TRANSITION"
                   ],
                   "children": [
                     {
-                      "id": "s33",
+                      "id": "s198",
                       "action": "core/set",
                       "args": {
                         "variable": "ut_got_error",
@@ -410,7 +1890,7 @@
               ]
             },
             {
-              "id": "s34",
+              "id": "s199",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -421,28 +1901,28 @@
               },
               "children": [
                 {
-                  "id": "s35",
+                  "id": "s200",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
                   }
                 }
               ],
-              "description": "Check error CONNECTION.WRONG_TOOLKIT",
+              "description": "Check error JIRA.NO_TRANSITION",
               "else": [
                 {
-                  "id": "s36",
+                  "id": "s201",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "error CONNECTION.WRONG_TOOLKIT: expected eq true, got ${ut_got_error}"
+                    "message": "error JIRA.NO_TRANSITION: expected eq true, got ${ut_got_error}"
                   },
                   "description": "Stop the case: the check failed"
                 }
               ]
             },
             {
-              "id": "s37",
+              "id": "s202",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -453,11 +1933,11 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s38",
+              "id": "s203",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.jira/create_issue: connection for another toolkit is refused (connection)\n"
+                "value": "${ut_report}PASS  ooa.jira/transition: unknown transition is refused\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -470,7 +1950,7 @@
               ],
               "children": [
                 {
-                  "id": "s39",
+                  "id": "s204",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -481,11 +1961,11 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s40",
+                  "id": "s205",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.jira/create_issue: connection for another toolkit is refused (connection): ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.jira/transition: unknown transition is refused: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -495,24 +1975,1351 @@
           ]
         }
       ],
-      "description": "3. ooa.jira/create_issue - connection for another toolkit is refused (connection)"
+      "description": "11. ooa.jira/transition - unknown transition is refused"
     },
     {
-      "id": "s41",
+      "id": "s206",
       "action": "core/step",
       "args": {
-        "title": "4. Summary"
+        "title": "12. ooa.jira/attach_file - attach a text file"
       },
       "children": [
         {
-          "id": "s42",
+          "id": "s207",
+          "action": "core/comment",
+          "args": {
+            "text": "Attach file uploads a local file to an issue. Checks the issue then lists the file."
+          }
+        },
+        {
+          "id": "s208",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s209",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT collect logs",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s210",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_jira_note.txt",
+                "text": "log excerpt"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s211",
+              "action": "ooa.jira/attach_file",
+              "args": {
+                "key": "$ji_key$",
+                "path": "ut_jira_note.txt"
+              },
+              "description": "Attach it"
+            },
+            {
+              "id": "s212",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "$ji_key$",
+                "extra_fields": [
+                  "attachment"
+                ]
+              },
+              "out": {
+                "issue": "ji_issue"
+              },
+              "description": "Read the attachments"
+            },
+            {
+              "id": "s213",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ji_issue.attachment$",
+                  "right": "ut_jira_note.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the attachments",
+              "else": [
+                {
+                  "id": "s215",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the attachments: expected contains \"ut_jira_note.txt\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/attach_file: attach a text file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/attach_file: attach a text file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.jira/attach_file - attach a text file"
+    },
+    {
+      "id": "s220",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.jira/update_issue - summary, priority and labels"
+      },
+      "children": [
+        {
+          "id": "s221",
+          "action": "core/comment",
+          "args": {
+            "text": "Update issue changes named fields and any others given in fields. Checks the new summary and priority."
+          }
+        },
+        {
+          "id": "s222",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s223",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT old title",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.jira/update_issue",
+              "args": {
+                "key": "$ji_key$",
+                "summary": "UT new title",
+                "priority": "Low",
+                "labels": [
+                  "ut-created",
+                  "renamed"
+                ],
+                "fields": {
+                  "duedate": "2026-12-24"
+                },
+                "notify_users": false
+              },
+              "description": "Change the issue"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.jira/get_issue",
+              "args": {
+                "key": "$ji_key$",
+                "extra_fields": [
+                  "duedate"
+                ]
+              },
+              "out": {
+                "issue": "ji_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s226",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.summary$",
+                  "right": "UT new title"
+                }
+              },
+              "children": [
+                {
+                  "id": "s227",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the summary",
+              "else": [
+                {
+                  "id": "s228",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the summary: expected eq \"UT new title\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s229",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.priority$",
+                  "right": "Low"
+                }
+              },
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the priority",
+              "else": [
+                {
+                  "id": "s231",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the priority: expected eq \"Low\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s232",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_issue.duedate$",
+                  "right": "2026-12-24"
+                }
+              },
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the due date",
+              "else": [
+                {
+                  "id": "s234",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the due date: expected eq \"2026-12-24\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s235",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s236",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/update_issue: summary, priority and labels\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s237",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s238",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/update_issue: summary, priority and labels: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.jira/update_issue - summary, priority and labels"
+    },
+    {
+      "id": "s239",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.jira/delete_issue - delete with its sub-tasks"
+      },
+      "children": [
+        {
+          "id": "s240",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete issue removes an issue for good, here with its sub-task. Checks reading it afterwards fails."
+          }
+        },
+        {
+          "id": "s241",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s242",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Task",
+                "summary": "UT parent to delete",
+                "labels": [
+                  "ut-created"
+                ]
+              },
+              "out": {
+                "key": "ji_key"
+              },
+              "description": "Create an issue for this case"
+            },
+            {
+              "id": "s243",
+              "action": "ooa.jira/create_issue",
+              "args": {
+                "project": "UTOPS",
+                "issue_type": "Sub-task",
+                "parent_key": "$ji_key$",
+                "summary": "UT child to delete"
+              },
+              "out": {
+                "key": "ji_id"
+              },
+              "description": "Give it a sub-task"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.jira/delete_issue",
+              "args": {
+                "key": "$ji_key$",
+                "delete_subtasks": true
+              },
+              "description": "Delete both"
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s246",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "ooa.jira/get_issue",
+                  "args": {
+                    "key": "$ji_id$"
+                  },
+                  "out": {
+                    "issue": "ji_issue"
+                  },
+                  "description": "Try to read the sub-task"
+                }
+              ],
+              "description": "These steps should fail with JIRA.*",
+              "catch": [
+                {
+                  "codes": [
+                    "JIRA.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s248",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s249",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error JIRA.*",
+              "else": [
+                {
+                  "id": "s251",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error JIRA.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/delete_issue: delete with its sub-tasks\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s255",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/delete_issue: delete with its sub-tasks: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.jira/delete_issue - delete with its sub-tasks"
+    },
+    {
+      "id": "s256",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.jira/get_projects - projects of one category"
+      },
+      "children": [
+        {
+          "id": "s257",
+          "action": "core/comment",
+          "args": {
+            "text": "Get projects lists the projects the account can see, here only those in the Finance category. Checks one project."
+          }
+        },
+        {
+          "id": "s258",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s259",
+              "action": "ooa.jira/get_projects",
+              "args": {
+                "category": "Finance"
+              },
+              "out": {
+                "table": "ji_table",
+                "count": "ji_count"
+              },
+              "description": "Finance projects"
+            },
+            {
+              "id": "s260",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s262",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s263",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/get_projects: projects of one category\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/get_projects: projects of one category: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.jira/get_projects - projects of one category"
+    },
+    {
+      "id": "s267",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.jira/create_project - new project, lead by email, in a category"
+      },
+      "children": [
+        {
+          "id": "s268",
+          "action": "core/comment",
+          "args": {
+            "text": "Create project makes a project with a key, name, type and lead (an email, looked up) in a category found by name. Checks the key, then finds it with Get projects."
+          }
+        },
+        {
+          "id": "s269",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s270",
+              "action": "ooa.jira/delete_project",
+              "args": {
+                "project_key": "UTNEW"
+              },
+              "continueOnError": true,
+              "description": "Remove UTNEW if an earlier run left it"
+            },
+            {
+              "id": "s271",
+              "action": "ooa.jira/create_project",
+              "args": {
+                "project_key": "UTNEW",
+                "project_name": "UT New Team",
+                "project_type": "business",
+                "lead_account_id": "asha.patel@ut.example",
+                "project_description": "Made-up project",
+                "category": "Operations",
+                "assignee_type": "unassigned"
+              },
+              "out": {
+                "id": "ji_id",
+                "key": "ji_key"
+              },
+              "description": "Create UTNEW"
+            },
+            {
+              "id": "s272",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_key$",
+                  "right": "UTNEW"
+                }
+              },
+              "children": [
+                {
+                  "id": "s273",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_key",
+              "else": [
+                {
+                  "id": "s274",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_key: expected eq \"UTNEW\", got ${ji_key}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s275",
+              "action": "ooa.jira/get_projects",
+              "args": {
+                "keys": [
+                  "UTNEW"
+                ]
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "Find it"
+            },
+            {
+              "id": "s276",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s278",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/create_project: new project, lead by email, in a category\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/create_project: new project, lead by email, in a category: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.jira/create_project - new project, lead by email, in a category"
+    },
+    {
+      "id": "s283",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.jira/update_project - rename and change the lead"
+      },
+      "children": [
+        {
+          "id": "s284",
+          "action": "core/comment",
+          "args": {
+            "text": "Update project changes a project's name, lead (by email) and other details. Checks it can be found by its new name."
+          }
+        },
+        {
+          "id": "s285",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s286",
+              "action": "ooa.jira/update_project",
+              "args": {
+                "project_key": "UTNEW",
+                "project_name": "UT Renamed Team",
+                "lead": "bruno.silva@ut.example",
+                "category_id": "10101"
+              },
+              "description": "Rename UTNEW"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.jira/get_projects",
+              "args": {
+                "query": "Renamed",
+                "category": "Finance"
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "Look for the new name in Finance"
+            },
+            {
+              "id": "s288",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s290",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s291",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/update_project: rename and change the lead\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s293",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/update_project: rename and change the lead: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.jira/update_project - rename and change the lead"
+    },
+    {
+      "id": "s295",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.jira/delete_project - delete a project"
+      },
+      "children": [
+        {
+          "id": "s296",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete project removes a project and its issues. Checks it is no longer listed."
+          }
+        },
+        {
+          "id": "s297",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s298",
+              "action": "ooa.jira/delete_project",
+              "args": {
+                "project_key": "UTNEW"
+              },
+              "description": "Delete UTNEW"
+            },
+            {
+              "id": "s299",
+              "action": "ooa.jira/get_projects",
+              "args": {
+                "keys": [
+                  "UTNEW"
+                ]
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "Look for it"
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 0, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/delete_project: delete a project\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/delete_project: delete a project: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.jira/delete_project - delete a project"
+    },
+    {
+      "id": "s307",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.jira/disconnect - forget the connection, then sign in on the step"
+      },
+      "children": [
+        {
+          "id": "s308",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps give their own site and sign-in, here Jira Cloud's email and API token. Checks a search with the step's own sign-in."
+          }
+        },
+        {
+          "id": "s309",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s310",
+              "action": "ooa.jira/disconnect",
+              "args": {},
+              "description": "Stop using ut_jira"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.jira/search",
+              "args": {
+                "site_url": "${standin_url}/biz/jira",
+                "email": "ut.agent@ut.example",
+                "api_token": {
+                  "$credential": "unit_tests/jira/api_token"
+                },
+                "jql": "project = UTFIN"
+              },
+              "out": {
+                "count": "ji_count"
+              },
+              "description": "Search with the step's own site, email and API token"
+            },
+            {
+              "id": "s312",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ji_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s313",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ji_count",
+              "else": [
+                {
+                  "id": "s314",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ji_count: expected eq 1, got ${ji_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s316",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "ooa.jira/get_issue",
+                  "args": {
+                    "key": "UTOPS-1"
+                  },
+                  "out": {
+                    "issue": "ji_issue"
+                  },
+                  "description": "A step with no site fails now"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s318",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s321",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jira/disconnect: forget the connection, then sign in on the step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jira/disconnect: forget the connection, then sign in on the step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.jira/disconnect - forget the connection, then sign in on the step"
+    },
+    {
+      "id": "s326",
+      "action": "core/step",
+      "args": {
+        "title": "20. Summary"
+      },
+      "children": [
+        {
+          "id": "s327",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s43",
+          "id": "s328",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -521,7 +3328,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s44",
+          "id": "s329",
           "action": "core/if",
           "args": {
             "condition": {
@@ -532,7 +3339,7 @@
           },
           "children": [
             {
-              "id": "s45",
+              "id": "s330",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -544,7 +3351,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "4. Summary"
+      "description": "20. Summary"
     }
   ]
 }
