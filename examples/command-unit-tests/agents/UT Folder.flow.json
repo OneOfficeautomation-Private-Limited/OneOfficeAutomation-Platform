@@ -1,0 +1,4798 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_folder",
+  "name": "UT Folder",
+  "description": "Unit tests of every Folder command: each case makes its own folders in the run folder and checks the result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "te",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "big",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "dated",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "small",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "created",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "renamed",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Folder command: each case makes its own folders in the run folder and checks the result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Folder started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.folder/create - nested"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/create (nested) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s321",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s322",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1/a/b/c"
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case1/a/b/c/x.txt",
+                "text": "ok"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case1/a/b/c/x.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read a/b/c/x.txt"
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "ok"
+                }
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a/b/c/x.txt",
+              "else": [
+                {
+                  "id": "s12",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a/b/c/x.txt: expected eq \"ok\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create: nested\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create: nested: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.folder/create - nested"
+    },
+    {
+      "id": "s17",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.folder/create - fail if exists"
+      },
+      "children": [
+        {
+          "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/create (fail if exists) and checks its result."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s323",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s324",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s20",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case2/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/create",
+                  "args": {
+                    "path": "case2/a",
+                    "fail_if_exists": true
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.EXISTS",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.EXISTS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.EXISTS",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.EXISTS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create: fail if exists\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create: fail if exists: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.folder/create - fail if exists"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.folder/copy - pattern"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/copy (pattern) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s328",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s329",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s35",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/s/a.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file s/a.txt"
+            },
+            {
+              "id": "s36",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/s/b.log",
+                "text": "2"
+              },
+              "description": "Prepare the test file s/b.log"
+            },
+            {
+              "action": "ooa.folder/copy",
+              "args": {
+                "source": "case3/s",
+                "target": "case3/t",
+                "pattern": "*.txt"
+              },
+              "out": {
+                "copied": "n"
+              },
+              "id": "s37"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case3/t/a.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read t/a.txt"
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t/a.txt",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t/a.txt: expected eq \"1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s325",
+              "action": "core/if",
+              "description": "Look for case3/t/b.log",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case3/t/b.log"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s326",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s327",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t/b.log absent",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t/b.log absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/copy: pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/copy: pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.folder/copy - pattern"
+    },
+    {
+      "id": "s53",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.folder/delete - not empty without recursive"
+      },
+      "children": [
+        {
+          "id": "s54",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/delete (not empty without recursive) and checks its result."
+          }
+        },
+        {
+          "id": "s55",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s330",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s56",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s59",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/delete",
+                  "args": {
+                    "path": "case4/a"
+                  },
+                  "id": "s57"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.NOT_EMPTY",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.NOT_EMPTY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.NOT_EMPTY",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.NOT_EMPTY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/delete: not empty without recursive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/delete: not empty without recursive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.folder/delete - not empty without recursive"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.folder/delete - recursive"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/delete (recursive) and checks its result."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s335",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s336",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s71",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5/a",
+                "recursive": true
+              },
+              "id": "s72"
+            },
+            {
+              "id": "s332",
+              "action": "core/if",
+              "description": "Look for case5/a/x.txt",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case5/a/x.txt"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a/x.txt absent",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a/x.txt absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/delete: recursive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/delete: recursive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.folder/delete - recursive"
+    },
+    {
+      "id": "s81",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.folder/list_subfolders - direct children"
+      },
+      "children": [
+        {
+          "id": "s82",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/list_subfolders (direct children) and checks its result."
+          }
+        },
+        {
+          "id": "s83",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s337",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s338",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s84",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case6/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s85",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case6/b/c/y.txt",
+                "text": "2"
+              },
+              "description": "Prepare the test file b/c/y.txt"
+            },
+            {
+              "action": "ooa.folder/list_subfolders",
+              "args": {
+                "path": "case6"
+              },
+              "out": {
+                "folders": "f"
+              },
+              "id": "s86"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($f)"
+                }
+              },
+              "id": "s87"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/list_subfolders: direct children\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/list_subfolders: direct children: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.folder/list_subfolders - direct children"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.folder/rename_folder - renames"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/rename_folder (renames) and checks its result."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s342",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s343",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s98",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case7/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "action": "ooa.folder/rename_folder",
+              "args": {
+                "path": "case7/a",
+                "new_name": "b"
+              },
+              "id": "s99"
+            },
+            {
+              "id": "s100",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case7/b/x.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read b/x.txt"
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b/x.txt",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b/x.txt: expected eq \"1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s339",
+              "action": "core/if",
+              "description": "Look for case7/a/x.txt",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case7/a/x.txt"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s340",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s341",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a/x.txt absent",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a/x.txt absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/rename_folder: renames\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/rename_folder: renames: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.folder/rename_folder - renames"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.folder/create_symbolic_link - missing folder"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/create_symbolic_link (missing folder) and checks its result."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s344",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s345",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s117",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/create_symbolic_link",
+                  "args": {
+                    "path": "case8/none",
+                    "link": "case8/l"
+                  },
+                  "id": "s115"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s118",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s119",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s121",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create_symbolic_link: missing folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create_symbolic_link: missing folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.folder/create_symbolic_link - missing folder"
+    },
+    {
+      "id": "s126",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.folder/create_shortcut - missing folder"
+      },
+      "children": [
+        {
+          "id": "s127",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/create_shortcut (missing folder) and checks its result."
+          }
+        },
+        {
+          "id": "s128",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s346",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s347",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s131",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/create_shortcut",
+                  "args": {
+                    "path": "case9/none",
+                    "shortcut": "case9/s.lnk"
+                  },
+                  "id": "s129"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s132",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create_shortcut: missing folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s139",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create_shortcut: missing folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.folder/create_shortcut - missing folder"
+    },
+    {
+      "id": "s140",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.folder/open_folder - missing folder"
+      },
+      "children": [
+        {
+          "id": "s141",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/open_folder (missing folder) and checks its result."
+          }
+        },
+        {
+          "id": "s142",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s348",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s349",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s145",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/open_folder",
+                  "args": {
+                    "path": "case10/none"
+                  },
+                  "id": "s143"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s146",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/open_folder: missing folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/open_folder: missing folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.folder/open_folder - missing folder"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.folder/subfolders - each folder at any depth (new iterator)"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/subfolders (each folder at any depth (new iterator)) and checks its result."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s350",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s351",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s157",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case11/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case11/a/b/y.txt",
+                "text": "2"
+              },
+              "description": "Prepare the test file a/b/y.txt"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case11/c/z.txt",
+                "text": "3"
+              },
+              "description": "Prepare the test file c/z.txt"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 0
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.folder/subfolders",
+                "iterator_args": {
+                  "path": "case11",
+                  "include_subfolders": true
+                },
+                "as": "f"
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "n",
+                    "value": {
+                      "expr": "$n + 1"
+                    }
+                  },
+                  "id": "s162"
+                }
+              ],
+              "id": "s161"
+            },
+            {
+              "id": "s163",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s165",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s167",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/subfolders: each folder at any depth (new iterator)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/subfolders: each folder at any depth (new iterator): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.folder/subfolders - each folder at any depth (new iterator)"
+    },
+    {
+      "id": "s170",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.folder/exists - condition"
+      },
+      "children": [
+        {
+          "id": "s171",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/exists (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s172",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s352",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s353",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s173",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case12/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.folder/exists",
+                  "args": {
+                    "path": "case12/a"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s176"
+                }
+              ],
+              "id": "s175"
+            },
+            {
+              "id": "s177",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s179",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/exists: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/exists: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.folder/exists - condition"
+    },
+    {
+      "id": "s184",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.folder/is_empty - condition"
+      },
+      "children": [
+        {
+          "id": "s185",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/is_empty (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s186",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s354",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s355",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case13"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s187",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case13/a/x.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file a/x.txt"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.folder/is_empty",
+                  "args": {
+                    "path": "case13/a"
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s190"
+                }
+              ],
+              "id": "s189"
+            },
+            {
+              "id": "s191",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/is_empty: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/is_empty: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.folder/is_empty - condition"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.folder/move - folder with its files (G07)"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/move (folder with its files (G07)) and checks its result."
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s359",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s360",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case14"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case14/src/Reports/a.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file src/Reports/a.txt"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case14/src/Reports/sub/b.txt",
+                "text": "2"
+              },
+              "description": "Prepare the test file src/Reports/sub/b.txt"
+            },
+            {
+              "action": "ooa.folder/move",
+              "args": {
+                "source": "case14/src/Reports",
+                "destination": "case14/archive"
+              },
+              "out": {
+                "path": "p"
+              },
+              "id": "s203"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$p$",
+                  "right": "Reports"
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p: expected eq \"contains\": \"Reports\", got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case14/archive/Reports/a.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read archive/Reports/a.txt"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check archive/Reports/a.txt",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "archive/Reports/a.txt: expected eq \"1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case14/archive/Reports/sub/b.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read archive/Reports/sub/b.txt"
+            },
+            {
+              "id": "s212",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check archive/Reports/sub/b.txt",
+              "else": [
+                {
+                  "id": "s214",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "archive/Reports/sub/b.txt: expected eq \"2\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "core/if",
+              "description": "Look for case14/src/Reports",
+              "args": {
+                "condition": {
+                  "condition": "ooa.folder/exists",
+                  "args": {
+                    "path": "case14/src/Reports"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s357",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s216",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s217",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check src/Reports absent",
+              "else": [
+                {
+                  "id": "s218",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "src/Reports absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s219",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/move: folder with its files (G07)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s221",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/move: folder with its files (G07): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.folder/move - folder with its files (G07)"
+    },
+    {
+      "id": "s223",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.folder/move - merge only with overwrite"
+      },
+      "children": [
+        {
+          "id": "s224",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/move (merge only with overwrite) and checks its result."
+          }
+        },
+        {
+          "id": "s225",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case15"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case15/src/R/a.txt",
+                "text": "new"
+              },
+              "description": "Prepare the test file src/R/a.txt"
+            },
+            {
+              "id": "s227",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case15/dst/R/a.txt",
+                "text": "old"
+              },
+              "description": "Prepare the test file dst/R/a.txt"
+            },
+            {
+              "id": "s228",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case15/dst/R/keep.txt",
+                "text": "k"
+              },
+              "description": "Prepare the test file dst/R/keep.txt"
+            },
+            {
+              "action": "ooa.folder/move",
+              "args": {
+                "source": "case15/src/R",
+                "destination": "case15/dst",
+                "overwrite": true
+              },
+              "id": "s229"
+            },
+            {
+              "id": "s230",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case15/dst/R/a.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read dst/R/a.txt"
+            },
+            {
+              "id": "s231",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "new"
+                }
+              },
+              "children": [
+                {
+                  "id": "s232",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dst/R/a.txt",
+              "else": [
+                {
+                  "id": "s233",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dst/R/a.txt: expected eq \"new\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s234",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case15/dst/R/keep.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read dst/R/keep.txt"
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "k"
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dst/R/keep.txt",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dst/R/keep.txt: expected eq \"k\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s361",
+              "action": "core/if",
+              "description": "Look for case15/src/R",
+              "args": {
+                "condition": {
+                  "condition": "ooa.folder/exists",
+                  "args": {
+                    "path": "case15/src/R"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s362",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s363",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s239",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check src/R absent",
+              "else": [
+                {
+                  "id": "s241",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "src/R absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s243",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/move: merge only with overwrite\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s245",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/move: merge only with overwrite: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.folder/move - merge only with overwrite"
+    },
+    {
+      "id": "s246",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.folder/move - stops when the folder exists"
+      },
+      "children": [
+        {
+          "id": "s247",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/move (stops when the folder exists) and checks its result."
+          }
+        },
+        {
+          "id": "s248",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s366",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s367",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case16"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case16/src/R/a.txt",
+                "text": "new"
+              },
+              "description": "Prepare the test file src/R/a.txt"
+            },
+            {
+              "id": "s250",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case16/dst/R/a.txt",
+                "text": "old"
+              },
+              "description": "Prepare the test file dst/R/a.txt"
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s253",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/move",
+                  "args": {
+                    "source": "case16/src/R",
+                    "destination": "case16/dst"
+                  },
+                  "id": "s251"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.EXISTS",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.EXISTS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s254",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s255",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.EXISTS",
+              "else": [
+                {
+                  "id": "s257",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.EXISTS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s258",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/move: stops when the folder exists\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s260",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s261",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/move: stops when the folder exists: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.folder/move - stops when the folder exists"
+    },
+    {
+      "id": "s262",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.folder/move - not into itself"
+      },
+      "children": [
+        {
+          "id": "s263",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/move (not into itself) and checks its result."
+          }
+        },
+        {
+          "id": "s264",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s368",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s369",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case17"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s265",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case17/src/R/a.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file src/R/a.txt"
+            },
+            {
+              "id": "s267",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s268",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.folder/move",
+                  "args": {
+                    "source": "case17/src/R",
+                    "destination": "case17/src/R/inner"
+                  },
+                  "id": "s266"
+                }
+              ],
+              "description": "These steps should fail with FOLDER.BAD_TARGET",
+              "catch": [
+                {
+                  "codes": [
+                    "FOLDER.BAD_TARGET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s269",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s270",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FOLDER.BAD_TARGET",
+              "else": [
+                {
+                  "id": "s272",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FOLDER.BAD_TARGET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/move: not into itself\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/move: not into itself: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.folder/move - not into itself"
+    },
+    {
+      "id": "s277",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.folder/special_folder - temp and documents (G07)"
+      },
+      "children": [
+        {
+          "id": "s278",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/special_folder (temp and documents (G07)) and checks its result."
+          }
+        },
+        {
+          "id": "s279",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.folder/special_folder",
+              "args": {
+                "folder": "temp"
+              },
+              "out": {
+                "path": "t",
+                "exists": "te"
+              },
+              "id": "s280"
+            },
+            {
+              "action": "ooa.folder/special_folder",
+              "args": {
+                "folder": "documents"
+              },
+              "out": {
+                "path": "d"
+              },
+              "id": "s281"
+            },
+            {
+              "id": "s282",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$te$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check te",
+              "else": [
+                {
+                  "id": "s284",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "te: expected eq true, got ${te}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s285",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$d$",
+                  "right": "Documents"
+                }
+              },
+              "children": [
+                {
+                  "id": "s286",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check d",
+              "else": [
+                {
+                  "id": "s287",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "d: expected eq \"contains\": \"Documents\", got ${d}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/special_folder: temp and documents (G07)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/special_folder: temp and documents (G07): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.folder/special_folder - temp and documents (G07)"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.folder/copy - size and date filters"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.folder/copy (size and date filters) and checks its result."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s373",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case19",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s374",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case19"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s295",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case19/s/small.txt",
+                "text": "1"
+              },
+              "description": "Prepare the test file s/small.txt"
+            },
+            {
+              "id": "s296",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case19/s/old.txt",
+                "text": "2"
+              },
+              "description": "Prepare the test file s/old.txt"
+            },
+            {
+              "action": "ooa.folder/copy",
+              "args": {
+                "source": "case19/s",
+                "target": "case19/t1",
+                "larger_than_kb": 1
+              },
+              "out": {
+                "copied": "big"
+              },
+              "id": "s297"
+            },
+            {
+              "action": "ooa.folder/copy",
+              "args": {
+                "source": "case19/s",
+                "target": "case19/t2",
+                "smaller_than_kb": 1,
+                "pattern": "small*"
+              },
+              "out": {
+                "copied": "small"
+              },
+              "id": "s298"
+            },
+            {
+              "action": "ooa.folder/copy",
+              "args": {
+                "source": "case19/s",
+                "target": "case19/t3",
+                "modified_after": "2000-01-01T00:00:00",
+                "modified_before": "2001-01-01T00:00:00"
+              },
+              "out": {
+                "copied": "dated"
+              },
+              "id": "s299"
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$big$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check big",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "big: expected eq 0, got ${big}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$small$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check small",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "small: expected eq 1, got ${small}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dated$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dated",
+              "else": [
+                {
+                  "id": "s308",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dated: expected eq 0, got ${dated}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s309",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case19/t2/small.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read t2/small.txt"
+            },
+            {
+              "id": "s310",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s311",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t2/small.txt",
+              "else": [
+                {
+                  "id": "s312",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t2/small.txt: expected eq \"1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s370",
+              "action": "core/if",
+              "description": "Look for case19/t1/small.txt",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case19/t1/small.txt"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s314",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s315",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t1/small.txt absent",
+              "else": [
+                {
+                  "id": "s316",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t1/small.txt absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s317",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s318",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/copy: size and date filters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s320",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/copy: size and date filters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.folder/copy - size and date filters"
+    },
+    {
+      "id": "s375",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.folder/create - numbered when it exists"
+      },
+      "children": [
+        {
+          "id": "s376",
+          "action": "core/comment",
+          "args": {
+            "text": "With if_exists = numbered, Create makes a new folder with a number added when the name is taken."
+          }
+        },
+        {
+          "id": "s377",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s378",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case20",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s379",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case20"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s380",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case20/Reports"
+              },
+              "description": "The first Reports folder"
+            },
+            {
+              "id": "s381",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case20/Reports",
+                "if_exists": "numbered"
+              },
+              "out": {
+                "path": "p",
+                "created": "created"
+              },
+              "description": "Create Reports again, numbered"
+            },
+            {
+              "id": "s382",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$created$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check created",
+              "else": [
+                {
+                  "id": "s384",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "created: expected eq true, got ${created}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s385",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$p$",
+                  "right": "case20/Reports"
+                }
+              },
+              "children": [
+                {
+                  "id": "s386",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the numbered path",
+              "else": [
+                {
+                  "id": "s387",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the numbered path: expected ne \"case20/Reports\", got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s388",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s389",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create: numbered when it exists\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s390",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s391",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create: numbered when it exists: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.folder/create - numbered when it exists"
+    },
+    {
+      "id": "s392",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.folder/create_shortcut - shortcut to a folder"
+      },
+      "children": [
+        {
+          "id": "s393",
+          "action": "core/comment",
+          "args": {
+            "text": "Create shortcut makes a .lnk file that opens the folder; the case checks the shortcut file exists."
+          }
+        },
+        {
+          "id": "s394",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s395",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case21",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s396",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case21"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s397",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case21/Target"
+              },
+              "description": "The folder the shortcut opens"
+            },
+            {
+              "id": "s398",
+              "action": "ooa.folder/create_shortcut",
+              "args": {
+                "path": "case21/Target",
+                "shortcut": "case21/Target.lnk"
+              },
+              "out": {
+                "path": "p"
+              },
+              "description": "Create a shortcut to Target"
+            },
+            {
+              "id": "s399",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s400",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case21/Target.lnk"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s401",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is the shortcut there?"
+            },
+            {
+              "id": "s402",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s403",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s404",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s405",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s406",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/create_shortcut: shortcut to a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s407",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s408",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/create_shortcut: shortcut to a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.folder/create_shortcut - shortcut to a folder"
+    },
+    {
+      "id": "s409",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.folder/rename_folder - only when larger than a limit"
+      },
+      "children": [
+        {
+          "id": "s410",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename folder with larger_than_kb leaves a smaller folder as it is and reports renamed false."
+          }
+        },
+        {
+          "id": "s411",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s412",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case22",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s413",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case22"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s414",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/a/x.txt",
+                "text": "1"
+              },
+              "description": "A small file in the folder"
+            },
+            {
+              "id": "s415",
+              "action": "ooa.folder/rename_folder",
+              "args": {
+                "path": "case22/a",
+                "new_name": "b",
+                "larger_than_kb": 100
+              },
+              "out": {
+                "renamed": "renamed"
+              },
+              "description": "Rename only when over 100 KB"
+            },
+            {
+              "id": "s416",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$renamed$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s417",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check renamed",
+              "else": [
+                {
+                  "id": "s418",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "renamed: expected eq false, got ${renamed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s419",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/rename_folder: only when larger than a limit\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s421",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/rename_folder: only when larger than a limit: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.folder/rename_folder - only when larger than a limit"
+    },
+    {
+      "id": "s423",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.folder/is_empty - a new folder is empty"
+      },
+      "children": [
+        {
+          "id": "s424",
+          "action": "core/comment",
+          "args": {
+            "text": "Is empty is true for a folder with nothing in it."
+          }
+        },
+        {
+          "id": "s425",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s426",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case23",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s427",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case23"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s428",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case23/empty"
+              },
+              "description": "An empty folder"
+            },
+            {
+              "id": "s429",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s430",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.folder/is_empty",
+                  "args": {
+                    "path": "case23/empty"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s431",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is it empty?"
+            },
+            {
+              "id": "s432",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s433",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s434",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s435",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s436",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/is_empty: a new folder is empty\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s438",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/is_empty: a new folder is empty: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.folder/is_empty - a new folder is empty"
+    },
+    {
+      "id": "s439",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.folder/open_folder - show the case folder"
+      },
+      "children": [
+        {
+          "id": "s440",
+          "action": "core/comment",
+          "args": {
+            "text": "Open folder shows the folder in File Explorer. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s441",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s442",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case24",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s443",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case24"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s444",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s445",
+                  "action": "ooa.folder/open_folder",
+                  "args": {
+                    "path": "case24"
+                  },
+                  "description": "Show the case folder"
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s446",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.folder/open_folder needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s447",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s448",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.folder/open_folder: show the case folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s449",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s450",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.folder/open_folder: show the case folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.folder/open_folder - show the case folder"
+    },
+    {
+      "id": "s451",
+      "action": "core/step",
+      "args": {
+        "title": "25. Summary"
+      },
+      "children": [
+        {
+          "id": "s452",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s453",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s454",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s455",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "25. Summary"
+    }
+  ]
+}

@@ -1,0 +1,1296 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_powerpoint",
+  "name": "UT PowerPoint",
+  "description": "Unit tests of every PowerPoint file command: each case makes its own presentation in the run folder.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "before",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "reopened",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s1",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "txt",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every PowerPoint file command: each case makes its own presentation in the run folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT PowerPoint started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.powerpoint/create_presentation - slides, text on the last slide (new default), table, replace, format, copy, delete, read"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.powerpoint/create_presentation (slides, text on the last slide (new default), table, replace, format, copy, delete, read) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "{tmp}/p.pptx"
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "layout": "title_only",
+                "title": "Q3 {{region}}"
+              },
+              "out": {
+                "slide": "s1"
+              },
+              "id": "s8"
+            },
+            {
+              "action": "ooa.powerpoint/insert_text",
+              "args": {
+                "text": "Revenue up"
+              },
+              "id": "s9"
+            },
+            {
+              "action": "ooa.powerpoint/insert_table",
+              "args": {
+                "table": {
+                  "columns": [
+                    "Region",
+                    "Sales"
+                  ],
+                  "rows": [
+                    [
+                      "North",
+                      "10"
+                    ]
+                  ]
+                }
+              },
+              "id": "s10"
+            },
+            {
+              "action": "ooa.powerpoint/find_replace_text",
+              "args": {
+                "find": "{{region}}",
+                "replace_with": "North"
+              },
+              "out": {
+                "count": "r"
+              },
+              "id": "s11"
+            },
+            {
+              "action": "ooa.powerpoint/format_text",
+              "args": {
+                "text": "Revenue",
+                "bold": true,
+                "color": "#00AA00"
+              },
+              "out": {
+                "count": "f"
+              },
+              "id": "s12"
+            },
+            {
+              "action": "ooa.powerpoint/copy_slide",
+              "args": {
+                "slide": 1
+              },
+              "out": {
+                "slide": "s2"
+              },
+              "id": "s13"
+            },
+            {
+              "action": "ooa.powerpoint/slide_count",
+              "out": {
+                "count": "before"
+              },
+              "id": "s14"
+            },
+            {
+              "action": "ooa.powerpoint/delete_slide",
+              "args": {
+                "slide": 2
+              },
+              "id": "s15"
+            },
+            {
+              "action": "ooa.powerpoint/slide_count",
+              "out": {
+                "count": "after"
+              },
+              "id": "s16"
+            },
+            {
+              "action": "ooa.powerpoint/read_text",
+              "out": {
+                "text": "txt"
+              },
+              "id": "s17"
+            },
+            {
+              "action": "ooa.powerpoint/save",
+              "id": "s18"
+            },
+            {
+              "action": "ooa.powerpoint/save_as",
+              "args": {
+                "path": "{tmp}/copy.pptx"
+              },
+              "id": "s19"
+            },
+            {
+              "action": "ooa.powerpoint/close",
+              "id": "s20"
+            },
+            {
+              "action": "ooa.powerpoint/open",
+              "args": {
+                "path": "{tmp}/copy.pptx"
+              },
+              "id": "s21"
+            },
+            {
+              "action": "ooa.powerpoint/slide_count",
+              "out": {
+                "count": "reopened"
+              },
+              "id": "s22"
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s1$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s1",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s1: expected eq 1, got ${s1}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 1, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s31",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq 1, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq 2, got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$before$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check before",
+              "else": [
+                {
+                  "id": "s37",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "before: expected eq 2, got ${before}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$after$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check after",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "after: expected eq 1, got ${after}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$reopened$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check reopened",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "reopened: expected eq 1, got ${reopened}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$txt$",
+                  "right": {
+                    "$contains": "Q3 North"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check txt",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "txt: expected eq \"contains\": \"Q3 North\", got ${txt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "p.pptx"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read p.pptx"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/create_presentation: slides, text on the last slide (new default), table, replace, format, copy, delete, read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/create_presentation: slides, text on the last slide (new default), table, replace, format, copy, delete, read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.powerpoint/create_presentation - slides, text on the last slide (new default), table, replace, format, copy, delete, read"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.powerpoint/insert_text - no slide yet"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.powerpoint/insert_text (no slide yet) and checks its result."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s58",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.powerpoint/create_presentation",
+                  "args": {
+                    "path": "{tmp}/e.pptx"
+                  },
+                  "id": "s55"
+                },
+                {
+                  "action": "ooa.powerpoint/insert_text",
+                  "args": {
+                    "text": "x"
+                  },
+                  "id": "s56"
+                }
+              ],
+              "description": "These steps should fail with PPT.NO_SLIDE",
+              "catch": [
+                {
+                  "codes": [
+                    "PPT.NO_SLIDE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s59",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PPT.NO_SLIDE",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PPT.NO_SLIDE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/insert_text: no slide yet\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/insert_text: no slide yet: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.powerpoint/insert_text - no slide yet"
+    },
+    {
+      "id": "s67",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.powerpoint/insert_picture - missing image"
+      },
+      "children": [
+        {
+          "id": "s68",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.powerpoint/insert_picture (missing image) and checks its result."
+          }
+        },
+        {
+          "id": "s69",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s74",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.powerpoint/create_presentation",
+                  "args": {
+                    "path": "{tmp}/i.pptx"
+                  },
+                  "id": "s70"
+                },
+                {
+                  "action": "ooa.powerpoint/add_slide",
+                  "id": "s71"
+                },
+                {
+                  "action": "ooa.powerpoint/insert_picture",
+                  "args": {
+                    "image": "{tmp}/none.png"
+                  },
+                  "id": "s72"
+                }
+              ],
+              "description": "These steps should fail with PPT.IMAGE_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "PPT.IMAGE_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s75",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PPT.IMAGE_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s78",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PPT.IMAGE_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/insert_picture: missing image\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/insert_picture: missing image: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.powerpoint/insert_picture - missing image"
+    },
+    {
+      "id": "s83",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.powerpoint/find_replace_picture - missing image"
+      },
+      "children": [
+        {
+          "id": "s84",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.powerpoint/find_replace_picture (missing image) and checks its result."
+          }
+        },
+        {
+          "id": "s85",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s89",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.powerpoint/create_presentation",
+                  "args": {
+                    "path": "{tmp}/fr.pptx"
+                  },
+                  "id": "s86"
+                },
+                {
+                  "action": "ooa.powerpoint/find_replace_picture",
+                  "args": {
+                    "image": "{tmp}/none.png",
+                    "index": 1
+                  },
+                  "id": "s87"
+                }
+              ],
+              "description": "These steps should fail with PPT.IMAGE_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "PPT.IMAGE_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s90",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PPT.IMAGE_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PPT.IMAGE_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/find_replace_picture: missing image\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/find_replace_picture: missing image: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.powerpoint/find_replace_picture - missing image"
+    },
+    {
+      "id": "s98",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.powerpoint/extract_text - reads a saved presentation's text, slide after slide"
+      },
+      "children": [
+        {
+          "id": "s99",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.powerpoint/extract_text (reads a saved presentation's text, slide after slide) and checks its result."
+          }
+        },
+        {
+          "id": "s100",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "{tmp}/deck.pptx"
+              },
+              "id": "s101"
+            },
+            {
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "layout": "title_only",
+                "title": "Quarterly results"
+              },
+              "id": "s102"
+            },
+            {
+              "action": "ooa.powerpoint/close",
+              "args": {
+                "save": true
+              },
+              "id": "s103"
+            },
+            {
+              "action": "ooa.powerpoint/extract_text",
+              "args": {
+                "path": "{tmp}/deck.pptx"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s104"
+            },
+            {
+              "action": "ooa.string/count_occurrences",
+              "args": {
+                "text": "$t",
+                "find": "Quarterly results"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s105"
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/extract_text: reads a saved presentation's text, slide after slide\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/extract_text: reads a saved presentation's text, slide after slide: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.powerpoint/extract_text - reads a saved presentation's text, slide after slide"
+    },
+    {
+      "id": "s113",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s114",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s115",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s116",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s117",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

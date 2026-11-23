@@ -1,0 +1,1485 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_pdf",
+  "name": "UT PDF",
+  "description": "Unit tests of every PDF command: each case makes its own PDF in the run folder.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "area",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "embedded",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "fields",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "imgs",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "merged",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "pages",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "parts",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "props",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "reopened",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "used",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every PDF command: each case makes its own PDF in the run folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT PDF started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.pdf/page_count - pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/page_count (pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "in/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n4 0 obj << /Length 44 >> stream\nBT /F1 18 Tf 20 150 Td (Invoice 7) Tj ET\nendstream endobj\n5 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n7 0 obj << /Length 42 >> stream\nBT /F1 18 Tf 20 150 Td (Page two) Tj ET\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+              },
+              "description": "Prepare the test file in/a.pdf"
+            },
+            {
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "{tmp}/in/a.pdf"
+              },
+              "out": {
+                "count": "pages"
+              },
+              "id": "s8"
+            },
+            {
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "{tmp}/in/a.pdf",
+                "pages": "2"
+              },
+              "out": {
+                "text": "p2"
+              },
+              "id": "s9"
+            },
+            {
+              "action": "ooa.pdf/extract_area_text",
+              "args": {
+                "path": "{tmp}/in/a.pdf",
+                "page": 1,
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 100
+              },
+              "out": {
+                "text": "area"
+              },
+              "id": "s10"
+            },
+            {
+              "action": "ooa.pdf/get_properties",
+              "args": {
+                "path": "{tmp}/in/a.pdf"
+              },
+              "out": {
+                "properties": "props"
+              },
+              "id": "s11"
+            },
+            {
+              "action": "ooa.pdf/split",
+              "args": {
+                "path": "{tmp}/in/a.pdf",
+                "target_folder": "{tmp}/parts"
+              },
+              "out": {
+                "files": "parts"
+              },
+              "id": "s12"
+            },
+            {
+              "action": "ooa.pdf/merge",
+              "args": {
+                "folder": "{tmp}/parts",
+                "target": "{tmp}/merged.pdf"
+              },
+              "out": {
+                "page_count": "merged",
+                "files": "used"
+              },
+              "id": "s13"
+            },
+            {
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "{tmp}/in/a.pdf",
+                "target_folder": "{tmp}/img",
+                "dpi": 50,
+                "pages": "1"
+              },
+              "out": {
+                "files": "imgs"
+              },
+              "id": "s14"
+            },
+            {
+              "action": "ooa.pdf/extract_images",
+              "args": {
+                "path": "{tmp}/in/a.pdf",
+                "target_folder": "{tmp}/ex"
+              },
+              "out": {
+                "count": "embedded"
+              },
+              "id": "s15"
+            },
+            {
+              "action": "ooa.pdf/encrypt",
+              "args": {
+                "path": "{tmp}/merged.pdf",
+                "target": "{tmp}/locked.pdf",
+                "user_password": "$up",
+                "owner_password": "$op"
+              },
+              "id": "s16"
+            },
+            {
+              "action": "ooa.pdf/decrypt",
+              "args": {
+                "path": "{tmp}/locked.pdf",
+                "password": "$up",
+                "target": "{tmp}/open.pdf"
+              },
+              "id": "s17"
+            },
+            {
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "{tmp}/open.pdf"
+              },
+              "out": {
+                "count": "reopened"
+              },
+              "id": "s18"
+            },
+            {
+              "action": "ooa.pdf/read_form",
+              "args": {
+                "path": "{tmp}/open.pdf"
+              },
+              "out": {
+                "fields": "fields"
+              },
+              "id": "s19"
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pages$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pages",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pages: expected eq 2, got ${pages}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$p2$",
+                  "right": {
+                    "$contains": "Page two"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p2",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p2: expected eq \"contains\": \"Page two\", got ${p2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$area$",
+                  "right": {
+                    "$contains": "Invoice 7"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check area",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "area: expected eq \"contains\": \"Invoice 7\", got ${area}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$props$",
+                  "right": {
+                    "$type": "object"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check props",
+              "else": [
+                {
+                  "id": "s31",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "props: expected eq \"type\": \"object\", got ${props}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$merged$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check merged",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "merged: expected eq 2, got ${merged}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$embedded$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check embedded",
+              "else": [
+                {
+                  "id": "s37",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "embedded: expected eq 0, got ${embedded}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$reopened$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check reopened",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "reopened: expected eq 2, got ${reopened}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$fields$",
+                  "right": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check fields",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "fields: expected eq , got ${fields}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "merged.pdf"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read merged.pdf"
+            },
+            {
+              "id": "s45",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "locked.pdf"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read locked.pdf"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/page_count: pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/page_count: pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.pdf/page_count - pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt"
+    },
+    {
+      "id": "s50",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.pdf/page_count - not a PDF"
+      },
+      "children": [
+        {
+          "id": "s51",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/page_count (not a PDF) and checks its result."
+          }
+        },
+        {
+          "id": "s52",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s53",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "x.pdf",
+                "text": "not a pdf"
+              },
+              "description": "Prepare the test file x.pdf"
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s56",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.pdf/page_count",
+                  "args": {
+                    "path": "{tmp}/x.pdf"
+                  },
+                  "id": "s54"
+                }
+              ],
+              "description": "These steps should fail with PDF.INVALID",
+              "catch": [
+                {
+                  "codes": [
+                    "PDF.INVALID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PDF.INVALID",
+              "else": [
+                {
+                  "id": "s60",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PDF.INVALID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/page_count: not a PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/page_count: not a PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.pdf/page_count - not a PDF"
+    },
+    {
+      "id": "s65",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.pdf/merge - folder with only one PDF"
+      },
+      "children": [
+        {
+          "id": "s66",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/merge (folder with only one PDF) and checks its result."
+          }
+        },
+        {
+          "id": "s67",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s68",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "one/a.pdf",
+                "text": "%PDF-1.4\n%%EOF\n"
+              },
+              "description": "Prepare the test file one/a.pdf"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s71",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.pdf/merge",
+                  "args": {
+                    "folder": "{tmp}/one",
+                    "target": "{tmp}/m.pdf"
+                  },
+                  "id": "s69"
+                }
+              ],
+              "description": "These steps should fail with PDF.NEED_FILES",
+              "catch": [
+                {
+                  "codes": [
+                    "PDF.NEED_FILES"
+                  ],
+                  "children": [
+                    {
+                      "id": "s72",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PDF.NEED_FILES",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PDF.NEED_FILES: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/merge: folder with only one PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/merge: folder with only one PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.pdf/merge - folder with only one PDF"
+    },
+    {
+      "id": "s80",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.pdf/fill_form - no form in the file"
+      },
+      "children": [
+        {
+          "id": "s81",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/fill_form (no form in the file) and checks its result."
+          }
+        },
+        {
+          "id": "s82",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s83",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "f.pdf",
+                "text": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+              },
+              "description": "Prepare the test file f.pdf"
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s86",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.pdf/fill_form",
+                  "args": {
+                    "path": "{tmp}/f.pdf",
+                    "values": {
+                      "name": "Ann"
+                    },
+                    "target": "{tmp}/o.pdf"
+                  },
+                  "id": "s84"
+                }
+              ],
+              "description": "These steps should fail with PDF.NO_FORM",
+              "catch": [
+                {
+                  "codes": [
+                    "PDF.NO_FORM"
+                  ],
+                  "children": [
+                    {
+                      "id": "s87",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PDF.NO_FORM",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PDF.NO_FORM: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/fill_form: no form in the file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/fill_form: no form in the file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.pdf/fill_form - no form in the file"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.pdf/extract_tables - missing file (G12)"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/extract_tables (missing file (G12)) and checks its result."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s100",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.pdf/extract_tables",
+                  "args": {
+                    "path": "{tmp}/none.pdf"
+                  },
+                  "id": "s98"
+                }
+              ],
+              "description": "These steps should fail with FILE.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FILE.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s101",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FILE.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s104",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FILE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_tables: missing file (G12)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_tables: missing file (G12): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.pdf/extract_tables - missing file (G12)"
+    },
+    {
+      "id": "s109",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.pdf/read_xps_text - not an XPS file (G12)"
+      },
+      "children": [
+        {
+          "id": "s110",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pdf/read_xps_text (not an XPS file (G12)) and checks its result."
+          }
+        },
+        {
+          "id": "s111",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s112",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "a.xps",
+                "text": "plain text"
+              },
+              "description": "Prepare the test file a.xps"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s115",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.pdf/read_xps_text",
+                  "args": {
+                    "path": "{tmp}/a.xps"
+                  },
+                  "id": "s113"
+                }
+              ],
+              "description": "These steps should fail with PDF.INVALID",
+              "catch": [
+                {
+                  "codes": [
+                    "PDF.INVALID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s116",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PDF.INVALID",
+              "else": [
+                {
+                  "id": "s119",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PDF.INVALID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/read_xps_text: not an XPS file (G12)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/read_xps_text: not an XPS file (G12): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.pdf/read_xps_text - not an XPS file (G12)"
+    },
+    {
+      "id": "s124",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s125",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s126",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s127",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s128",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}
