@@ -117,6 +117,26 @@
       "name": "t",
       "type": "Any",
       "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "slides",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "slide",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "shape",
+      "type": "String",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -166,9 +186,34 @@
           "args": {},
           "children": [
             {
+              "id": "s116",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s117",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s118",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "action": "ooa.powerpoint/create_presentation",
               "args": {
-                "path": "{tmp}/p.pptx"
+                "path": "case1/p.pptx"
               },
               "id": "s7"
             },
@@ -276,7 +321,7 @@
             {
               "action": "ooa.powerpoint/save_as",
               "args": {
-                "path": "{tmp}/copy.pptx"
+                "path": "case1/copy.pptx"
               },
               "id": "s19"
             },
@@ -287,7 +332,7 @@
             {
               "action": "ooa.powerpoint/open",
               "args": {
-                "path": "{tmp}/copy.pptx"
+                "path": "case1/copy.pptx"
               },
               "id": "s21"
             },
@@ -527,11 +572,9 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
+                  "op": "contains",
                   "left": "$txt$",
-                  "right": {
-                    "$contains": "Q3 North"
-                  }
+                  "right": "Q3 North"
                 }
               },
               "children": [
@@ -557,15 +600,36 @@
               ]
             },
             {
-              "id": "s47",
-              "action": "ooa.file/read_text",
+              "id": "s113",
+              "action": "core/if",
+              "description": "Check case1/p.pptx was made",
               "args": {
-                "path": "p.pptx"
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/p.pptx"
+                  }
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read p.pptx"
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "case1/p.pptx was not made"
+                  }
+                }
+              ]
             },
             {
               "id": "s48",
@@ -643,6 +707,31 @@
           "args": {},
           "children": [
             {
+              "id": "s119",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s120",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s57",
               "action": "core/set",
               "args": {
@@ -658,7 +747,7 @@
                 {
                   "action": "ooa.powerpoint/create_presentation",
                   "args": {
-                    "path": "{tmp}/e.pptx"
+                    "path": "case2/e.pptx"
                   },
                   "id": "s55"
                 },
@@ -798,6 +887,31 @@
           "args": {},
           "children": [
             {
+              "id": "s122",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s123",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s124",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s73",
               "action": "core/set",
               "args": {
@@ -813,7 +927,7 @@
                 {
                   "action": "ooa.powerpoint/create_presentation",
                   "args": {
-                    "path": "{tmp}/i.pptx"
+                    "path": "case3/i.pptx"
                   },
                   "id": "s70"
                 },
@@ -824,7 +938,7 @@
                 {
                   "action": "ooa.powerpoint/insert_picture",
                   "args": {
-                    "image": "{tmp}/none.png"
+                    "image": "case3/none.png"
                   },
                   "id": "s72"
                 }
@@ -957,6 +1071,31 @@
           "args": {},
           "children": [
             {
+              "id": "s125",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s127",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s88",
               "action": "core/set",
               "args": {
@@ -972,14 +1111,14 @@
                 {
                   "action": "ooa.powerpoint/create_presentation",
                   "args": {
-                    "path": "{tmp}/fr.pptx"
+                    "path": "case4/fr.pptx"
                   },
                   "id": "s86"
                 },
                 {
                   "action": "ooa.powerpoint/find_replace_picture",
                   "args": {
-                    "image": "{tmp}/none.png",
+                    "image": "case4/none.png",
                     "index": 1
                   },
                   "id": "s87"
@@ -1113,9 +1252,34 @@
           "args": {},
           "children": [
             {
+              "id": "s128",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s129",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s130",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "action": "ooa.powerpoint/create_presentation",
               "args": {
-                "path": "{tmp}/deck.pptx"
+                "path": "case5/deck.pptx"
               },
               "id": "s101"
             },
@@ -1137,7 +1301,7 @@
             {
               "action": "ooa.powerpoint/extract_text",
               "args": {
-                "path": "{tmp}/deck.pptx"
+                "path": "case5/deck.pptx"
               },
               "out": {
                 "text": "t"
@@ -1244,21 +1408,2422 @@
       "description": "5. ooa.powerpoint/extract_text - reads a saved presentation's text, slide after slide"
     },
     {
-      "id": "s113",
+      "id": "s131",
       "action": "core/step",
       "args": {
-        "title": "6. Summary"
+        "title": "6. ooa.powerpoint/add_slide - title and body"
       },
       "children": [
         {
-          "id": "s114",
+          "id": "s132",
+          "action": "core/comment",
+          "args": {
+            "text": "Add slide adds a slide with a layout and fills its title and body; it returns the slide number."
+          }
+        },
+        {
+          "id": "s133",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s134",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s135",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s136",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s137",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case6/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s138",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Agenda",
+                "body": "Numbers"
+              },
+              "out": {
+                "slide": "slide"
+              },
+              "description": "Add a slide"
+            },
+            {
+              "id": "s139",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "layout": "title",
+                "title": "Welcome",
+                "position": 1
+              },
+              "out": {
+                "slide": "n"
+              },
+              "description": "Add a title slide first"
+            },
+            {
+              "id": "s140",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "slides": "slides",
+                "text": "text"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$slide$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check slide",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "slide: expected eq 1, got ${slide}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s147",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s148",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Agenda"
+                }
+              },
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s150",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Agenda\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s152",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/add_slide: title and body\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s154",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/add_slide: title and body: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.powerpoint/add_slide - title and body"
+    },
+    {
+      "id": "s155",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.powerpoint/read_text - one entry per slide"
+      },
+      "children": [
+        {
+          "id": "s156",
+          "action": "core/comment",
+          "args": {
+            "text": "Read text returns the text of each slide in order; the case checks there are two entries."
+          }
+        },
+        {
+          "id": "s157",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s158",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s160",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s161",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case7/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s162",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "One",
+                "body": "Body of One"
+              },
+              "description": "Add slide One"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Two",
+                "body": "Body of Two"
+              },
+              "description": "Add slide Two"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "slides": "slides"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($slides)"
+                }
+              },
+              "description": "Count the entries"
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/read_text: one entry per slide\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/read_text: one entry per slide: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.powerpoint/read_text - one entry per slide"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.powerpoint/slide_count - three slides"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Slide count counts the slides."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s177",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case8/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s181",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "A",
+                "body": "Body of A"
+              },
+              "description": "Add slide A"
+            },
+            {
+              "id": "s182",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "B",
+                "body": "Body of B"
+              },
+              "description": "Add slide B"
+            },
+            {
+              "id": "s183",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "C",
+                "body": "Body of C"
+              },
+              "description": "Add slide C"
+            },
+            {
+              "id": "s184",
+              "action": "ooa.powerpoint/slide_count",
+              "args": {},
+              "out": {
+                "count": "n"
+              },
+              "description": "Count"
+            },
+            {
+              "id": "s185",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/slide_count: three slides\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/slide_count: three slides: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.powerpoint/slide_count - three slides"
+    },
+    {
+      "id": "s193",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.powerpoint/copy_slide - duplicate at the end"
+      },
+      "children": [
+        {
+          "id": "s194",
+          "action": "core/comment",
+          "args": {
+            "text": "Copy slide duplicates a slide with its text; the count goes up and the copy has the same title."
+          }
+        },
+        {
+          "id": "s195",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s196",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s197",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s198",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s199",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case9/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s200",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Original",
+                "body": "Body of Original"
+              },
+              "description": "Add slide Original"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.powerpoint/copy_slide",
+              "args": {
+                "slide": 1
+              },
+              "out": {
+                "slide": "slide"
+              },
+              "description": "Copy slide 1"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.powerpoint/slide_count",
+              "args": {},
+              "out": {
+                "count": "n"
+              },
+              "description": "Count"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "slides": "slides"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s204",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s205",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s206",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s207",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$slide$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check slide",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "slide: expected eq 2, got ${slide}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "text",
+                "value": {
+                  "expr": "$slides[1]"
+                }
+              },
+              "description": "The copy's text"
+            },
+            {
+              "id": "s212",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Original"
+                }
+              },
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the copy",
+              "else": [
+                {
+                  "id": "s214",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the copy: expected contains \"Original\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s215",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/copy_slide: duplicate at the end\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s217",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s218",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/copy_slide: duplicate at the end: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.powerpoint/copy_slide - duplicate at the end"
+    },
+    {
+      "id": "s219",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.powerpoint/delete_slide - two in a row"
+      },
+      "children": [
+        {
+          "id": "s220",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete slide removes slides; deleting slides 1 and 2 of three leaves the third."
+          }
+        },
+        {
+          "id": "s221",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s222",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s223",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case10/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "A",
+                "body": "Body of A"
+              },
+              "description": "Add slide A"
+            },
+            {
+              "id": "s227",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "B",
+                "body": "Body of B"
+              },
+              "description": "Add slide B"
+            },
+            {
+              "id": "s228",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "C",
+                "body": "Body of C"
+              },
+              "description": "Add slide C"
+            },
+            {
+              "id": "s229",
+              "action": "ooa.powerpoint/delete_slide",
+              "args": {
+                "slide": 1,
+                "count": 2
+              },
+              "description": "Delete slides 1 and 2"
+            },
+            {
+              "id": "s230",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "slides": "slides",
+                "text": "text"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s231",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s232",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($slides)"
+                }
+              },
+              "description": "Count the entries"
+            },
+            {
+              "id": "s233",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s234",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s235",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s236",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Body of C"
+                }
+              },
+              "children": [
+                {
+                  "id": "s237",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s238",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Body of C\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/delete_slide: two in a row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s242",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/delete_slide: two in a row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.powerpoint/delete_slide - two in a row"
+    },
+    {
+      "id": "s243",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.powerpoint/find_replace_text - fill a placeholder"
+      },
+      "children": [
+        {
+          "id": "s244",
+          "action": "core/comment",
+          "args": {
+            "text": "Find and replace text replaces text on every slide, e.g. a {{name}} placeholder, and counts it."
+          }
+        },
+        {
+          "id": "s245",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s246",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s247",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s248",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case11/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s250",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Hello {{name}}",
+                "body": "For {{name}}"
+              },
+              "description": "A slide with a placeholder"
+            },
+            {
+              "id": "s251",
+              "action": "ooa.powerpoint/find_replace_text",
+              "args": {
+                "find": "{{name}}",
+                "replace_with": "Asha"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Fill the placeholder"
+            },
+            {
+              "id": "s252",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s253",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s254",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s255",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s256",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s257",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Hello Asha"
+                }
+              },
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s259",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Hello Asha\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/find_replace_text: fill a placeholder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s263",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/find_replace_text: fill a placeholder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.powerpoint/find_replace_text - fill a placeholder"
+    },
+    {
+      "id": "s264",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.powerpoint/format_text - bold a word"
+      },
+      "children": [
+        {
+          "id": "s265",
+          "action": "core/comment",
+          "args": {
+            "text": "Format text makes each occurrence of a text bold and counts them (title and body both hold it)."
+          }
+        },
+        {
+          "id": "s266",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s267",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s268",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s269",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s270",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case12/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s271",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Quarter results",
+                "body": "Body of Quarter results"
+              },
+              "description": "Add slide Quarter results"
+            },
+            {
+              "id": "s272",
+              "action": "ooa.powerpoint/format_text",
+              "args": {
+                "text": "results",
+                "bold": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Bold the word results"
+            },
+            {
+              "id": "s273",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s274",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s276",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/format_text: bold a word\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s280",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/format_text: bold a word: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.powerpoint/format_text - bold a word"
+    },
+    {
+      "id": "s281",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.powerpoint/insert_table - table on a slide"
+      },
+      "children": [
+        {
+          "id": "s282",
+          "action": "core/comment",
+          "args": {
+            "text": "Insert table adds a table from a Data Table; its cells' text is read back with the slide text."
+          }
+        },
+        {
+          "id": "s283",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s284",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s285",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case13"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case13/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s288",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "layout": "blank"
+              },
+              "description": "A blank slide"
+            },
+            {
+              "id": "s289",
+              "action": "ooa.powerpoint/insert_table",
+              "args": {
+                "slide": 1,
+                "table": {
+                  "columns": [
+                    "Region",
+                    "Sales"
+                  ],
+                  "rows": [
+                    [
+                      "North",
+                      "120"
+                    ]
+                  ]
+                }
+              },
+              "out": {
+                "shape": "shape"
+              },
+              "description": "Add the table"
+            },
+            {
+              "id": "s290",
+              "action": "ooa.powerpoint/read_text",
+              "args": {},
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the slides"
+            },
+            {
+              "id": "s291",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s292",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$shape$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s293",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check shape",
+              "else": [
+                {
+                  "id": "s294",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "shape: expected notEmpty , got ${shape}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s295",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "North"
+                }
+              },
+              "children": [
+                {
+                  "id": "s296",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s297",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"North\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s298",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s299",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/insert_table: table on a slide\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s300",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s301",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/insert_table: table on a slide: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.powerpoint/insert_table - table on a slide"
+    },
+    {
+      "id": "s302",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.powerpoint/open - open a saved file"
+      },
+      "children": [
+        {
+          "id": "s303",
+          "action": "core/comment",
+          "args": {
+            "text": "Open opens a presentation as a session; the case saves one, opens it again and counts its slides."
+          }
+        },
+        {
+          "id": "s304",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s305",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s306",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s307",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case14"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s308",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case14/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s309",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "A",
+                "body": "Body of A"
+              },
+              "description": "Add slide A"
+            },
+            {
+              "id": "s310",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "B",
+                "body": "Body of B"
+              },
+              "description": "Add slide B"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.powerpoint/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s312",
+              "action": "ooa.powerpoint/open",
+              "args": {
+                "path": "case14/p.pptx"
+              },
+              "description": "Open it again"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.powerpoint/slide_count",
+              "args": {},
+              "out": {
+                "count": "n"
+              },
+              "description": "Count"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s317",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/open: open a saved file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/open: open a saved file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.powerpoint/open - open a saved file"
+    },
+    {
+      "id": "s322",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.powerpoint/save - save to a new path"
+      },
+      "children": [
+        {
+          "id": "s323",
+          "action": "core/comment",
+          "args": {
+            "text": "Save writes the presentation, here to a second path; that file's text holds the slide."
+          }
+        },
+        {
+          "id": "s324",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s325",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s326",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case15"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case15/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s329",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Saved",
+                "body": "Body of Saved"
+              },
+              "description": "Add slide Saved"
+            },
+            {
+              "id": "s330",
+              "action": "ooa.powerpoint/save",
+              "args": {
+                "path": "case15/copy.pptx"
+              },
+              "description": "Save to copy.pptx"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s332",
+              "action": "ooa.powerpoint/extract_text",
+              "args": {
+                "path": "case15/copy.pptx"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Saved"
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Saved\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/save: save to a new path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/save: save to a new path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.powerpoint/save - save to a new path"
+    },
+    {
+      "id": "s340",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.powerpoint/save_as - export as PDF"
+      },
+      "children": [
+        {
+          "id": "s341",
+          "action": "core/comment",
+          "args": {
+            "text": "Save as with format pdf exports the presentation; the PDF has one page per slide."
+          }
+        },
+        {
+          "id": "s342",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s343",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s344",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s345",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case16"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s346",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case16/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s347",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "A",
+                "body": "Body of A"
+              },
+              "description": "Add slide A"
+            },
+            {
+              "id": "s348",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "B",
+                "body": "Body of B"
+              },
+              "description": "Add slide B"
+            },
+            {
+              "id": "s349",
+              "action": "ooa.powerpoint/save_as",
+              "args": {
+                "path": "case16/p.pdf",
+                "format": "pdf"
+              },
+              "description": "Save as PDF"
+            },
+            {
+              "id": "s350",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s351",
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "case16/p.pdf"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Count the PDF's pages"
+            },
+            {
+              "id": "s352",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s353",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s354",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s355",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/save_as: export as PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s357",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/save_as: export as PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.powerpoint/save_as - export as PDF"
+    },
+    {
+      "id": "s359",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.powerpoint/close - close with save"
+      },
+      "children": [
+        {
+          "id": "s360",
+          "action": "core/comment",
+          "args": {
+            "text": "Close ends the session; with save on, the new slide is in the file."
+          }
+        },
+        {
+          "id": "s361",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s362",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s363",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s364",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case17"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case17/p.pptx"
+              },
+              "description": "Create a new presentation"
+            },
+            {
+              "id": "s366",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "title": "Kept",
+                "body": "Body of Kept"
+              },
+              "description": "Add slide Kept"
+            },
+            {
+              "id": "s367",
+              "action": "ooa.powerpoint/close",
+              "args": {
+                "save": true
+              },
+              "description": "Close and save"
+            },
+            {
+              "id": "s368",
+              "action": "ooa.powerpoint/extract_text",
+              "args": {
+                "path": "case17/p.pptx"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s369",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Kept"
+                }
+              },
+              "children": [
+                {
+                  "id": "s370",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s371",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Kept\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s372",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s373",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint/close: close with save\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s374",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s375",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint/close: close with save: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.powerpoint/close - close with save"
+    },
+    {
+      "id": "s376",
+      "action": "core/step",
+      "args": {
+        "title": "18. Summary"
+      },
+      "children": [
+        {
+          "id": "s377",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s115",
+          "id": "s378",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -1267,7 +3832,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s116",
+          "id": "s379",
           "action": "core/if",
           "args": {
             "condition": {
@@ -1278,7 +3843,7 @@
           },
           "children": [
             {
-              "id": "s117",
+              "id": "s380",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -1290,7 +3855,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "6. Summary"
+      "description": "18. Summary"
     }
   ]
 }

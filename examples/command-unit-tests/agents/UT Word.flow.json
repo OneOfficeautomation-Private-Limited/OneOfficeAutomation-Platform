@@ -112,6 +112,26 @@
       "name": "p",
       "type": "Any",
       "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "tbl",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -161,9 +181,34 @@
           "args": {},
           "children": [
             {
+              "id": "s157",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "action": "ooa.word/create_document",
               "args": {
-                "path": "{tmp}/d.docx"
+                "path": "case1/d.docx"
               },
               "id": "s7"
             },
@@ -274,7 +319,7 @@
             {
               "action": "ooa.word/save_as",
               "args": {
-                "path": "{tmp}/d.txt",
+                "path": "case1/d.txt",
                 "format": "txt"
               },
               "id": "s18"
@@ -462,11 +507,9 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
+                  "op": "contains",
                   "left": "$txt$",
-                  "right": {
-                    "$contains": "Footer {{name}}"
-                  }
+                  "right": "Footer {{name}}"
                 }
               },
               "children": [
@@ -529,26 +572,68 @@
               ]
             },
             {
-              "id": "s41",
-              "action": "ooa.file/read_text",
+              "id": "s151",
+              "action": "core/if",
+              "description": "Check case1/d.docx was made",
               "args": {
-                "path": "d.docx"
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/d.docx"
+                  }
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read d.docx"
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s153",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "case1/d.docx was not made"
+                  }
+                }
+              ]
             },
             {
-              "id": "s42",
-              "action": "ooa.file/read_text",
+              "id": "s154",
+              "action": "core/if",
+              "description": "Check case1/d.txt was made",
               "args": {
-                "path": "d.txt"
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/d.txt"
+                  }
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read d.txt"
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "case1/d.txt was not made"
+                  }
+                }
+              ]
             },
             {
               "id": "s43",
@@ -626,6 +711,31 @@
           "args": {},
           "children": [
             {
+              "id": "s160",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s161",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s162",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s52",
               "action": "core/set",
               "args": {
@@ -641,7 +751,7 @@
                 {
                   "action": "ooa.word/create_document",
                   "args": {
-                    "path": "{tmp}/r.docx"
+                    "path": "case2/r.docx"
                   },
                   "id": "s50"
                 },
@@ -783,6 +893,31 @@
           "args": {},
           "children": [
             {
+              "id": "s163",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s69",
               "action": "core/set",
               "args": {
@@ -798,7 +933,7 @@
                 {
                   "action": "ooa.word/create_document",
                   "args": {
-                    "path": "{tmp}/ro.docx"
+                    "path": "case3/ro.docx"
                   },
                   "id": "s65"
                 },
@@ -812,7 +947,7 @@
                 {
                   "action": "ooa.word/open",
                   "args": {
-                    "path": "{tmp}/ro.docx",
+                    "path": "case3/ro.docx",
                     "read_only": true
                   },
                   "id": "s67"
@@ -950,6 +1085,31 @@
           "args": {},
           "children": [
             {
+              "id": "s166",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s167",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s168",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s83",
               "action": "core/set",
               "args": {
@@ -965,7 +1125,7 @@
                 {
                   "action": "ooa.word/open",
                   "args": {
-                    "path": "{tmp}/none.docx"
+                    "path": "case4/none.docx"
                   },
                   "id": "s82"
                 }
@@ -1098,6 +1258,31 @@
           "args": {},
           "children": [
             {
+              "id": "s169",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s170",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s171",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s98",
               "action": "core/set",
               "args": {
@@ -1113,14 +1298,14 @@
                 {
                   "action": "ooa.word/create_document",
                   "args": {
-                    "path": "{tmp}/p.docx"
+                    "path": "case5/p.docx"
                   },
                   "id": "s96"
                 },
                 {
                   "action": "ooa.word/insert_picture",
                   "args": {
-                    "image": "{tmp}/none.png"
+                    "image": "case5/none.png"
                   },
                   "id": "s97"
                 }
@@ -1253,6 +1438,31 @@
           "args": {},
           "children": [
             {
+              "id": "s172",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s173",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s174",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s113",
               "action": "core/set",
               "args": {
@@ -1268,14 +1478,14 @@
                 {
                   "action": "ooa.word/create_document",
                   "args": {
-                    "path": "{tmp}/fp.docx"
+                    "path": "case6/fp.docx"
                   },
                   "id": "s111"
                 },
                 {
                   "action": "ooa.word/find_replace_picture",
                   "args": {
-                    "image": "{tmp}/none.png",
+                    "image": "case6/none.png",
                     "index": 1
                   },
                   "id": "s112"
@@ -1409,9 +1619,34 @@
           "args": {},
           "children": [
             {
+              "id": "s175",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s176",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s177",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "action": "ooa.word/create_document",
               "args": {
-                "path": "{tmp}/letter.docx"
+                "path": "case7/letter.docx"
               },
               "id": "s126"
             },
@@ -1432,7 +1667,7 @@
             {
               "action": "ooa.word/extract_text",
               "args": {
-                "path": "{tmp}/letter.docx"
+                "path": "case7/letter.docx"
               },
               "out": {
                 "text": "t"
@@ -1558,9 +1793,34 @@
           "args": {},
           "children": [
             {
+              "id": "s178",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "action": "ooa.word/create_document",
               "args": {
-                "path": "{tmp}/pages.docx"
+                "path": "case8/pages.docx"
               },
               "id": "s141"
             },
@@ -1668,21 +1928,1654 @@
       "description": "8. ooa.word/get_page_count - counts a page break as a new page"
     },
     {
-      "id": "s151",
+      "id": "s181",
       "action": "core/step",
       "args": {
-        "title": "9. Summary"
+        "title": "9. ooa.word/add_paragraph - heading and body"
       },
       "children": [
         {
-          "id": "s152",
+          "id": "s182",
+          "action": "core/comment",
+          "args": {
+            "text": "Add paragraph appends a paragraph, here a heading and a bold line; the text is read back line by line."
+          }
+        },
+        {
+          "id": "s183",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s184",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s185",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s186",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s187",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case9/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s188",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "Monthly report",
+                "style": "Heading1"
+              },
+              "description": "Add a heading"
+            },
+            {
+              "id": "s189",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "All figures in EUR",
+                "bold": true
+              },
+              "description": "Add a bold line"
+            },
+            {
+              "id": "s190",
+              "action": "ooa.word/read_text",
+              "args": {},
+              "out": {
+                "text": "text",
+                "paragraphs": "paras"
+              },
+              "description": "Read the text"
+            },
+            {
+              "id": "s191",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s192",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "Monthly report\nAll figures in EUR"
+                }
+              },
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s194",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"Monthly report\\nAll figures in EUR\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/add_paragraph: heading and body\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/add_paragraph: heading and body: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.word/add_paragraph - heading and body"
+    },
+    {
+      "id": "s199",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.word/read_text - a range of paragraphs"
+      },
+      "children": [
+        {
+          "id": "s200",
+          "action": "core/comment",
+          "args": {
+            "text": "Read text returns paragraph text; with from_paragraph and to_paragraph only those lines."
+          }
+        },
+        {
+          "id": "s201",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s202",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s204",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s205",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case10/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s206",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "one"
+              },
+              "description": "Add a line"
+            },
+            {
+              "id": "s207",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "two"
+              },
+              "description": "Add a line"
+            },
+            {
+              "id": "s208",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "three"
+              },
+              "description": "Add a line"
+            },
+            {
+              "id": "s209",
+              "action": "ooa.word/read_text",
+              "args": {
+                "from_paragraph": 2,
+                "to_paragraph": 3
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read paragraphs 2 to 3"
+            },
+            {
+              "id": "s210",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s211",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "two\nthree"
+                }
+              },
+              "children": [
+                {
+                  "id": "s212",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s213",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"two\\nthree\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s215",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/read_text: a range of paragraphs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s217",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/read_text: a range of paragraphs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.word/read_text - a range of paragraphs"
+    },
+    {
+      "id": "s218",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.word/insert_text - after a marker text"
+      },
+      "children": [
+        {
+          "id": "s219",
+          "action": "core/comment",
+          "args": {
+            "text": "Insert text puts text after a marker paragraph; the new text comes between the two lines."
+          }
+        },
+        {
+          "id": "s220",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s221",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s222",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s223",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case11/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "Dear customer,"
+              },
+              "description": "First line"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "Regards"
+              },
+              "description": "Last line"
+            },
+            {
+              "id": "s227",
+              "action": "ooa.word/insert_text",
+              "args": {
+                "text": "Your order has shipped.",
+                "position": "after_text",
+                "anchor": "Dear customer,"
+              },
+              "description": "Insert after the greeting"
+            },
+            {
+              "id": "s228",
+              "action": "ooa.word/read_text",
+              "args": {},
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the text"
+            },
+            {
+              "id": "s229",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "Dear customer,\nYour order has shipped.\nRegards"
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"Dear customer,\\nYour order has shipped.\\nRegards\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/insert_text: after a marker text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/insert_text: after a marker text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.word/insert_text - after a marker text"
+    },
+    {
+      "id": "s237",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.word/format_text - bold every occurrence"
+      },
+      "children": [
+        {
+          "id": "s238",
+          "action": "core/comment",
+          "args": {
+            "text": "Format text applies formatting to each occurrence of a text and says how many it changed."
+          }
+        },
+        {
+          "id": "s239",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s240",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s241",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s242",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s243",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case12/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "Total due: 100. Total paid: 40."
+              },
+              "description": "A line"
+            },
+            {
+              "id": "s245",
+              "action": "ooa.word/format_text",
+              "args": {
+                "text": "Total",
+                "bold": true,
+                "color": "#C00000"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Make Total bold and red"
+            },
+            {
+              "id": "s246",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s247",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s249",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/format_text: bold every occurrence\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/format_text: bold every occurrence: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.word/format_text - bold every occurrence"
+    },
+    {
+      "id": "s254",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.word/add_table - table read back"
+      },
+      "children": [
+        {
+          "id": "s255",
+          "action": "core/comment",
+          "args": {
+            "text": "Add table inserts a table from a Data Table; Read tables returns it with its column names."
+          }
+        },
+        {
+          "id": "s256",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s257",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s258",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s259",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case13"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s260",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case13/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s261",
+              "action": "ooa.word/add_table",
+              "args": {
+                "table": {
+                  "columns": [
+                    "Item",
+                    "Qty"
+                  ],
+                  "rows": [
+                    [
+                      "pen",
+                      "2"
+                    ],
+                    [
+                      "cup",
+                      "3"
+                    ]
+                  ]
+                }
+              },
+              "description": "Add the table"
+            },
+            {
+              "id": "s262",
+              "action": "ooa.word/read_tables",
+              "args": {
+                "index": 1,
+                "header": true
+              },
+              "out": {
+                "table": "tbl",
+                "count": "n"
+              },
+              "description": "Read the first table"
+            },
+            {
+              "id": "s263",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s264",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s266",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s267",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$tbl$",
+                  "right": {
+                    "columns": [
+                      "Item",
+                      "Qty"
+                    ],
+                    "rows": [
+                      [
+                        "pen",
+                        "2"
+                      ],
+                      [
+                        "cup",
+                        "3"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check tbl",
+              "else": [
+                {
+                  "id": "s269",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "tbl: expected eq \"columns\": [\"Item\", \"Qty\"], \"rows\": [[\"pen\", \"2\"], [\"cup\", \"3\"]], got ${tbl}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s271",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/add_table: table read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s273",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/add_table: table read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.word/add_table - table read back"
+    },
+    {
+      "id": "s274",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.word/read_tables - only some rows"
+      },
+      "children": [
+        {
+          "id": "s275",
+          "action": "core/comment",
+          "args": {
+            "text": "Read tables with from_row and to_row reads only part of a table."
+          }
+        },
+        {
+          "id": "s276",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s277",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s278",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s279",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case14"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s280",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case14/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s281",
+              "action": "ooa.word/add_table",
+              "args": {
+                "table": {
+                  "columns": [
+                    "Item",
+                    "Qty"
+                  ],
+                  "rows": [
+                    [
+                      "pen",
+                      "2"
+                    ],
+                    [
+                      "cup",
+                      "3"
+                    ]
+                  ]
+                }
+              },
+              "description": "Add the table"
+            },
+            {
+              "id": "s282",
+              "action": "ooa.word/read_tables",
+              "args": {
+                "index": 1,
+                "header": true,
+                "from_row": 1,
+                "to_row": 2
+              },
+              "out": {
+                "table": "tbl"
+              },
+              "description": "Read rows 1 to 2"
+            },
+            {
+              "id": "s283",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s284",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$tbl$",
+                  "right": {
+                    "columns": [
+                      "Item",
+                      "Qty"
+                    ],
+                    "rows": [
+                      [
+                        "pen",
+                        "2"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check tbl",
+              "else": [
+                {
+                  "id": "s286",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "tbl: expected eq \"columns\": [\"Item\", \"Qty\"], \"rows\": [[\"pen\", \"2\"]], got ${tbl}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s287",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/read_tables: only some rows\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/read_tables: only some rows: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.word/read_tables - only some rows"
+    },
+    {
+      "id": "s291",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.word/save - save to a new path"
+      },
+      "children": [
+        {
+          "id": "s292",
+          "action": "core/comment",
+          "args": {
+            "text": "Save writes the document, here to a second path; the copy holds the text."
+          }
+        },
+        {
+          "id": "s293",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s294",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s295",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s296",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case15"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s297",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case15/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s298",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "saved copy"
+              },
+              "description": "A line"
+            },
+            {
+              "id": "s299",
+              "action": "ooa.word/save",
+              "args": {
+                "path": "case15/copy.docx"
+              },
+              "description": "Save to copy.docx"
+            },
+            {
+              "id": "s300",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s301",
+              "action": "ooa.word/extract_text",
+              "args": {
+                "path": "case15/copy.docx"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s302",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "saved copy"
+                }
+              },
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s304",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"saved copy\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/save: save to a new path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/save: save to a new path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.word/save - save to a new path"
+    },
+    {
+      "id": "s309",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.word/save_as - export as PDF"
+      },
+      "children": [
+        {
+          "id": "s310",
+          "action": "core/comment",
+          "args": {
+            "text": "Save as with format pdf exports the document; the PDF's text holds the paragraph."
+          }
+        },
+        {
+          "id": "s311",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s312",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case16"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s315",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case16/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s316",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "Exported to PDF"
+              },
+              "description": "A line"
+            },
+            {
+              "id": "s317",
+              "action": "ooa.word/save_as",
+              "args": {
+                "path": "case16/d.pdf",
+                "format": "pdf"
+              },
+              "description": "Save as PDF"
+            },
+            {
+              "id": "s318",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s319",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "case16/d.pdf"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the PDF"
+            },
+            {
+              "id": "s320",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Exported to PDF"
+                }
+              },
+              "children": [
+                {
+                  "id": "s321",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s322",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Exported to PDF\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s324",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/save_as: export as PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s326",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/save_as: export as PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.word/save_as - export as PDF"
+    },
+    {
+      "id": "s327",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.word/close - close with save"
+      },
+      "children": [
+        {
+          "id": "s328",
+          "action": "core/comment",
+          "args": {
+            "text": "Close ends the session; with save on, the change is in the file."
+          }
+        },
+        {
+          "id": "s329",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s330",
+              "action": "ooa.word/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s332",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case17"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s333",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case17/d.docx"
+              },
+              "description": "Create a new document for this case"
+            },
+            {
+              "id": "s334",
+              "action": "ooa.word/add_paragraph",
+              "args": {
+                "text": "kept on close"
+              },
+              "description": "A line"
+            },
+            {
+              "id": "s335",
+              "action": "ooa.word/close",
+              "args": {
+                "save": true
+              },
+              "description": "Close and save"
+            },
+            {
+              "id": "s336",
+              "action": "ooa.word/extract_text",
+              "args": {
+                "path": "case17/d.docx"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s337",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "kept on close"
+                }
+              },
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s339",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"kept on close\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s340",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s341",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.word/close: close with save\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s343",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.word/close: close with save: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.word/close - close with save"
+    },
+    {
+      "id": "s344",
+      "action": "core/step",
+      "args": {
+        "title": "18. Summary"
+      },
+      "children": [
+        {
+          "id": "s345",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s153",
+          "id": "s346",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -1691,7 +3584,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s154",
+          "id": "s347",
           "action": "core/if",
           "args": {
             "condition": {
@@ -1702,7 +3595,7 @@
           },
           "children": [
             {
-              "id": "s155",
+              "id": "s348",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -1714,7 +3607,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "9. Summary"
+      "description": "18. Summary"
     }
   ]
 }

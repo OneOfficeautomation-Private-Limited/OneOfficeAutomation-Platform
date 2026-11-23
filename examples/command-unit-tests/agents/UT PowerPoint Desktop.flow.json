@@ -55,6 +55,33 @@
       "type": "Boolean",
       "direction": "local",
       "default": false
+    },
+    {
+      "name": "shape",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "pos",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
     }
   ],
   "steps": [
@@ -104,10 +131,35 @@
           "args": {},
           "children": [
             {
+              "id": "s80",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s81",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s82",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s7",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "deck.pptm",
+                "path": "case1/deck.pptm",
                 "text": "x"
               },
               "description": "Prepare the test file deck.pptm"
@@ -128,7 +180,7 @@
                 {
                   "action": "ooa.powerpoint_desktop/run_macro",
                   "args": {
-                    "path": "{tmp}/deck.pptm",
+                    "path": "case1/deck.pptm",
                     "macro": "Go; Remove-Item"
                   },
                   "id": "s8"
@@ -262,10 +314,35 @@
           "args": {},
           "children": [
             {
+              "id": "s83",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s84",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s85",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s22",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "deck.pptm",
+                "path": "case2/deck.pptm",
                 "text": "x"
               },
               "description": "Prepare the test file deck.pptm"
@@ -286,7 +363,7 @@
                 {
                   "action": "ooa.powerpoint_desktop/run_macro",
                   "args": {
-                    "path": "{tmp}/deck.pptm",
+                    "path": "case2/deck.pptm",
                     "macro": "Go",
                     "arguments": [
                       "1",
@@ -428,10 +505,35 @@
           "args": {},
           "children": [
             {
+              "id": "s86",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s87",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s88",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s37",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "deck.pptx",
+                "path": "case3/deck.pptx",
                 "text": "x"
               },
               "description": "Prepare the test file deck.pptx"
@@ -452,8 +554,8 @@
                 {
                   "action": "ooa.powerpoint_desktop/insert_video",
                   "args": {
-                    "path": "{tmp}/deck.pptx",
-                    "video": "{tmp}/none.mp4"
+                    "path": "case3/deck.pptx",
+                    "video": "case3/none.mp4"
                   },
                   "id": "s38"
                 }
@@ -586,10 +688,35 @@
           "args": {},
           "children": [
             {
+              "id": "s89",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s90",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s91",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s52",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "a.csv",
+                "path": "case4/a.csv",
                 "text": "x"
               },
               "description": "Prepare the test file a.csv"
@@ -610,8 +737,8 @@
                 {
                   "action": "ooa.powerpoint_desktop/insert_file",
                   "args": {
-                    "path": "{tmp}/none.pptx",
-                    "file": "{tmp}/a.csv"
+                    "path": "case4/none.pptx",
+                    "file": "case4/a.csv"
                   },
                   "id": "s53"
                 }
@@ -744,10 +871,35 @@
           "args": {},
           "children": [
             {
+              "id": "s92",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s93",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s94",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s67",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "deck.pptx",
+                "path": "case5/deck.pptx",
                 "text": "x"
               },
               "description": "Prepare the test file deck.pptx"
@@ -756,7 +908,7 @@
               "id": "s68",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "out.pptx",
+                "path": "case5/out.pptx",
                 "text": "old"
               },
               "description": "Prepare the test file out.pptx"
@@ -777,8 +929,8 @@
                 {
                   "action": "ooa.powerpoint_desktop/paste",
                   "args": {
-                    "path": "{tmp}/deck.pptx",
-                    "save_as": "{tmp}/out.pptx",
+                    "path": "case5/deck.pptx",
+                    "save_as": "case5/out.pptx",
                     "overwrite": false
                   },
                   "id": "s69"
@@ -893,21 +1045,457 @@
       "description": "5. ooa.powerpoint_desktop/paste - keeps an existing save_as file"
     },
     {
-      "id": "s80",
+      "id": "s95",
       "action": "core/step",
       "args": {
-        "title": "6. Summary"
+        "title": "6. ooa.powerpoint_desktop/insert_file - embed a csv as an icon"
       },
       "children": [
         {
-          "id": "s81",
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Insert file embeds a file on a slide as an icon; the case embeds a csv, saves to a new file and checks the shape name and that the new file was written."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s98",
+              "action": "ooa.powerpoint/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s99",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s100",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s101",
+              "action": "ooa.powerpoint/create_presentation",
+              "args": {
+                "path": "case6/deck.pptx"
+              },
+              "description": "Create a presentation"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.powerpoint/add_slide",
+              "args": {
+                "layout": "blank"
+              },
+              "description": "Add a blank slide"
+            },
+            {
+              "id": "s103",
+              "action": "ooa.powerpoint/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s104",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case6/orders.csv",
+                "text": "id,qty\n1,2\n"
+              },
+              "description": "The file to embed"
+            },
+            {
+              "id": "s105",
+              "action": "ooa.powerpoint_desktop/insert_file",
+              "args": {
+                "path": "case6/deck.pptx",
+                "slide": 1,
+                "file": "case6/orders.csv",
+                "label": "Orders",
+                "save_as": "case6/out.pptx"
+              },
+              "out": {
+                "shape": "shape",
+                "position": "pos"
+              },
+              "description": "Embed orders.csv on slide 1"
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$shape$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check shape",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "shape: expected notEmpty , got ${shape}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "ooa.powerpoint/open",
+              "args": {
+                "path": "case6/out.pptx"
+              },
+              "description": "Open the result"
+            },
+            {
+              "id": "s110",
+              "action": "ooa.powerpoint/slide_count",
+              "args": {},
+              "out": {
+                "count": "n"
+              },
+              "description": "Count slides"
+            },
+            {
+              "id": "s111",
+              "action": "ooa.powerpoint/close",
+              "args": {}
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint_desktop/insert_file: embed a csv as an icon\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint_desktop/insert_file: embed a csv as an icon: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.powerpoint_desktop/insert_file - embed a csv as an icon"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.powerpoint_desktop/paste - paste text from the clipboard"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Paste puts what is on the clipboard onto a slide; the case copies a text and pastes it as text. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s122",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s123",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "ooa.powerpoint/create_presentation",
+                  "args": {
+                    "path": "case7/deck.pptx"
+                  },
+                  "description": "Create a presentation"
+                },
+                {
+                  "id": "s126",
+                  "action": "ooa.powerpoint/add_slide",
+                  "args": {
+                    "layout": "blank"
+                  },
+                  "description": "Add a blank slide"
+                },
+                {
+                  "id": "s127",
+                  "action": "ooa.powerpoint/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s128",
+                  "action": "ooa.desktop/clipboard_set",
+                  "args": {
+                    "text": "Pasted by the unit test"
+                  },
+                  "description": "Put a text on the clipboard"
+                },
+                {
+                  "id": "s129",
+                  "action": "ooa.powerpoint_desktop/paste",
+                  "args": {
+                    "path": "case7/deck.pptx",
+                    "slide": 1,
+                    "paste_as": "text"
+                  },
+                  "out": {
+                    "shape": "shape"
+                  },
+                  "description": "Paste it on slide 1"
+                },
+                {
+                  "id": "s130",
+                  "action": "ooa.powerpoint/extract_text",
+                  "args": {
+                    "path": "case7/deck.pptx"
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read the presentation"
+                },
+                {
+                  "id": "s131",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$text$",
+                      "right": "Pasted by the unit test"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s132",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check text",
+                  "else": [
+                    {
+                      "id": "s133",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "text: expected contains \"Pasted by the unit test\", got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.powerpoint_desktop/paste needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.powerpoint_desktop/paste: paste text from the clipboard\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.powerpoint_desktop/paste: paste text from the clipboard: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.powerpoint_desktop/paste - paste text from the clipboard"
+    },
+    {
+      "id": "s139",
+      "action": "core/step",
+      "args": {
+        "title": "8. Summary"
+      },
+      "children": [
+        {
+          "id": "s140",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s82",
+          "id": "s141",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -916,7 +1504,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s83",
+          "id": "s142",
           "action": "core/if",
           "args": {
             "condition": {
@@ -927,7 +1515,7 @@
           },
           "children": [
             {
-              "id": "s84",
+              "id": "s143",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -939,7 +1527,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "6. Summary"
+      "description": "8. Summary"
     }
   ]
 }
