@@ -113,6 +113,23 @@ def fix_samples(ua, close=None):
         tr["children"][0:0] = _closers(ua, close) + _prep_steps(ua, d)
     _declare_loop_vars(ua)
     _walk(ua.f.steps, lambda s: _runtime_invalid(ua, s))
+    _sample_credentials(ua)
+
+
+def _sample_credentials(ua):
+    """Samples name made-up passwords in "credentials" {variable: vault path} (values in "secrets"); ut.add_sample
+    leaves them out. Here an argument "$var" naming such a variable becomes a vault reference
+    unit_tests/samples_<path with _>/<last part> (the made-up value is in secrets.env as OOA_SECRET_UNIT_TESTS_SAMPLES_...)."""
+    import gen  # the samples loader (gen.py is the script that imports this module)
+    creds = {}
+    for s in gen.load_samples():
+        creds.update(s.get("credentials") or {})
+
+    def fix(s):
+        for k, v in list((s.get("args") or {}).items()):
+            if isinstance(v, str) and v.startswith("$") and v.strip("$") in creds and not ua.f.has_var(v.strip("$")):
+                s["args"][k] = {"$credential": "unit_tests/samples_" + creds[v.strip("$")].rsplit("/", 1)[0].replace("/", "_") + "/" + creds[v.strip("$")].rsplit("/", 1)[1]}
+    _walk(ua.f.steps, fix)
 
 
 def _runtime_invalid(ua, s):
@@ -154,6 +171,9 @@ def _fix_contains(s):
     if isinstance(c, dict) and c.get("op") == "eq" and isinstance(c.get("right"), dict) and "$contains" in c["right"]:
         c["op"] = "contains"
         c["right"] = c["right"]["$contains"]
+    elif isinstance(c, dict) and c.get("op") == "eq" and isinstance(c.get("right"), dict) and "$type" in c["right"]:
+        c["op"] = "notEmpty"        # {"$type": "object"}: a value of that kind came back
+        del c["right"]
 
 
 @contextmanager
@@ -194,5 +214,58 @@ def cc_case(ua, command, title, why):
             yield f, d
         with f.else_(s):
             f.log("Not run: " + command + " needs One CommandCenter (switch on ut_commandcenter)")
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Small test documents written by the agents themselves (ooa.file/write_text): plain-ASCII PDFs
+# ---------------------------------------------------------------------------------------------------------------------
+
+def text_pdf(pages, size=(300, 200), font_size=12):
+    """A PDF with Helvetica text: pages = [[(x, y_from_bottom, text), ...], ...]."""
+    w, h = size
+    objs = {1: "<< /Type /Catalog /Pages 2 0 R >>", 3: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"}
+    kids = []
+    for i, lines in enumerate(pages):
+        po, co = 4 + 2 * i, 5 + 2 * i
+        kids.append(f"{po} 0 R")
+        stream = "\n".join(f"BT /F1 {font_size} Tf {x} {y} Td ({t}) Tj ET" for x, y, t in lines)
+        objs[po] = (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Contents {co} 0 R "
+                    f"/Resources << /Font << /F1 3 0 R >> >> >>")
+        objs[co] = f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream"
+    objs[2] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(pages)} >>"
+    return _pdf(objs)
+
+
+def form_pdf(fields):
+    """A one-page PDF form with text fields: fields = {name: value}."""
+    objs = {2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            5: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"}
+    refs = []
+    for i, name in enumerate(fields):
+        o = 10 + i
+        refs.append(f"{o} 0 R")
+        y = 160 - 40 * i
+        objs[o] = (f"<< /Type /Annot /Subtype /Widget /FT /Tx /T ({name}) /V ({fields[name]}) /Rect [20 {y} 250 {y + 25}] "
+                   f"/P 3 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>")
+    objs[1] = (f"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [{' '.join(refs)}] /NeedAppearances true "
+               f"/DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>")
+    objs[3] = (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [{' '.join(refs)}] "
+               f"/Resources << /Font << /Helv 5 0 R >> >> >>")
+    return _pdf(objs)
+
+
+def _pdf(objs):
+    out = "%PDF-1.4\n"
+    offsets = {}
+    for k in sorted(objs):
+        offsets[k] = len(out)
+        out += f"{k} 0 obj\n{objs[k]}\nendobj\n"
+    xref = len(out)
+    top = max(objs)
+    out += f"xref\n0 {top + 1}\n0000000000 65535 f \n"
+    for k in range(1, top + 1):
+        out += f"{offsets[k]:010d} 00000 n \n" if k in offsets else "0000000000 65535 f \n"
+    out += f"trailer\n<< /Size {top + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    return out
 
 

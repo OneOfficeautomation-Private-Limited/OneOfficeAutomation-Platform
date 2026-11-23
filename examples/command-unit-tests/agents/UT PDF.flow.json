@@ -122,6 +122,51 @@
       "type": "Boolean",
       "direction": "local",
       "default": false
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "vals",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "empty",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "tbl",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "img",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "w",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -171,10 +216,28 @@
           "args": {},
           "children": [
             {
+              "id": "s130",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s7",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "in/a.pdf",
+                "path": "case1/in/a.pdf",
                 "text": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n4 0 obj << /Length 44 >> stream\nBT /F1 18 Tf 20 150 Td (Invoice 7) Tj ET\nendstream endobj\n5 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n7 0 obj << /Length 42 >> stream\nBT /F1 18 Tf 20 150 Td (Page two) Tj ET\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
               },
               "description": "Prepare the test file in/a.pdf"
@@ -182,7 +245,7 @@
             {
               "action": "ooa.pdf/page_count",
               "args": {
-                "path": "{tmp}/in/a.pdf"
+                "path": "case1/in/a.pdf"
               },
               "out": {
                 "count": "pages"
@@ -192,7 +255,7 @@
             {
               "action": "ooa.pdf/extract_text",
               "args": {
-                "path": "{tmp}/in/a.pdf",
+                "path": "case1/in/a.pdf",
                 "pages": "2"
               },
               "out": {
@@ -203,7 +266,7 @@
             {
               "action": "ooa.pdf/extract_area_text",
               "args": {
-                "path": "{tmp}/in/a.pdf",
+                "path": "case1/in/a.pdf",
                 "page": 1,
                 "x": 0,
                 "y": 0,
@@ -218,7 +281,7 @@
             {
               "action": "ooa.pdf/get_properties",
               "args": {
-                "path": "{tmp}/in/a.pdf"
+                "path": "case1/in/a.pdf"
               },
               "out": {
                 "properties": "props"
@@ -228,8 +291,8 @@
             {
               "action": "ooa.pdf/split",
               "args": {
-                "path": "{tmp}/in/a.pdf",
-                "target_folder": "{tmp}/parts"
+                "path": "case1/in/a.pdf",
+                "target_folder": "case1/parts"
               },
               "out": {
                 "files": "parts"
@@ -239,8 +302,8 @@
             {
               "action": "ooa.pdf/merge",
               "args": {
-                "folder": "{tmp}/parts",
-                "target": "{tmp}/merged.pdf"
+                "folder": "case1/parts",
+                "target": "case1/merged.pdf"
               },
               "out": {
                 "page_count": "merged",
@@ -251,8 +314,8 @@
             {
               "action": "ooa.pdf/to_images",
               "args": {
-                "path": "{tmp}/in/a.pdf",
-                "target_folder": "{tmp}/img",
+                "path": "case1/in/a.pdf",
+                "target_folder": "case1/img",
                 "dpi": 50,
                 "pages": "1"
               },
@@ -264,8 +327,8 @@
             {
               "action": "ooa.pdf/extract_images",
               "args": {
-                "path": "{tmp}/in/a.pdf",
-                "target_folder": "{tmp}/ex"
+                "path": "case1/in/a.pdf",
+                "target_folder": "case1/ex"
               },
               "out": {
                 "count": "embedded"
@@ -275,26 +338,32 @@
             {
               "action": "ooa.pdf/encrypt",
               "args": {
-                "path": "{tmp}/merged.pdf",
-                "target": "{tmp}/locked.pdf",
-                "user_password": "$up",
-                "owner_password": "$op"
+                "path": "case1/merged.pdf",
+                "target": "case1/locked.pdf",
+                "user_password": {
+                  "$credential": "unit_tests/samples_test_pdf/user"
+                },
+                "owner_password": {
+                  "$credential": "unit_tests/samples_test_pdf/owner"
+                }
               },
               "id": "s16"
             },
             {
               "action": "ooa.pdf/decrypt",
               "args": {
-                "path": "{tmp}/locked.pdf",
-                "password": "$up",
-                "target": "{tmp}/open.pdf"
+                "path": "case1/locked.pdf",
+                "password": {
+                  "$credential": "unit_tests/samples_test_pdf/user"
+                },
+                "target": "case1/open.pdf"
               },
               "id": "s17"
             },
             {
               "action": "ooa.pdf/page_count",
               "args": {
-                "path": "{tmp}/open.pdf"
+                "path": "case1/open.pdf"
               },
               "out": {
                 "count": "reopened"
@@ -304,7 +373,7 @@
             {
               "action": "ooa.pdf/read_form",
               "args": {
-                "path": "{tmp}/open.pdf"
+                "path": "case1/open.pdf"
               },
               "out": {
                 "fields": "fields"
@@ -348,11 +417,9 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
+                  "op": "contains",
                   "left": "$p2$",
-                  "right": {
-                    "$contains": "Page two"
-                  }
+                  "right": "Page two"
                 }
               },
               "children": [
@@ -382,11 +449,9 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
+                  "op": "contains",
                   "left": "$area$",
-                  "right": {
-                    "$contains": "Invoice 7"
-                  }
+                  "right": "Invoice 7"
                 }
               },
               "children": [
@@ -416,11 +481,8 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
-                  "left": "$props$",
-                  "right": {
-                    "$type": "object"
-                  }
+                  "op": "notEmpty",
+                  "left": "$props$"
                 }
               },
               "children": [
@@ -574,26 +636,68 @@
               ]
             },
             {
-              "id": "s44",
-              "action": "ooa.file/read_text",
+              "id": "s124",
+              "action": "core/if",
+              "description": "Check case1/merged.pdf was made",
               "args": {
-                "path": "merged.pdf"
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/merged.pdf"
+                  }
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read merged.pdf"
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "case1/merged.pdf was not made"
+                  }
+                }
+              ]
             },
             {
-              "id": "s45",
-              "action": "ooa.file/read_text",
+              "id": "s127",
+              "action": "core/if",
+              "description": "Check case1/locked.pdf was made",
               "args": {
-                "path": "locked.pdf"
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/locked.pdf"
+                  }
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read locked.pdf"
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "id": "s129",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "case1/locked.pdf was not made"
+                  }
+                }
+              ]
             },
             {
               "id": "s46",
@@ -671,10 +775,28 @@
           "args": {},
           "children": [
             {
+              "id": "s132",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s133",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s53",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "x.pdf",
+                "path": "case2/x.pdf",
                 "text": "not a pdf"
               },
               "description": "Prepare the test file x.pdf"
@@ -695,7 +817,7 @@
                 {
                   "action": "ooa.pdf/page_count",
                   "args": {
-                    "path": "{tmp}/x.pdf"
+                    "path": "case2/x.pdf"
                   },
                   "id": "s54"
                 }
@@ -828,10 +950,28 @@
           "args": {},
           "children": [
             {
+              "id": "s134",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s135",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s68",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "one/a.pdf",
+                "path": "case3/one/a.pdf",
                 "text": "%PDF-1.4\n%%EOF\n"
               },
               "description": "Prepare the test file one/a.pdf"
@@ -852,8 +992,8 @@
                 {
                   "action": "ooa.pdf/merge",
                   "args": {
-                    "folder": "{tmp}/one",
-                    "target": "{tmp}/m.pdf"
+                    "folder": "case3/one",
+                    "target": "case3/m.pdf"
                   },
                   "id": "s69"
                 }
@@ -986,10 +1126,28 @@
           "args": {},
           "children": [
             {
+              "id": "s136",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s137",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s83",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "f.pdf",
+                "path": "case4/f.pdf",
                 "text": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
               },
               "description": "Prepare the test file f.pdf"
@@ -1010,11 +1168,11 @@
                 {
                   "action": "ooa.pdf/fill_form",
                   "args": {
-                    "path": "{tmp}/f.pdf",
+                    "path": "case4/f.pdf",
                     "values": {
                       "name": "Ann"
                     },
-                    "target": "{tmp}/o.pdf"
+                    "target": "case4/o.pdf"
                   },
                   "id": "s84"
                 }
@@ -1147,6 +1305,24 @@
           "args": {},
           "children": [
             {
+              "id": "s138",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s139",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s99",
               "action": "core/set",
               "args": {
@@ -1162,7 +1338,7 @@
                 {
                   "action": "ooa.pdf/extract_tables",
                   "args": {
-                    "path": "{tmp}/none.pdf"
+                    "path": "case5/none.pdf"
                   },
                   "id": "s98"
                 }
@@ -1295,10 +1471,28 @@
           "args": {},
           "children": [
             {
+              "id": "s140",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
               "id": "s112",
               "action": "ooa.file/write_text",
               "args": {
-                "path": "a.xps",
+                "path": "case6/a.xps",
                 "text": "plain text"
               },
               "description": "Prepare the test file a.xps"
@@ -1319,7 +1513,7 @@
                 {
                   "action": "ooa.pdf/read_xps_text",
                   "args": {
-                    "path": "{tmp}/a.xps"
+                    "path": "case6/a.xps"
                   },
                   "id": "s113"
                 }
@@ -1433,21 +1627,3271 @@
       "description": "6. ooa.pdf/read_xps_text - not an XPS file (G12)"
     },
     {
-      "id": "s124",
+      "id": "s142",
       "action": "core/step",
       "args": {
-        "title": "7. Summary"
+        "title": "7. ooa.pdf/extract_text - one page and all pages"
       },
       "children": [
         {
-          "id": "s125",
+          "id": "s143",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract text returns the text of a PDF, here of page 2 only and then of both pages into a .txt file."
+          }
+        },
+        {
+          "id": "s144",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s145",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s146",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s147",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case7/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s148",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "case7/a.pdf",
+                "pages": "2"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Text of page 2"
+            },
+            {
+              "id": "s149",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Page two"
+                }
+              },
+              "children": [
+                {
+                  "id": "s150",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s151",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Page two\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$text$",
+                  "right": "Invoice"
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected notContains \"Invoice\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "case7/a.pdf",
+                "output_file": "case7/a.txt"
+              },
+              "out": {
+                "page_count": "n"
+              },
+              "description": "All text into a file"
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case7/a.txt"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the .txt"
+            },
+            {
+              "id": "s160",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Total 115.00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the text file",
+              "else": [
+                {
+                  "id": "s162",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the text file: expected contains \"Total 115.00\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_text: one page and all pages\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_text: one page and all pages: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.pdf/extract_text - one page and all pages"
+    },
+    {
+      "id": "s167",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.pdf/extract_area_text - the box at the top"
+      },
+      "children": [
+        {
+          "id": "s168",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract area text reads the text inside a rectangle (points from the top-left); the top box holds the invoice number but not the total lower down."
+          }
+        },
+        {
+          "id": "s169",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s170",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s171",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s172",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case8/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s173",
+              "action": "ooa.pdf/extract_area_text",
+              "args": {
+                "path": "case8/a.pdf",
+                "page": 1,
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 80
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the top 80 points"
+            },
+            {
+              "id": "s174",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "INV-7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s175",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s176",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"INV-7\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s177",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$text$",
+                  "right": "Total"
+                }
+              },
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s179",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected notContains \"Total\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_area_text: the box at the top\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_area_text: the box at the top: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.pdf/extract_area_text - the box at the top"
+    },
+    {
+      "id": "s184",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.pdf/extract_fields - two named areas and an empty one"
+      },
+      "children": [
+        {
+          "id": "s185",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract fields reads several named areas at once into a Dictionary and lists the empty ones."
+          }
+        },
+        {
+          "id": "s186",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s187",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s188",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s189",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case9/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s190",
+              "action": "ooa.pdf/extract_fields",
+              "args": {
+                "path": "case9/a.pdf",
+                "fields": {
+                  "number": {
+                    "page": 1,
+                    "x": 0,
+                    "y": 20,
+                    "width": 300,
+                    "height": 50
+                  },
+                  "total": {
+                    "page": 1,
+                    "x": 0,
+                    "y": 115,
+                    "width": 300,
+                    "height": 50
+                  },
+                  "note": {
+                    "page": 1,
+                    "x": 250,
+                    "y": 180,
+                    "width": 40,
+                    "height": 15
+                  }
+                }
+              },
+              "out": {
+                "values": "vals",
+                "empty": "empty"
+              },
+              "description": "Read three areas"
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "text",
+                "value": {
+                  "expr": "$vals.number"
+                }
+              },
+              "description": "The number area"
+            },
+            {
+              "id": "s192",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "Invoice INV-7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s194",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"Invoice INV-7\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "text",
+                "value": {
+                  "expr": "$vals.total"
+                }
+              },
+              "description": "The total area"
+            },
+            {
+              "id": "s196",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "Total 115.00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s198",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"Total 115.00\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s199",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$empty$",
+                  "right": [
+                    "note"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s200",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check empty",
+              "else": [
+                {
+                  "id": "s201",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "empty: expected eq [\"note\"], got ${empty}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_fields: two named areas and an empty one\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s205",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_fields: two named areas and an empty one: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.pdf/extract_fields - two named areas and an empty one"
+    },
+    {
+      "id": "s206",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.pdf/get_properties - page count and encryption"
+      },
+      "children": [
+        {
+          "id": "s207",
+          "action": "core/comment",
+          "args": {
+            "text": "Get properties returns facts about a PDF; the case checks the page count and that it is not encrypted."
+          }
+        },
+        {
+          "id": "s208",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s209",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s210",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s211",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case10/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s212",
+              "action": "ooa.pdf/get_properties",
+              "args": {
+                "path": "case10/a.pdf"
+              },
+              "out": {
+                "properties": "props"
+              },
+              "description": "Read the properties"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "$props.page_count"
+                }
+              },
+              "description": "The page count"
+            },
+            {
+              "id": "s214",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s216",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s218",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/get_properties: page count and encryption\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s220",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/get_properties: page count and encryption: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.pdf/get_properties - page count and encryption"
+    },
+    {
+      "id": "s221",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.pdf/split - one file per page"
+      },
+      "children": [
+        {
+          "id": "s222",
+          "action": "core/comment",
+          "args": {
+            "text": "Split makes one PDF per page; each part has one page."
+          }
+        },
+        {
+          "id": "s223",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s224",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case11/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s227",
+              "action": "ooa.pdf/split",
+              "args": {
+                "path": "case11/a.pdf",
+                "target_folder": "case11/parts"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Split into pages"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($files)"
+                }
+              },
+              "description": "Count the parts"
+            },
+            {
+              "id": "s229",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s231",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s232",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "$files[1]"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Text of the second part"
+            },
+            {
+              "id": "s233",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Page two"
+                }
+              },
+              "children": [
+                {
+                  "id": "s234",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check second part",
+              "else": [
+                {
+                  "id": "s235",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "second part: expected contains \"Page two\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s236",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s237",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/split: one file per page\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s239",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/split: one file per page: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.pdf/split - one file per page"
+    },
+    {
+      "id": "s240",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.pdf/split - chosen pages into one file"
+      },
+      "children": [
+        {
+          "id": "s241",
+          "action": "core/comment",
+          "args": {
+            "text": "Split with mode selected_pages puts the chosen pages into one file."
+          }
+        },
+        {
+          "id": "s242",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s243",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s245",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case12/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s246",
+              "action": "ooa.pdf/split",
+              "args": {
+                "path": "case12/a.pdf",
+                "target_folder": "case12/sel",
+                "mode": "selected_pages",
+                "pages": "2"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Keep page 2"
+            },
+            {
+              "id": "s247",
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "$files[0]"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Count its pages"
+            },
+            {
+              "id": "s248",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s249",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s250",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/split: chosen pages into one file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/split: chosen pages into one file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.pdf/split - chosen pages into one file"
+    },
+    {
+      "id": "s255",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.pdf/to_images - first page as PNG"
+      },
+      "children": [
+        {
+          "id": "s256",
+          "action": "core/comment",
+          "args": {
+            "text": "To images saves pages as pictures; the case saves page 1 and checks one non-empty .png was made."
+          }
+        },
+        {
+          "id": "s257",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s258",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s259",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case13"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s260",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case13/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s261",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case13/a.pdf",
+                "target_folder": "case13/img",
+                "dpi": 72,
+                "pages": "1"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Page 1 as PNG at 72 dpi"
+            },
+            {
+              "id": "s262",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($files)"
+                }
+              },
+              "description": "Count the pictures"
+            },
+            {
+              "id": "s263",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s264",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s265",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s266",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s267",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/size_is",
+                  "args": {
+                    "path": "$files[0]",
+                    "operator": "gt",
+                    "size": 100
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is the picture more than 100 bytes?"
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s271",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s272",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "${files[0]}",
+                  "right": ".png"
+                }
+              },
+              "children": [
+                {
+                  "id": "s273",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the picture's name",
+              "else": [
+                {
+                  "id": "s274",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the picture's name: expected endsWith \".png\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s276",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/to_images: first page as PNG\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s278",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/to_images: first page as PNG: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.pdf/to_images - first page as PNG"
+    },
+    {
+      "id": "s279",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.pdf/extract_images - a PDF made from a picture"
+      },
+      "children": [
+        {
+          "id": "s280",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract images saves the pictures embedded in a PDF; the case turns a page into a PNG, makes a PDF holding that picture with Word, and extracts it again."
+          }
+        },
+        {
+          "id": "s281",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s282",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s283",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case14"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s284",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case14/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s285",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case14/a.pdf",
+                "target_folder": "case14/img",
+                "dpi": 72,
+                "pages": "1"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Page 1 as PNG"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case14/pic.docx"
+              },
+              "description": "A document for the picture"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.word/insert_picture",
+              "args": {
+                "image": "$files[0]"
+              },
+              "description": "Insert the picture"
+            },
+            {
+              "id": "s288",
+              "action": "ooa.word/save_as",
+              "args": {
+                "path": "case14/pic.pdf",
+                "format": "pdf"
+              },
+              "description": "Save as PDF"
+            },
+            {
+              "id": "s289",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s290",
+              "action": "ooa.pdf/extract_images",
+              "args": {
+                "path": "case14/pic.pdf",
+                "target_folder": "case14/ex"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Extract the pictures"
+            },
+            {
+              "id": "s291",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s292",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pictures found",
+              "else": [
+                {
+                  "id": "s293",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pictures found: expected ge 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s295",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_images: a PDF made from a picture\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s297",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_images: a PDF made from a picture: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.pdf/extract_images - a PDF made from a picture"
+    },
+    {
+      "id": "s298",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.pdf/encrypt - open password from the vault"
+      },
+      "children": [
+        {
+          "id": "s299",
+          "action": "core/comment",
+          "args": {
+            "text": "Encrypt protects a PDF with an open password and an owner password (made-up values from the vault); reading it without the password fails, with the password it works."
+          }
+        },
+        {
+          "id": "s300",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s301",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case15"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s303",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case15/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s304",
+              "action": "ooa.pdf/encrypt",
+              "args": {
+                "path": "case15/a.pdf",
+                "target": "case15/locked.pdf",
+                "user_password": {
+                  "$credential": "unit_tests/pdf/user_password"
+                },
+                "owner_password": {
+                  "$credential": "unit_tests/pdf/owner_password"
+                },
+                "allow_printing": false
+              },
+              "description": "Protect the PDF"
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s306",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "ooa.pdf/page_count",
+                  "args": {
+                    "path": "case15/locked.pdf"
+                  },
+                  "description": "Open without the password"
+                }
+              ],
+              "description": "These steps should fail with PDF.PASSWORD_REQUIRED",
+              "catch": [
+                {
+                  "codes": [
+                    "PDF.PASSWORD_REQUIRED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s308",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s309",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s310",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PDF.PASSWORD_REQUIRED",
+              "else": [
+                {
+                  "id": "s311",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PDF.PASSWORD_REQUIRED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s312",
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "case15/locked.pdf",
+                "password": {
+                  "$credential": "unit_tests/pdf/user_password"
+                }
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Open with the password"
+            },
+            {
+              "id": "s313",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s314",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s315",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s317",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/encrypt: open password from the vault\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s319",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/encrypt: open password from the vault: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.pdf/encrypt - open password from the vault"
+    },
+    {
+      "id": "s320",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.pdf/decrypt - remove the password"
+      },
+      "children": [
+        {
+          "id": "s321",
+          "action": "core/comment",
+          "args": {
+            "text": "Decrypt removes the protection with the open password; the result opens without one."
+          }
+        },
+        {
+          "id": "s322",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s323",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s324",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case16"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s325",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case16/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s326",
+              "action": "ooa.pdf/encrypt",
+              "args": {
+                "path": "case16/a.pdf",
+                "target": "case16/locked.pdf",
+                "user_password": {
+                  "$credential": "unit_tests/pdf/user_password"
+                },
+                "owner_password": {
+                  "$credential": "unit_tests/pdf/owner_password"
+                }
+              },
+              "description": "Protect the PDF"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.pdf/decrypt",
+              "args": {
+                "path": "case16/locked.pdf",
+                "password": {
+                  "$credential": "unit_tests/pdf/user_password"
+                },
+                "target": "case16/open.pdf"
+              },
+              "description": "Remove the password"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "case16/open.pdf"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the result"
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "INV-7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s331",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"INV-7\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s333",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/decrypt: remove the password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s335",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/decrypt: remove the password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.pdf/decrypt - remove the password"
+    },
+    {
+      "id": "s336",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.pdf/read_form - all fields"
+      },
+      "children": [
+        {
+          "id": "s337",
+          "action": "core/comment",
+          "args": {
+            "text": "Read form returns each form field's name and value."
+          }
+        },
+        {
+          "id": "s338",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s339",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s340",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case17"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s341",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case17/form.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R 11 0 R] /NeedAppearances true /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [10 0 R 11 0 R] /Resources << /Font << /Helv 5 0 R >> >> >>\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n10 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /V (Ann) /Rect [20 160 250 185] /P 3 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>\nendobj\n11 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (city) /V (Pune) /Rect [20 120 250 145] /P 3 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>\nendobj\nxref\n0 12\n0000000000 65535 f \n0000000009 00000 n \n0000000175 00000 n \n0000000232 00000 n \n0000000000 65535 f \n0000000368 00000 n \n0000000000 65535 f \n0000000000 65535 f \n0000000000 65535 f \n0000000000 65535 f \n0000000438 00000 n \n0000000576 00000 n \ntrailer\n<< /Size 12 /Root 1 0 R >>\nstartxref\n715\n%%EOF\n"
+              },
+              "description": "Write the test PDF form.pdf"
+            },
+            {
+              "id": "s342",
+              "action": "ooa.pdf/read_form",
+              "args": {
+                "path": "case17/form.pdf"
+              },
+              "out": {
+                "fields": "fields"
+              },
+              "description": "Read the fields"
+            },
+            {
+              "id": "s343",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$fields$",
+                  "right": {
+                    "name": "Ann",
+                    "city": "Pune"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s344",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check fields",
+              "else": [
+                {
+                  "id": "s345",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "fields: expected eq \"name\": \"Ann\", \"city\": \"Pune\", got ${fields}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s346",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s347",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/read_form: all fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s348",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s349",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/read_form: all fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.pdf/read_form - all fields"
+    },
+    {
+      "id": "s350",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.pdf/fill_form - fill and read back"
+      },
+      "children": [
+        {
+          "id": "s351",
+          "action": "core/comment",
+          "args": {
+            "text": "Fill form writes field values into a new PDF and counts them; reading that PDF's form shows the values."
+          }
+        },
+        {
+          "id": "s352",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s353",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case18",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s354",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case18"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s355",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case18/form.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R 11 0 R] /NeedAppearances true /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [10 0 R 11 0 R] /Resources << /Font << /Helv 5 0 R >> >> >>\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n10 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /V (Ann) /Rect [20 160 250 185] /P 3 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>\nendobj\n11 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (city) /V (Pune) /Rect [20 120 250 145] /P 3 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>\nendobj\nxref\n0 12\n0000000000 65535 f \n0000000009 00000 n \n0000000175 00000 n \n0000000232 00000 n \n0000000000 65535 f \n0000000368 00000 n \n0000000000 65535 f \n0000000000 65535 f \n0000000000 65535 f \n0000000000 65535 f \n0000000438 00000 n \n0000000576 00000 n \ntrailer\n<< /Size 12 /Root 1 0 R >>\nstartxref\n715\n%%EOF\n"
+              },
+              "description": "Write the test PDF form.pdf"
+            },
+            {
+              "id": "s356",
+              "action": "ooa.pdf/fill_form",
+              "args": {
+                "path": "case18/form.pdf",
+                "values": {
+                  "city": "Delhi"
+                },
+                "target": "case18/filled.pdf"
+              },
+              "out": {
+                "filled": "n"
+              },
+              "description": "Fill the city"
+            },
+            {
+              "id": "s357",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s358",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s359",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s360",
+              "action": "ooa.pdf/read_form",
+              "args": {
+                "path": "case18/filled.pdf",
+                "field_names": [
+                  "city"
+                ]
+              },
+              "out": {
+                "fields": "fields"
+              },
+              "description": "Read the city"
+            },
+            {
+              "id": "s361",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$fields$",
+                  "right": {
+                    "city": "Delhi"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s362",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check fields",
+              "else": [
+                {
+                  "id": "s363",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "fields: expected eq \"city\": \"Delhi\", got ${fields}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s364",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s365",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/fill_form: fill and read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s366",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s367",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/fill_form: fill and read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.pdf/fill_form - fill and read back"
+    },
+    {
+      "id": "s368",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.pdf/extract_tables - a small table"
+      },
+      "children": [
+        {
+          "id": "s369",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract tables finds text lined up in columns and returns it as a Data Table with column names."
+          }
+        },
+        {
+          "id": "s370",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s371",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case19",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s372",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case19"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s373",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case19/t.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 278 >>\nstream\nBT /F1 12 Tf 20 170 Td (Item) Tj ET\nBT /F1 12 Tf 150 170 Td (Qty) Tj ET\nBT /F1 12 Tf 20 150 Td (pen) Tj ET\nBT /F1 12 Tf 150 150 Td (2) Tj ET\nBT /F1 12 Tf 20 130 Td (cup) Tj ET\nBT /F1 12 Tf 150 130 Td (3) Tj ET\nBT /F1 12 Tf 20 110 Td (ink) Tj ET\nBT /F1 12 Tf 150 110 Td (5) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n640\n%%EOF\n"
+              },
+              "description": "Write the test PDF t.pdf"
+            },
+            {
+              "id": "s374",
+              "action": "ooa.pdf/extract_tables",
+              "args": {
+                "path": "case19/t.pdf"
+              },
+              "out": {
+                "table": "tbl",
+                "count": "n"
+              },
+              "description": "Find the tables"
+            },
+            {
+              "id": "s375",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s376",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s377",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s378",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$tbl$",
+                  "right": {
+                    "columns": [
+                      "Item",
+                      "Qty"
+                    ],
+                    "rows": [
+                      [
+                        "pen",
+                        "2"
+                      ],
+                      [
+                        "cup",
+                        "3"
+                      ],
+                      [
+                        "ink",
+                        "5"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s379",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check tbl",
+              "else": [
+                {
+                  "id": "s380",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "tbl: expected eq \"columns\": [\"Item\", \"Qty\"], \"rows\": [[\"pen\", \"2\"], [\"cup\", \"3\"], [\"ink\", \"5\"]], got ${tbl}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s381",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s382",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/extract_tables: a small table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s384",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/extract_tables: a small table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.pdf/extract_tables - a small table"
+    },
+    {
+      "id": "s385",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.pdf/render_page - page 1 as a data URI"
+      },
+      "children": [
+        {
+          "id": "s386",
+          "action": "core/comment",
+          "args": {
+            "text": "Render page draws a page as a PNG data URI and gives the page size in points."
+          }
+        },
+        {
+          "id": "s387",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s388",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case20",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s389",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case20"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s390",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case20/a.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 87 >>\nstream\nBT /F1 12 Tf 20 150 Td (Invoice INV-7) Tj ET\nBT /F1 12 Tf 20 60 Td (Total 115.00) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n7 0 obj\n<< /Length 39 >>\nstream\nBT /F1 12 Tf 20 150 Td (Page two) Tj ET\nendstream\nendobj\nxref\n0 8\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000121 00000 n \n0000000191 00000 n \n0000000317 00000 n \n0000000454 00000 n \n0000000580 00000 n \ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n669\n%%EOF\n"
+              },
+              "description": "Write the test PDF a.pdf"
+            },
+            {
+              "id": "s391",
+              "action": "ooa.pdf/render_page",
+              "args": {
+                "path": "case20/a.pdf"
+              },
+              "out": {
+                "image": "img",
+                "width_points": "w",
+                "page_count": "n"
+              },
+              "description": "Render page 1"
+            },
+            {
+              "id": "s392",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$img$",
+                  "right": "data:image/png;base64,"
+                }
+              },
+              "children": [
+                {
+                  "id": "s393",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check image",
+              "else": [
+                {
+                  "id": "s394",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "image: expected startsWith \"data:image/png;base64,\", got ${img}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s395",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$w$",
+                  "right": 300
+                }
+              },
+              "children": [
+                {
+                  "id": "s396",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check w",
+              "else": [
+                {
+                  "id": "s397",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "w: expected eq 300, got ${w}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s398",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s399",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s400",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s401",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/render_page: page 1 as a data URI\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s403",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s404",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/render_page: page 1 as a data URI: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.pdf/render_page - page 1 as a data URI"
+    },
+    {
+      "id": "s405",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.pdf/read_text_ocr - a page with no text layer"
+      },
+      "children": [
+        {
+          "id": "s406",
+          "action": "core/comment",
+          "args": {
+            "text": "Read text with OCR reads pages that are pictures with Tesseract; the case makes a picture-only PDF (page to PNG, PNG into a PDF with Word) and reads the invoice number from it."
+          }
+        },
+        {
+          "id": "s407",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s408",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case21",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s409",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case21"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s410",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case21/big.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 43 >>\nstream\nBT /F1 36 Tf 20 100 Td (INVOICE 4711) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n404\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s411",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case21/big.pdf",
+                "target_folder": "case21/img",
+                "dpi": 200,
+                "pages": "1"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Page 1 as PNG at 200 dpi"
+            },
+            {
+              "id": "s412",
+              "action": "ooa.word/create_document",
+              "args": {
+                "path": "case21/scan.docx"
+              },
+              "description": "A document for the picture"
+            },
+            {
+              "id": "s413",
+              "action": "ooa.word/insert_picture",
+              "args": {
+                "image": "$files[0]",
+                "width": 400
+              },
+              "description": "Insert the picture"
+            },
+            {
+              "id": "s414",
+              "action": "ooa.word/save_as",
+              "args": {
+                "path": "case21/scan.pdf",
+                "format": "pdf"
+              },
+              "description": "Save as PDF"
+            },
+            {
+              "id": "s415",
+              "action": "ooa.word/close",
+              "args": {}
+            },
+            {
+              "id": "s416",
+              "action": "ooa.pdf/read_text_ocr",
+              "args": {
+                "path": "case21/scan.pdf"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read with OCR"
+            },
+            {
+              "id": "s417",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OCR text",
+              "else": [
+                {
+                  "id": "s419",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OCR text: expected contains \"4711\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s421",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/read_text_ocr: a page with no text layer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s423",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/read_text_ocr: a page with no text layer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.pdf/read_text_ocr - a page with no text layer"
+    },
+    {
+      "id": "s424",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.pdf/read_xps_text - a one-page XPS document"
+      },
+      "children": [
+        {
+          "id": "s425",
+          "action": "core/comment",
+          "args": {
+            "text": "Read XPS text reads the text of an XPS document; the case builds a minimal one (a zip of XML parts)."
+          }
+        },
+        {
+          "id": "s426",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s427",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case22",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s428",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case22"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s429",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/x/[Content_Types].xml",
+                "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"fdseq\" ContentType=\"application/vnd.ms-package.xps-fixeddocumentsequence+xml\"/><Default Extension=\"fdoc\" ContentType=\"application/vnd.ms-package.xps-fixeddocument+xml\"/><Default Extension=\"fpage\" ContentType=\"application/vnd.ms-package.xps-fixedpage+xml\"/></Types>"
+              },
+              "description": "XPS part [Content_Types].xml"
+            },
+            {
+              "id": "s430",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/x/_rels/.rels",
+                "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Type=\"http://schemas.microsoft.com/xps/2005/06/fixedrepresentation\" Target=\"/FixedDocSeq.fdseq\" Id=\"R0\"/></Relationships>"
+              },
+              "description": "XPS part _rels/.rels"
+            },
+            {
+              "id": "s431",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/x/FixedDocSeq.fdseq",
+                "text": "<FixedDocumentSequence xmlns=\"http://schemas.microsoft.com/xps/2005/06\"><DocumentReference Source=\"/Documents/1/FixedDoc.fdoc\"/></FixedDocumentSequence>"
+              },
+              "description": "XPS part FixedDocSeq.fdseq"
+            },
+            {
+              "id": "s432",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/x/Documents/1/FixedDoc.fdoc",
+                "text": "<FixedDocument xmlns=\"http://schemas.microsoft.com/xps/2005/06\"><PageContent Source=\"/Documents/1/Pages/1.fpage\"/></FixedDocument>"
+              },
+              "description": "XPS part Documents/1/FixedDoc.fdoc"
+            },
+            {
+              "id": "s433",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case22/x/Documents/1/Pages/1.fpage",
+                "text": "<FixedPage xmlns=\"http://schemas.microsoft.com/xps/2005/06\" Width=\"816\" Height=\"1056\" xml:lang=\"en-US\"><Glyphs OriginX=\"96\" OriginY=\"96\" FontRenderingEmSize=\"16\" FontUri=\"/Resources/f.ttf\" UnicodeString=\"Shipment 4711 delivered\" Fill=\"#FF000000\"/></FixedPage>"
+              },
+              "description": "XPS part Documents/1/Pages/1.fpage"
+            },
+            {
+              "id": "s434",
+              "action": "ooa.file/zip",
+              "args": {
+                "source": "case22/x",
+                "target": "case22/doc.zip"
+              },
+              "description": "Pack the parts"
+            },
+            {
+              "id": "s435",
+              "action": "ooa.file/rename",
+              "args": {
+                "path": "case22/doc.zip",
+                "new_name": "doc.xps"
+              },
+              "description": "Name it .xps"
+            },
+            {
+              "id": "s436",
+              "action": "ooa.pdf/read_xps_text",
+              "args": {
+                "path": "case22/doc.xps"
+              },
+              "out": {
+                "text": "text",
+                "page_count": "n"
+              },
+              "description": "Read the text"
+            },
+            {
+              "id": "s437",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s438",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s439",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s440",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "Shipment 4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s441",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s442",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Shipment 4711\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s443",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s444",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pdf/read_xps_text: a one-page XPS document\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s445",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s446",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pdf/read_xps_text: a one-page XPS document: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.pdf/read_xps_text - a one-page XPS document"
+    },
+    {
+      "id": "s447",
+      "action": "core/step",
+      "args": {
+        "title": "23. Summary"
+      },
+      "children": [
+        {
+          "id": "s448",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s126",
+          "id": "s449",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -1456,7 +4900,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s127",
+          "id": "s450",
           "action": "core/if",
           "args": {
             "condition": {
@@ -1467,7 +4911,7 @@
           },
           "children": [
             {
-              "id": "s128",
+              "id": "s451",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -1479,7 +4923,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "7. Summary"
+      "description": "23. Summary"
     }
   ]
 }
