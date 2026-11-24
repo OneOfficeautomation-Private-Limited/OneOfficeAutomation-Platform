@@ -1,0 +1,1515 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_google_ai",
+  "name": "UT Google Cloud AI",
+  "description": "Unit tests of every Google Cloud AI command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "g_sentiment",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Google Cloud AI command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Google Cloud AI started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.google_ai/language_sentiment - sentiment from a stand-in Natural Language"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/language_sentiment (sentiment from a stand-in Natural Language) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.google_ai/connect",
+              "args": {
+                "credential": {
+                  "$credential": "unit_tests/google/key"
+                },
+                "credential_type": "api_key",
+                "project": "acme-ai",
+                "endpoint": "$standin_url$/mock/36-18"
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.google_ai/language_sentiment",
+              "args": {
+                "text": "Lovely staff"
+              },
+              "out": {
+                "sentiment": "s"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "positive"
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"positive\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/language_sentiment: sentiment from a stand-in Natural Language\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/language_sentiment: sentiment from a stand-in Natural Language: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.google_ai/language_sentiment - sentiment from a stand-in Natural Language"
+    },
+    {
+      "id": "s16",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.google_ai/language_entities - API key not valid"
+      },
+      "children": [
+        {
+          "id": "s17",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/language_entities (API key not valid) and checks its result."
+          }
+        },
+        {
+          "id": "s18",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s22",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.google_ai/connect",
+                  "args": {
+                    "credential": {
+                      "$credential": "unit_tests/google/key"
+                    },
+                    "credential_type": "api_key",
+                    "project": "acme-ai",
+                    "endpoint": "$standin_url$/mock/36-19"
+                  },
+                  "id": "s19"
+                },
+                {
+                  "action": "ooa.google_ai/language_entities",
+                  "args": {
+                    "text": "Google"
+                  },
+                  "id": "s20"
+                }
+              ],
+              "description": "These steps should fail with GOOGLE_AI.AUTH_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "GOOGLE_AI.AUTH_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s23",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GOOGLE_AI.AUTH_FAILED",
+              "else": [
+                {
+                  "id": "s26",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GOOGLE_AI.AUTH_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/language_entities: API key not valid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/language_entities: API key not valid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.google_ai/language_entities - API key not valid"
+    },
+    {
+      "id": "s31",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.google_ai/vision_labels - service unavailable"
+      },
+      "children": [
+        {
+          "id": "s32",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/vision_labels (service unavailable) and checks its result."
+          }
+        },
+        {
+          "id": "s33",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s34",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "a.png",
+                "text": "png"
+              },
+              "description": "Prepare the test file a.png"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s38",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.google_ai/connect",
+                  "args": {
+                    "credential": {
+                      "$credential": "unit_tests/google/key"
+                    },
+                    "credential_type": "api_key",
+                    "project": "acme-ai",
+                    "endpoint": "$standin_url$/mock/36-20"
+                  },
+                  "id": "s35"
+                },
+                {
+                  "action": "ooa.google_ai/vision_labels",
+                  "args": {
+                    "file": "a.png"
+                  },
+                  "id": "s36"
+                }
+              ],
+              "description": "These steps should fail with GOOGLE_AI.SERVER_ERROR",
+              "catch": [
+                {
+                  "codes": [
+                    "GOOGLE_AI.SERVER_ERROR"
+                  ],
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GOOGLE_AI.SERVER_ERROR",
+              "else": [
+                {
+                  "id": "s42",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GOOGLE_AI.SERVER_ERROR: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/vision_labels: service unavailable\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/vision_labels: service unavailable: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.google_ai/vision_labels - service unavailable"
+    },
+    {
+      "id": "s47",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.google_ai/vision_ocr - file that is not there"
+      },
+      "children": [
+        {
+          "id": "s48",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/vision_ocr (file that is not there) and checks its result."
+          }
+        },
+        {
+          "id": "s49",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s53",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.google_ai/connect",
+                  "args": {
+                    "credential": {
+                      "$credential": "unit_tests/google/key"
+                    },
+                    "credential_type": "api_key",
+                    "project": "acme-ai",
+                    "endpoint": "$standin_url$/mock/36-21"
+                  },
+                  "id": "s50"
+                },
+                {
+                  "action": "ooa.google_ai/vision_ocr",
+                  "args": {
+                    "file": "missing.png"
+                  },
+                  "id": "s51"
+                }
+              ],
+              "description": "These steps should fail with GOOGLE_AI.FILE_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "GOOGLE_AI.FILE_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s54",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GOOGLE_AI.FILE_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GOOGLE_AI.FILE_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/vision_ocr: file that is not there\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/vision_ocr: file that is not there: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.google_ai/vision_ocr - file that is not there"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.google_ai/vision_ocr - text from a stand-in Vision"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/vision_ocr (text from a stand-in Vision) and checks its result."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s65",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "a.png",
+                "text": "png"
+              },
+              "description": "Prepare the test file a.png"
+            },
+            {
+              "action": "ooa.google_ai/connect",
+              "args": {
+                "credential": {
+                  "$credential": "unit_tests/google/key"
+                },
+                "credential_type": "api_key",
+                "project": "acme-ai",
+                "endpoint": "$standin_url$/mock/36-22"
+              },
+              "id": "s66"
+            },
+            {
+              "action": "ooa.google_ai/vision_ocr",
+              "args": {
+                "file": "a.png"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s67"
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "TOTAL 9.99"
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"TOTAL 9.99\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/vision_ocr: text from a stand-in Vision\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/vision_ocr: text from a stand-in Vision: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.google_ai/vision_ocr - text from a stand-in Vision"
+    },
+    {
+      "id": "s75",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.google_ai/documentai_process - an API key is not enough for Document AI"
+      },
+      "children": [
+        {
+          "id": "s76",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/documentai_process (an API key is not enough for Document AI) and checks its result."
+          }
+        },
+        {
+          "id": "s77",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s78",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "a.pdf",
+                "text": "%PDF"
+              },
+              "description": "Prepare the test file a.pdf"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s82",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.google_ai/connect",
+                  "args": {
+                    "credential": {
+                      "$credential": "unit_tests/google/key"
+                    },
+                    "credential_type": "api_key",
+                    "project": "acme-ai",
+                    "endpoint": "$standin_url$/mock/36-23"
+                  },
+                  "id": "s79"
+                },
+                {
+                  "action": "ooa.google_ai/documentai_process",
+                  "args": {
+                    "processor_id": "abc123",
+                    "file": "a.pdf"
+                  },
+                  "id": "s80"
+                }
+              ],
+              "description": "These steps should fail with GOOGLE_AI.TOKEN_REQUIRED",
+              "catch": [
+                {
+                  "codes": [
+                    "GOOGLE_AI.TOKEN_REQUIRED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GOOGLE_AI.TOKEN_REQUIRED",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GOOGLE_AI.TOKEN_REQUIRED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/documentai_process: an API key is not enough for Document AI\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/documentai_process: an API key is not enough for Document AI: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.google_ai/documentai_process - an API key is not enough for Document AI"
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.google_ai/documentai_process - entities from a stand-in Document AI"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.google_ai/documentai_process (entities from a stand-in Document AI) and checks its result."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "a.pdf",
+                "text": "%PDF"
+              },
+              "description": "Prepare the test file a.pdf"
+            },
+            {
+              "action": "ooa.google_ai/connect",
+              "args": {
+                "credential": {
+                  "$credential": "unit_tests/google/key"
+                },
+                "credential_type": "access_token",
+                "project": "acme-ai",
+                "endpoint": "$standin_url$/mock/36-24"
+              },
+              "id": "s95"
+            },
+            {
+              "action": "ooa.google_ai/documentai_process",
+              "args": {
+                "processor_id": "abc123",
+                "file": "a.pdf"
+              },
+              "out": {
+                "fields": "f"
+              },
+              "id": "s96"
+            },
+            {
+              "id": "s97",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": {
+                    "invoice_id": "INV-7"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq \"invoice_id\": \"INV-7\", got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/documentai_process: entities from a stand-in Document AI\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/documentai_process: entities from a stand-in Document AI: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.google_ai/documentai_process - entities from a stand-in Document AI"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.google_ai/connect - API key from the vault"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the project, the key (from the vault) and the address in a session for the steps after it. Checked: a sentiment call through the session."
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s107",
+              "action": "ooa.google_ai/connect",
+              "args": {
+                "credential": {
+                  "$credential": "unit_tests/google/key"
+                },
+                "credential_type": "api_key",
+                "project": "ut-project",
+                "endpoint": "$standin_url$/cloud-ai/google",
+                "session": "google_ai"
+              },
+              "description": "Connect to the stand-in Google AI"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.google_ai/language_sentiment",
+              "args": {
+                "session": "google_ai",
+                "text": "The delivery was late and the box was broken."
+              },
+              "out": {
+                "sentiment": "g_sentiment"
+              },
+              "description": "Sentiment of a complaint"
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$g_sentiment$",
+                  "right": "negative"
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check g_sentiment",
+              "else": [
+                {
+                  "id": "s111",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "g_sentiment: expected eq \"negative\", got ${g_sentiment}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/connect: API key from the vault\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/connect: API key from the vault: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.google_ai/connect - API key from the vault"
+    },
+    {
+      "id": "s116",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.google_ai/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s117",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the session and forgets the key. Checked: a step after it finds no session."
+          }
+        },
+        {
+          "id": "s118",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "ooa.google_ai/disconnect",
+              "args": {
+                "session": "google_ai"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s121",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "ooa.google_ai/language_sentiment",
+                  "args": {
+                    "session": "google_ai",
+                    "text": "Hello"
+                  },
+                  "description": "This needs the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s123",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google_ai/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google_ai/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.google_ai/disconnect - close the session"
+    },
+    {
+      "id": "s131",
+      "action": "core/step",
+      "args": {
+        "title": "10. Summary"
+      },
+      "children": [
+        {
+          "id": "s132",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s133",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s134",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s135",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "10. Summary"
+    }
+  ]
+}

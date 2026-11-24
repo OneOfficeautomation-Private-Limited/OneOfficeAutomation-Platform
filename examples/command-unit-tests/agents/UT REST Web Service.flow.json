@@ -1,0 +1,2211 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_rest",
+  "name": "UT REST Web Service",
+  "description": "Unit tests of every REST Web Service command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "j",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "status",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every REST Web Service command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT REST Web Service started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.rest/request - GET JSON from a local server"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (GET JSON from a local server) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "data.json",
+                "text": "{\"items\": [1, 2, 3]}"
+              },
+              "description": "Prepare the test file data.json"
+            },
+            {
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "$standin_url$/web/UT%20REST%20Web%20Service/data.json"
+              },
+              "out": {
+                "status": "s",
+                "json": "j"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 200, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$j$",
+                  "right": {
+                    "items": [
+                      1,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check j",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "j: expected eq \"items\": [1, 2, 3], got ${j}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: GET JSON from a local server\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s18",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: GET JSON from a local server: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.rest/request - GET JSON from a local server"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.rest/request - 404 carries on when asked"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (404 carries on when asked) and checks its result."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "$standin_url$/web/UT%20REST%20Web%20Service/missing.json",
+                "fail_on_error": false
+              },
+              "out": {
+                "status": "s"
+              },
+              "id": "s22"
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 404
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 404, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: 404 carries on when asked\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: 404 carries on when asked: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.rest/request - 404 carries on when asked"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.rest/request - 404 fails by default"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (404 fails by default) and checks its result."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s35",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "$standin_url$/web/UT%20REST%20Web%20Service/missing.json"
+                  },
+                  "id": "s33"
+                }
+              ],
+              "description": "These steps should fail with REST.HTTP_ERROR",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.HTTP_ERROR"
+                  ],
+                  "children": [
+                    {
+                      "id": "s36",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.HTTP_ERROR",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.HTTP_ERROR: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: 404 fails by default\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: 404 fails by default: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.rest/request - 404 fails by default"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.rest/download_file - download"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/download_file (download) and checks its result."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s47",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "r.txt",
+                "text": "report"
+              },
+              "description": "Prepare the test file r.txt"
+            },
+            {
+              "action": "ooa.rest/download_file",
+              "args": {
+                "url": "$standin_url$/web/UT%20REST%20Web%20Service/r.txt",
+                "path": "out/r.txt"
+              },
+              "out": {
+                "size_bytes": "n"
+              },
+              "id": "s48"
+            },
+            {
+              "id": "s49",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 6
+                }
+              },
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s51",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 6, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "out/r.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read out/r.txt"
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "report"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check out/r.txt",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "out/r.txt: expected eq \"report\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/download_file: download\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/download_file: download: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.rest/download_file - download"
+    },
+    {
+      "id": "s60",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.rest/upload_file - upload to a server that answers"
+      },
+      "children": [
+        {
+          "id": "s61",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/upload_file (upload to a server that answers) and checks its result."
+          }
+        },
+        {
+          "id": "s62",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s63",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "u.txt",
+                "text": "x"
+              },
+              "description": "Prepare the test file u.txt"
+            },
+            {
+              "action": "ooa.rest/upload_file",
+              "args": {
+                "url": "$standin_url$/web/UT%20REST%20Web%20Service/u.txt",
+                "path": "u.txt"
+              },
+              "out": {
+                "status": "s"
+              },
+              "id": "s64"
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s67",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 200, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/upload_file: upload to a server that answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/upload_file: upload to a server that answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.rest/upload_file - upload to a server that answers"
+    },
+    {
+      "id": "s72",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.rest/request - multipart form with a text field and a file part"
+      },
+      "children": [
+        {
+          "id": "s73",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (multipart form with a text field and a file part) and checks its result."
+          }
+        },
+        {
+          "id": "s74",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "note.txt",
+                "text": "file content 42"
+              },
+              "id": "s75"
+            },
+            {
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "$standin_url$/mock/34-0/upload",
+                "method": "POST",
+                "multipart": {
+                  "comment": "hello",
+                  "doc": {
+                    "file": "note.txt",
+                    "content_type": "text/plain"
+                  }
+                }
+              },
+              "out": {
+                "status": "status"
+              },
+              "id": "s76"
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$status$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check status",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "status: expected eq 200, got ${status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: multipart form with a text field and a file part\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: multipart form with a text field and a file part: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.rest/request - multipart form with a text field and a file part"
+    },
+    {
+      "id": "s84",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.rest/request - file sent as the raw body"
+      },
+      "children": [
+        {
+          "id": "s85",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (file sent as the raw body) and checks its result."
+          }
+        },
+        {
+          "id": "s86",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "raw.txt",
+                "text": "raw bytes here"
+              },
+              "id": "s87"
+            },
+            {
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "$standin_url$/mock/34-1/raw",
+                "method": "PUT",
+                "body_file": "raw.txt",
+                "content_type": "text/plain"
+              },
+              "out": {
+                "status": "status"
+              },
+              "id": "s88"
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$status$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check status",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "status: expected eq 200, got ${status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: file sent as the raw body\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: file sent as the raw body: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.rest/request - file sent as the raw body"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.rest/request - two bodies at once are refused"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (two bodies at once are refused) and checks its result."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s101",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:9/x",
+                    "method": "POST",
+                    "json": {
+                      "a": 1
+                    },
+                    "body": "text"
+                  },
+                  "id": "s99"
+                }
+              ],
+              "description": "These steps should fail with REST.BAD_BODY",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.BAD_BODY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s102",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.BAD_BODY",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.BAD_BODY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: two bodies at once are refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: two bodies at once are refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.rest/request - two bodies at once are refused"
+    },
+    {
+      "id": "s110",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.rest/request - file body that does not exist"
+      },
+      "children": [
+        {
+          "id": "s111",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (file body that does not exist) and checks its result."
+          }
+        },
+        {
+          "id": "s112",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s115",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:9/x",
+                    "method": "POST",
+                    "body_file": "missing.bin"
+                  },
+                  "id": "s113"
+                }
+              ],
+              "description": "These steps should fail with REST.FILE_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.FILE_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s116",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.FILE_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s119",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.FILE_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: file body that does not exist\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: file body that does not exist: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.rest/request - file body that does not exist"
+    },
+    {
+      "id": "s124",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.rest/request - OAuth 2.0 sign-in without a token URL is refused before sending"
+      },
+      "children": [
+        {
+          "id": "s125",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (OAuth 2.0 sign-in without a token URL is refused before sending) and checks its result."
+          }
+        },
+        {
+          "id": "s126",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s129",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:1/api",
+                    "oauth_client_id": "app"
+                  },
+                  "id": "s127"
+                }
+              ],
+              "description": "These steps should fail with REST.OAUTH_SETTINGS",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.OAUTH_SETTINGS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s130",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.OAUTH_SETTINGS",
+              "else": [
+                {
+                  "id": "s133",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.OAUTH_SETTINGS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: OAuth 2.0 sign-in without a token URL is refused before sending\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: OAuth 2.0 sign-in without a token URL is refused before sending: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.rest/request - OAuth 2.0 sign-in without a token URL is refused before sending"
+    },
+    {
+      "id": "s138",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.rest/request - OAuth 2.0 client secret as plain text is refused"
+      },
+      "children": [
+        {
+          "id": "s139",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (OAuth 2.0 client secret as plain text is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s140",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s142",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s143",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:1/api",
+                    "oauth_token_url": "http://127.0.0.1:1/token",
+                    "oauth_client_id": "app",
+                    "oauth_client_secret": "plain-text"
+                  },
+                  "id": "s141"
+                }
+              ],
+              "description": "These steps should fail with REST.NO_SECRET",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.NO_SECRET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s144",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.NO_SECRET",
+              "else": [
+                {
+                  "id": "s147",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.NO_SECRET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s148",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s149",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: OAuth 2.0 client secret as plain text is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s150",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s151",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: OAuth 2.0 client secret as plain text is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.rest/request - OAuth 2.0 client secret as plain text is refused"
+    },
+    {
+      "id": "s152",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.rest/request - OAuth 1.0a without a consumer secret is refused"
+      },
+      "children": [
+        {
+          "id": "s153",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (OAuth 1.0a without a consumer secret is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s154",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s157",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:1/api",
+                    "oauth1_consumer_key": "ck"
+                  },
+                  "id": "s155"
+                }
+              ],
+              "description": "These steps should fail with REST.OAUTH_SETTINGS",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.OAUTH_SETTINGS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s158",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.OAUTH_SETTINGS",
+              "else": [
+                {
+                  "id": "s161",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.OAUTH_SETTINGS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: OAuth 1.0a without a consumer secret is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: OAuth 1.0a without a consumer secret is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.rest/request - OAuth 1.0a without a consumer secret is refused"
+    },
+    {
+      "id": "s166",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.rest/request - two sign-in options at once are refused"
+      },
+      "children": [
+        {
+          "id": "s167",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (two sign-in options at once are refused) and checks its result."
+          }
+        },
+        {
+          "id": "s168",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s171",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:1/api",
+                    "oauth1_consumer_key": "ck",
+                    "ntlm_user": "bob"
+                  },
+                  "id": "s169"
+                }
+              ],
+              "description": "These steps should fail with REST.BAD_AUTH",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.BAD_AUTH"
+                  ],
+                  "children": [
+                    {
+                      "id": "s172",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.BAD_AUTH",
+              "else": [
+                {
+                  "id": "s175",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.BAD_AUTH: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: two sign-in options at once are refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s179",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: two sign-in options at once are refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.rest/request - two sign-in options at once are refused"
+    },
+    {
+      "id": "s180",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.rest/request - NTLM password as plain text is refused"
+      },
+      "children": [
+        {
+          "id": "s181",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rest/request (NTLM password as plain text is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s182",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s185",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "http://127.0.0.1:1/api",
+                    "ntlm_user": "bob",
+                    "ntlm_domain": "CONTOSO",
+                    "ntlm_password": "plain-text"
+                  },
+                  "id": "s183"
+                }
+              ],
+              "description": "These steps should fail with REST.NO_SECRET",
+              "catch": [
+                {
+                  "codes": [
+                    "REST.NO_SECRET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s186",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error REST.NO_SECRET",
+              "else": [
+                {
+                  "id": "s189",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error REST.NO_SECRET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: NTLM password as plain text is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s193",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: NTLM password as plain text is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.rest/request - NTLM password as plain text is refused"
+    },
+    {
+      "id": "s194",
+      "action": "core/step",
+      "args": {
+        "title": "15. Summary"
+      },
+      "children": [
+        {
+          "id": "s195",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s196",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s197",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s198",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "15. Summary"
+    }
+  ]
+}

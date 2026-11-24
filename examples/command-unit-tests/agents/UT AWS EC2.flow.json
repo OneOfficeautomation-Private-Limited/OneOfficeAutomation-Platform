@@ -1,0 +1,4389 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_aws_ec2",
+  "name": "UT AWS EC2",
+  "description": "Unit tests of every AWS EC2 command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "st",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_count",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_ids",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_states",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_changes",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_mon",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_new",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_snap",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_state",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_vol",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ec2_size",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every AWS EC2 command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT AWS EC2 started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.aws_ec2/create_snapshot - a volume id that is not one fails before AWS is asked"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/create_snapshot (a volume id that is not one fails before AWS is asked) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/create_snapshot",
+                  "args": {
+                    "volume_id": "disk-1"
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_VOLUME_ID",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_VOLUME_ID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_VOLUME_ID",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_VOLUME_ID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/create_snapshot: a volume id that is not one fails before AWS is asked\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/create_snapshot: a volume id that is not one fails before AWS is asked: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.aws_ec2/create_snapshot - a volume id that is not one fails before AWS is asked"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.aws_ec2/list_snapshots - an unknown owner fails"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/list_snapshots (an unknown owner fails) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s24",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "check_now": false
+                  },
+                  "id": "s21"
+                },
+                {
+                  "action": "ooa.aws_ec2/list_snapshots",
+                  "args": {
+                    "owner": "everyone"
+                  },
+                  "id": "s22"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_OWNER",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_OWNER"
+                  ],
+                  "children": [
+                    {
+                      "id": "s25",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_OWNER",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_OWNER: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/list_snapshots: an unknown owner fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/list_snapshots: an unknown owner fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.aws_ec2/list_snapshots - an unknown owner fails"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.aws_ec2/delete_snapshot - a snapshot id that is not one fails"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/delete_snapshot (a snapshot id that is not one fails) and checks its result."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s39",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "check_now": false
+                  },
+                  "id": "s36"
+                },
+                {
+                  "action": "ooa.aws_ec2/delete_snapshot",
+                  "args": {
+                    "snapshot_id": "ami-0123456789abcdef0"
+                  },
+                  "id": "s37"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_SNAPSHOT_ID",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_SNAPSHOT_ID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_SNAPSHOT_ID",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_SNAPSHOT_ID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/delete_snapshot: a snapshot id that is not one fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/delete_snapshot: a snapshot id that is not one fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.aws_ec2/delete_snapshot - a snapshot id that is not one fails"
+    },
+    {
+      "id": "s48",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.aws_ec2/create_volume - an empty volume needs a size"
+      },
+      "children": [
+        {
+          "id": "s49",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/create_volume (an empty volume needs a size) and checks its result."
+          }
+        },
+        {
+          "id": "s50",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s53",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/create_volume",
+                  "args": {
+                    "availability_zone": "eu-west-1a",
+                    "volume_type": "gp3"
+                  },
+                  "id": "s51"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_SIZE",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_SIZE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s54",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_SIZE",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_SIZE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/create_volume: an empty volume needs a size\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/create_volume: an empty volume needs a size: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.aws_ec2/create_volume - an empty volume needs a size"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.aws_ec2/create_volume - an availability zone that is not one fails"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/create_volume (an availability zone that is not one fails) and checks its result."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s67",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/create_volume",
+                  "args": {
+                    "availability_zone": "Ireland A",
+                    "size_gib": 10
+                  },
+                  "id": "s65"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_ZONE",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_ZONE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s68",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_ZONE",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_ZONE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/create_volume: an availability zone that is not one fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/create_volume: an availability zone that is not one fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.aws_ec2/create_volume - an availability zone that is not one fails"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.aws_ec2/attach_volume - a device name is required"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/attach_volume (a device name is required) and checks its result."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s81",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/attach_volume",
+                  "args": {
+                    "volume_id": "vol-0abc1234def567890",
+                    "instance_id": "i-0abc1234def567890",
+                    "device": " "
+                  },
+                  "id": "s79"
+                }
+              ],
+              "description": "These steps should fail with EC2.NO_DEVICE",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.NO_DEVICE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s82",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s83",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.NO_DEVICE",
+              "else": [
+                {
+                  "id": "s85",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.NO_DEVICE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/attach_volume: a device name is required\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/attach_volume: a device name is required: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.aws_ec2/attach_volume - a device name is required"
+    },
+    {
+      "id": "s90",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.aws_ec2/detach_volume - a volume id that is not one fails"
+      },
+      "children": [
+        {
+          "id": "s91",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/detach_volume (a volume id that is not one fails) and checks its result."
+          }
+        },
+        {
+          "id": "s92",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s95",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ec2/detach_volume",
+                  "args": {
+                    "volume_id": "vol-XYZ",
+                    "force": true
+                  },
+                  "id": "s93"
+                }
+              ],
+              "description": "These steps should fail with EC2.BAD_VOLUME_ID",
+              "catch": [
+                {
+                  "codes": [
+                    "EC2.BAD_VOLUME_ID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s96",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EC2.BAD_VOLUME_ID",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EC2.BAD_VOLUME_ID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/detach_volume: a volume id that is not one fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/detach_volume: a volume id that is not one fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.aws_ec2/detach_volume - a volume id that is not one fails"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.aws_ec2/start_instances - start by Name tag and wait until running, then stop"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ec2/start_instances (start by Name tag and wait until running, then stop) and checks its result."
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.aws_ec2/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/58-3",
+                "check_now": false
+              },
+              "id": "s107"
+            },
+            {
+              "action": "ooa.aws_ec2/start_instances",
+              "args": {
+                "instance_ids": [
+                  "Invoice bot"
+                ],
+                "wait": true,
+                "timeout_seconds": 30
+              },
+              "out": {
+                "states": "st"
+              },
+              "id": "s108"
+            },
+            {
+              "action": "ooa.aws_ec2/stop_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0aaaaaaaaaaaaaaa1"
+                ]
+              },
+              "id": "s109"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$st$",
+                  "right": {
+                    "i-0aaaaaaaaaaaaaaa1": "running"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check st",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "st: expected eq \"i-0aaaaaaaaaaaaaaa1\": \"running\", got ${st}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/start_instances: start by Name tag and wait until running, then stop\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/start_instances: start by Name tag and wait until running, then stop: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.aws_ec2/start_instances - start by Name tag and wait until running, then stop"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.aws_ec2/connect - keys from the vault, checked straight away"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect opens an EC2 session with access keys from the vault; check_now asks EC2 at once, so wrong keys or region fail here. Checked: the session then lists the instances."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.aws_ec2/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/cloud-ec2",
+                "check_now": true
+              },
+              "description": "Connect to the stand-in EC2"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.aws_ec2/describe_instances",
+              "args": {},
+              "out": {
+                "count": "ec2_count"
+              },
+              "description": "List the instances"
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ec2_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check instances seen",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "instances seen: expected ge 3, got ${ec2_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/connect: keys from the vault, checked straight away\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/connect: keys from the vault, checked straight away: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.aws_ec2/connect - keys from the vault, checked straight away"
+    },
+    {
+      "id": "s129",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.aws_ec2/describe_instances - filter by tag"
+      },
+      "children": [
+        {
+          "id": "s130",
+          "action": "core/comment",
+          "args": {
+            "text": "Describe instances lists instances with state, type and tags; here only those tagged Team=HR. Checked: one instance, the HR bot, with its type in the table."
+          }
+        },
+        {
+          "id": "s131",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s132",
+              "action": "ooa.aws_ec2/describe_instances",
+              "args": {
+                "filters": {
+                  "tag:Team": "HR"
+                }
+              },
+              "out": {
+                "count": "ec2_count",
+                "instance_ids": "ec2_ids",
+                "instances": "ec2_table"
+              },
+              "description": "Instances of the HR team"
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_count",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_count: expected eq 1, got ${ec2_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_ids[0]"
+                }
+              },
+              "description": "Work out the instance id"
+            },
+            {
+              "id": "s137",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "i-0a1b2c3d4e5f60003"
+                }
+              },
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the instance id",
+              "else": [
+                {
+                  "id": "s139",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the instance id: expected eq \"i-0a1b2c3d4e5f60003\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_table.rows[0][3]"
+                }
+              },
+              "description": "Work out the instance type column"
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "m6i.large"
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the instance type column",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the instance type column: expected eq \"m6i.large\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/describe_instances: filter by tag\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/describe_instances: filter by tag: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.aws_ec2/describe_instances - filter by tag"
+    },
+    {
+      "id": "s148",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.aws_ec2/get_instance_status - state and health checks"
+      },
+      "children": [
+        {
+          "id": "s149",
+          "action": "core/comment",
+          "args": {
+            "text": "Get instance status reads each instance's state and AWS's two health checks. Checked: the invoice bot is running with system status ok."
+          }
+        },
+        {
+          "id": "s150",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s151",
+              "action": "ooa.aws_ec2/start_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ]
+              },
+              "description": "Make sure the invoice bot runs"
+            },
+            {
+              "id": "s152",
+              "action": "ooa.aws_ec2/get_instance_status",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ],
+                "include_stopped": true
+              },
+              "out": {
+                "statuses": "ec2_table",
+                "states": "ec2_states"
+              },
+              "description": "Read its status"
+            },
+            {
+              "id": "s153",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_states['i-0a1b2c3d4e5f60001']"
+                }
+              },
+              "description": "Work out the state"
+            },
+            {
+              "id": "s154",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the state",
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the state: expected eq \"running\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_table.rows[0][2]"
+                }
+              },
+              "description": "Work out the system status"
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ok"
+                }
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the system status",
+              "else": [
+                {
+                  "id": "s160",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the system status: expected eq \"ok\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/get_instance_status: state and health checks\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/get_instance_status: state and health checks: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.aws_ec2/get_instance_status - state and health checks"
+    },
+    {
+      "id": "s165",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.aws_ec2/stop_instances - stop and wait until stopped"
+      },
+      "children": [
+        {
+          "id": "s166",
+          "action": "core/comment",
+          "args": {
+            "text": "Stop instances stops running instances (disks are kept) and can wait until they are stopped. Checked: the change table and the final state."
+          }
+        },
+        {
+          "id": "s167",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s168",
+              "action": "ooa.aws_ec2/start_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60002"
+                ]
+              },
+              "description": "Start the report bot first"
+            },
+            {
+              "id": "s169",
+              "action": "ooa.aws_ec2/stop_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60002"
+                ],
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "changes": "ec2_changes",
+                "states": "ec2_states"
+              },
+              "description": "Stop it and wait"
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_changes.rows[0][1]"
+                }
+              },
+              "description": "Work out the state before"
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the state before",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the state before: expected eq \"running\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_states['i-0a1b2c3d4e5f60002']"
+                }
+              },
+              "description": "Work out the state at the end"
+            },
+            {
+              "id": "s175",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "stopped"
+                }
+              },
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the state at the end",
+              "else": [
+                {
+                  "id": "s177",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the state at the end: expected eq \"stopped\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/stop_instances: stop and wait until stopped\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/stop_instances: stop and wait until stopped: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.aws_ec2/stop_instances - stop and wait until stopped"
+    },
+    {
+      "id": "s182",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.aws_ec2/start_instances - start by Name tag"
+      },
+      "children": [
+        {
+          "id": "s183",
+          "action": "core/comment",
+          "args": {
+            "text": "Start instances starts stopped instances; instances can be named by their Name tag instead of the id. Checked: the report bot went from stopped to running."
+          }
+        },
+        {
+          "id": "s184",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s185",
+              "action": "ooa.aws_ec2/stop_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60002"
+                ]
+              },
+              "description": "Make sure the report bot is stopped"
+            },
+            {
+              "id": "s186",
+              "action": "ooa.aws_ec2/start_instances",
+              "args": {
+                "instance_ids": [
+                  "UT report bot"
+                ]
+              },
+              "out": {
+                "changes": "ec2_changes"
+              },
+              "description": "Start the report bot by its name"
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_changes.rows[0][0]"
+                }
+              },
+              "description": "Work out the instance started"
+            },
+            {
+              "id": "s188",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "i-0a1b2c3d4e5f60002"
+                }
+              },
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the instance started",
+              "else": [
+                {
+                  "id": "s190",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the instance started: expected eq \"i-0a1b2c3d4e5f60002\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_changes.rows[0][2]"
+                }
+              },
+              "description": "Work out the new state"
+            },
+            {
+              "id": "s192",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new state",
+              "else": [
+                {
+                  "id": "s194",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new state: expected eq \"running\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/start_instances: start by Name tag\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/start_instances: start by Name tag: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.aws_ec2/start_instances - start by Name tag"
+    },
+    {
+      "id": "s199",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.aws_ec2/reboot_instances - restart a running instance"
+      },
+      "children": [
+        {
+          "id": "s200",
+          "action": "core/comment",
+          "args": {
+            "text": "Reboot instances restarts running instances and gives nothing back. Checked: the instance is still running."
+          }
+        },
+        {
+          "id": "s201",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s202",
+              "action": "ooa.aws_ec2/reboot_instances",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ]
+              },
+              "description": "Reboot the invoice bot"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.aws_ec2/get_instance_status",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ]
+              },
+              "out": {
+                "states": "ec2_states"
+              },
+              "description": "Read its state"
+            },
+            {
+              "id": "s204",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_states['i-0a1b2c3d4e5f60001']"
+                }
+              },
+              "description": "Work out the state after the reboot"
+            },
+            {
+              "id": "s205",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s206",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the state after the reboot",
+              "else": [
+                {
+                  "id": "s207",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the state after the reboot: expected eq \"running\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/reboot_instances: restart a running instance\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s210",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/reboot_instances: restart a running instance: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.aws_ec2/reboot_instances - restart a running instance"
+    },
+    {
+      "id": "s212",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.aws_ec2/wait_for_state - wait until running"
+      },
+      "children": [
+        {
+          "id": "s213",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for state checks the instances until all of them are in the state asked for. Checked: the states it gives back."
+          }
+        },
+        {
+          "id": "s214",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s215",
+              "action": "ooa.aws_ec2/wait_for_state",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ],
+                "state": "running",
+                "timeout_seconds": 30,
+                "check_every_seconds": 1
+              },
+              "out": {
+                "states": "ec2_states"
+              },
+              "description": "Wait until the invoice bot runs"
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_states['i-0a1b2c3d4e5f60001']"
+                }
+              },
+              "description": "Work out the state"
+            },
+            {
+              "id": "s217",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the state",
+              "else": [
+                {
+                  "id": "s219",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the state: expected eq \"running\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/wait_for_state: wait until running\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s223",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/wait_for_state: wait until running: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.aws_ec2/wait_for_state - wait until running"
+    },
+    {
+      "id": "s224",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.aws_ec2/enable_monitoring - detailed monitoring on"
+      },
+      "children": [
+        {
+          "id": "s225",
+          "action": "core/comment",
+          "args": {
+            "text": "Enable monitoring switches on one-minute CloudWatch monitoring. Checked: EC2 reports it pending."
+          }
+        },
+        {
+          "id": "s226",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s227",
+              "action": "ooa.aws_ec2/enable_monitoring",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ]
+              },
+              "out": {
+                "monitoring": "ec2_mon"
+              },
+              "description": "Monitoring on for the invoice bot"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_mon['i-0a1b2c3d4e5f60001']"
+                }
+              },
+              "description": "Work out the monitoring state"
+            },
+            {
+              "id": "s229",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "pending"
+                }
+              },
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the monitoring state",
+              "else": [
+                {
+                  "id": "s231",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the monitoring state: expected eq \"pending\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s232",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/enable_monitoring: detailed monitoring on\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s234",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s235",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/enable_monitoring: detailed monitoring on: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.aws_ec2/enable_monitoring - detailed monitoring on"
+    },
+    {
+      "id": "s236",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.aws_ec2/disable_monitoring - back to basic monitoring"
+      },
+      "children": [
+        {
+          "id": "s237",
+          "action": "core/comment",
+          "args": {
+            "text": "Disable monitoring goes back to five-minute monitoring. Checked: EC2 reports it disabling."
+          }
+        },
+        {
+          "id": "s238",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s239",
+              "action": "ooa.aws_ec2/disable_monitoring",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ]
+              },
+              "out": {
+                "monitoring": "ec2_mon"
+              },
+              "description": "Monitoring off for the invoice bot"
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_mon['i-0a1b2c3d4e5f60001']"
+                }
+              },
+              "description": "Work out the monitoring state"
+            },
+            {
+              "id": "s241",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "disabling"
+                }
+              },
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the monitoring state",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the monitoring state: expected eq \"disabling\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/disable_monitoring: back to basic monitoring\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s247",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/disable_monitoring: back to basic monitoring: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.aws_ec2/disable_monitoring - back to basic monitoring"
+    },
+    {
+      "id": "s248",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.aws_ec2/set_tags - add a tag"
+      },
+      "children": [
+        {
+          "id": "s249",
+          "action": "core/comment",
+          "args": {
+            "text": "Set tags adds tags to instances or changes their values. Checked: Describe instances finds the invoice bot by the new tag."
+          }
+        },
+        {
+          "id": "s250",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s251",
+              "action": "ooa.aws_ec2/set_tags",
+              "args": {
+                "instance_ids": [
+                  "i-0a1b2c3d4e5f60001"
+                ],
+                "tags": {
+                  "CostCenter": "4711"
+                }
+              },
+              "description": "Tag the invoice bot"
+            },
+            {
+              "id": "s252",
+              "action": "ooa.aws_ec2/describe_instances",
+              "args": {
+                "filters": {
+                  "tag:CostCenter": "4711"
+                }
+              },
+              "out": {
+                "instance_ids": "ec2_ids"
+              },
+              "description": "Find it by the tag"
+            },
+            {
+              "id": "s253",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ec2_ids$",
+                  "right": "i-0a1b2c3d4e5f60001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the tagged instance",
+              "else": [
+                {
+                  "id": "s255",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the tagged instance: expected contains \"i-0a1b2c3d4e5f60001\", got ${ec2_ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s256",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s257",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/set_tags: add a tag\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s259",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/set_tags: add a tag: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.aws_ec2/set_tags - add a tag"
+    },
+    {
+      "id": "s260",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.aws_ec2/launch_instances - one new instance with a name"
+      },
+      "children": [
+        {
+          "id": "s261",
+          "action": "core/comment",
+          "args": {
+            "text": "Launch instances creates instances from a machine image with a name, tags and a start-up script. Checked: one new id and its Name in the table."
+          }
+        },
+        {
+          "id": "s262",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s263",
+              "action": "ooa.aws_ec2/launch_instances",
+              "args": {
+                "image_id": "ami-0abc12345678def01",
+                "instance_type": "t3.micro",
+                "count": 1,
+                "name": "UT launched bot",
+                "tags": {
+                  "Team": "Test"
+                },
+                "user_data": "echo hello"
+              },
+              "out": {
+                "instance_ids": "ec2_new",
+                "instances": "ec2_table"
+              },
+              "description": "Launch one instance"
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($ec2_new)"
+                }
+              },
+              "description": "Work out new instances"
+            },
+            {
+              "id": "s265",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new instances",
+              "else": [
+                {
+                  "id": "s267",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new instances: expected eq 1, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_table.rows[0][1]"
+                }
+              },
+              "description": "Work out the Name column"
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "UT launched bot"
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the Name column",
+              "else": [
+                {
+                  "id": "s271",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the Name column: expected eq \"UT launched bot\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s272",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/launch_instances: one new instance with a name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s274",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s275",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/launch_instances: one new instance with a name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.aws_ec2/launch_instances - one new instance with a name"
+    },
+    {
+      "id": "s276",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.aws_ec2/terminate_instances - end a launched instance"
+      },
+      "children": [
+        {
+          "id": "s277",
+          "action": "core/comment",
+          "args": {
+            "text": "Terminate instances ends instances for good. A fresh instance is launched first, then ended and waited for. Checked: its state is terminated."
+          }
+        },
+        {
+          "id": "s278",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s279",
+              "action": "ooa.aws_ec2/launch_instances",
+              "args": {
+                "image_id": "ami-0abc12345678def01",
+                "instance_type": "t3.micro",
+                "name": "UT short-lived bot"
+              },
+              "out": {
+                "instance_ids": "ec2_new"
+              },
+              "description": "Launch an instance to end"
+            },
+            {
+              "id": "s280",
+              "action": "ooa.aws_ec2/terminate_instances",
+              "args": {
+                "instance_ids": "$ec2_new$",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "changes": "ec2_changes",
+                "states": "ec2_states"
+              },
+              "description": "End it and wait"
+            },
+            {
+              "id": "s281",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ec2_changes.rows[0][2]"
+                }
+              },
+              "description": "Work out the new state"
+            },
+            {
+              "id": "s282",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "terminated"
+                }
+              },
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new state",
+              "else": [
+                {
+                  "id": "s284",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new state: expected eq \"terminated\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s285",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s286",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/terminate_instances: end a launched instance\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s287",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s288",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/terminate_instances: end a launched instance: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.aws_ec2/terminate_instances - end a launched instance"
+    },
+    {
+      "id": "s289",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.aws_ec2/create_snapshot - copy of a volume"
+      },
+      "children": [
+        {
+          "id": "s290",
+          "action": "core/comment",
+          "args": {
+            "text": "Create snapshot starts a point-in-time copy of a volume. Checked: a snap- id and state pending; the copy is deleted again at the end."
+          }
+        },
+        {
+          "id": "s291",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s292",
+              "action": "ooa.aws_ec2/create_snapshot",
+              "args": {
+                "volume_id": "vol-0a1b2c3d4e5f60001",
+                "description": "UT before patching",
+                "tags": {
+                  "Team": "Finance"
+                }
+              },
+              "out": {
+                "snapshot_id": "ec2_snap",
+                "state": "ec2_state"
+              },
+              "description": "Snapshot the invoice bot's disk"
+            },
+            {
+              "id": "s293",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ec2_snap$",
+                  "right": "snap-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check snapshot id",
+              "else": [
+                {
+                  "id": "s295",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "snapshot id: expected startsWith \"snap-\", got ${ec2_snap}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s296",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_state$",
+                  "right": "pending"
+                }
+              },
+              "children": [
+                {
+                  "id": "s297",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_state",
+              "else": [
+                {
+                  "id": "s298",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_state: expected eq \"pending\", got ${ec2_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s299",
+              "action": "ooa.aws_ec2/delete_snapshot",
+              "args": {
+                "snapshot_id": "$ec2_snap$"
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/create_snapshot: copy of a volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s303",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/create_snapshot: copy of a volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.aws_ec2/create_snapshot - copy of a volume"
+    },
+    {
+      "id": "s304",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.aws_ec2/list_snapshots - snapshots of one volume"
+      },
+      "children": [
+        {
+          "id": "s305",
+          "action": "core/comment",
+          "args": {
+            "text": "List snapshots lists this account's snapshots, here only those of one volume with a tag. Checked: the nightly copy is found."
+          }
+        },
+        {
+          "id": "s306",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s307",
+              "action": "ooa.aws_ec2/list_snapshots",
+              "args": {
+                "volume_id": "vol-0a1b2c3d4e5f60001",
+                "tags": {
+                  "Team": "Finance"
+                },
+                "owner": "self"
+              },
+              "out": {
+                "snapshot_ids": "ec2_ids",
+                "count": "ec2_count",
+                "snapshots": "ec2_table"
+              },
+              "description": "Snapshots of the volume"
+            },
+            {
+              "id": "s308",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ec2_ids$",
+                  "right": "snap-0a1b2c3d4e5f60001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the nightly snapshot",
+              "else": [
+                {
+                  "id": "s310",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the nightly snapshot: expected contains \"snap-0a1b2c3d4e5f60001\", got ${ec2_ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s311",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ec2_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s312",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check snapshot count",
+              "else": [
+                {
+                  "id": "s313",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "snapshot count: expected ge 1, got ${ec2_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/list_snapshots: snapshots of one volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s317",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/list_snapshots: snapshots of one volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.aws_ec2/list_snapshots - snapshots of one volume"
+    },
+    {
+      "id": "s318",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.aws_ec2/delete_snapshot - delete a new snapshot"
+      },
+      "children": [
+        {
+          "id": "s319",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete snapshot removes a snapshot for good. A snapshot is made first. Checked: List snapshots no longer has it."
+          }
+        },
+        {
+          "id": "s320",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s321",
+              "action": "ooa.aws_ec2/create_snapshot",
+              "args": {
+                "volume_id": "vol-0a1b2c3d4e5f60001"
+              },
+              "out": {
+                "snapshot_id": "ec2_snap"
+              },
+              "description": "Make a snapshot to delete"
+            },
+            {
+              "id": "s322",
+              "action": "ooa.aws_ec2/delete_snapshot",
+              "args": {
+                "snapshot_id": "$ec2_snap$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s323",
+              "action": "ooa.aws_ec2/list_snapshots",
+              "args": {
+                "volume_id": "vol-0a1b2c3d4e5f60001"
+              },
+              "out": {
+                "snapshot_ids": "ec2_ids"
+              },
+              "description": "List again"
+            },
+            {
+              "id": "s324",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$ec2_ids$",
+                  "right": "$ec2_snap$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the deleted snapshot",
+              "else": [
+                {
+                  "id": "s326",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the deleted snapshot: expected notContains \"ec2_snap\", got ${ec2_ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s327",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/delete_snapshot: delete a new snapshot\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/delete_snapshot: delete a new snapshot: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.aws_ec2/delete_snapshot - delete a new snapshot"
+    },
+    {
+      "id": "s331",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.aws_ec2/create_volume - empty 20 GiB volume"
+      },
+      "children": [
+        {
+          "id": "s332",
+          "action": "core/comment",
+          "args": {
+            "text": "Create volume makes an EBS volume in a zone, empty or from a snapshot. Checked: a vol- id, state creating and the size."
+          }
+        },
+        {
+          "id": "s333",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s334",
+              "action": "ooa.aws_ec2/create_volume",
+              "args": {
+                "availability_zone": "eu-west-1a",
+                "size_gib": 20,
+                "volume_type": "gp3",
+                "tags": {
+                  "Name": "UT data"
+                }
+              },
+              "out": {
+                "volume_id": "ec2_vol",
+                "state": "ec2_state",
+                "size_gib": "ec2_size"
+              },
+              "description": "Create a volume"
+            },
+            {
+              "id": "s335",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ec2_vol$",
+                  "right": "vol-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s336",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check volume id",
+              "else": [
+                {
+                  "id": "s337",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "volume id: expected startsWith \"vol-\", got ${ec2_vol}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s338",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_state$",
+                  "right": "creating"
+                }
+              },
+              "children": [
+                {
+                  "id": "s339",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_state",
+              "else": [
+                {
+                  "id": "s340",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_state: expected eq \"creating\", got ${ec2_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s341",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_size$",
+                  "right": 20
+                }
+              },
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_size",
+              "else": [
+                {
+                  "id": "s343",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_size: expected eq 20, got ${ec2_size}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/create_volume: empty 20 GiB volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s347",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/create_volume: empty 20 GiB volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.aws_ec2/create_volume - empty 20 GiB volume"
+    },
+    {
+      "id": "s348",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.aws_ec2/attach_volume - attach a new volume"
+      },
+      "children": [
+        {
+          "id": "s349",
+          "action": "core/comment",
+          "args": {
+            "text": "Attach volume attaches an available volume to an instance in the same zone. Checked: state attaching."
+          }
+        },
+        {
+          "id": "s350",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s351",
+              "action": "ooa.aws_ec2/create_volume",
+              "args": {
+                "availability_zone": "eu-west-1a",
+                "size_gib": 5
+              },
+              "out": {
+                "volume_id": "ec2_vol"
+              },
+              "description": "A new volume"
+            },
+            {
+              "id": "s352",
+              "action": "ooa.aws_ec2/attach_volume",
+              "args": {
+                "volume_id": "$ec2_vol$",
+                "instance_id": "i-0a1b2c3d4e5f60001",
+                "device": "/dev/sdf"
+              },
+              "out": {
+                "state": "ec2_state"
+              },
+              "description": "Attach it"
+            },
+            {
+              "id": "s353",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_state$",
+                  "right": "attaching"
+                }
+              },
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_state",
+              "else": [
+                {
+                  "id": "s355",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_state: expected eq \"attaching\", got ${ec2_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "ooa.aws_ec2/detach_volume",
+              "args": {
+                "volume_id": "$ec2_vol$"
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/attach_volume: attach a new volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/attach_volume: attach a new volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.aws_ec2/attach_volume - attach a new volume"
+    },
+    {
+      "id": "s361",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.aws_ec2/detach_volume - detach an attached volume"
+      },
+      "children": [
+        {
+          "id": "s362",
+          "action": "core/comment",
+          "args": {
+            "text": "Detach volume detaches a volume from its instance. Checked: state detaching."
+          }
+        },
+        {
+          "id": "s363",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "ooa.aws_ec2/create_volume",
+              "args": {
+                "availability_zone": "eu-west-1a",
+                "size_gib": 5
+              },
+              "out": {
+                "volume_id": "ec2_vol"
+              },
+              "description": "A new volume"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.aws_ec2/attach_volume",
+              "args": {
+                "volume_id": "$ec2_vol$",
+                "instance_id": "i-0a1b2c3d4e5f60001",
+                "device": "/dev/sdg"
+              },
+              "description": "Attach it"
+            },
+            {
+              "id": "s366",
+              "action": "ooa.aws_ec2/detach_volume",
+              "args": {
+                "volume_id": "$ec2_vol$",
+                "force": false
+              },
+              "out": {
+                "state": "ec2_state"
+              },
+              "description": "Detach it"
+            },
+            {
+              "id": "s367",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ec2_state$",
+                  "right": "detaching"
+                }
+              },
+              "children": [
+                {
+                  "id": "s368",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ec2_state",
+              "else": [
+                {
+                  "id": "s369",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ec2_state: expected eq \"detaching\", got ${ec2_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s371",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/detach_volume: detach an attached volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s373",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/detach_volume: detach an attached volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.aws_ec2/detach_volume - detach an attached volume"
+    },
+    {
+      "id": "s374",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.aws_ec2/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s375",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the EC2 session and forgets its keys. Checked: a step after it finds no session."
+          }
+        },
+        {
+          "id": "s376",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s377",
+              "action": "ooa.aws_ec2/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s378",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s379",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s380",
+                  "action": "ooa.aws_ec2/describe_instances",
+                  "args": {},
+                  "description": "This needs the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s381",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s382",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s384",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s385",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s386",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ec2/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s387",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s388",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ec2/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.aws_ec2/disconnect - close the session"
+    },
+    {
+      "id": "s389",
+      "action": "core/step",
+      "args": {
+        "title": "28. Summary"
+      },
+      "children": [
+        {
+          "id": "s390",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s391",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s392",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s393",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "28. Summary"
+    }
+  ]
+}

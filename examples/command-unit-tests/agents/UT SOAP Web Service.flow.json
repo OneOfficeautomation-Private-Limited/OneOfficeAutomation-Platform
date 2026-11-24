@@ -1,0 +1,1064 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_soap",
+  "name": "UT SOAP Web Service",
+  "description": "Unit tests of every SOAP Web Service command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "soap_ops",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "soap_names",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "soap_status",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "soap_values",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "soap_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "soap_body",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "soap_response",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every SOAP Web Service command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT SOAP Web Service started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.soap/send - SOAP envelope to a local endpoint"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.soap/send (SOAP envelope to a local endpoint) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "svc.xml",
+                "text": "<?xml version='1.0'?><soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><soap:Body><r><total>42</total></r></soap:Body></soap:Envelope>"
+              },
+              "description": "Prepare the test file svc.xml"
+            },
+            {
+              "action": "ooa.soap/send",
+              "args": {
+                "url": "$standin_url$/web/UT%20SOAP%20Web%20Service/svc.xml",
+                "body": "<GetTotal/>"
+              },
+              "out": {
+                "status": "s",
+                "body": "b"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 200, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${b}",
+                  "right": "42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq \"contains\": \"42\", got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.soap/send: SOAP envelope to a local endpoint\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s18",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.soap/send: SOAP envelope to a local endpoint: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.soap/send - SOAP envelope to a local endpoint"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.soap/read_wsdl - operations of a price service"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Read WSDL reads a service description and lists its operations with SOAPAction, address and a body to fill in. Checked: both operations and GetPrice's SOAPAction."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "ooa.soap/read_wsdl",
+              "args": {
+                "wsdl": "$standin_url$/cloud-soap/prices?wsdl",
+                "timeout_seconds": 30
+              },
+              "out": {
+                "operations": "soap_ops",
+                "names": "soap_names"
+              },
+              "description": "Read the price service's WSDL"
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$soap_names$",
+                  "right": "GetPrice"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the GetPrice operation",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the GetPrice operation: expected contains \"GetPrice\", got ${soap_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$soap_names$",
+                  "right": "ListSkus"
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the ListSkus operation",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the ListSkus operation: expected contains \"ListSkus\", got ${soap_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$soap_ops[0].soap_action"
+                }
+              },
+              "description": "Work out the SOAPAction of the first operation"
+            },
+            {
+              "id": "s30",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "urn:ut:prices/GetPrice"
+                }
+              },
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the SOAPAction of the first operation",
+              "else": [
+                {
+                  "id": "s32",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the SOAPAction of the first operation: expected eq \"urn:ut:prices/GetPrice\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.soap/read_wsdl: operations of a price service\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.soap/read_wsdl: operations of a price service: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.soap/read_wsdl - operations of a price service"
+    },
+    {
+      "id": "s37",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.soap/send - body built from the WSDL"
+      },
+      "children": [
+        {
+          "id": "s38",
+          "action": "core/comment",
+          "args": {
+            "text": "Send SOAP request can build the request from the WSDL: the operation and its parameters. Checked: HTTP 200 and the price read with an XPath."
+          }
+        },
+        {
+          "id": "s39",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s40",
+              "action": "ooa.soap/send",
+              "args": {
+                "wsdl": "$standin_url$/cloud-soap/prices?wsdl",
+                "operation": "GetPrice",
+                "parameters": {
+                  "sku": "UT-200"
+                },
+                "xpath": "//*[local-name()='price']"
+              },
+              "out": {
+                "status": "soap_status",
+                "values": "soap_values",
+                "body": "soap_body"
+              },
+              "description": "Ask the price of UT-200"
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$soap_status$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check soap_status",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "soap_status: expected eq 200, got ${soap_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$soap_values[0]"
+                }
+              },
+              "description": "Work out the price"
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "99.00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the price",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the price: expected eq \"99.00\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.soap/send: body built from the WSDL\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.soap/send: body built from the WSDL: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.soap/send - body built from the WSDL"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.soap/send - own envelope, nodes joined"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "Send SOAP request with a body written by hand and a SOAPAction; xpath_output joined gives the selected nodes as one text. Checked: the three SKUs joined with a pipe."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s55",
+              "action": "ooa.soap/send",
+              "args": {
+                "url": "$standin_url$/cloud-soap/prices",
+                "soap_action": "urn:ut:prices/ListSkus",
+                "version": "1.1",
+                "body": "<ListSkus xmlns=\"urn:ut:prices\"/>",
+                "xpath": "//*[local-name()='sku']",
+                "xpath_output": "joined",
+                "delimiter": "pipe"
+              },
+              "out": {
+                "text": "soap_text"
+              },
+              "description": "List the SKUs"
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$soap_text$",
+                  "right": "UT-100|UT-200|UT-300"
+                }
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check soap_text",
+              "else": [
+                {
+                  "id": "s58",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "soap_text: expected eq \"UT-100|UT-200|UT-300\", got ${soap_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.soap/send: own envelope, nodes joined\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.soap/send: own envelope, nodes joined: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.soap/send - own envelope, nodes joined"
+    },
+    {
+      "id": "s63",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.soap/send - a SOAP fault"
+      },
+      "children": [
+        {
+          "id": "s64",
+          "action": "core/comment",
+          "args": {
+            "text": "A SOAP fault from the service fails the step with SOAP.FAULT (or with fail_on_error off gives the status and response). Checked: both ways."
+          }
+        },
+        {
+          "id": "s65",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s67",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "ooa.soap/send",
+                  "args": {
+                    "url": "$standin_url$/cloud-soap/prices",
+                    "soap_action": "urn:ut:prices/GetPrice",
+                    "body": "<GetPrice xmlns=\"urn:ut:prices\"><sku>NOPE</sku></GetPrice>"
+                  },
+                  "description": "Ask for an unknown SKU"
+                }
+              ],
+              "description": "These steps should fail with SOAP.FAULT",
+              "catch": [
+                {
+                  "codes": [
+                    "SOAP.FAULT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s69",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s71",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SOAP.FAULT",
+              "else": [
+                {
+                  "id": "s72",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SOAP.FAULT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s73",
+              "action": "ooa.soap/send",
+              "args": {
+                "url": "$standin_url$/cloud-soap/prices",
+                "soap_action": "urn:ut:prices/GetPrice",
+                "fail_on_error": false,
+                "body": "<GetPrice xmlns=\"urn:ut:prices\"><sku>NOPE</sku></GetPrice>"
+              },
+              "out": {
+                "status": "soap_status",
+                "response": "soap_response"
+              },
+              "description": "The same, without failing"
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$soap_status$",
+                  "right": 500
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check soap_status",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "soap_status: expected eq 500, got ${soap_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$soap_response$",
+                  "right": "No price for SKU"
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the fault text",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the fault text: expected contains \"No price for SKU\", got ${soap_response}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.soap/send: a SOAP fault\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.soap/send: a SOAP fault: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.soap/send - a SOAP fault"
+    },
+    {
+      "id": "s84",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s85",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s86",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s87",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s88",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

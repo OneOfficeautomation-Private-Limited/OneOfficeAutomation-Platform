@@ -1,0 +1,1349 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_sap_bapi",
+  "name": "UT SAP BAPI",
+  "description": "Unit tests of every SAP BAPI command. They need the SAP Java Connector (JCo) library and an SAP test system, so this agent is built and validated only; each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sap_system",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "sap_params",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sap_required",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "sap_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sap_names",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sap_count",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sap_rows",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sap_struct",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "sap_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "sap_msgs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sap_value",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every SAP BAPI command. They need the SAP Java Connector (JCo) library and an SAP test system, so this agent is built and validated only; each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT SAP BAPI started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.sap_bapi/connect - application server and password"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect signs in to an SAP system through the Java Connector (application server, system number, client, user and password from the vault). Checked: the system it reports is client 800."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.sap_bapi/connect",
+              "args": {
+                "host": "sap-sandbox.ut.test",
+                "system_number": "00",
+                "client": "800",
+                "user": "UT_RPA",
+                "password": {
+                  "$credential": "unit_tests/sap/password"
+                },
+                "language": "EN"
+              },
+              "out": {
+                "system": "sap_system"
+              },
+              "description": "Sign in to the SAP sandbox"
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$sap_system.client"
+                }
+              },
+              "description": "Work out the client"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "800"
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the client",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the client: expected eq \"800\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/connect: application server and password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/connect: application server and password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.sap_bapi/connect - application server and password"
+    },
+    {
+      "id": "s16",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.sap_bapi/search_functions - company code BAPIs"
+      },
+      "children": [
+        {
+          "id": "s17",
+          "action": "core/comment",
+          "args": {
+            "text": "Find functions searches the remote-enabled functions by a name pattern. Checked: the company code detail BAPI is found."
+          }
+        },
+        {
+          "id": "s18",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.sap_bapi/search_functions",
+              "args": {
+                "pattern": "BAPI_COMPANYCODE*",
+                "max_rows": 50,
+                "language": "EN"
+              },
+              "out": {
+                "names": "sap_names",
+                "count": "sap_count"
+              },
+              "description": "Find company code BAPIs"
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sap_names$",
+                  "right": "BAPI_COMPANYCODE_GETDETAIL"
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the detail BAPI",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the detail BAPI: expected contains \"BAPI_COMPANYCODE_GETDETAIL\", got ${sap_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/search_functions: company code BAPIs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/search_functions: company code BAPIs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.sap_bapi/search_functions - company code BAPIs"
+    },
+    {
+      "id": "s27",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.sap_bapi/get_function_info - parameters of a BAPI"
+      },
+      "children": [
+        {
+          "id": "s28",
+          "action": "core/comment",
+          "args": {
+            "text": "Get function details lists a function's parameters and the values that must be given. Checked: COMPANYCODEID is a required import."
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s30",
+              "action": "ooa.sap_bapi/get_function_info",
+              "args": {
+                "function": "BAPI_COMPANYCODE_GETDETAIL"
+              },
+              "out": {
+                "parameters": "sap_params",
+                "required_values": "sap_required"
+              },
+              "description": "Details of the company code BAPI"
+            },
+            {
+              "id": "s31",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sap_required$",
+                  "right": "COMPANYCODEID"
+                }
+              },
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the required import",
+              "else": [
+                {
+                  "id": "s33",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the required import: expected contains \"COMPANYCODEID\", got ${sap_required}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/get_function_info: parameters of a BAPI\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/get_function_info: parameters of a BAPI: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.sap_bapi/get_function_info - parameters of a BAPI"
+    },
+    {
+      "id": "s38",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.sap_bapi/call_function - company code details"
+      },
+      "children": [
+        {
+          "id": "s39",
+          "action": "core/comment",
+          "args": {
+            "text": "Run BAPI / function calls a remote-enabled function with imports and gives back exports, tables and the RETURN messages. Checked: success and the company name of 1000."
+          }
+        },
+        {
+          "id": "s40",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s41",
+              "action": "ooa.sap_bapi/call_function",
+              "args": {
+                "function": "BAPI_COMPANYCODE_GETDETAIL",
+                "imports": {
+                  "COMPANYCODEID": "1000"
+                },
+                "return_structure": "COMPANYCODE_DETAIL"
+              },
+              "out": {
+                "structure": "sap_struct",
+                "success": "sap_ok",
+                "messages": "sap_msgs"
+              },
+              "description": "Read company code 1000"
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sap_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sap_ok",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sap_ok: expected eq true, got ${sap_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$sap_struct.COMP_CODE"
+                }
+              },
+              "description": "Work out the company code in the details"
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "1000"
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the company code in the details",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the company code in the details: expected eq \"1000\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/call_function: company code details\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/call_function: company code details: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.sap_bapi/call_function - company code details"
+    },
+    {
+      "id": "s53",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.sap_bapi/read_table - company codes"
+      },
+      "children": [
+        {
+          "id": "s54",
+          "action": "core/comment",
+          "args": {
+            "text": "Read table reads rows of an SAP table with chosen fields and a WHERE condition. Checked: company code 1000 is read."
+          }
+        },
+        {
+          "id": "s55",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s56",
+              "action": "ooa.sap_bapi/read_table",
+              "args": {
+                "table": "T001",
+                "fields": [
+                  "BUKRS",
+                  "BUTXT",
+                  "WAERS"
+                ],
+                "where": "BUKRS = '1000'",
+                "max_rows": 10
+              },
+              "out": {
+                "table": "sap_table",
+                "row_count": "sap_rows"
+              },
+              "description": "Read company code 1000 from T001"
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sap_rows$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sap_rows",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sap_rows: expected eq 1, got ${sap_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$sap_table.rows[0][0]"
+                }
+              },
+              "description": "Work out the company code"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "1000"
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the company code",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the company code: expected eq \"1000\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/read_table: company codes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/read_table: company codes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.sap_bapi/read_table - company codes"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.sap_bapi/commit - keep a change"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Commit makes the changes of the BAPIs called before it permanent (BAPI_TRANSACTION_COMMIT). A test bank is created first without committing. Checked: no error message in the commit's answer."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s71",
+              "action": "ooa.sap_bapi/call_function",
+              "args": {
+                "function": "BAPI_BANK_CREATE",
+                "commit": false,
+                "fail_on_error": false,
+                "imports": {
+                  "BANK_CTRY": "DE",
+                  "BANK_KEY": "99900001",
+                  "BANK_ADDRESS": {
+                    "BANK_NAME": "UT Test Bank",
+                    "CITY": "Berlin"
+                  }
+                }
+              },
+              "out": {
+                "success": "sap_ok"
+              },
+              "description": "Create a test bank"
+            },
+            {
+              "id": "s72",
+              "action": "ooa.sap_bapi/commit",
+              "args": {
+                "wait": true
+              },
+              "out": {
+                "messages": "sap_msgs"
+              },
+              "description": "Commit it"
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$sap_msgs$",
+                  "right": "E"
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error messages",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error messages: expected notContains \"E\", got ${sap_msgs}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/commit: keep a change\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/commit: keep a change: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.sap_bapi/commit - keep a change"
+    },
+    {
+      "id": "s80",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.sap_bapi/rollback - drop a change"
+      },
+      "children": [
+        {
+          "id": "s81",
+          "action": "core/comment",
+          "args": {
+            "text": "Roll back drops the changes of the BAPIs called since the last commit. Checked: the bank created before the rollback cannot be read back."
+          }
+        },
+        {
+          "id": "s82",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s83",
+              "action": "ooa.sap_bapi/call_function",
+              "args": {
+                "function": "BAPI_BANK_CREATE",
+                "commit": false,
+                "fail_on_error": false,
+                "imports": {
+                  "BANK_CTRY": "DE",
+                  "BANK_KEY": "99900002",
+                  "BANK_ADDRESS": {
+                    "BANK_NAME": "UT Rolled Back",
+                    "CITY": "Bonn"
+                  }
+                }
+              },
+              "description": "Create another test bank"
+            },
+            {
+              "id": "s84",
+              "action": "ooa.sap_bapi/rollback",
+              "args": {},
+              "description": "Roll it back"
+            },
+            {
+              "id": "s85",
+              "action": "ooa.sap_bapi/read_table",
+              "args": {
+                "table": "BNKA",
+                "fields": [
+                  "BANKL"
+                ],
+                "where": "BANKL = '99900002'"
+              },
+              "out": {
+                "row_count": "sap_rows"
+              },
+              "description": "Look for the bank"
+            },
+            {
+              "id": "s86",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sap_rows$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sap_rows",
+              "else": [
+                {
+                  "id": "s88",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sap_rows: expected eq 0, got ${sap_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s89",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/rollback: drop a change\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/rollback: drop a change: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.sap_bapi/rollback - drop a change"
+    },
+    {
+      "id": "s93",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.sap_bapi/disconnect - close the connection"
+      },
+      "children": [
+        {
+          "id": "s94",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the SAP connection. Checked: a step after it finds no connection."
+          }
+        },
+        {
+          "id": "s95",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s96",
+              "action": "ooa.sap_bapi/disconnect",
+              "args": {},
+              "description": "Close the connection"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s98",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "ooa.sap_bapi/read_table",
+                  "args": {
+                    "table": "T001"
+                  },
+                  "description": "This needs the closed connection"
+                }
+              ],
+              "description": "These steps should fail with SAP_BAPI.NO_SESSION",
+              "catch": [
+                {
+                  "codes": [
+                    "SAP_BAPI.NO_SESSION"
+                  ],
+                  "children": [
+                    {
+                      "id": "s100",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SAP_BAPI.NO_SESSION",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SAP_BAPI.NO_SESSION: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap_bapi/disconnect: close the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap_bapi/disconnect: close the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.sap_bapi/disconnect - close the connection"
+    },
+    {
+      "id": "s108",
+      "action": "core/step",
+      "args": {
+        "title": "9. Summary"
+      },
+      "children": [
+        {
+          "id": "s109",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s110",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s111",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s112",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "9. Summary"
+    }
+  ]
+}

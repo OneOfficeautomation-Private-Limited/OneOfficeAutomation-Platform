@@ -1,0 +1,4001 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_genai",
+  "name": "UT Generative AI",
+  "description": "Unit tests of every Generative AI command: each case uses the stand-in's scripted model (an OpenAI-compatible provider on the stand-in, made-up key from the vault) and checks the result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "k",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "fs",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "j",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ai_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_turns",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ai_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ai_type",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_file",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_variant",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_fields",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Generative AI command: each case uses the stand-in's scripted model (an OpenAI-compatible provider on the stand-in, made-up key from the vault) and checks the result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Generative AI started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.genai/prompt - OpenAI-compatible model"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/prompt (OpenAI-compatible model) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/prompt",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-14",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "prompt": "Capital of France?"
+              },
+              "out": {
+                "text": "a"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$a$",
+                  "right": "Paris"
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a: expected eq \"Paris\", got ${a}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/prompt: OpenAI-compatible model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/prompt: OpenAI-compatible model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.genai/prompt - OpenAI-compatible model"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.genai/classify - label from the list"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/classify (label from the list) and checks its result."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/classify",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-15",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "My card was charged twice",
+                "labels": [
+                  "billing",
+                  "shipping",
+                  "other"
+                ]
+              },
+              "out": {
+                "label": "l"
+              },
+              "id": "s18"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": "billing"
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq \"billing\", got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/classify: label from the list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/classify: label from the list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.genai/classify - label from the list"
+    },
+    {
+      "id": "s26",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.genai/classify - model answers outside the list"
+      },
+      "children": [
+        {
+          "id": "s27",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/classify (model answers outside the list) and checks its result."
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s31",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.genai/classify",
+                  "args": {
+                    "provider": "openai_compatible",
+                    "base_url": "$standin_url$/mock/15-16",
+                    "api_key": {
+                      "$credential": "unit_tests/api/token"
+                    },
+                    "model": "test-model",
+                    "text": "x",
+                    "labels": [
+                      "a",
+                      "b"
+                    ]
+                  },
+                  "out": {
+                    "label": "l"
+                  },
+                  "id": "s29"
+                }
+              ],
+              "description": "These steps should fail with AI.LABEL_NOT_ALLOWED",
+              "catch": [
+                {
+                  "codes": [
+                    "AI.LABEL_NOT_ALLOWED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s32",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AI.LABEL_NOT_ALLOWED",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AI.LABEL_NOT_ALLOWED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/classify: model answers outside the list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/classify: model answers outside the list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.genai/classify - model answers outside the list"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.genai/extract - typed fields from text"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/extract (typed fields from text) and checks its result."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/extract",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-17",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Invoice INV-7 total 120.50 EUR",
+                "fields": {
+                  "number": "invoice number",
+                  "total": "amount as a number"
+                }
+              },
+              "out": {
+                "fields": "f"
+              },
+              "id": "s43"
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": {
+                    "number": "INV-7",
+                    "total": 120.5
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq \"number\": \"INV-7\", \"total\": 120.5, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/extract: typed fields from text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/extract: typed fields from text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.genai/extract - typed fields from text"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.genai/summarize - summary"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/summarize (summary) and checks its result."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/summarize",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-18",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Long text ..."
+              },
+              "out": {
+                "summary": "s"
+              },
+              "id": "s54"
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "Short summary."
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"Short summary.\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/summarize: summary\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/summarize: summary: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.genai/summarize - summary"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.genai/sentiment - sentiment"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/sentiment (sentiment) and checks its result."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/sentiment",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-19",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Great service"
+              },
+              "out": {
+                "sentiment": "s"
+              },
+              "id": "s65"
+            },
+            {
+              "id": "s66",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "positive"
+                }
+              },
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s68",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"positive\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/sentiment: sentiment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/sentiment: sentiment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.genai/sentiment - sentiment"
+    },
+    {
+      "id": "s73",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.genai/translate - translate"
+      },
+      "children": [
+        {
+          "id": "s74",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/translate (translate) and checks its result."
+          }
+        },
+        {
+          "id": "s75",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/translate",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-20",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Hallo",
+                "target_language": "English"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s76"
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "Hello"
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"Hello\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/translate: translate\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/translate: translate: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.genai/translate - translate"
+    },
+    {
+      "id": "s84",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.genai/detect_language - detect"
+      },
+      "children": [
+        {
+          "id": "s85",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_language (detect) and checks its result."
+          }
+        },
+        {
+          "id": "s86",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/detect_language",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-21",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Bonjour"
+              },
+              "out": {
+                "code": "c"
+              },
+              "id": "s87"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": "fr"
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq \"fr\", got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_language: detect\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_language: detect: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.genai/detect_language - detect"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.genai/key_phrases - phrases"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/key_phrases (phrases) and checks its result."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/key_phrases",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-22",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "x"
+              },
+              "out": {
+                "phrases": "p"
+              },
+              "id": "s98"
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$p$",
+                  "right": [
+                    "invoice",
+                    "late payment"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p: expected eq [\"invoice\", \"late payment\"], got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/key_phrases: phrases\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/key_phrases: phrases: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.genai/key_phrases - phrases"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.genai/entities - entities"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/entities (entities) and checks its result."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/entities",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-23",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model",
+                "text": "Ann works at Acme"
+              },
+              "out": {
+                "entities": "e"
+              },
+              "id": "s109"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$e$",
+                  "right": {
+                    "columns": [
+                      "text",
+                      "type",
+                      "score"
+                    ],
+                    "rows": [
+                      [
+                        "Ann",
+                        "PERSON",
+                        0
+                      ],
+                      [
+                        "Acme",
+                        "ORGANIZATION",
+                        0
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check e",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "e: expected eq \"columns\": [\"text\", \"type\", \"score\"], \"rows\": [[\"Ann\", \"PERSON\", 0], [\"Acme\", \"ORGANIZATION\", 0]], got ${e}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/entities: entities\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/entities: entities: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.genai/entities - entities"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.genai/chat - two turns keep the history"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/chat (two turns keep the history) and checks its result."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/chat",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-24",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "m",
+                "message": "My name is Ann"
+              },
+              "id": "s120"
+            },
+            {
+              "action": "ooa.genai/chat",
+              "args": {
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-24",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "m",
+                "message": "What is my name?"
+              },
+              "out": {
+                "turns": "n"
+              },
+              "id": "s121"
+            },
+            {
+              "action": "ooa.genai/end_chat",
+              "id": "s122"
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s125",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 4, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/chat: two turns keep the history\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/chat: two turns keep the history: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.genai/chat - two turns keep the history"
+    },
+    {
+      "id": "s130",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.genai/detect_pii - patterns without a model, partial mask"
+      },
+      "children": [
+        {
+          "id": "s131",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_pii (patterns without a model, partial mask) and checks its result."
+          }
+        },
+        {
+          "id": "s132",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s133",
+              "action": "core/set",
+              "args": {
+                "variable": "t",
+                "value": "Mail john@acme.com, card 4111 1111 1111 1111, call +1 555-123-4567."
+              },
+              "description": "Test value for t"
+            },
+            {
+              "action": "ooa.genai/detect_pii",
+              "args": {
+                "text": "$t"
+              },
+              "out": {
+                "found": "f",
+                "count": "n",
+                "masked_text": "m",
+                "kinds_found": "k"
+              },
+              "id": "s134"
+            },
+            {
+              "id": "s135",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s137",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq true, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s138",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s140",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": "Mail j***@acme.com, card **** **** **** 1111, call +* ***-***-4567."
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq \"Mail j***@acme.com, card **** **** **** 1111, call +* ***-***-4567.\", got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$k$",
+                  "right": [
+                    "email",
+                    "phone",
+                    "credit_card"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check k",
+              "else": [
+                {
+                  "id": "s146",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "k: expected eq [\"email\", \"phone\", \"credit_card\"], got ${k}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s148",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_pii: patterns without a model, partial mask\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s150",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_pii: patterns without a model, partial mask: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.genai/detect_pii - patterns without a model, partial mask"
+    },
+    {
+      "id": "s151",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.genai/detect_pii - checksums reject near misses"
+      },
+      "children": [
+        {
+          "id": "s152",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_pii (checksums reject near misses) and checks its result."
+          }
+        },
+        {
+          "id": "s153",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/detect_pii",
+              "args": {
+                "text": "Ref 4111 1111 1111 1112, Aadhaar 2341 2341 2345, IBAN DE89 3704 0044 0532 0130 01, due 2026-11-03"
+              },
+              "out": {
+                "found": "f",
+                "count": "n",
+                "items": "i"
+              },
+              "id": "s154"
+            },
+            {
+              "id": "s155",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s157",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq false, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s160",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s161",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$i$",
+                  "right": []
+                }
+              },
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check i",
+              "else": [
+                {
+                  "id": "s163",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "i: expected eq [], got ${i}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s165",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_pii: checksums reject near misses\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s167",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_pii: checksums reject near misses: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.genai/detect_pii - checksums reject near misses"
+    },
+    {
+      "id": "s168",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.genai/detect_pii - chosen kinds, full mask with own character"
+      },
+      "children": [
+        {
+          "id": "s169",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_pii (chosen kinds, full mask with own character) and checks its result."
+          }
+        },
+        {
+          "id": "s170",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/detect_pii",
+              "args": {
+                "text": "PAN ABCPE1234F, Aadhaar 2341 2341 2346, IP 10.0.0.7",
+                "kinds": [
+                  "in_pan",
+                  "in_aadhaar"
+                ],
+                "mask_style": "full",
+                "mask_char": "#"
+              },
+              "out": {
+                "masked_text": "m",
+                "items": "i"
+              },
+              "id": "s171"
+            },
+            {
+              "id": "s172",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": "PAN ##########, Aadhaar ##############, IP 10.0.0.7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s174",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq \"PAN ##########, Aadhaar ##############, IP 10.0.0.7\", got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s175",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$i$",
+                  "right": [
+                    {
+                      "kind": "in_pan",
+                      "text": "ABCPE1234F",
+                      "start": 4,
+                      "end": 14
+                    },
+                    {
+                      "kind": "in_aadhaar",
+                      "text": "2341 2341 2346",
+                      "start": 24,
+                      "end": 38
+                    }
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check i",
+              "else": [
+                {
+                  "id": "s177",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "i: expected eq [\"kind\": \"in_pan\", \"text\": \"ABCPE1234F\", \"start\": 4, \"end\": 14, \"kind\": \"in_aadhaar\", \"text\": \"2341 2341 2346\", \"start\": 24, \"end\": 38], got ${i}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_pii: chosen kinds, full mask with own character\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_pii: chosen kinds, full mask with own character: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.genai/detect_pii - chosen kinds, full mask with own character"
+    },
+    {
+      "id": "s182",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.genai/detect_pii - names need use_ai"
+      },
+      "children": [
+        {
+          "id": "s183",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_pii (names need use_ai) and checks its result."
+          }
+        },
+        {
+          "id": "s184",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s187",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.genai/detect_pii",
+                  "args": {
+                    "text": "Jane Doe",
+                    "kinds": [
+                      "person_name"
+                    ]
+                  },
+                  "id": "s185"
+                }
+              ],
+              "description": "These steps should fail with AI.BAD_OPTION",
+              "catch": [
+                {
+                  "codes": [
+                    "AI.BAD_OPTION"
+                  ],
+                  "children": [
+                    {
+                      "id": "s188",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AI.BAD_OPTION",
+              "else": [
+                {
+                  "id": "s191",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AI.BAD_OPTION: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s192",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_pii: names need use_ai\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s194",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s195",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_pii: names need use_ai: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.genai/detect_pii - names need use_ai"
+    },
+    {
+      "id": "s196",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.genai/detect_pii - use_ai adds names from the model"
+      },
+      "children": [
+        {
+          "id": "s197",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/detect_pii (use_ai adds names from the model) and checks its result."
+          }
+        },
+        {
+          "id": "s198",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/detect_pii",
+              "args": {
+                "text": "Jane Doe, jane@acme.com",
+                "use_ai": true,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/15-29",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "test-model"
+              },
+              "out": {
+                "masked_text": "m",
+                "kinds_found": "k"
+              },
+              "id": "s199"
+            },
+            {
+              "id": "s200",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": "J*** **e, j***@acme.com"
+                }
+              },
+              "children": [
+                {
+                  "id": "s201",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s202",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq \"J*** **e, j***@acme.com\", got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s203",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$k$",
+                  "right": [
+                    "email",
+                    "person_name"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s204",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check k",
+              "else": [
+                {
+                  "id": "s205",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "k: expected eq [\"email\", \"person_name\"], got ${k}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s206",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s207",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/detect_pii: use_ai adds names from the model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s209",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/detect_pii: use_ai adds names from the model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.genai/detect_pii - use_ai adds names from the model"
+    },
+    {
+      "id": "s210",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.genai/generate_image - a picture from a stand-in image model"
+      },
+      "children": [
+        {
+          "id": "s211",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/generate_image (a picture from a stand-in image model) and checks its result."
+          }
+        },
+        {
+          "id": "s212",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 0
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.genai/generate_image",
+              "args": {
+                "prompt": "A blue company logo",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/57-9",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "img-1",
+                "output_folder": "pictures",
+                "file_name": "logo"
+              },
+              "out": {
+                "files": "fs"
+              },
+              "id": "s214"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($fs)"
+                }
+              },
+              "id": "s215"
+            },
+            {
+              "id": "s216",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s217",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s218",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s219",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/generate_image: a picture from a stand-in image model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s221",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/generate_image: a picture from a stand-in image model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.genai/generate_image - a picture from a stand-in image model"
+    },
+    {
+      "id": "s223",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.genai/prompt_with_images - a question about a scanned receipt, answered as JSON"
+      },
+      "children": [
+        {
+          "id": "s224",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/prompt_with_images (a question about a scanned receipt, answered as JSON) and checks its result."
+          }
+        },
+        {
+          "id": "s225",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s226",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "receipt.png",
+                "text": "png"
+              },
+              "description": "Prepare the test file receipt.png"
+            },
+            {
+              "action": "ooa.genai/prompt_with_images",
+              "args": {
+                "prompt": "What is the total?",
+                "images": [
+                  "receipt.png"
+                ],
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/57-10",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "m",
+                "response_format": "json",
+                "seed": 7
+              },
+              "out": {
+                "json": "j"
+              },
+              "id": "s227"
+            },
+            {
+              "id": "s228",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$j$",
+                  "right": {
+                    "total": 12.5
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check j",
+              "else": [
+                {
+                  "id": "s230",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "j: expected eq \"total\": 12.5, got ${j}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s231",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s232",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/prompt_with_images: a question about a scanned receipt, answered as JSON\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s234",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/prompt_with_images: a question about a scanned receipt, answered as JSON: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.genai/prompt_with_images - a question about a scanned receipt, answered as JSON"
+    },
+    {
+      "id": "s235",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.genai/chat - a chat answer as JSON (I2)"
+      },
+      "children": [
+        {
+          "id": "s236",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.genai/chat (a chat answer as JSON (I2)) and checks its result."
+          }
+        },
+        {
+          "id": "s237",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.genai/chat",
+              "args": {
+                "message": "I want my money back",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/mock/57-11",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "m",
+                "response_format": "json"
+              },
+              "out": {
+                "json": "j"
+              },
+              "id": "s238"
+            },
+            {
+              "id": "s239",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$j$",
+                  "right": {
+                    "intent": "refund"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check j",
+              "else": [
+                {
+                  "id": "s241",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "j: expected eq \"intent\": \"refund\", got ${j}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s243",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/chat: a chat answer as JSON (I2)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s245",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/chat: a chat answer as JSON (I2): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.genai/chat - a chat answer as JSON (I2)"
+    },
+    {
+      "id": "s246",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.genai/prompt - the stand-in's scripted model"
+      },
+      "children": [
+        {
+          "id": "s247",
+          "action": "core/comment",
+          "args": {
+            "text": "Prompt sends one prompt to a model; here an OpenAI-compatible provider (the stand-in's scripted model, made-up key from the vault). Checked: the model's answer comes back as text."
+          }
+        },
+        {
+          "id": "s248",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s249",
+              "action": "ooa.genai/prompt",
+              "args": {
+                "prompt": "Say hello to the unit tests.",
+                "temperature": 0,
+                "max_tokens": 50,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "qa-scripted"
+              },
+              "out": {
+                "text": "ai_text"
+              },
+              "description": "Ask the scripted model"
+            },
+            {
+              "id": "s250",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ai_text$",
+                  "right": "scripted model"
+                }
+              },
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the answer",
+              "else": [
+                {
+                  "id": "s252",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the answer: expected contains \"scripted model\", got ${ai_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s254",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/prompt: the stand-in's scripted model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s255",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s256",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/prompt: the stand-in's scripted model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.genai/prompt - the stand-in's scripted model"
+    },
+    {
+      "id": "s257",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.genai/extract - fields from labelled lines"
+      },
+      "children": [
+        {
+          "id": "s258",
+          "action": "core/comment",
+          "args": {
+            "text": "Extract asks the model for named fields from a text; the scripted model reads labelled lines. Checked: the supplier and the total."
+          }
+        },
+        {
+          "id": "s259",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s260",
+              "action": "ooa.genai/extract",
+              "args": {
+                "text": "Supplier: Acme GmbH\nInvoice number: INV-77\nTotal: 120.50",
+                "fields": {
+                  "supplier": "text",
+                  "invoice_number": "text",
+                  "total": "number"
+                },
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "qa-scripted"
+              },
+              "out": {
+                "fields": "ai_fields"
+              },
+              "description": "Fields from an invoice text"
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ai_fields.supplier"
+                }
+              },
+              "description": "Work out the supplier"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Acme GmbH"
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the supplier",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the supplier: expected eq \"Acme GmbH\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ai_fields.invoice_number"
+                }
+              },
+              "description": "Work out the invoice number"
+            },
+            {
+              "id": "s266",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "INV-77"
+                }
+              },
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the invoice number",
+              "else": [
+                {
+                  "id": "s268",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the invoice number: expected eq \"INV-77\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s269",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/extract: fields from labelled lines\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/extract: fields from labelled lines: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.genai/extract - fields from labelled lines"
+    },
+    {
+      "id": "s273",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.genai/end_chat - start the conversation again"
+      },
+      "children": [
+        {
+          "id": "s274",
+          "action": "core/comment",
+          "args": {
+            "text": "End chat forgets the messages of a chat session, so the next Chat starts afresh. Checked: after two turns the session holds 4 messages; after End chat a new message leaves 2."
+          }
+        },
+        {
+          "id": "s275",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s276",
+              "action": "ooa.genai/chat",
+              "args": {
+                "chat_session": "ut-chat",
+                "message": "My name is Ann.",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "qa-scripted"
+              },
+              "description": "First message"
+            },
+            {
+              "id": "s277",
+              "action": "ooa.genai/chat",
+              "args": {
+                "chat_session": "ut-chat",
+                "message": "What is my name?",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "qa-scripted"
+              },
+              "out": {
+                "turns": "ai_turns"
+              },
+              "description": "Second message"
+            },
+            {
+              "id": "s278",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_turns$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_turns",
+              "else": [
+                {
+                  "id": "s280",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_turns: expected eq 4, got ${ai_turns}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s281",
+              "action": "ooa.genai/end_chat",
+              "args": {
+                "chat_session": "ut-chat"
+              },
+              "description": "End the conversation"
+            },
+            {
+              "id": "s282",
+              "action": "ooa.genai/chat",
+              "args": {
+                "chat_session": "ut-chat",
+                "message": "Hello again.",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "model": "qa-scripted"
+              },
+              "out": {
+                "turns": "ai_turns"
+              },
+              "description": "A new conversation"
+            },
+            {
+              "id": "s283",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_turns$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s284",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_turns",
+              "else": [
+                {
+                  "id": "s285",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_turns: expected eq 2, got ${ai_turns}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s286",
+              "action": "ooa.genai/end_chat",
+              "args": {
+                "chat_session": "ut-chat"
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s287",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/end_chat: start the conversation again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/end_chat: start the conversation again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.genai/end_chat - start the conversation again"
+    },
+    {
+      "id": "s291",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.genai/huggingface_inference - a JSON payload to a text model"
+      },
+      "children": [
+        {
+          "id": "s292",
+          "action": "core/comment",
+          "args": {
+            "text": "Hugging Face model calls a model for any task with a JSON payload (here on the stand-in's inference server). Checked: the label in the JSON answer."
+          }
+        },
+        {
+          "id": "s293",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s294",
+              "action": "ooa.genai/huggingface_inference",
+              "args": {
+                "model": "ut/sentiment",
+                "payload": "{\"inputs\": \"The parcel was late and the box was broken.\"}",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "base_url": "$standin_url$/cloud-genai/hf",
+                "timeout_seconds": 30
+              },
+              "out": {
+                "json": "ai_json",
+                "content_type": "ai_type"
+              },
+              "description": "Sentiment of a complaint"
+            },
+            {
+              "id": "s295",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ai_json[0][0].label"
+                }
+              },
+              "description": "Work out the top label"
+            },
+            {
+              "id": "s296",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "NEGATIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s297",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the top label",
+              "else": [
+                {
+                  "id": "s298",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the top label: expected eq \"NEGATIVE\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s299",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ai_type$",
+                  "right": "json"
+                }
+              },
+              "children": [
+                {
+                  "id": "s300",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the content type",
+              "else": [
+                {
+                  "id": "s301",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the content type: expected contains \"json\", got ${ai_type}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s302",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/huggingface_inference: a JSON payload to a text model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/huggingface_inference: a JSON payload to a text model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.genai/huggingface_inference - a JSON payload to a text model"
+    },
+    {
+      "id": "s306",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.genai/huggingface_inference - a picture saved to a file"
+      },
+      "children": [
+        {
+          "id": "s307",
+          "action": "core/comment",
+          "args": {
+            "text": "When the model answers with a picture, Hugging Face model saves it to output_file. Checked: the file and its content type."
+          }
+        },
+        {
+          "id": "s308",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s309",
+              "action": "ooa.genai/huggingface_inference",
+              "args": {
+                "model": "ut/text-to-image",
+                "payload": "{\"inputs\": \"a blue square\"}",
+                "base_url": "$standin_url$/cloud-genai/hf",
+                "output_file": "genai/picture.png"
+              },
+              "out": {
+                "file": "ai_file",
+                "content_type": "ai_type"
+              },
+              "description": "Draw a picture"
+            },
+            {
+              "id": "s310",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$ai_file$",
+                  "right": "picture.png"
+                }
+              },
+              "children": [
+                {
+                  "id": "s311",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file",
+              "else": [
+                {
+                  "id": "s312",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file: expected endsWith \"picture.png\", got ${ai_file}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s313",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_type$",
+                  "right": "image/png"
+                }
+              },
+              "children": [
+                {
+                  "id": "s314",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_type",
+              "else": [
+                {
+                  "id": "s315",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_type: expected eq \"image/png\", got ${ai_type}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s317",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/huggingface_inference: a picture saved to a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s319",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/huggingface_inference: a picture saved to a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.genai/huggingface_inference - a picture saved to a file"
+    },
+    {
+      "id": "s320",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.genai/invoke_endpoint - a SageMaker model endpoint"
+      },
+      "children": [
+        {
+          "id": "s321",
+          "action": "core/comment",
+          "args": {
+            "text": "Invoke endpoint sends a request body to an Amazon SageMaker endpoint (signed with AWS keys from the vault) and returns its answer. Checked: the prediction and the variant that answered."
+          }
+        },
+        {
+          "id": "s322",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s323",
+              "action": "ooa.genai/invoke_endpoint",
+              "args": {
+                "endpoint_name": "ut-churn-model",
+                "body": "{\"instances\": [[1.5, 2, 0]]}",
+                "content_type": "application/json",
+                "accept": "application/json",
+                "aws_access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "api_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "aws_region": "eu-west-1",
+                "base_url": "$standin_url$/cloud-genai/sagemaker",
+                "inference_id": "ut-1"
+              },
+              "out": {
+                "json": "ai_json",
+                "invoked_variant": "ai_variant"
+              },
+              "description": "Score one customer"
+            },
+            {
+              "id": "s324",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$ai_json.predictions[0]"
+                }
+              },
+              "description": "Work out the prediction"
+            },
+            {
+              "id": "s325",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 0.45
+                }
+              },
+              "children": [
+                {
+                  "id": "s326",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the prediction",
+              "else": [
+                {
+                  "id": "s327",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the prediction: expected eq 0.45, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s328",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_variant$",
+                  "right": "AllTraffic"
+                }
+              },
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_variant",
+              "else": [
+                {
+                  "id": "s330",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_variant: expected eq \"AllTraffic\", got ${ai_variant}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s331",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/invoke_endpoint: a SageMaker model endpoint\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/invoke_endpoint: a SageMaker model endpoint: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.genai/invoke_endpoint - a SageMaker model endpoint"
+    },
+    {
+      "id": "s335",
+      "action": "core/step",
+      "args": {
+        "title": "26. Summary"
+      },
+      "children": [
+        {
+          "id": "s336",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s337",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s338",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s339",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "26. Summary"
+    }
+  ]
+}

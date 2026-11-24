@@ -1,0 +1,759 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_connector",
+  "name": "UT Custom Connectors",
+  "description": "Unit tests of every Custom Connectors command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ops",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "op",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Custom Connectors command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Custom Connectors started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.connector/import_connector - imports an OpenAPI description as a connector"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.connector/import_connector (imports an OpenAPI description as a connector) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.connector/import_connector",
+              "args": {
+                "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+                "name": "orders",
+                "server": "$standin_url$/mock/56-20"
+              },
+              "out": {
+                "operations": "ops"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ops$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ops",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ops: expected eq 2, got ${ops}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.connector/import_connector: imports an OpenAPI description as a connector\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.connector/import_connector: imports an OpenAPI description as a connector: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.connector/import_connector - imports an OpenAPI description as a connector"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.connector/list_connectors - lists the connectors in the workspace"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.connector/list_connectors (lists the connectors in the workspace) and checks its result."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.connector/import_connector",
+              "args": {
+                "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+                "name": "orders",
+                "server": "$standin_url$/mock/56-21"
+              },
+              "id": "s18"
+            },
+            {
+              "action": "ooa.connector/list_connectors",
+              "out": {
+                "connectors": "c"
+              },
+              "id": "s19"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$c"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s20"
+            },
+            {
+              "id": "s21",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s23",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.connector/list_connectors: lists the connectors in the workspace\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.connector/list_connectors: lists the connectors in the workspace: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.connector/list_connectors - lists the connectors in the workspace"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.connector/list_operations - lists a connector's operations"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.connector/list_operations (lists a connector's operations) and checks its result."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.connector/import_connector",
+              "args": {
+                "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+                "name": "orders",
+                "server": "$standin_url$/mock/56-22"
+              },
+              "id": "s31"
+            },
+            {
+              "action": "ooa.connector/list_operations",
+              "args": {
+                "connector": "orders"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s32"
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.connector/list_operations: lists a connector's operations\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.connector/list_operations: lists a connector's operations: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.connector/list_operations - lists a connector's operations"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.connector/describe_operation - describes one operation with example parameters"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.connector/describe_operation (describes one operation with example parameters) and checks its result."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.connector/import_connector",
+              "args": {
+                "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+                "name": "orders",
+                "server": "$standin_url$/mock/56-23"
+              },
+              "id": "s43"
+            },
+            {
+              "action": "ooa.connector/describe_operation",
+              "args": {
+                "connector": "orders",
+                "operation": "getOrder"
+              },
+              "out": {
+                "operation": "op"
+              },
+              "id": "s44"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.connector/describe_operation: describes one operation with example parameters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.connector/describe_operation: describes one operation with example parameters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.connector/describe_operation - describes one operation with example parameters"
+    },
+    {
+      "id": "s49",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.connector/call_operation - calls an operation with a path parameter"
+      },
+      "children": [
+        {
+          "id": "s50",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.connector/call_operation (calls an operation with a path parameter) and checks its result."
+          }
+        },
+        {
+          "id": "s51",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.connector/import_connector",
+              "args": {
+                "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+                "name": "orders",
+                "server": "$standin_url$/mock/56-24"
+              },
+              "id": "s52"
+            },
+            {
+              "action": "ooa.connector/call_operation",
+              "args": {
+                "connector": "orders",
+                "operation": "getOrder",
+                "parameters": {
+                  "id": "42"
+                }
+              },
+              "out": {
+                "status": "s"
+              },
+              "id": "s53"
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 200, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.connector/call_operation: calls an operation with a path parameter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.connector/call_operation: calls an operation with a path parameter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.connector/call_operation - calls an operation with a path parameter"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s64",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s65",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

@@ -1,0 +1,3203 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_databricks",
+  "name": "UT Databricks",
+  "description": "Unit tests of every Databricks command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "res",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "run",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "st",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "db_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "db_rows",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_run",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_life",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_result",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "db_count",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_state",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_path",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_size",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_closed",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "db_logs",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Databricks command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Databricks started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.databricks/delete_file - volume file (new)"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.databricks/delete_file (volume file (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.databricks/delete_file",
+              "args": {
+                "workspace_url": "$standin_url$/mock/15-39",
+                "access_token": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "remote_path": "/Volumes/main/fin/in/a.csv"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/delete_file: volume file (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s11",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/delete_file: volume file (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.databricks/delete_file - volume file (new)"
+    },
+    {
+      "id": "s12",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.databricks/run_job - run a job by name, wait, read its output"
+      },
+      "children": [
+        {
+          "id": "s13",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.databricks/run_job (run a job by name, wait, read its output) and checks its result."
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.databricks/run_job",
+              "args": {
+                "workspace_url": "$standin_url$/mock/58-2",
+                "access_token": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "job_id": "Nightly ETL",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "run_id": "run",
+                "result_state": "st"
+              },
+              "id": "s15"
+            },
+            {
+              "action": "ooa.databricks/get_run_output",
+              "args": {
+                "workspace_url": "$standin_url$/mock/58-2",
+                "access_token": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "run_id": "$run"
+              },
+              "out": {
+                "result": "res"
+              },
+              "id": "s16"
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$run$",
+                  "right": "7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check run",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "run: expected eq \"7\", got ${run}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$st$",
+                  "right": "SUCCESS"
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check st",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "st: expected eq \"SUCCESS\", got ${st}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$res$",
+                  "right": "1200 rows loaded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check res",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "res: expected eq \"1200 rows loaded\", got ${res}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/run_job: run a job by name, wait, read its output\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/run_job: run a job by name, wait, read its output: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.databricks/run_job - run a job by name, wait, read its output"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.databricks/connect - workspace and token kept for later steps"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the workspace address and the access token (from the vault) under a session, so later steps need neither. Checked: a statement runs without its own address or token."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.databricks/connect",
+              "args": {
+                "workspace_url": "$standin_url$/cloud-dbx",
+                "access_token": {
+                  "$credential": "unit_tests/databricks/token"
+                }
+              },
+              "description": "Connect to the stand-in workspace"
+            },
+            {
+              "id": "s34",
+              "action": "ooa.databricks/execute_sql",
+              "args": {
+                "warehouse_id": "UT warehouse",
+                "sql": "SELECT true AS ok"
+              },
+              "out": {
+                "status": "db_status"
+              },
+              "description": "A first statement"
+            },
+            {
+              "id": "s35",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_status$",
+                  "right": "SUCCEEDED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_status",
+              "else": [
+                {
+                  "id": "s37",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_status: expected eq \"SUCCEEDED\", got ${db_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/connect: workspace and token kept for later steps\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/connect: workspace and token kept for later steps: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.databricks/connect - workspace and token kept for later steps"
+    },
+    {
+      "id": "s42",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.databricks/execute_sql - rows with a parameter"
+      },
+      "children": [
+        {
+          "id": "s43",
+          "action": "core/comment",
+          "args": {
+            "text": "Run SQL statement runs SQL on a warehouse (by name or id) with :name parameters and gives the rows as a table, following the result chunks. Checked: two invoices of at least 100, typed columns."
+          }
+        },
+        {
+          "id": "s44",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.databricks/execute_sql",
+              "args": {
+                "warehouse_id": "UT warehouse",
+                "catalog": "main",
+                "schema": "finance",
+                "sql": "SELECT id, customer, amount FROM ut_invoices WHERE amount >= :min_amount",
+                "parameters": {
+                  "min_amount": 100
+                },
+                "wait_seconds": 30,
+                "max_rows": 100
+              },
+              "out": {
+                "table": "db_table",
+                "row_count": "db_rows",
+                "statement_id": "db_id"
+              },
+              "description": "Invoices of at least 100"
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 2, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_table.rows[1][1]"
+                }
+              },
+              "description": "Work out the second customer"
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Initech"
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the second customer",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the second customer: expected eq \"Initech\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_table.rows[1][2]"
+                }
+              },
+              "description": "Work out its amount as a number"
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 310.25
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check its amount as a number",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "its amount as a number: expected eq 310.25, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/execute_sql: rows with a parameter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/execute_sql: rows with a parameter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.databricks/execute_sql - rows with a parameter"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.databricks/fetch_results - all rows of a finished statement"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "Get statement results reads the rows of a finished statement, chunk by chunk. Checked: all three rows and the total."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s64",
+              "action": "ooa.databricks/execute_sql",
+              "args": {
+                "warehouse_id": "0123456789abcdef",
+                "sql": "SELECT * FROM ut_invoices"
+              },
+              "out": {
+                "statement_id": "db_id"
+              },
+              "description": "Run the statement"
+            },
+            {
+              "id": "s65",
+              "action": "ooa.databricks/fetch_results",
+              "args": {
+                "statement_id": "$db_id$",
+                "max_rows": 1000
+              },
+              "out": {
+                "table": "db_table",
+                "row_count": "db_rows",
+                "total_rows": "db_total"
+              },
+              "description": "Read its rows"
+            },
+            {
+              "id": "s66",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s68",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 3, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_total$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_total",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_total: expected eq 3, got ${db_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_table.rows[2][0]"
+                }
+              },
+              "description": "Work out the last id"
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the last id",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the last id: expected eq 3, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/fetch_results: all rows of a finished statement\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/fetch_results: all rows of a finished statement: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.databricks/fetch_results - all rows of a finished statement"
+    },
+    {
+      "id": "s80",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.databricks/get_statement_status - a statement left running"
+      },
+      "children": [
+        {
+          "id": "s81",
+          "action": "core/comment",
+          "args": {
+            "text": "Get statement status tells whether a statement that was left running has finished. A slow statement is started without waiting. Checked: RUNNING."
+          }
+        },
+        {
+          "id": "s82",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s83",
+              "action": "ooa.databricks/execute_sql",
+              "args": {
+                "warehouse_id": "UT warehouse",
+                "sql": "SELECT SLOW count(*) FROM ut_events",
+                "wait_seconds": 0
+              },
+              "out": {
+                "statement_id": "db_id",
+                "status": "db_status"
+              },
+              "description": "Start a slow statement, do not wait"
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_status$",
+                  "right": "RUNNING"
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_status",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_status: expected eq \"RUNNING\", got ${db_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "ooa.databricks/get_statement_status",
+              "args": {
+                "statement_id": "$db_id$"
+              },
+              "out": {
+                "status": "db_status"
+              },
+              "description": "Ask how it is going"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_status$",
+                  "right": "RUNNING"
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_status",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_status: expected eq \"RUNNING\", got ${db_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/get_statement_status: a statement left running\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/get_statement_status: a statement left running: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.databricks/get_statement_status - a statement left running"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.databricks/cancel_statement - stop a slow statement"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Cancel statement stops a statement that is still running. Checked: its status is then CANCELED."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s98",
+              "action": "ooa.databricks/execute_sql",
+              "args": {
+                "warehouse_id": "UT warehouse",
+                "sql": "SELECT SLOW * FROM ut_events",
+                "wait_seconds": 0
+              },
+              "out": {
+                "statement_id": "db_id"
+              },
+              "description": "Start a slow statement"
+            },
+            {
+              "id": "s99",
+              "action": "ooa.databricks/cancel_statement",
+              "args": {
+                "statement_id": "$db_id$"
+              },
+              "description": "Cancel it"
+            },
+            {
+              "id": "s100",
+              "action": "ooa.databricks/get_statement_status",
+              "args": {
+                "statement_id": "$db_id$"
+              },
+              "out": {
+                "status": "db_status"
+              },
+              "description": "Read its status"
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_status$",
+                  "right": "CANCELED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_status",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_status: expected eq \"CANCELED\", got ${db_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/cancel_statement: stop a slow statement\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/cancel_statement: stop a slow statement: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.databricks/cancel_statement - stop a slow statement"
+    },
+    {
+      "id": "s108",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.databricks/list_jobs - jobs by name"
+      },
+      "children": [
+        {
+          "id": "s109",
+          "action": "core/comment",
+          "args": {
+            "text": "List jobs lists the workspace's jobs, optionally only those with a name. Checked: the nightly load job."
+          }
+        },
+        {
+          "id": "s110",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s111",
+              "action": "ooa.databricks/list_jobs",
+              "args": {
+                "name": "UT nightly load",
+                "max_results": 50
+              },
+              "out": {
+                "table": "db_table",
+                "count": "db_count"
+              },
+              "description": "Find the nightly load job"
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_count",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_count: expected eq 1, got ${db_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_table.rows[0][0]"
+                }
+              },
+              "description": "Work out the job id"
+            },
+            {
+              "id": "s116",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "101"
+                }
+              },
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the job id",
+              "else": [
+                {
+                  "id": "s118",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the job id: expected eq \"101\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/list_jobs: jobs by name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s122",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/list_jobs: jobs by name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.databricks/list_jobs - jobs by name"
+    },
+    {
+      "id": "s123",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.databricks/run_job - run by name with a parameter and wait"
+      },
+      "children": [
+        {
+          "id": "s124",
+          "action": "core/comment",
+          "args": {
+            "text": "Run job now starts a job (by name or id) with parameters, and can wait for it to end. Checked: TERMINATED and SUCCESS."
+          }
+        },
+        {
+          "id": "s125",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s126",
+              "action": "ooa.databricks/run_job",
+              "args": {
+                "job_id": "UT nightly load",
+                "job_parameters": {
+                  "run_date": "2026-11-20"
+                },
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "run_id": "db_run",
+                "life_cycle_state": "db_life",
+                "result_state": "db_result"
+              },
+              "description": "Run the nightly load"
+            },
+            {
+              "id": "s127",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_life$",
+                  "right": "TERMINATED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_life",
+              "else": [
+                {
+                  "id": "s129",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_life: expected eq \"TERMINATED\", got ${db_life}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_result$",
+                  "right": "SUCCESS"
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_result",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_result: expected eq \"SUCCESS\", got ${db_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/run_job: run by name with a parameter and wait\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/run_job: run by name with a parameter and wait: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.databricks/run_job - run by name with a parameter and wait"
+    },
+    {
+      "id": "s137",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.databricks/get_run - progress of a long run"
+      },
+      "children": [
+        {
+          "id": "s138",
+          "action": "core/comment",
+          "args": {
+            "text": "Get job run reads a run's progress and outcome. A long job is started without waiting. Checked: RUNNING and the run's details."
+          }
+        },
+        {
+          "id": "s139",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s140",
+              "action": "ooa.databricks/run_job",
+              "args": {
+                "job_id": "102",
+                "wait": false
+              },
+              "out": {
+                "run_id": "db_run"
+              },
+              "description": "Start the long job"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.databricks/get_run",
+              "args": {
+                "run_id": "$db_run$"
+              },
+              "out": {
+                "life_cycle_state": "db_life",
+                "run": "db_info"
+              },
+              "description": "Read the run"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_life$",
+                  "right": "RUNNING"
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_life",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_life: expected eq \"RUNNING\", got ${db_life}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_info.run_id"
+                }
+              },
+              "description": "Work out the run id in the details"
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "$db_run$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the run id in the details",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the run id in the details: expected eq \"db_run\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "ooa.databricks/cancel_run",
+              "args": {
+                "run_id": "$db_run$"
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/get_run: progress of a long run\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/get_run: progress of a long run: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.databricks/get_run - progress of a long run"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.databricks/get_run_output - notebook result and logs"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Get job run output reads what a finished run produced: the notebook's exit value and the logs. Checked: the result names the run date."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "ooa.databricks/run_job",
+              "args": {
+                "job_id": "101",
+                "job_parameters": {
+                  "run_date": "2026-11-21"
+                },
+                "wait": true
+              },
+              "out": {
+                "run_id": "db_run"
+              },
+              "description": "Run the nightly load"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.databricks/get_run_output",
+              "args": {
+                "run_id": "$db_run$"
+              },
+              "out": {
+                "result": "db_text",
+                "logs": "db_logs"
+              },
+              "description": "Read its output"
+            },
+            {
+              "id": "s159",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_text$",
+                  "right": "loaded 42 rows for 2026-11-21"
+                }
+              },
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_text",
+              "else": [
+                {
+                  "id": "s161",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_text: expected eq \"loaded 42 rows for 2026-11-21\", got ${db_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s162",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$db_logs$",
+                  "right": "UT load done"
+                }
+              },
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the logs",
+              "else": [
+                {
+                  "id": "s164",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the logs: expected contains \"UT load done\", got ${db_logs}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s165",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/get_run_output: notebook result and logs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/get_run_output: notebook result and logs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.databricks/get_run_output - notebook result and logs"
+    },
+    {
+      "id": "s169",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.databricks/cancel_run - stop a long run"
+      },
+      "children": [
+        {
+          "id": "s170",
+          "action": "core/comment",
+          "args": {
+            "text": "Cancel job run stops a run that is queued or running. Checked: the run then ends CANCELED."
+          }
+        },
+        {
+          "id": "s171",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s172",
+              "action": "ooa.databricks/run_job",
+              "args": {
+                "job_id": "UT long job"
+              },
+              "out": {
+                "run_id": "db_run"
+              },
+              "description": "Start the long job"
+            },
+            {
+              "id": "s173",
+              "action": "ooa.databricks/cancel_run",
+              "args": {
+                "run_id": "$db_run$"
+              },
+              "description": "Cancel it"
+            },
+            {
+              "id": "s174",
+              "action": "ooa.databricks/get_run",
+              "args": {
+                "run_id": "$db_run$"
+              },
+              "out": {
+                "result_state": "db_result"
+              },
+              "description": "Read the run"
+            },
+            {
+              "id": "s175",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_result$",
+                  "right": "CANCELED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_result",
+              "else": [
+                {
+                  "id": "s177",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_result: expected eq \"CANCELED\", got ${db_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/cancel_run: stop a long run\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/cancel_run: stop a long run: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.databricks/cancel_run - stop a long run"
+    },
+    {
+      "id": "s182",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.databricks/list_clusters - the workspace's clusters"
+      },
+      "children": [
+        {
+          "id": "s183",
+          "action": "core/comment",
+          "args": {
+            "text": "List clusters gives the clusters and their state. Checked: the shared cluster is listed."
+          }
+        },
+        {
+          "id": "s184",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s185",
+              "action": "ooa.databricks/list_clusters",
+              "args": {},
+              "out": {
+                "table": "db_table",
+                "count": "db_count"
+              },
+              "description": "List the clusters"
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$db_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cluster count",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cluster count: expected ge 1, got ${db_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$db_table.rows[0][1]"
+                }
+              },
+              "description": "Work out the cluster name"
+            },
+            {
+              "id": "s190",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "UT shared cluster"
+                }
+              },
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the cluster name",
+              "else": [
+                {
+                  "id": "s192",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the cluster name: expected eq \"UT shared cluster\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/list_clusters: the workspace's clusters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/list_clusters: the workspace's clusters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.databricks/list_clusters - the workspace's clusters"
+    },
+    {
+      "id": "s197",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.databricks/start_cluster - start by name and wait"
+      },
+      "children": [
+        {
+          "id": "s198",
+          "action": "core/comment",
+          "args": {
+            "text": "Start cluster starts a stopped cluster (by name or id) and can wait until it runs. Checked: RUNNING."
+          }
+        },
+        {
+          "id": "s199",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s200",
+              "action": "ooa.databricks/terminate_cluster",
+              "args": {
+                "cluster_id": "1123-090000-ut1"
+              },
+              "description": "Make sure it is stopped"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.databricks/start_cluster",
+              "args": {
+                "cluster_id": "UT shared cluster",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "state": "db_state"
+              },
+              "description": "Start the shared cluster"
+            },
+            {
+              "id": "s202",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_state$",
+                  "right": "RUNNING"
+                }
+              },
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_state",
+              "else": [
+                {
+                  "id": "s204",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_state: expected eq \"RUNNING\", got ${db_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s205",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s206",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/start_cluster: start by name and wait\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/start_cluster: start by name and wait: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.databricks/start_cluster - start by name and wait"
+    },
+    {
+      "id": "s209",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.databricks/terminate_cluster - stop and wait"
+      },
+      "children": [
+        {
+          "id": "s210",
+          "action": "core/comment",
+          "args": {
+            "text": "Stop cluster stops a running cluster (its settings are kept) and can wait until it has stopped. Checked: TERMINATED."
+          }
+        },
+        {
+          "id": "s211",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s212",
+              "action": "ooa.databricks/start_cluster",
+              "args": {
+                "cluster_id": "1123-090000-ut1"
+              },
+              "description": "Make sure it runs"
+            },
+            {
+              "id": "s213",
+              "action": "ooa.databricks/terminate_cluster",
+              "args": {
+                "cluster_id": "UT shared cluster",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "state": "db_state"
+              },
+              "description": "Stop it and wait"
+            },
+            {
+              "id": "s214",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_state$",
+                  "right": "TERMINATED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_state",
+              "else": [
+                {
+                  "id": "s216",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_state: expected eq \"TERMINATED\", got ${db_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s218",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/terminate_cluster: stop and wait\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s220",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/terminate_cluster: stop and wait: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.databricks/terminate_cluster - stop and wait"
+    },
+    {
+      "id": "s221",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.databricks/upload_file - a CSV into a volume"
+      },
+      "children": [
+        {
+          "id": "s222",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload file copies a local file into a Unity Catalog volume, the workspace or DBFS. Checked: the remote path it reports."
+          }
+        },
+        {
+          "id": "s223",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s224",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "dbx/report.csv",
+                "text": "id,amount\n1,120.50\n"
+              },
+              "description": "A file to upload"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.databricks/upload_file",
+              "args": {
+                "local_path": "dbx/report.csv",
+                "remote_path": "/Volumes/main/finance/inbox/report.csv",
+                "overwrite": true
+              },
+              "out": {
+                "remote_path": "db_path"
+              },
+              "description": "Upload it to a volume"
+            },
+            {
+              "id": "s226",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_path$",
+                  "right": "/Volumes/main/finance/inbox/report.csv"
+                }
+              },
+              "children": [
+                {
+                  "id": "s227",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_path",
+              "else": [
+                {
+                  "id": "s228",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_path: expected eq \"/Volumes/main/finance/inbox/report.csv\", got ${db_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s229",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s230",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/upload_file: a CSV into a volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s232",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/upload_file: a CSV into a volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.databricks/upload_file - a CSV into a volume"
+    },
+    {
+      "id": "s233",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.databricks/download_file - a file back from DBFS"
+      },
+      "children": [
+        {
+          "id": "s234",
+          "action": "core/comment",
+          "args": {
+            "text": "Download file saves a file from a volume, the workspace or DBFS on this machine. A file is uploaded to DBFS first. Checked: size and content."
+          }
+        },
+        {
+          "id": "s235",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s236",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "dbx/notes.txt",
+                "text": "UT notes"
+              },
+              "description": "A file to upload"
+            },
+            {
+              "id": "s237",
+              "action": "ooa.databricks/upload_file",
+              "args": {
+                "local_path": "dbx/notes.txt",
+                "remote_path": "dbfs:/FileStore/ut/notes.txt"
+              },
+              "description": "Upload it to DBFS"
+            },
+            {
+              "id": "s238",
+              "action": "ooa.databricks/download_file",
+              "args": {
+                "remote_path": "dbfs:/FileStore/ut/notes.txt",
+                "save_as": "dbx/back/notes.txt",
+                "overwrite": true
+              },
+              "out": {
+                "size": "db_size"
+              },
+              "description": "Download it again"
+            },
+            {
+              "id": "s239",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_size$",
+                  "right": 8
+                }
+              },
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_size",
+              "else": [
+                {
+                  "id": "s241",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_size: expected eq 8, got ${db_size}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s242",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "dbx/back/notes.txt"
+              },
+              "out": {
+                "text": "db_text"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s243",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_text$",
+                  "right": "UT notes"
+                }
+              },
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_text",
+              "else": [
+                {
+                  "id": "s245",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_text: expected eq \"UT notes\", got ${db_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s247",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/download_file: a file back from DBFS\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s249",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/download_file: a file back from DBFS: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.databricks/download_file - a file back from DBFS"
+    },
+    {
+      "id": "s250",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.databricks/delete_file - a file in a volume"
+      },
+      "children": [
+        {
+          "id": "s251",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete file deletes a file from a volume, the workspace or DBFS. Checked: downloading it afterwards fails as not found."
+          }
+        },
+        {
+          "id": "s252",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s253",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "dbx/old.csv",
+                "text": "old"
+              },
+              "description": "A file to upload"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.databricks/upload_file",
+              "args": {
+                "local_path": "dbx/old.csv",
+                "remote_path": "/Volumes/main/finance/inbox/old.csv"
+              },
+              "description": "Upload it"
+            },
+            {
+              "id": "s255",
+              "action": "ooa.databricks/delete_file",
+              "args": {
+                "remote_path": "/Volumes/main/finance/inbox/old.csv"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s256",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s257",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "ooa.databricks/download_file",
+                  "args": {
+                    "remote_path": "/Volumes/main/finance/inbox/old.csv",
+                    "save_as": "dbx/gone.csv"
+                  },
+                  "description": "It is gone"
+                }
+              ],
+              "description": "These steps should fail with DATABRICKS.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "DATABRICKS.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s259",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s260",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATABRICKS.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s262",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATABRICKS.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s263",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/delete_file: a file in a volume\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/delete_file: a file in a volume: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.databricks/delete_file - a file in a volume"
+    },
+    {
+      "id": "s267",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.databricks/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s268",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the open session; later steps then need their own address and token. Checked: it reports the session closed."
+          }
+        },
+        {
+          "id": "s269",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s270",
+              "action": "ooa.databricks/disconnect",
+              "args": {},
+              "out": {
+                "closed": "db_closed"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s271",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s272",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_closed",
+              "else": [
+                {
+                  "id": "s273",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_closed: expected eq true, got ${db_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.databricks/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s277",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.databricks/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.databricks/disconnect - close the session"
+    },
+    {
+      "id": "s278",
+      "action": "core/step",
+      "args": {
+        "title": "20. Summary"
+      },
+      "children": [
+        {
+          "id": "s279",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s280",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s281",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s282",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "20. Summary"
+    }
+  ]
+}

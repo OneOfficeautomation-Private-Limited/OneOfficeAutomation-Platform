@@ -1,0 +1,2888 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_snowflake",
+  "name": "UT Snowflake",
+  "description": "Unit tests of every Snowflake command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sf_rows",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sf_total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sf_handle",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sf_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sf_names",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sf_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sf_errors",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sf_result",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sf_file",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sf_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sf_closed",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "sf_msg",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sf_data",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Snowflake command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Snowflake started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.snowflake/execute_statement - a query through the SQL API"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.snowflake/execute_statement (a query through the SQL API) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "account_url": "$standin_url$/mock/58-1",
+                "token": {
+                  "$credential": "unit_tests/api/token"
+                },
+                "sql": "SELECT region, SUM(amount) FROM sales GROUP BY 1",
+                "warehouse": "BI_WH"
+              },
+              "out": {
+                "row_count": "n"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/execute_statement: a query through the SQL API\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/execute_statement: a query through the SQL API: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.snowflake/execute_statement - a query through the SQL API"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.snowflake/connect - account and token kept for later steps"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the account address and the token (from the vault) under a session, so later steps need neither. Checked: a statement runs without its own address or token."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.snowflake/connect",
+              "args": {
+                "account_url": "$standin_url$/cloud-snowflake",
+                "token": {
+                  "$credential": "unit_tests/snowflake/token"
+                },
+                "token_type": "OAUTH"
+              },
+              "description": "Connect to the stand-in Snowflake"
+            },
+            {
+              "id": "s19",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT * FROM ORDERS WHERE ORDER_ID = ?",
+                "bindings": [
+                  1
+                ],
+                "warehouse": "UT_WH",
+                "database": "UT_DB",
+                "schema": "PUBLIC"
+              },
+              "out": {
+                "row_count": "sf_rows",
+                "status": "sf_status"
+              },
+              "description": "Read one order"
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rows$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_rows",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_rows: expected eq 1, got ${sf_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_status$",
+                  "right": "succeeded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_status",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_status: expected eq \"succeeded\", got ${sf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/connect: account and token kept for later steps\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/connect: account and token kept for later steps: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.snowflake/connect - account and token kept for later steps"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.snowflake/execute_statement - rows with a binding, typed"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Run SQL statement runs one statement with ? bindings and gives the rows as a table with numbers as numbers. Checked: the orders over 100 and the amount of the first."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT * FROM ORDERS WHERE AMOUNT > ?",
+                "bindings": [
+                  100
+                ],
+                "database": "UT_DB",
+                "schema": "PUBLIC",
+                "role": "UT_ROLE",
+                "wait_seconds": 30,
+                "max_rows": 1000
+              },
+              "out": {
+                "table": "sf_table",
+                "row_count": "sf_rows"
+              },
+              "description": "Orders over 100"
+            },
+            {
+              "id": "s34",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$sf_rows$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check orders over 100",
+              "else": [
+                {
+                  "id": "s36",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "orders over 100: expected ge 2, got ${sf_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$sf_table.rows[0][2]"
+                }
+              },
+              "description": "Work out the first amount"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 120.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the first amount",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the first amount: expected eq 120.5, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/execute_statement: rows with a binding, typed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/execute_statement: rows with a binding, typed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.snowflake/execute_statement - rows with a binding, typed"
+    },
+    {
+      "id": "s45",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.snowflake/fetch_results - every partition of a result"
+      },
+      "children": [
+        {
+          "id": "s46",
+          "action": "core/comment",
+          "args": {
+            "text": "Get statement results reads the rows of a finished statement, partition by partition. Checked: all rows and the total."
+          }
+        },
+        {
+          "id": "s47",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s48",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT * FROM ORDERS"
+              },
+              "out": {
+                "statement_handle": "sf_handle"
+              },
+              "description": "All orders"
+            },
+            {
+              "id": "s49",
+              "action": "ooa.snowflake/fetch_results",
+              "args": {
+                "statement_handle": "$sf_handle$",
+                "max_rows": 1000
+              },
+              "out": {
+                "table": "sf_table",
+                "row_count": "sf_rows",
+                "total_rows": "sf_total"
+              },
+              "description": "Read the rows again"
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$sf_rows$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows read",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows read: expected ge 3, got ${sf_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_rows$",
+                  "right": "$sf_total$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows read equal the total",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows read equal the total: expected eq \"sf_total\", got ${sf_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/fetch_results: every partition of a result\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/fetch_results: every partition of a result: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.snowflake/fetch_results - every partition of a result"
+    },
+    {
+      "id": "s60",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.snowflake/get_statement_status - a statement left running"
+      },
+      "children": [
+        {
+          "id": "s61",
+          "action": "core/comment",
+          "args": {
+            "text": "Get statement status tells whether a statement left running has finished. A slow statement is started with no wait. Checked: running."
+          }
+        },
+        {
+          "id": "s62",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s63",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT SLOW * FROM ORDERS",
+                "wait_seconds": 0
+              },
+              "out": {
+                "statement_handle": "sf_handle",
+                "status": "sf_status"
+              },
+              "description": "Start a slow statement"
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_status$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_status",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_status: expected eq \"running\", got ${sf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "ooa.snowflake/get_statement_status",
+              "args": {
+                "statement_handle": "$sf_handle$"
+              },
+              "out": {
+                "status": "sf_status"
+              },
+              "description": "Ask how it is going"
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_status$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_status",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_status: expected eq \"running\", got ${sf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/get_statement_status: a statement left running\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/get_statement_status: a statement left running: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.snowflake/get_statement_status - a statement left running"
+    },
+    {
+      "id": "s75",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.snowflake/cancel_statement - stop a slow statement"
+      },
+      "children": [
+        {
+          "id": "s76",
+          "action": "core/comment",
+          "args": {
+            "text": "Cancel statement stops a statement still running. Checked: its status is then failed with Snowflake's cancel message."
+          }
+        },
+        {
+          "id": "s77",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s78",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT SLOW * FROM ORDERS",
+                "wait_seconds": 0
+              },
+              "out": {
+                "statement_handle": "sf_handle"
+              },
+              "description": "Start a slow statement"
+            },
+            {
+              "id": "s79",
+              "action": "ooa.snowflake/cancel_statement",
+              "args": {
+                "statement_handle": "$sf_handle$"
+              },
+              "description": "Cancel it"
+            },
+            {
+              "id": "s80",
+              "action": "ooa.snowflake/get_statement_status",
+              "args": {
+                "statement_handle": "$sf_handle$"
+              },
+              "out": {
+                "status": "sf_status",
+                "message": "sf_msg"
+              },
+              "description": "Read its status"
+            },
+            {
+              "id": "s81",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_status$",
+                  "right": "failed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_status",
+              "else": [
+                {
+                  "id": "s83",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_status: expected eq \"failed\", got ${sf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_msg$",
+                  "right": "canceled"
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the message",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the message: expected contains \"canceled\", got ${sf_msg}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/cancel_statement: stop a slow statement\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/cancel_statement: stop a slow statement: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.snowflake/cancel_statement - stop a slow statement"
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.snowflake/export_results - a query to a CSV file"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Export results to file runs a statement and writes all its rows to a file (CSV with a header here). Checked: the row count and the header line."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.snowflake/export_results",
+              "args": {
+                "sql": "SELECT * FROM ORDERS WHERE STATUS = ?",
+                "bindings": [
+                  "PAID"
+                ],
+                "file": "snowflake/paid.csv",
+                "format": "csv",
+                "header": true,
+                "compression": "none",
+                "overwrite": true
+              },
+              "out": {
+                "row_count": "sf_rows",
+                "file": "sf_file"
+              },
+              "description": "Export the paid orders"
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$sf_rows$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows written",
+              "else": [
+                {
+                  "id": "s97",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows written: expected ge 1, got ${sf_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "snowflake/paid.csv"
+              },
+              "out": {
+                "text": "sf_text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$sf_text$",
+                  "right": "ORDER_ID,CUSTOMER,AMOUNT,STATUS"
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the header line",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the header line: expected startsWith \"ORDER_ID,CUSTOMER,AMOUNT,STATUS\", got ${sf_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/export_results: a query to a CSV file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/export_results: a query to a CSV file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.snowflake/export_results - a query to a CSV file"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.snowflake/list_databases - databases the role sees"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "List databases gives the databases the role can see. Checked: UT_DB is one."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s109",
+              "action": "ooa.snowflake/list_databases",
+              "args": {
+                "role": "UT_ROLE"
+              },
+              "out": {
+                "names": "sf_names"
+              },
+              "description": "List the databases"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_names$",
+                  "right": "UT_DB"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the test database",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the test database: expected contains \"UT_DB\", got ${sf_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/list_databases: databases the role sees\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/list_databases: databases the role sees: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.snowflake/list_databases - databases the role sees"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.snowflake/list_schemas - schemas of a database"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "List schemas gives the schemas of a database. Checked: PUBLIC is one."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.snowflake/list_schemas",
+              "args": {
+                "database": "UT_DB"
+              },
+              "out": {
+                "names": "sf_names",
+                "table": "sf_table"
+              },
+              "description": "Schemas of UT_DB"
+            },
+            {
+              "id": "s121",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_names$",
+                  "right": "PUBLIC"
+                }
+              },
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the PUBLIC schema",
+              "else": [
+                {
+                  "id": "s123",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the PUBLIC schema: expected contains \"PUBLIC\", got ${sf_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/list_schemas: schemas of a database\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/list_schemas: schemas of a database: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.snowflake/list_schemas - schemas of a database"
+    },
+    {
+      "id": "s128",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.snowflake/list_tables - tables of a schema"
+      },
+      "children": [
+        {
+          "id": "s129",
+          "action": "core/comment",
+          "args": {
+            "text": "List tables gives the tables of a schema. Checked: ORDERS is one."
+          }
+        },
+        {
+          "id": "s130",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s131",
+              "action": "ooa.snowflake/list_tables",
+              "args": {
+                "database": "UT_DB",
+                "schema": "PUBLIC"
+              },
+              "out": {
+                "names": "sf_names"
+              },
+              "description": "Tables of UT_DB.PUBLIC"
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_names$",
+                  "right": "ORDERS"
+                }
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the ORDERS table",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the ORDERS table: expected contains \"ORDERS\", got ${sf_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/list_tables: tables of a schema\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/list_tables: tables of a schema: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.snowflake/list_tables - tables of a schema"
+    },
+    {
+      "id": "s139",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.snowflake/list_columns - columns of a table"
+      },
+      "children": [
+        {
+          "id": "s140",
+          "action": "core/comment",
+          "args": {
+            "text": "List columns gives a table's columns with their types. Checked: four columns, AMOUNT among them."
+          }
+        },
+        {
+          "id": "s141",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s142",
+              "action": "ooa.snowflake/list_columns",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS"
+              },
+              "out": {
+                "names": "sf_names",
+                "table": "sf_table"
+              },
+              "description": "Columns of ORDERS"
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($sf_names)"
+                }
+              },
+              "description": "Work out the number of columns"
+            },
+            {
+              "id": "s144",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the number of columns",
+              "else": [
+                {
+                  "id": "s146",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the number of columns: expected eq 4, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_names$",
+                  "right": "AMOUNT"
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the AMOUNT column",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the AMOUNT column: expected contains \"AMOUNT\", got ${sf_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/list_columns: columns of a table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/list_columns: columns of a table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.snowflake/list_columns - columns of a table"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.snowflake/list_warehouses - warehouses the role may use"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "List warehouses gives the warehouses with size and state. Checked: UT_WH."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "ooa.snowflake/list_warehouses",
+              "args": {},
+              "out": {
+                "names": "sf_names"
+              },
+              "description": "List the warehouses"
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sf_names$",
+                  "right": "UT_WH"
+                }
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the warehouse",
+              "else": [
+                {
+                  "id": "s160",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the warehouse: expected contains \"UT_WH\", got ${sf_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/list_warehouses: warehouses the role may use\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/list_warehouses: warehouses the role may use: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.snowflake/list_warehouses - warehouses the role may use"
+    },
+    {
+      "id": "s165",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.snowflake/insert_rows - rows of a data table"
+      },
+      "children": [
+        {
+          "id": "s166",
+          "action": "core/comment",
+          "args": {
+            "text": "Insert rows from data table adds every row of a data table, matching columns by name. Checked: two rows added (removed again at the end)."
+          }
+        },
+        {
+          "id": "s167",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "sf_data",
+                "value": {
+                  "columns": [
+                    "ORDER_ID",
+                    "CUSTOMER",
+                    "AMOUNT",
+                    "STATUS"
+                  ],
+                  "rows": [
+                    [
+                      9001,
+                      "Umbrella plc",
+                      42.1,
+                      "OPEN"
+                    ],
+                    [
+                      9002,
+                      "Hooli",
+                      18,
+                      "OPEN"
+                    ]
+                  ]
+                }
+              },
+              "description": "Two new orders"
+            },
+            {
+              "id": "s169",
+              "action": "ooa.snowflake/insert_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "data": "$sf_data$",
+                "batch_size": 100
+              },
+              "out": {
+                "rows_inserted": "sf_n"
+              },
+              "description": "Insert them"
+            },
+            {
+              "id": "s170",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s171",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_n",
+              "else": [
+                {
+                  "id": "s172",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_n: expected eq 2, got ${sf_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "ooa.snowflake/delete_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "key_column": "ORDER_ID",
+                "key_values": [
+                  9001,
+                  9002
+                ]
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/insert_rows: rows of a data table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/insert_rows: rows of a data table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.snowflake/insert_rows - rows of a data table"
+    },
+    {
+      "id": "s178",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.snowflake/update_rows - set a status by key"
+      },
+      "children": [
+        {
+          "id": "s179",
+          "action": "core/comment",
+          "args": {
+            "text": "Update rows by key sets columns to new values in the rows whose key is one of those given. Checked: one row changed, and reading it back."
+          }
+        },
+        {
+          "id": "s180",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s181",
+              "action": "ooa.snowflake/update_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "key_column": "ORDER_ID",
+                "key_values": [
+                  2
+                ],
+                "values": {
+                  "STATUS": "SHIPPED"
+                }
+              },
+              "out": {
+                "rows_changed": "sf_n"
+              },
+              "description": "Mark order 2 shipped"
+            },
+            {
+              "id": "s182",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_n",
+              "else": [
+                {
+                  "id": "s184",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_n: expected eq 1, got ${sf_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s185",
+              "action": "ooa.snowflake/execute_statement",
+              "args": {
+                "sql": "SELECT * FROM ORDERS WHERE ORDER_ID = ?",
+                "bindings": [
+                  2
+                ]
+              },
+              "out": {
+                "table": "sf_table"
+              },
+              "description": "Read order 2"
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$sf_table.rows[0][3]"
+                }
+              },
+              "description": "Work out the new status"
+            },
+            {
+              "id": "s187",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "SHIPPED"
+                }
+              },
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new status",
+              "else": [
+                {
+                  "id": "s189",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new status: expected eq \"SHIPPED\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/update_rows: set a status by key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s193",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/update_rows: set a status by key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.snowflake/update_rows - set a status by key"
+    },
+    {
+      "id": "s194",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.snowflake/delete_rows - delete by key"
+      },
+      "children": [
+        {
+          "id": "s195",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete rows by key deletes the rows whose key is one of those given. A row is added first. Checked: one row deleted."
+          }
+        },
+        {
+          "id": "s196",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "sf_data",
+                "value": {
+                  "columns": [
+                    "ORDER_ID",
+                    "CUSTOMER",
+                    "AMOUNT"
+                  ],
+                  "rows": [
+                    [
+                      9100,
+                      "Temp Co",
+                      1
+                    ]
+                  ]
+                }
+              },
+              "description": "An order to delete"
+            },
+            {
+              "id": "s198",
+              "action": "ooa.snowflake/insert_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "data": "$sf_data$"
+              },
+              "description": "Add it"
+            },
+            {
+              "id": "s199",
+              "action": "ooa.snowflake/delete_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "key_column": "ORDER_ID",
+                "key_values": [
+                  9100
+                ]
+              },
+              "out": {
+                "rows_changed": "sf_n"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s200",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s201",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_n",
+              "else": [
+                {
+                  "id": "s202",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_n: expected eq 1, got ${sf_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s204",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/delete_rows: delete by key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s206",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/delete_rows: delete by key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.snowflake/delete_rows - delete by key"
+    },
+    {
+      "id": "s207",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.snowflake/load_file - CSV with a bad row, good rows loaded"
+      },
+      "children": [
+        {
+          "id": "s208",
+          "action": "core/comment",
+          "args": {
+            "text": "Load file into table puts a local CSV on the table's stage and copies it in; with on_error continue the good rows load and the bad ones are counted. Checked: 2 loaded, 1 error (removed again at the end)."
+          }
+        },
+        {
+          "id": "s209",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s210",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "snowflake/load.csv",
+                "text": "ORDER_ID,CUSTOMER,AMOUNT,STATUS\n9201,Load One,10.00,OPEN\n9202,Load Two,20.00,OPEN\n9203,Bad Row,lots,OPEN\n"
+              },
+              "description": "A CSV with one bad row"
+            },
+            {
+              "id": "s211",
+              "action": "ooa.snowflake/load_file",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "file": "snowflake/load.csv",
+                "format": "csv",
+                "skip_header": 1,
+                "on_error": "continue"
+              },
+              "out": {
+                "rows_loaded": "sf_n",
+                "errors_seen": "sf_errors",
+                "results": "sf_table"
+              },
+              "description": "Load it"
+            },
+            {
+              "id": "s212",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_n",
+              "else": [
+                {
+                  "id": "s214",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_n: expected eq 2, got ${sf_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s215",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_errors$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s216",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_errors",
+              "else": [
+                {
+                  "id": "s217",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_errors: expected eq 1, got ${sf_errors}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s218",
+              "action": "ooa.snowflake/delete_rows",
+              "args": {
+                "table_name": "UT_DB.PUBLIC.ORDERS",
+                "key_column": "ORDER_ID",
+                "key_values": [
+                  9201,
+                  9202
+                ]
+              },
+              "description": "Tidy up"
+            },
+            {
+              "id": "s219",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/load_file: CSV with a bad row, good rows loaded\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s221",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/load_file: CSV with a bad row, good rows loaded: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.snowflake/load_file - CSV with a bad row, good rows loaded"
+    },
+    {
+      "id": "s223",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.snowflake/call_procedure - named argument"
+      },
+      "children": [
+        {
+          "id": "s224",
+          "action": "core/comment",
+          "args": {
+            "text": "Run stored procedure calls a procedure with argument values sent apart from the SQL and gives back what it returns. Checked: the procedure's answer names the month."
+          }
+        },
+        {
+          "id": "s225",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s226",
+              "action": "ooa.snowflake/call_procedure",
+              "args": {
+                "procedure": "UT_DB.PUBLIC.CLOSE_MONTH",
+                "parameters": {
+                  "MONTH": "2026-10"
+                }
+              },
+              "out": {
+                "result": "sf_result",
+                "statement_handle": "sf_handle"
+              },
+              "description": "Close October"
+            },
+            {
+              "id": "s227",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$sf_result$",
+                  "right": "closed 2026-10"
+                }
+              },
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the procedure's answer",
+              "else": [
+                {
+                  "id": "s229",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the procedure's answer: expected startsWith \"closed 2026-10\", got ${sf_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s230",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s231",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/call_procedure: named argument\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s232",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s233",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/call_procedure: named argument: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.snowflake/call_procedure - named argument"
+    },
+    {
+      "id": "s234",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.snowflake/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s235",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the open session; later steps then need their own address and token. Checked: it reports the session closed."
+          }
+        },
+        {
+          "id": "s236",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s237",
+              "action": "ooa.snowflake/disconnect",
+              "args": {},
+              "out": {
+                "closed": "sf_closed"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sf_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sf_closed",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sf_closed: expected eq true, got ${sf_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.snowflake/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.snowflake/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.snowflake/disconnect - close the session"
+    },
+    {
+      "id": "s245",
+      "action": "core/step",
+      "args": {
+        "title": "19. Summary"
+      },
+      "children": [
+        {
+          "id": "s246",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s247",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s248",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s249",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "19. Summary"
+    }
+  ]
+}

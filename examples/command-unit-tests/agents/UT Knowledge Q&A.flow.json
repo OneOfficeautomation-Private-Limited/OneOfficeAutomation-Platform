@@ -1,0 +1,917 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_knowledge",
+  "name": "UT Knowledge Q&A",
+  "description": "Unit tests of every Knowledge Q&A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "kn_passages",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "kn_docs",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "kn_results",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "kn_answer",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "kn_sources",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "kn_found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Knowledge Q&A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Knowledge Q&A started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.knowledge/build_index - a folder and a text, with embeddings"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Build index reads documents and texts, splits them into passages and writes a knowledge index file, with embeddings from the model given. Checked: two documents and at least two passages."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "knowledge/docs/refunds.txt",
+                "text": "Refunds policy. Customers may return goods within 30 days of delivery for a full refund. Damaged items are refunded without the return shipping cost."
+              },
+              "description": "A refunds policy"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.knowledge/build_index",
+              "args": {
+                "files": [
+                  "knowledge/docs"
+                ],
+                "texts": [
+                  {
+                    "source": "travel-rule",
+                    "text": "Travel expenses. Hotel nights are paid up to 150 euros in Germany."
+                  }
+                ],
+                "index_file": "knowledge/policies.index.json",
+                "model": "ut-embed",
+                "chunk_size": 400,
+                "overlap": 50,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "passages": "kn_passages",
+                "documents": "kn_docs"
+              },
+              "description": "Index the policy and a travel rule"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$kn_docs$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check kn_docs",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "kn_docs: expected eq 2, got ${kn_docs}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$kn_passages$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check passages",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "passages: expected ge 2, got ${kn_passages}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.knowledge/build_index: a folder and a text, with embeddings\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s18",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.knowledge/build_index: a folder and a text, with embeddings: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.knowledge/build_index - a folder and a text, with embeddings"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.knowledge/search - the passage about refunds"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Search finds the passages that best answer a question, by words and by meaning. Checked: the best passage comes from the refunds policy."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "knowledge/docs/refunds.txt",
+                "text": "Refunds policy. Customers may return goods within 30 days of delivery for a full refund. Damaged items are refunded without the return shipping cost."
+              },
+              "description": "A refunds policy"
+            },
+            {
+              "id": "s23",
+              "action": "ooa.knowledge/build_index",
+              "args": {
+                "files": [
+                  "knowledge/docs"
+                ],
+                "texts": [
+                  {
+                    "source": "travel-rule",
+                    "text": "Travel expenses. Hotel nights are paid up to 150 euros in Germany."
+                  }
+                ],
+                "index_file": "knowledge/policies.index.json",
+                "model": "ut-embed",
+                "chunk_size": 400,
+                "overlap": 50,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "passages": "kn_passages",
+                "documents": "kn_docs"
+              },
+              "description": "Index the policy and a travel rule"
+            },
+            {
+              "id": "s24",
+              "action": "ooa.knowledge/search",
+              "args": {
+                "index_file": "knowledge/policies.index.json",
+                "query": "How many days to return goods for a refund?",
+                "top_k": 2,
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "results": "kn_results"
+              },
+              "description": "Look for the refund rule"
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$kn_results[0].source"
+                }
+              },
+              "description": "Work out the best passage's source"
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$ut_v$",
+                  "right": "refunds.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the best passage's source",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the best passage's source: expected endsWith \"refunds.txt\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.knowledge/search: the passage about refunds\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.knowledge/search: the passage about refunds: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.knowledge/search - the passage about refunds"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.knowledge/ask - an answer from the passages"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Ask gives the best passages to the model and asks it to answer from them only, citing them. Checked: found, the sources and the model's answer."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "knowledge/docs/refunds.txt",
+                "text": "Refunds policy. Customers may return goods within 30 days of delivery for a full refund. Damaged items are refunded without the return shipping cost."
+              },
+              "description": "A refunds policy"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.knowledge/build_index",
+              "args": {
+                "files": [
+                  "knowledge/docs"
+                ],
+                "texts": [
+                  {
+                    "source": "travel-rule",
+                    "text": "Travel expenses. Hotel nights are paid up to 150 euros in Germany."
+                  }
+                ],
+                "index_file": "knowledge/policies.index.json",
+                "model": "ut-embed",
+                "chunk_size": 400,
+                "overlap": 50,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "passages": "kn_passages",
+                "documents": "kn_docs"
+              },
+              "description": "Index the policy and a travel rule"
+            },
+            {
+              "id": "s38",
+              "action": "ooa.knowledge/ask",
+              "args": {
+                "index_file": "knowledge/policies.index.json",
+                "question": "How much is paid for a hotel night in Germany?",
+                "top_k": 3,
+                "model": "qa-scripted",
+                "max_tokens": 200,
+                "mask_pii": true,
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "answer": "kn_answer",
+                "sources": "kn_sources",
+                "found": "kn_found"
+              },
+              "description": "Ask about hotel costs"
+            },
+            {
+              "id": "s39",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$kn_found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check kn_found",
+              "else": [
+                {
+                  "id": "s41",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "kn_found: expected eq true, got ${kn_found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$kn_sources$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the sources",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the sources: expected notEmpty , got ${kn_sources}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$kn_answer$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the answer",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the answer: expected notEmpty , got ${kn_answer}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.knowledge/ask: an answer from the passages\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.knowledge/ask: an answer from the passages: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.knowledge/ask - an answer from the passages"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.knowledge/ask - nothing in the documents"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "When no passage matches the question, Ask does not call the model and says the documents do not say. The index here is built without embeddings, so it is searched by words only. Checked: found is false."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s55",
+              "action": "ooa.knowledge/build_index",
+              "args": {
+                "texts": [
+                  {
+                    "source": "travel-rule",
+                    "text": "Hotel nights are paid up to 150 euros."
+                  }
+                ],
+                "index_file": "knowledge/words.index.json"
+              },
+              "description": "Index a text by words only"
+            },
+            {
+              "id": "s56",
+              "action": "ooa.knowledge/ask",
+              "args": {
+                "index_file": "knowledge/words.index.json",
+                "question": "Zebra xylophone quantum?",
+                "model": "qa-scripted",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "api_key": {
+                  "$credential": "unit_tests/api/token"
+                }
+              },
+              "out": {
+                "answer": "kn_answer",
+                "found": "kn_found"
+              },
+              "description": "Ask something unrelated"
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$kn_found$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check kn_found",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "kn_found: expected eq false, got ${kn_found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$kn_answer$",
+                  "right": "The documents do not say."
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check kn_answer",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "kn_answer: expected eq \"The documents do not say.\", got ${kn_answer}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.knowledge/ask: nothing in the documents\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.knowledge/ask: nothing in the documents: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.knowledge/ask - nothing in the documents"
+    },
+    {
+      "id": "s67",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s68",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s69",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s70",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s71",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

@@ -1,0 +1,2493 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_aws_ai",
+  "name": "UT AWS AI services",
+  "description": "Unit tests of every AWS AI services command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "aws_account",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "aws_lang",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every AWS AI services command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT AWS AI services started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.aws_ai/connect - not a region"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/connect (not a region) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "Ireland",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-0",
+                    "check_now": false
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.BAD_REGION",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.BAD_REGION"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.BAD_REGION",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.BAD_REGION: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/connect: not a region\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/connect: not a region: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.aws_ai/connect - not a region"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.aws_ai/connect - keys refused by the identity check"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/connect (keys refused by the identity check) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-1",
+                    "check_now": true
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.AUTH_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.AUTH_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.AUTH_FAILED",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.AUTH_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/connect: keys refused by the identity check\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/connect: keys refused by the identity check: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.aws_ai/connect - keys refused by the identity check"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.aws_ai/comprehend_sentiment - sentiment from a stand-in Comprehend"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_sentiment (sentiment from a stand-in Comprehend) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/36-2",
+                "check_now": false
+              },
+              "id": "s35"
+            },
+            {
+              "action": "ooa.aws_ai/comprehend_sentiment",
+              "args": {
+                "text": "Great service",
+                "language": "en"
+              },
+              "out": {
+                "sentiment": "s"
+              },
+              "id": "s36"
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "POSITIVE"
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"POSITIVE\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_sentiment: sentiment from a stand-in Comprehend\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_sentiment: sentiment from a stand-in Comprehend: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.aws_ai/comprehend_sentiment - sentiment from a stand-in Comprehend"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.aws_ai/comprehend_sentiment - IAM policy refuses the call"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_sentiment (IAM policy refuses the call) and checks its result."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s50",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-3",
+                    "check_now": false
+                  },
+                  "id": "s47"
+                },
+                {
+                  "action": "ooa.aws_ai/comprehend_sentiment",
+                  "args": {
+                    "text": "Hello"
+                  },
+                  "id": "s48"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.FORBIDDEN",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.FORBIDDEN"
+                  ],
+                  "children": [
+                    {
+                      "id": "s51",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s53",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.FORBIDDEN",
+              "else": [
+                {
+                  "id": "s54",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.FORBIDDEN: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_sentiment: IAM policy refuses the call\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_sentiment: IAM policy refuses the call: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.aws_ai/comprehend_sentiment - IAM policy refuses the call"
+    },
+    {
+      "id": "s59",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.aws_ai/comprehend_entities - throttled"
+      },
+      "children": [
+        {
+          "id": "s60",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_entities (throttled) and checks its result."
+          }
+        },
+        {
+          "id": "s61",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s65",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-4",
+                    "check_now": false
+                  },
+                  "id": "s62"
+                },
+                {
+                  "action": "ooa.aws_ai/comprehend_entities",
+                  "args": {
+                    "text": "Acme Ltd"
+                  },
+                  "id": "s63"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.THROTTLED",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.THROTTLED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s66",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.THROTTLED",
+              "else": [
+                {
+                  "id": "s69",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.THROTTLED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_entities: throttled\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_entities: throttled: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.aws_ai/comprehend_entities - throttled"
+    },
+    {
+      "id": "s74",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.aws_ai/comprehend_detect_pii - server error"
+      },
+      "children": [
+        {
+          "id": "s75",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_detect_pii (server error) and checks its result."
+          }
+        },
+        {
+          "id": "s76",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s80",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-5",
+                    "check_now": false
+                  },
+                  "id": "s77"
+                },
+                {
+                  "action": "ooa.aws_ai/comprehend_detect_pii",
+                  "args": {
+                    "text": "Mail bob@acme.test"
+                  },
+                  "id": "s78"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.SERVER_ERROR",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.SERVER_ERROR"
+                  ],
+                  "children": [
+                    {
+                      "id": "s81",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.SERVER_ERROR",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.SERVER_ERROR: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_detect_pii: server error\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_detect_pii: server error: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.aws_ai/comprehend_detect_pii - server error"
+    },
+    {
+      "id": "s89",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.aws_ai/comprehend_sentiment - text over 5,000 bytes"
+      },
+      "children": [
+        {
+          "id": "s90",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_sentiment (text over 5,000 bytes) and checks its result."
+          }
+        },
+        {
+          "id": "s91",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s95",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-6",
+                    "check_now": false
+                  },
+                  "id": "s92"
+                },
+                {
+                  "action": "ooa.aws_ai/comprehend_sentiment",
+                  "args": {
+                    "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  },
+                  "id": "s93"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.TEXT_TOO_LONG",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.TEXT_TOO_LONG"
+                  ],
+                  "children": [
+                    {
+                      "id": "s96",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.TEXT_TOO_LONG",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.TEXT_TOO_LONG: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_sentiment: text over 5,000 bytes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_sentiment: text over 5,000 bytes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.aws_ai/comprehend_sentiment - text over 5,000 bytes"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.aws_ai/textract_detect_text - file that is not there"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/textract_detect_text (file that is not there) and checks its result."
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s110",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.aws_ai/connect",
+                  "args": {
+                    "region": "eu-west-1",
+                    "access_key_id": {
+                      "$credential": "unit_tests/aws/id"
+                    },
+                    "secret_access_key": {
+                      "$credential": "unit_tests/aws/secret"
+                    },
+                    "endpoint": "$standin_url$/mock/36-7",
+                    "check_now": false
+                  },
+                  "id": "s107"
+                },
+                {
+                  "action": "ooa.aws_ai/textract_detect_text",
+                  "args": {
+                    "file": "missing.png"
+                  },
+                  "id": "s108"
+                }
+              ],
+              "description": "These steps should fail with AWS_AI.FILE_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "AWS_AI.FILE_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s111",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AWS_AI.FILE_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AWS_AI.FILE_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/textract_detect_text: file that is not there\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/textract_detect_text: file that is not there: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.aws_ai/textract_detect_text - file that is not there"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.aws_ai/textract_analyze_document - form field and table from a stand-in Textract"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/textract_analyze_document (form field and table from a stand-in Textract) and checks its result."
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s122",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "scan.png",
+                "text": "not really a picture"
+              },
+              "description": "Prepare the test file scan.png"
+            },
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/36-8",
+                "check_now": false
+              },
+              "id": "s123"
+            },
+            {
+              "action": "ooa.aws_ai/textract_analyze_document",
+              "args": {
+                "file": "scan.png"
+              },
+              "out": {
+                "fields": "f",
+                "table_count": "n"
+              },
+              "id": "s124"
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": {
+                    "Invoice:": "INV-1"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq \"Invoice:\": \"INV-1\", got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/textract_analyze_document: form field and table from a stand-in Textract\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/textract_analyze_document: form field and table from a stand-in Textract: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.aws_ai/textract_analyze_document - form field and table from a stand-in Textract"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.aws_ai/rekognition_detect_labels - labels from a stand-in Rekognition"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/rekognition_detect_labels (labels from a stand-in Rekognition) and checks its result."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "car.jpg",
+                "text": "jpeg"
+              },
+              "description": "Prepare the test file car.jpg"
+            },
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/36-9",
+                "check_now": false
+              },
+              "id": "s139"
+            },
+            {
+              "action": "ooa.aws_ai/rekognition_detect_labels",
+              "args": {
+                "file": "car.jpg"
+              },
+              "out": {
+                "label_names": "l"
+              },
+              "id": "s140"
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "Car"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"Car\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/rekognition_detect_labels: labels from a stand-in Rekognition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/rekognition_detect_labels: labels from a stand-in Rekognition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.aws_ai/rekognition_detect_labels - labels from a stand-in Rekognition"
+    },
+    {
+      "id": "s148",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.aws_ai/comprehend_detect_language - the language from a stand-in Comprehend"
+      },
+      "children": [
+        {
+          "id": "s149",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_detect_language (the language from a stand-in Comprehend) and checks its result."
+          }
+        },
+        {
+          "id": "s150",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/57-12",
+                "check_now": false
+              },
+              "id": "s151"
+            },
+            {
+              "action": "ooa.aws_ai/comprehend_detect_language",
+              "args": {
+                "text": "Guten Tag, wie geht es?"
+              },
+              "out": {
+                "language": "l"
+              },
+              "id": "s152"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": "de"
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq \"de\", got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_detect_language: the language from a stand-in Comprehend\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_detect_language: the language from a stand-in Comprehend: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.aws_ai/comprehend_detect_language - the language from a stand-in Comprehend"
+    },
+    {
+      "id": "s160",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.aws_ai/comprehend_key_phrases - key phrases from a stand-in Comprehend (I3)"
+      },
+      "children": [
+        {
+          "id": "s161",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/comprehend_key_phrases (key phrases from a stand-in Comprehend (I3)) and checks its result."
+          }
+        },
+        {
+          "id": "s162",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/57-13",
+                "check_now": false
+              },
+              "id": "s163"
+            },
+            {
+              "action": "ooa.aws_ai/comprehend_key_phrases",
+              "args": {
+                "text": "Pay the invoice for three laptops"
+              },
+              "out": {
+                "phrases": "p"
+              },
+              "id": "s164"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$p$",
+                  "right": [
+                    "three laptops",
+                    "the invoice"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p",
+              "else": [
+                {
+                  "id": "s167",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p: expected eq [\"three laptops\", \"the invoice\"], got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/comprehend_key_phrases: key phrases from a stand-in Comprehend (I3)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/comprehend_key_phrases: key phrases from a stand-in Comprehend (I3): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.aws_ai/comprehend_key_phrases - key phrases from a stand-in Comprehend (I3)"
+    },
+    {
+      "id": "s172",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.aws_ai/rekognition_detect_text - text in a picture from a stand-in Rekognition"
+      },
+      "children": [
+        {
+          "id": "s173",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.aws_ai/rekognition_detect_text (text in a picture from a stand-in Rekognition) and checks its result."
+          }
+        },
+        {
+          "id": "s174",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s175",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "sign.jpg",
+                "text": "jpeg"
+              },
+              "description": "Prepare the test file sign.jpg"
+            },
+            {
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/mock/57-14",
+                "check_now": false
+              },
+              "id": "s176"
+            },
+            {
+              "action": "ooa.aws_ai/rekognition_detect_text",
+              "args": {
+                "file": "sign.jpg"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s177"
+            },
+            {
+              "id": "s178",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "EXIT"
+                }
+              },
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s180",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"EXIT\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s182",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/rekognition_detect_text: text in a picture from a stand-in Rekognition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s184",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/rekognition_detect_text: text in a picture from a stand-in Rekognition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.aws_ai/rekognition_detect_text - text in a picture from a stand-in Rekognition"
+    },
+    {
+      "id": "s185",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.aws_ai/connect - keys checked with the identity service"
+      },
+      "children": [
+        {
+          "id": "s186",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the region and the access keys from the vault in a session; check_now asks the identity service (a free call) which account the keys belong to. Checked: the account id and a Comprehend call through the session."
+          }
+        },
+        {
+          "id": "s187",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s188",
+              "action": "ooa.aws_ai/connect",
+              "args": {
+                "region": "eu-west-1",
+                "access_key_id": {
+                  "$credential": "unit_tests/aws/id"
+                },
+                "secret_access_key": {
+                  "$credential": "unit_tests/aws/secret"
+                },
+                "endpoint": "$standin_url$/cloud-ai/aws",
+                "check_now": true,
+                "session": "aws_ai"
+              },
+              "out": {
+                "account": "aws_account"
+              },
+              "description": "Connect to the stand-in AWS"
+            },
+            {
+              "id": "s189",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$aws_account$",
+                  "right": "123456789012"
+                }
+              },
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check aws_account",
+              "else": [
+                {
+                  "id": "s191",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "aws_account: expected eq \"123456789012\", got ${aws_account}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s192",
+              "action": "ooa.aws_ai/comprehend_detect_language",
+              "args": {
+                "session": "aws_ai",
+                "text": "Bonjour, la facture est en retard."
+              },
+              "out": {
+                "language": "aws_lang"
+              },
+              "description": "Which language is it?"
+            },
+            {
+              "id": "s193",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$aws_lang$",
+                  "right": "fr"
+                }
+              },
+              "children": [
+                {
+                  "id": "s194",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check aws_lang",
+              "else": [
+                {
+                  "id": "s195",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "aws_lang: expected eq \"fr\", got ${aws_lang}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/connect: keys checked with the identity service\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s199",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/connect: keys checked with the identity service: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.aws_ai/connect - keys checked with the identity service"
+    },
+    {
+      "id": "s200",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.aws_ai/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s201",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the session and forgets the keys. Checked: a step after it finds no session."
+          }
+        },
+        {
+          "id": "s202",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s203",
+              "action": "ooa.aws_ai/disconnect",
+              "args": {
+                "session": "aws_ai"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s204",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s205",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s206",
+                  "action": "ooa.aws_ai/comprehend_detect_language",
+                  "args": {
+                    "session": "aws_ai",
+                    "text": "Hello"
+                  },
+                  "description": "This needs the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s207",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.aws_ai/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.aws_ai/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.aws_ai/disconnect - close the session"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "16. Summary"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s218",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s219",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "16. Summary"
+    }
+  ]
+}

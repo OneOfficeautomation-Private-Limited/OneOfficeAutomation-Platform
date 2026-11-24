@@ -1,0 +1,2460 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_azure_vm",
+  "name": "UT Azure VMs",
+  "description": "Unit tests of every Azure VMs command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "azure_bad_mode",
+      "type": "String",
+      "direction": "local",
+      "default": "hibernate"
+    },
+    {
+      "name": "az_count",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "az_names",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "az_vms",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "az_power",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "az_display",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "az_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "az_snap",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "az_disk",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Azure VMs command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Azure VMs started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.azure_vm/connect - a subscription name instead of its id fails"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/connect (a subscription name instead of its id fails) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/connect",
+                  "args": {
+                    "tenant_id": "contoso.onmicrosoft.com",
+                    "client_id": "00000000-0000-0000-0000-000000000001",
+                    "client_secret": {
+                      "$credential": "unit_tests/azure/secret"
+                    },
+                    "subscription_id": "Pay-As-You-Go",
+                    "check_now": false
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.BAD_SUBSCRIPTION",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.BAD_SUBSCRIPTION"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.BAD_SUBSCRIPTION",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.BAD_SUBSCRIPTION: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/connect: a subscription name instead of its id fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/connect: a subscription name instead of its id fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.azure_vm/connect - a subscription name instead of its id fails"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.azure_vm/connect - a client id that is not a GUID fails"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/connect (a client id that is not a GUID fails) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/connect",
+                  "args": {
+                    "tenant_id": "contoso.onmicrosoft.com",
+                    "client_id": "invoice-app",
+                    "client_secret": {
+                      "$credential": "unit_tests/azure/secret"
+                    },
+                    "subscription_id": "00000000-0000-0000-0000-000000000002",
+                    "check_now": false
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.BAD_CLIENT_ID",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.BAD_CLIENT_ID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.BAD_CLIENT_ID",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.BAD_CLIENT_ID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/connect: a client id that is not a GUID fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/connect: a client id that is not a GUID fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.azure_vm/connect - a client id that is not a GUID fails"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.azure_vm/list_vms - a resource group name with a slash fails"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/list_vms (a resource group name with a slash fails) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s38",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/connect",
+                  "args": {
+                    "tenant_id": "contoso.onmicrosoft.com",
+                    "client_id": "00000000-0000-0000-0000-000000000001",
+                    "client_secret": {
+                      "$credential": "unit_tests/azure/secret"
+                    },
+                    "subscription_id": "00000000-0000-0000-0000-000000000002",
+                    "check_now": false
+                  },
+                  "id": "s35"
+                },
+                {
+                  "action": "ooa.azure_vm/list_vms",
+                  "args": {
+                    "resource_group": "rg/../other"
+                  },
+                  "id": "s36"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.BAD_RESOURCE_GROUP",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.BAD_RESOURCE_GROUP"
+                  ],
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.BAD_RESOURCE_GROUP",
+              "else": [
+                {
+                  "id": "s42",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.BAD_RESOURCE_GROUP: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/list_vms: a resource group name with a slash fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/list_vms: a resource group name with a slash fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.azure_vm/list_vms - a resource group name with a slash fails"
+    },
+    {
+      "id": "s47",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.azure_vm/get_vm_status - a VM name with spaces fails"
+      },
+      "children": [
+        {
+          "id": "s48",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/get_vm_status (a VM name with spaces fails) and checks its result."
+          }
+        },
+        {
+          "id": "s49",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s53",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/connect",
+                  "args": {
+                    "tenant_id": "contoso.onmicrosoft.com",
+                    "client_id": "00000000-0000-0000-0000-000000000001",
+                    "client_secret": {
+                      "$credential": "unit_tests/azure/secret"
+                    },
+                    "subscription_id": "00000000-0000-0000-0000-000000000002",
+                    "check_now": false
+                  },
+                  "id": "s50"
+                },
+                {
+                  "action": "ooa.azure_vm/get_vm_status",
+                  "args": {
+                    "resource_group": "rg-bots",
+                    "vm_name": "invoice bot"
+                  },
+                  "id": "s51"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.BAD_VM_NAME",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.BAD_VM_NAME"
+                  ],
+                  "children": [
+                    {
+                      "id": "s54",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.BAD_VM_NAME",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.BAD_VM_NAME: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/get_vm_status: a VM name with spaces fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/get_vm_status: a VM name with spaces fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.azure_vm/get_vm_status - a VM name with spaces fails"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.azure_vm/stop_vm - an unknown stop mode is refused when the step runs"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/stop_vm (an unknown stop mode is refused when the step runs) and checks its result."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s67",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/stop_vm",
+                  "args": {
+                    "resource_group": "rg-bots",
+                    "vm_name": "invoice-bot",
+                    "mode": "$azure_bad_mode$"
+                  },
+                  "id": "s65"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.BAD_MODE",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.BAD_MODE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s68",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.BAD_MODE",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.BAD_MODE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/stop_vm: an unknown stop mode is refused when the step runs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/stop_vm: an unknown stop mode is refused when the step runs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.azure_vm/stop_vm - an unknown stop mode is refused when the step runs"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.azure_vm/create_disk_snapshot - a VM or a disk must be named"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.azure_vm/create_disk_snapshot (a VM or a disk must be named) and checks its result."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s82",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.azure_vm/connect",
+                  "args": {
+                    "tenant_id": "contoso.onmicrosoft.com",
+                    "client_id": "00000000-0000-0000-0000-000000000001",
+                    "client_secret": {
+                      "$credential": "unit_tests/azure/secret"
+                    },
+                    "subscription_id": "00000000-0000-0000-0000-000000000002",
+                    "check_now": false
+                  },
+                  "id": "s79"
+                },
+                {
+                  "action": "ooa.azure_vm/create_disk_snapshot",
+                  "args": {
+                    "resource_group": "rg-bots",
+                    "snapshot_name": "before-patch"
+                  },
+                  "id": "s80"
+                }
+              ],
+              "description": "These steps should fail with AZURE_VM.NO_DISK",
+              "catch": [
+                {
+                  "codes": [
+                    "AZURE_VM.NO_DISK"
+                  ],
+                  "children": [
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AZURE_VM.NO_DISK",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AZURE_VM.NO_DISK: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/create_disk_snapshot: a VM or a disk must be named\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/create_disk_snapshot: a VM or a disk must be named: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.azure_vm/create_disk_snapshot - a VM or a disk must be named"
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.azure_vm/connect - service principal, checked straight away"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect signs in with a service principal (client secret from the vault) and keeps the token in a session; check_now reads the subscription at once. Checked: the session then lists the VMs."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.azure_vm/connect",
+              "args": {
+                "tenant_id": "00000000-0000-0000-0000-0000000000a1",
+                "client_id": "00000000-0000-0000-0000-000000000001",
+                "client_secret": {
+                  "$credential": "unit_tests/azure/secret"
+                },
+                "subscription_id": "00000000-0000-0000-0000-000000000002",
+                "arm_endpoint": "$standin_url$/cloud-azure/arm",
+                "login_endpoint": "$standin_url$/cloud-azure/login",
+                "check_now": true
+              },
+              "description": "Connect to the stand-in Azure"
+            },
+            {
+              "id": "s95",
+              "action": "ooa.azure_vm/list_vms",
+              "args": {},
+              "out": {
+                "count": "az_count"
+              },
+              "description": "List every VM"
+            },
+            {
+              "id": "s96",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s97",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_count",
+              "else": [
+                {
+                  "id": "s98",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_count: expected eq 3, got ${az_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/connect: service principal, checked straight away\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/connect: service principal, checked straight away: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.azure_vm/connect - service principal, checked straight away"
+    },
+    {
+      "id": "s103",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.azure_vm/list_vms - one resource group"
+      },
+      "children": [
+        {
+          "id": "s104",
+          "action": "core/comment",
+          "args": {
+            "text": "List VMs lists the virtual machines of the subscription or one resource group with size and tags. Checked: the two bots of rg-ut-bots and the size column."
+          }
+        },
+        {
+          "id": "s105",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s106",
+              "action": "ooa.azure_vm/list_vms",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "max_results": 10
+              },
+              "out": {
+                "vms": "az_vms",
+                "names": "az_names",
+                "count": "az_count"
+              },
+              "description": "VMs of one group"
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_count",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_count: expected eq 2, got ${az_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$az_names$",
+                  "right": "ut-invoice-vm"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the invoice VM",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the invoice VM: expected contains \"ut-invoice-vm\", got ${az_names}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$az_vms.rows[0][3]"
+                }
+              },
+              "description": "Work out the size column"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Standard_B2s"
+                }
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the size column",
+              "else": [
+                {
+                  "id": "s116",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the size column: expected eq \"Standard_B2s\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/list_vms: one resource group\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/list_vms: one resource group: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.azure_vm/list_vms - one resource group"
+    },
+    {
+      "id": "s121",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.azure_vm/get_vm_status - power state of a running VM"
+      },
+      "children": [
+        {
+          "id": "s122",
+          "action": "core/comment",
+          "args": {
+            "text": "Get VM status reads a VM's power and provisioning state from its instance view. Checked: running, VM running and succeeded."
+          }
+        },
+        {
+          "id": "s123",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s124",
+              "action": "ooa.azure_vm/start_vm",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-invoice-vm",
+                "wait": false
+              },
+              "description": "Make sure it runs"
+            },
+            {
+              "id": "s125",
+              "action": "ooa.azure_vm/get_vm_status",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-invoice-vm"
+              },
+              "out": {
+                "power_state": "az_power",
+                "display_status": "az_display",
+                "provisioning_state": "az_status"
+              },
+              "description": "Read the status"
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_power$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_power",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_power: expected eq \"running\", got ${az_power}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_display$",
+                  "right": "VM running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_display",
+              "else": [
+                {
+                  "id": "s131",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_display: expected eq \"VM running\", got ${az_display}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_status$",
+                  "right": "succeeded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_status",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_status: expected eq \"succeeded\", got ${az_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/get_vm_status: power state of a running VM\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/get_vm_status: power state of a running VM: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.azure_vm/get_vm_status - power state of a running VM"
+    },
+    {
+      "id": "s139",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.azure_vm/start_vm - start and wait"
+      },
+      "children": [
+        {
+          "id": "s140",
+          "action": "core/comment",
+          "args": {
+            "text": "Start VM starts a stopped or deallocated VM and waits for Azure to finish. Checked: Succeeded, and the power state is running."
+          }
+        },
+        {
+          "id": "s141",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s142",
+              "action": "ooa.azure_vm/stop_vm",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-report-vm",
+                "wait": false
+              },
+              "description": "Deallocate the report VM first"
+            },
+            {
+              "id": "s143",
+              "action": "ooa.azure_vm/start_vm",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-report-vm",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "status": "az_status"
+              },
+              "description": "Start it and wait"
+            },
+            {
+              "id": "s144",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_status$",
+                  "right": "Succeeded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_status",
+              "else": [
+                {
+                  "id": "s146",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_status: expected eq \"Succeeded\", got ${az_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "ooa.azure_vm/get_vm_status",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-report-vm"
+              },
+              "out": {
+                "power_state": "az_power"
+              },
+              "description": "Read the power state"
+            },
+            {
+              "id": "s148",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_power$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_power",
+              "else": [
+                {
+                  "id": "s150",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_power: expected eq \"running\", got ${az_power}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s152",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/start_vm: start and wait\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s154",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/start_vm: start and wait: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.azure_vm/start_vm - start and wait"
+    },
+    {
+      "id": "s155",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.azure_vm/stop_vm - power off without waiting"
+      },
+      "children": [
+        {
+          "id": "s156",
+          "action": "core/comment",
+          "args": {
+            "text": "Stop VM deallocates a VM or only powers it off; without waiting it gives Accepted. Checked: Accepted and the power state stopped."
+          }
+        },
+        {
+          "id": "s157",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s158",
+              "action": "ooa.azure_vm/stop_vm",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-report-vm",
+                "mode": "power_off",
+                "skip_shutdown": true,
+                "wait": false
+              },
+              "out": {
+                "status": "az_status"
+              },
+              "description": "Power off the report VM"
+            },
+            {
+              "id": "s159",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_status$",
+                  "right": "Accepted"
+                }
+              },
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_status",
+              "else": [
+                {
+                  "id": "s161",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_status: expected eq \"Accepted\", got ${az_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s162",
+              "action": "ooa.azure_vm/get_vm_status",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-report-vm"
+              },
+              "out": {
+                "power_state": "az_power"
+              },
+              "description": "Read the power state"
+            },
+            {
+              "id": "s163",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_power$",
+                  "right": "stopped"
+                }
+              },
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_power",
+              "else": [
+                {
+                  "id": "s165",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_power: expected eq \"stopped\", got ${az_power}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s167",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/stop_vm: power off without waiting\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/stop_vm: power off without waiting: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.azure_vm/stop_vm - power off without waiting"
+    },
+    {
+      "id": "s170",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.azure_vm/restart_vm - restart and wait"
+      },
+      "children": [
+        {
+          "id": "s171",
+          "action": "core/comment",
+          "args": {
+            "text": "Restart VM restarts a running VM and waits for Azure to finish. Checked: Succeeded."
+          }
+        },
+        {
+          "id": "s172",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s173",
+              "action": "ooa.azure_vm/restart_vm",
+              "args": {
+                "resource_group": "rg-ut-hr",
+                "vm_name": "ut-hr-vm",
+                "wait": true,
+                "timeout_seconds": 60
+              },
+              "out": {
+                "status": "az_status"
+              },
+              "description": "Restart the HR VM"
+            },
+            {
+              "id": "s174",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_status$",
+                  "right": "Succeeded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s175",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_status",
+              "else": [
+                {
+                  "id": "s176",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_status: expected eq \"Succeeded\", got ${az_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/restart_vm: restart and wait\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/restart_vm: restart and wait: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.azure_vm/restart_vm - restart and wait"
+    },
+    {
+      "id": "s181",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.azure_vm/create_disk_snapshot - OS disk of a VM"
+      },
+      "children": [
+        {
+          "id": "s182",
+          "action": "core/comment",
+          "args": {
+            "text": "Create disk snapshot copies a managed disk: here the OS disk of a VM, found from the VM. Checked: the snapshot id, the disk id and Succeeded."
+          }
+        },
+        {
+          "id": "s183",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s184",
+              "action": "ooa.azure_vm/create_disk_snapshot",
+              "args": {
+                "resource_group": "rg-ut-bots",
+                "vm_name": "ut-invoice-vm",
+                "snapshot_name": "ut-invoice-os-before-patch",
+                "incremental": true,
+                "tags": {
+                  "Reason": "Before patching"
+                },
+                "wait": true
+              },
+              "out": {
+                "snapshot_id": "az_snap",
+                "disk_id": "az_disk",
+                "status": "az_status"
+              },
+              "description": "Snapshot the invoice VM's OS disk"
+            },
+            {
+              "id": "s185",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$az_snap$",
+                  "right": "/snapshots/ut-invoice-os-before-patch"
+                }
+              },
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check snapshot id",
+              "else": [
+                {
+                  "id": "s187",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "snapshot id: expected endsWith \"/snapshots/ut-invoice-os-before-patch\", got ${az_snap}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s188",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$az_disk$",
+                  "right": "/disks/ut-invoice-vm_OsDisk"
+                }
+              },
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check disk id",
+              "else": [
+                {
+                  "id": "s190",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "disk id: expected endsWith \"/disks/ut-invoice-vm_OsDisk\", got ${az_disk}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$az_status$",
+                  "right": "Succeeded"
+                }
+              },
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check az_status",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "az_status: expected eq \"Succeeded\", got ${az_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/create_disk_snapshot: OS disk of a VM\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/create_disk_snapshot: OS disk of a VM: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.azure_vm/create_disk_snapshot - OS disk of a VM"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.azure_vm/disconnect - close the session"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the Azure session and forgets its token and secret. Checked: a step after it finds no session."
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s201",
+              "action": "ooa.azure_vm/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s203",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s204",
+                  "action": "ooa.azure_vm/list_vms",
+                  "args": {},
+                  "description": "This needs the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s205",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s206",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s208",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.azure_vm/disconnect: close the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.azure_vm/disconnect: close the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.azure_vm/disconnect - close the session"
+    },
+    {
+      "id": "s213",
+      "action": "core/step",
+      "args": {
+        "title": "15. Summary"
+      },
+      "children": [
+        {
+          "id": "s214",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s215",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s216",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s217",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "15. Summary"
+    }
+  ]
+}

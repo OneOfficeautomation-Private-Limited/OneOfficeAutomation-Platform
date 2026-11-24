@@ -1,0 +1,887 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_mining",
+  "name": "UT Process mining",
+  "description": "Unit tests of every Process mining command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pm_cases",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "pm_events",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "pm_variants",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "pm_starts",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "pm_diagram",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "pm_ok",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "pm_bad",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "pm_fit",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "pm_dev",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "pm_flows",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "pm_log",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Process mining command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Process mining started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.mining/discover_process - orders from a CSV event log"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Discover process reads an event log (case, activity, time) and finds the cases, the variants (paths taken), the flows between activities and a Mermaid diagram. Checked: 3 cases, 8 events, the most common variant and the start activity."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "mining/orders.csv",
+                "text": "case,activity,time\nPO-1,Create order,2026-11-02 09:00\nPO-1,Approve,2026-11-02 10:00\nPO-1,Ship,2026-11-03 09:00\nPO-2,Create order,2026-11-02 11:00\nPO-2,Approve,2026-11-02 11:30\nPO-2,Ship,2026-11-02 15:30\nPO-3,Create order,2026-11-03 08:00\nPO-3,Ship,2026-11-03 12:00\n"
+              },
+              "description": "An order event log"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.mining/discover_process",
+              "args": {
+                "file": "mining/orders.csv",
+                "top_variants": 5,
+                "min_edge_count": 1
+              },
+              "out": {
+                "cases": "pm_cases",
+                "events": "pm_events",
+                "variants": "pm_variants",
+                "start_activities": "pm_starts",
+                "diagram": "pm_diagram",
+                "flows": "pm_flows"
+              },
+              "description": "Discover the process"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pm_cases$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pm_cases",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pm_cases: expected eq 3, got ${pm_cases}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pm_events$",
+                  "right": 8
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pm_events",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pm_events: expected eq 8, got ${pm_events}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$pm_variants.rows[0][1]"
+                }
+              },
+              "description": "Work out cases of the most common variant"
+            },
+            {
+              "id": "s16",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cases of the most common variant",
+              "else": [
+                {
+                  "id": "s18",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cases of the most common variant: expected eq 2, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$pm_starts['Create order']"
+                }
+              },
+              "description": "Work out cases starting with Create order"
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cases starting with Create order",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cases starting with Create order: expected eq 3, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$pm_diagram$",
+                  "right": "Approve"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the diagram",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the diagram: expected contains \"Approve\", got ${pm_diagram}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.mining/discover_process: orders from a CSV event log\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.mining/discover_process: orders from a CSV event log: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.mining/discover_process - orders from a CSV event log"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.mining/discover_process - an event log given as a table"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Discover process also takes the log as a data table with its own column names. Checked: the cases."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "pm_log",
+                "value": {
+                  "columns": [
+                    "ticket",
+                    "step",
+                    "at"
+                  ],
+                  "rows": [
+                    [
+                      "T1",
+                      "Open",
+                      "2026-11-01 08:00"
+                    ],
+                    [
+                      "T1",
+                      "Close",
+                      "2026-11-01 09:00"
+                    ],
+                    [
+                      "T2",
+                      "Open",
+                      "2026-11-01 08:30"
+                    ],
+                    [
+                      "T2",
+                      "Close",
+                      "2026-11-01 10:30"
+                    ]
+                  ]
+                }
+              },
+              "description": "A ticket log"
+            },
+            {
+              "id": "s34",
+              "action": "ooa.mining/discover_process",
+              "args": {
+                "table": "$pm_log$",
+                "case_column": "ticket",
+                "activity_column": "step",
+                "time_column": "at"
+              },
+              "out": {
+                "cases": "pm_cases"
+              },
+              "description": "Discover the process"
+            },
+            {
+              "id": "s35",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pm_cases$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pm_cases",
+              "else": [
+                {
+                  "id": "s37",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pm_cases: expected eq 2, got ${pm_cases}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.mining/discover_process: an event log given as a table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.mining/discover_process: an event log given as a table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.mining/discover_process - an event log given as a table"
+    },
+    {
+      "id": "s42",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.mining/check_conformance - orders that skipped approval"
+      },
+      "children": [
+        {
+          "id": "s43",
+          "action": "core/comment",
+          "args": {
+            "text": "Check conformance compares each case with the allowed flows, start and end activities. Checked: two cases conform, one skipped Approve, fitness 2/3."
+          }
+        },
+        {
+          "id": "s44",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "mining/orders.csv",
+                "text": "case,activity,time\nPO-1,Create order,2026-11-02 09:00\nPO-1,Approve,2026-11-02 10:00\nPO-1,Ship,2026-11-03 09:00\nPO-2,Create order,2026-11-02 11:00\nPO-2,Approve,2026-11-02 11:30\nPO-2,Ship,2026-11-02 15:30\nPO-3,Create order,2026-11-03 08:00\nPO-3,Ship,2026-11-03 12:00\n"
+              },
+              "description": "An order event log"
+            },
+            {
+              "id": "s46",
+              "action": "ooa.mining/check_conformance",
+              "args": {
+                "file": "mining/orders.csv",
+                "allowed_flows": {
+                  "Create order": [
+                    "Approve"
+                  ],
+                  "Approve": [
+                    "Ship"
+                  ]
+                },
+                "start_activities": [
+                  "Create order"
+                ],
+                "end_activities": [
+                  "Ship"
+                ]
+              },
+              "out": {
+                "conforming": "pm_ok",
+                "deviating": "pm_bad",
+                "fitness": "pm_fit",
+                "deviations": "pm_dev"
+              },
+              "description": "Check the orders"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pm_ok$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pm_ok",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pm_ok: expected eq 2, got ${pm_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$pm_bad$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check pm_bad",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "pm_bad: expected eq 1, got ${pm_bad}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$pm_dev.rows[0][0]"
+                }
+              },
+              "description": "Work out the deviating case"
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "PO-3"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the deviating case",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the deviating case: expected eq \"PO-3\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "between",
+                  "left": "$pm_fit$",
+                  "right": [
+                    0.66,
+                    0.67
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check fitness",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "fitness: expected between [0.66, 0.67], got ${pm_fit}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.mining/check_conformance: orders that skipped approval\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.mining/check_conformance: orders that skipped approval: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.mining/check_conformance - orders that skipped approval"
+    },
+    {
+      "id": "s64",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s65",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s66",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s67",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s68",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}
