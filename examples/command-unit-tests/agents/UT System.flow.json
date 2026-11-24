@@ -100,6 +100,28 @@
       "name": "before",
       "type": "Any",
       "direction": "local"
+    },
+    {
+      "name": "w",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "screens",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "procs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
     }
   ],
   "steps": [
@@ -404,11 +426,8 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
-                  "left": "$vars$",
-                  "right": {
-                    "$type": "object"
-                  }
+                  "op": "notEmpty",
+                  "left": "$vars$"
                 }
               },
               "children": [
@@ -520,11 +539,8 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
-                  "left": "$i$",
-                  "right": {
-                    "$type": "object"
-                  }
+                  "op": "notEmpty",
+                  "left": "$i$"
                 }
               },
               "children": [
@@ -1283,11 +1299,8 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
-                  "left": "$n$",
-                  "right": {
-                    "$type": "number"
-                  }
+                  "op": "notEmpty",
+                  "left": "$n$"
                 }
               },
               "children": [
@@ -2142,18 +2155,514 @@
       "id": "s194",
       "action": "core/step",
       "args": {
-        "title": "15. Summary"
+        "title": "15. ooa.system/get_screen_resolution - main screen"
       },
       "children": [
         {
           "id": "s195",
           "action": "core/comment",
           "args": {
-            "text": "How many cases passed; the run fails when any case failed."
+            "text": "Get screen resolution reads the main screen's size and scaling and lists every screen (it only reads)."
           }
         },
         {
           "id": "s196",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s197",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s198",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case15"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s199",
+              "action": "ooa.system/get_screen_resolution",
+              "args": {},
+              "out": {
+                "width": "w",
+                "screens": "screens"
+              },
+              "description": "Read the resolution"
+            },
+            {
+              "id": "s200",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$w$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s201",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check width",
+              "else": [
+                {
+                  "id": "s202",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "width: expected gt 0, got ${w}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($screens)"
+                }
+              },
+              "description": "Count the screens"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check screens",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "screens: expected ge 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.system/get_screen_resolution: main screen\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s210",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.system/get_screen_resolution: main screen: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.system/get_screen_resolution - main screen"
+    },
+    {
+      "id": "s211",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.system/set_environment_variable - process scope only"
+      },
+      "children": [
+        {
+          "id": "s212",
+          "action": "core/comment",
+          "args": {
+            "text": "Set environment variable with process scope sets it for this run only; the case reads it back and removes it again."
+          }
+        },
+        {
+          "id": "s213",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s214",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s215",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case16"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s216",
+              "action": "ooa.system/set_environment_variable",
+              "args": {
+                "name": "OOA_UT_OFFICE_VAR",
+                "value": "42",
+                "scope": "process"
+              },
+              "description": "Set a variable for this run"
+            },
+            {
+              "id": "s217",
+              "action": "ooa.system/get_environment_variable",
+              "args": {
+                "name": "OOA_UT_OFFICE_VAR"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s218",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s220",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"42\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s221",
+              "action": "ooa.system/delete_environment_variable",
+              "args": {
+                "name": "OOA_UT_OFFICE_VAR",
+                "scope": "process"
+              },
+              "description": "Remove it"
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.system/set_environment_variable: process scope only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s225",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.system/set_environment_variable: process scope only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.system/set_environment_variable - process scope only"
+    },
+    {
+      "id": "s226",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.system/show_desktop - minimise every window"
+      },
+      "children": [
+        {
+          "id": "s227",
+          "action": "core/comment",
+          "args": {
+            "text": "Show desktop minimises every window, like Windows+D; the case checks the step ran. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s228",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s229",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s230",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case17"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s231",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s232",
+                  "action": "ooa.system/show_desktop",
+                  "args": {},
+                  "description": "Show the desktop"
+                },
+                {
+                  "id": "s233",
+                  "action": "ooa.system/list_processes",
+                  "args": {
+                    "name_contains": "java"
+                  },
+                  "out": {
+                    "count": "n"
+                  },
+                  "description": "This run is still going"
+                },
+                {
+                  "id": "s234",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "gt",
+                      "left": "$n$",
+                      "right": 0
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s235",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check processes",
+                  "else": [
+                    {
+                      "id": "s236",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "processes: expected gt 0, got ${n}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.system/show_desktop needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s238",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.system/show_desktop: minimise every window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.system/show_desktop: minimise every window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.system/show_desktop - minimise every window"
+    },
+    {
+      "id": "s242",
+      "action": "core/step",
+      "args": {
+        "title": "18. Summary"
+      },
+      "children": [
+        {
+          "id": "s243",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s244",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -2162,7 +2671,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s197",
+          "id": "s245",
           "action": "core/if",
           "args": {
             "condition": {
@@ -2173,7 +2682,7 @@
           },
           "children": [
             {
-              "id": "s198",
+              "id": "s246",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -2185,7 +2694,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "15. Summary"
+      "description": "18. Summary"
     }
   ]
 }

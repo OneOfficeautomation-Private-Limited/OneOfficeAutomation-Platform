@@ -75,6 +75,31 @@
       "name": "ext",
       "type": "Any",
       "direction": "local"
+    },
+    {
+      "name": "asm",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "types",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "txt",
+      "type": "String",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -982,18 +1007,1120 @@
       "id": "s84",
       "action": "core/step",
       "args": {
-        "title": "8. Summary"
+        "title": "8. ooa.dotnet/read_assembly - public types of System.Numerics"
       },
       "children": [
         {
           "id": "s85",
           "action": "core/comment",
           "args": {
-            "text": "How many cases passed; the run fails when any case failed."
+            "text": "Read assembly lists an assembly's public types with their methods; BigInteger is among them."
           }
         },
         {
           "id": "s86",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s87",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s88",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s89",
+              "action": "ooa.dotnet/read_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.Numerics.dll"
+              },
+              "out": {
+                "types": "types"
+              },
+              "description": "Read System.Numerics.dll"
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($types)"
+                }
+              },
+              "description": "Count the types"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check types",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "types: expected gt 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${types}",
+                  "right": "BigInteger"
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check types",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "types: expected contains \"BigInteger\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/read_assembly: public types of System.Numerics\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/read_assembly: public types of System.Numerics: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.dotnet/read_assembly - public types of System.Numerics"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.dotnet/open_assembly - open System.dll"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Open assembly loads an assembly into a session kept for the next steps; the condition Assembly session open is then true."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s104",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s105",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s106",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s107",
+              "action": "ooa.dotnet/open_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.dll",
+                "session": "ut_net"
+              },
+              "out": {
+                "assembly": "asm"
+              },
+              "description": "Open System.dll"
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$asm$",
+                  "right": "System"
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check assembly",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "assembly: expected contains \"System\", got ${asm}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/open_assembly: open System.dll\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/open_assembly: open System.dll: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.dotnet/open_assembly - open System.dll"
+    },
+    {
+      "id": "s116",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.dotnet/create_object - a collection that keeps its items"
+      },
+      "children": [
+        {
+          "id": "s117",
+          "action": "core/comment",
+          "args": {
+            "text": "Create object makes an object of the open assembly and keeps it in the session by a name; Call method then calls its methods, and the object keeps its state between the calls."
+          }
+        },
+        {
+          "id": "s118",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s120",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s122",
+              "action": "ooa.dotnet/open_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.dll",
+                "session": "ut_net"
+              },
+              "description": "Open System.dll"
+            },
+            {
+              "id": "s123",
+              "action": "ooa.dotnet/create_object",
+              "args": {
+                "session": "ut_net",
+                "type": "System.Collections.Specialized.StringCollection",
+                "object_name": "names"
+              },
+              "description": "Create a StringCollection"
+            },
+            {
+              "id": "s124",
+              "action": "ooa.dotnet/call_method",
+              "args": {
+                "session": "ut_net",
+                "object_name": "names",
+                "method": "Add",
+                "arguments": [
+                  "Asha"
+                ]
+              },
+              "description": "Add Asha"
+            },
+            {
+              "id": "s125",
+              "action": "ooa.dotnet/call_method",
+              "args": {
+                "session": "ut_net",
+                "object_name": "names",
+                "method": "Add",
+                "arguments": [
+                  "Ben"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "description": "Add Ben"
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 1, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "ooa.dotnet/call_method",
+              "args": {
+                "session": "ut_net",
+                "object_name": "names",
+                "method": "Contains",
+                "arguments": [
+                  "Ben"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "description": "Does it hold Ben?"
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/create_object: a collection that keeps its items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/create_object: a collection that keeps its items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.dotnet/create_object - a collection that keeps its items"
+    },
+    {
+      "id": "s138",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.dotnet/call_method - a static method"
+      },
+      "children": [
+        {
+          "id": "s139",
+          "action": "core/comment",
+          "args": {
+            "text": "Call method also calls a static method of a type, here Uri.EscapeDataString."
+          }
+        },
+        {
+          "id": "s140",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s141",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s142",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s143",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s144",
+              "action": "ooa.dotnet/open_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.dll",
+                "session": "ut_net"
+              },
+              "description": "Open System.dll"
+            },
+            {
+              "id": "s145",
+              "action": "ooa.dotnet/call_method",
+              "args": {
+                "session": "ut_net",
+                "type": "System.Uri",
+                "method": "EscapeDataString",
+                "arguments": [
+                  "a b&c"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "description": "Escape a text"
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "a%20b%26c"
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"a%20b%26c\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/call_method: a static method\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/call_method: a static method: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.dotnet/call_method - a static method"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.dotnet/close_assembly - session ends"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Close assembly ends a .NET session; the condition Assembly session open is false afterwards."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s160",
+              "action": "ooa.dotnet/open_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.dll",
+                "session": "ut_net"
+              },
+              "description": "Open System.dll"
+            },
+            {
+              "id": "s161",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s163",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.dotnet/assembly_session_open",
+                  "args": {
+                    "session": "ut_net"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Still open?"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s167",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/close_assembly: session ends\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/close_assembly: session ends: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.dotnet/close_assembly - session ends"
+    },
+    {
+      "id": "s172",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.dotnet/assembly_session_open - open session"
+      },
+      "children": [
+        {
+          "id": "s173",
+          "action": "core/comment",
+          "args": {
+            "text": "Assembly session open is a condition: true while the session is open."
+          }
+        },
+        {
+          "id": "s174",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s175",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s176",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s177",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case13"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.dotnet/open_assembly",
+              "args": {
+                "path": "C:/Windows/Microsoft.NET/Framework64/v4.0.30319/System.dll",
+                "session": "ut_net"
+              },
+              "description": "Open System.dll"
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s180",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.dotnet/assembly_session_open",
+                  "args": {
+                    "session": "ut_net"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is it open?"
+            },
+            {
+              "id": "s182",
+              "action": "ooa.dotnet/close_assembly",
+              "args": {
+                "session": "ut_net"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s183",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s184",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s185",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dotnet/assembly_session_open: open session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dotnet/assembly_session_open: open session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.dotnet/assembly_session_open - open session"
+    },
+    {
+      "id": "s190",
+      "action": "core/step",
+      "args": {
+        "title": "14. Summary"
+      },
+      "children": [
+        {
+          "id": "s191",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s192",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -1002,7 +2129,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s87",
+          "id": "s193",
           "action": "core/if",
           "args": {
             "condition": {
@@ -1013,7 +2140,7 @@
           },
           "children": [
             {
-              "id": "s88",
+              "id": "s194",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -1025,7 +2152,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "8. Summary"
+      "description": "14. Summary"
     }
   ]
 }

@@ -70,6 +70,16 @@
       "type": "Boolean",
       "direction": "local",
       "default": false
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "String",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -118,6 +128,13 @@
           "action": "core/try",
           "args": {},
           "children": [
+            {
+              "id": "s43",
+              "action": "ooa.dll/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
             {
               "action": "ooa.dll/call",
               "args": {
@@ -248,6 +265,13 @@
           "args": {},
           "children": [
             {
+              "id": "s44",
+              "action": "ooa.dll/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
               "action": "ooa.dll/open",
               "args": {
                 "library": "kernel32"
@@ -275,11 +299,8 @@
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "eq",
-                  "left": "$t$",
-                  "right": {
-                    "$type": "number"
-                  }
+                  "op": "notEmpty",
+                  "left": "$t$"
                 }
               },
               "children": [
@@ -379,6 +400,13 @@
           "action": "core/try",
           "args": {},
           "children": [
+            {
+              "id": "s45",
+              "action": "ooa.dll/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
             {
               "id": "s33",
               "action": "core/set",
@@ -509,21 +537,288 @@
       "description": "3. ooa.dll/close - missing library"
     },
     {
-      "id": "s43",
+      "id": "s46",
       "action": "core/step",
       "args": {
-        "title": "4. Summary"
+        "title": "4. ooa.dll/close - a closed session cannot be used"
       },
       "children": [
         {
-          "id": "s44",
+          "id": "s47",
+          "action": "core/comment",
+          "args": {
+            "text": "Close unloads a library opened with Open DLL; a call through that session afterwards stops with an error."
+          }
+        },
+        {
+          "id": "s48",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s49",
+              "action": "ooa.dll/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s51",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s52",
+              "action": "ooa.dll/open",
+              "args": {
+                "library": "kernel32"
+              },
+              "out": {
+                "path": "p"
+              },
+              "description": "Load kernel32"
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$p$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check path",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "path: expected notEmpty , got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "ooa.dll/call",
+              "args": {
+                "session": "dll",
+                "function": "GetCurrentProcessId"
+              },
+              "out": {
+                "result": "r"
+              },
+              "description": "Call through the session"
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$r$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check process id",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "process id: expected gt 0, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "ooa.dll/close",
+              "args": {},
+              "description": "Unload it"
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s62",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "ooa.dll/call",
+                  "args": {
+                    "session": "dll",
+                    "function": "GetCurrentProcessId"
+                  },
+                  "description": "Call through the closed session"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s64",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s67",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.dll/close: a closed session cannot be used\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.dll/close: a closed session cannot be used: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.dll/close - a closed session cannot be used"
+    },
+    {
+      "id": "s72",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s73",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s45",
+          "id": "s74",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -532,7 +827,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s46",
+          "id": "s75",
           "action": "core/if",
           "args": {
             "condition": {
@@ -543,7 +838,7 @@
           },
           "children": [
             {
-              "id": "s47",
+              "id": "s76",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -555,7 +850,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "4. Summary"
+      "description": "5. Summary"
     }
   ]
 }
