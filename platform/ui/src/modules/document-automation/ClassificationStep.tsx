@@ -10,8 +10,10 @@ import { Loading, useLoad } from "./ui";
  * read as, chosen, taught or made here, with its fields shown and edited on the same screen. A document type is
  * shared, so saving it changes every process that uses it; choosing another one changes only this process.
  */
-export function ClassificationStep({ api, design, setSettings, onType }:
-  { api: DocFlowApi; design: ProcessDesign; setSettings: (p: Partial<ProcessSettings>) => void; onType: (t: DocType) => void }) {
+export function ClassificationStep({ api, design, setSettings, onType, onTypes }:
+  { api: DocFlowApi; design: ProcessDesign; setSettings: (p: Partial<ProcessSettings>) => void; onType: (t: DocType) => void;
+    /** Mixed files: the process recognises each of these types (the first is the main one, shown below). */
+    onTypes?: (t: DocType[]) => void }) {
   const [types, reload] = useLoad(() => api.docTypes(), [api]);
   const [pending, setPending] = useState<{ type: DocType; addField: boolean; n: number } | null>(null);
   const [teaching, setTeaching] = useState(false);
@@ -46,6 +48,16 @@ export function ClassificationStep({ api, design, setSettings, onType }:
               <Button icon="plus" onClick={() => setNaming(true)}>New document type</Button>
             </div>
             <p className="df-small" style={{ margin: "6px 0 0" }}>Choosing another type changes only this process.</p>
+            {design.settings.classifyMode === "auto" && onTypes && chosen && <fieldset style={{ border: 0, margin: "10px 0 0", padding: 0 }}>
+              <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>Also recognise these types in mixed files</legend>
+              <div className="df-grid df-g3" style={{ gap: 6 }}>{types.filter((t) => t.id !== chosen.id).map((t) => (
+                <label key={t.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="checkbox" checked={design.docTypeIds.includes(t.id)} onChange={(e) => {
+                    const ids = e.target.checked ? [...design.docTypeIds, t.id] : design.docTypeIds.filter((x) => x !== t.id);
+                    onTypes(ids.map((id) => types.find((x) => x.id === id)).filter((x): x is DocType => !!x));
+                  }} />{t.name}</label>))}
+              </div>
+            </fieldset>}
           </div>}
       </section>
 

@@ -131,6 +131,10 @@ export interface ProcessSettings {
   whenNoType?: "review" | "other" | "reject";
   /** Every-file-is-this-type processes: check each document looks like it (its recognition words). */
   checkType?: boolean;
+  /** Most to spend a month on cloud and AI engines (price currency); reached, the process reads on this server. null: no limit. */
+  monthlyBudget?: number | null;
+  /** An engine per document type (type id -> engine id); the others use extraction. */
+  extractionByType?: Record<string, string>;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
   /** Read e-invoice data (XML, QR codes) before OCR; on by default. */
   einvoiceFirst: boolean;
@@ -361,6 +365,8 @@ export interface DocFlowApi {
   processes(): Promise<ProcessSummary[]>;
   /** Every process with its set-up and activity, in one go (the Overview table). */
   processTable(): Promise<ProcessRow[]>;
+  /** This month's estimated cloud and AI spend of a process, its budget and whether it reads on this server only now. */
+  processSpend(processId: string): Promise<{ spend: number; budget: number | null; currency: string; localOnly: boolean }>;
   /** How well a process reads: corrections per field, straight-through share, what each review level would do. */
   accuracy(processId: string): Promise<Accuracy>;
   /** The newest documents of a process, at most limit (200 by default). */
@@ -708,6 +714,8 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
+  async processSpend(_processId: string) { return { spend: 12.4, budget: null, currency: "USD", localOnly: false }; }
+
   async accuracy(_processId: string): Promise<Accuracy> {
     return { documents: 120, finished: 110, reviewed: 40, measured: 480, straightThrough: 0.64, reviewLevel: 0.85,
       fields: [{ name: "vat_amount", label: "VAT amount", seen: 40, corrected: 6, correctedShare: 0.15 }, { name: "supplier_name", label: "Supplier", seen: 40, corrected: 3, correctedShare: 0.075 },

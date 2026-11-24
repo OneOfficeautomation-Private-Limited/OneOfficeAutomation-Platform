@@ -5,7 +5,7 @@ import { FolderField } from "./folderPicker";
 import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle, ChoiceOrOwn, duration } from "./ui";
-import { RULE_KIND, TAX_PRESETS, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EInvoiceStandard, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EInvoiceStandard, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -173,8 +173,20 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
   );
 }
 
-export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings }) {
-  const [advanced, setAdvanced] = useState(s.extraction !== "auto");   // a chosen engine is shown, not hidden
+export function ExtractStage({ s, set, api, processId, types = [] }: { s: ProcessSettings; set: SetSettings; api?: DocFlowApi; processId?: string; types?: { id: string; name: string }[] }) {
+  const [advanced, setAdvanced] = useState(s.extraction !== "auto" || Object.keys(s.extractionByType ?? {}).length > 0);   // a chosen engine is shown, not hidden
+  // the engines that read fields on this server's DocFlow (any option pack), else the usual list
+  const [engines, setEngines] = useState(EXTRACTION);
+  const [spend, setSpend] = useState<{ spend: number; currency: string; localOnly: boolean } | null>(null);
+  useEffect(() => {
+    if (!api) return;
+    api.engines().then((e) => {
+      const fields = e.options.flatMap((o) => o.engines).filter((x) => x.does !== "Reads pages");
+      if (fields.length) setEngines([EXTRACTION[0], ...fields.map((x) => ({ value: x.id, label: x.name + (x.status === "ready" ? "" : x.status === "optin" ? " (needs cloud opt-in)" : " (needs setting up)") }))]);
+    }, () => undefined);
+    if (processId) api.processSpend(processId).then(setSpend, () => setSpend(null));
+  }, [api, processId]);
+  const byType = s.extractionByType ?? {};
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <p style={{ margin: 0 }}>The fields to read come from the document type. {s.extraction === "auto"
@@ -182,8 +194,24 @@ export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings 
         : "This process uses its own engine (below)."}</p>
       <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
       {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
-        {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })} options={EXTRACTION} />}
+        {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })}
+          options={[...engines, ...(engines.some((x) => x.value === s.extraction) ? [] : [{ value: s.extraction, label: s.extraction }])]} />}
       </Field>}
+      {advanced && types.length > 1 && <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+        <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>An engine for each document type (optional)</legend>
+        <div className="df-grid df-g2" style={{ gap: 8 }}>{types.map((t) => (
+          <Field key={t.id} label={t.name}>{(id) => <Select id={id} value={byType[t.id] ?? ""}
+            onChange={(e) => { const next = { ...byType }; if (e.target.value) next[t.id] = e.target.value; else delete next[t.id]; set({ extractionByType: next }); }}
+            options={[{ value: "", label: "As above" }, ...engines.filter((x) => x.value !== "auto")]} />}</Field>))}
+        </div>
+      </fieldset>}
+      <div className="df-grid df-g2">
+        <Field label="Monthly budget for cloud and AI reading (optional)"
+          hint={`Reached: the process reads on this server until the month ends. Empty: no limit.${spend ? ` This month so far: about ${money(spend.spend, spend.currency)}${spend.localOnly ? " (budget reached: reading on this server)" : ""}.` : ""}`}>
+          {(id) => <TextInput id={id} inputMode="decimal" value={s.monthlyBudget == null ? "" : String(s.monthlyBudget)} placeholder="No limit"
+            onChange={(e) => { const v = parseAmount(e.target.value); set({ monthlyBudget: e.target.value.trim() === "" || isNaN(v) ? null : v }); }} />}
+        </Field>
+      </div>
     </div>
   );
 }

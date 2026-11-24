@@ -35,7 +35,7 @@ interface DfRule { id: string; type: RuleType; name: string; enabled: boolean; a
 interface DfDelivery { id: string; type: DeliveryType; name: string; enabled: boolean; on: string[]; params: Record<string, unknown> }
 interface DfFlow {
   id: string; name: string; description: string; folder?: string; docTypes: string[]; status: "draft" | "live"; isInbox: boolean; version: number;
-  classify: { mode: "single" | "auto"; split: boolean; minScore?: number; whenNoType?: "review" | "other" | "reject"; checkType?: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string };
+  classify: { mode: "single" | "auto"; split: boolean; minScore?: number; whenNoType?: "review" | "other" | "reject"; checkType?: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string; monthlyBudget?: number | null; extractionByType?: Record<string, string> };
   review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number> }; rules: DfRule[];
   deliveries: DfDelivery[];
   intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[] }; updatedAt: string;
@@ -285,6 +285,10 @@ export class HttpDocFlowApi implements DocFlowApi {
         overdue: queue.filter((q) => q.flowId === f.id && q.overdue).length, lastAt: last?.created_at ?? null,
       };
     });
+  }
+
+  async processSpend(processId: string) {
+    return this.call<{ spend: number; budget: number | null; currency: string; localOnly: boolean }>("GET", `/df/flows/${encodeURIComponent(processId)}/spend`);
   }
 
   async accuracy(processId: string): Promise<Accuracy> {
@@ -558,7 +562,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       settings: {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
         whenNoType: f.classify.whenNoType ?? "review", checkType: !!f.classify.checkType,
-        extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
+        extraction: f.engine.extractionProvider, monthlyBudget: f.engine.monthlyBudget ?? null, extractionByType: { ...(f.engine.extractionByType ?? {}) }, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
         email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
         einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
       },
@@ -582,7 +586,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
       intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [] },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split, whenNoType: s.whenNoType ?? "review", checkType: !!s.checkType },
-      engine: { ...cur.engine, extractionProvider: s.extraction },
+      engine: { ...cur.engine, extractionProvider: s.extraction, monthlyBudget: s.monthlyBudget ?? null, extractionByType: s.extractionByType ?? {} },
       review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds },
       rules: d.checks.map((c) => {
         const old = cur.rules.find((r) => r.id === c.id);
