@@ -125,7 +125,7 @@ export const HINTS = {
   retryBelow: "Pages read with less confidence than this are read again.",
   localRetry: "A second free engine on this server. The better reading wins.",
   cloudEngine: "Reads pages that are still weak. Only with cloud opt-in on. Costs per page.",
-  processName: "A name people recognise, for example Supplier invoices KSA.",
+  processName: "A name people recognise, for example Supplier invoices.",
   watchedFolder: "DocFlow checks this folder and reads every new file.",
   ifFails: "Review: a person checks it. Reject: the document is refused. Warn: noted, nothing stops.",
   recognise: "DocFlow finds out what each document is and sends it to the matching process.",

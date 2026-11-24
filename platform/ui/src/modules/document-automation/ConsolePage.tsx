@@ -19,7 +19,7 @@ const AREAS: { tab: string; title: string; about: string }[] = [
   { tab: "processes", title: "Processes", about: "How each kind of document is read, checked and delivered" },
   { tab: "types", title: "Document types", about: "The fields to read from each kind of document" },
   { tab: "refdata", title: "Reference data", about: "Lists that checks look values up in" },
-  { tab: "engines", title: "Engines", about: "Which engines read the pages, in this country or in the cloud" },
+  { tab: "engines", title: "Engines", about: "Which engines read the pages, on your own servers or in the cloud" },
   { tab: "testlab", title: "Test lab", about: "Try a document, or compare engines on sample sets" },
 ];
 const STEPS = ["Describe a document type: the fields to read", "Build a process: how documents arrive, are read, checked and delivered",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
-import type { DocFlowApi, DocType, TestRun } from "./api";
+import { ANY_TYPE, type DocFlowApi, type DocType, type TestRun } from "./api";
 import { TEMPLATES, sampleFile, typeFor } from "./templates";
 import { FolderField } from "./folderPicker";
 import { HINTS } from "./help";
@@ -29,7 +29,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   useEffect(() => { if (open) void api.docTypes().then((t) => {
     setTypes(t);
     const d = chosen ? typeFor(chosen, t) : "";
-    setDocType((cur) => cur || d || t[0]?.id || "");
+    setDocType((cur) => cur || d || ANY_TYPE);   // no type for the template: the process recognises each document
     if (chosen) setName((cur) => cur || chosen.suggestedName);
   }); }, [api, open]);   // eslint-disable-line react-hooks/exhaustive-deps
   const trySample = async () => {
@@ -57,7 +57,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   return (
     <Dialog open={open} onClose={onClose} title="New process" width={720}
       footer={<>
-        {chosen ? <Button disabled={trying || !docType} onClick={trySample}>{trying ? "Reading the sample…" : `Try it with a sample ${chosen.sampleName}`}</Button>
+        {chosen ? <Button disabled={trying || !docType || docType === ANY_TYPE} onClick={trySample}>{trying ? "Reading the sample…" : `Try it with a sample ${chosen.sampleName}`}</Button>
           : <span className="df-muted">Next: checks, review and delivery in the process builder</span>}
         <span style={{ marginRight: "auto" }} />
         <Button onClick={onClose}>Cancel</Button>
@@ -83,9 +83,10 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
         </section>
       )}
       <div className="df-grid df-g2">
-        <Field label="Process name" info={HINTS.processName}>{(id) => <TextInput id={id} value={name} placeholder="e.g. Supplier invoices KSA" onChange={(e) => setName(e.target.value)} />}</Field>
-        <Field label="Document type" hint="The fields to read and the checks to run.">
-          {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)} options={types.map((d) => ({ value: d.id, label: d.name }))} />}
+        <Field label="Process name" info={HINTS.processName}>{(id) => <TextInput id={id} value={name} placeholder="e.g. Supplier invoices" onChange={(e) => setName(e.target.value)} />}</Field>
+        <Field label="Document type" hint={docType === ANY_TYPE ? "Each document is recognised as one of the types; one that fits none goes to review." : "The fields to read and the checks to run. Not listed? Create the process, then make a new type in step 3."}>
+          {(id) => <Select id={id} value={docType} onChange={(e) => setDocType(e.target.value)}
+            options={[{ value: ANY_TYPE, label: "Any type: recognise each document" }, ...types.map((d) => ({ value: d.id, label: d.name }))]} />}
         </Field>
       </div>
       <Field label="Folder" hint="A platform folder: only people with access to it see this process and its documents (view to see, run to add documents, edit to change the process).">

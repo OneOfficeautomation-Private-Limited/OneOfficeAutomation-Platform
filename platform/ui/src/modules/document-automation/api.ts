@@ -328,6 +328,8 @@ export function inFolder(path: string, folder: string): boolean {
 
 /** docType is a document type id (DocType.id). */
 /** email: the person will set up the inbox next (in the builder's step 2, Document ingestion). */
+/** docType ANY_TYPE: the process recognises each document's type itself (every type DocFlow has). */
+export const ANY_TYPE = "*any";
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {

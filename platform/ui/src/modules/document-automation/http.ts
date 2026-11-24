@@ -1,6 +1,6 @@
 import type { MailConditions, MailTry } from "../../api/cr";
 import {
-  INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
+  ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard,
@@ -375,7 +375,8 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async createProcess(p: NewProcess): Promise<{ id: string }> {
     const f = await this.call<DfFlow>("POST", "/df/flows", {
-      name: p.name, folder: p.folder, docTypes: [p.docType],
+      name: p.name, folder: p.folder, docTypes: p.docType === ANY_TYPE ? [] : [p.docType],
+      ...(p.docType === ANY_TYPE ? { classify: { mode: "auto", split: true } } : {}),
       intake: { inputFolder: p.watchedFolder ?? "", pollSeconds: p.pollSeconds ?? 30 },
     });
     this.flowsCache = null;
