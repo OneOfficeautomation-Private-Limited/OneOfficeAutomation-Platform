@@ -1,0 +1,898 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_coded",
+  "name": "UT Coded agents",
+  "description": "Unit tests of Run Python agent: main(inputs, ooa) of a small module calls toolkit commands through ooa.call() and returns outputs. Needs Python on the runner.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cd_out",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "cd_calls",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "cd_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "cd_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of Run Python agent: main(inputs, ooa) of a small module calls toolkit commands through ooa.call() and returns outputs. Needs Python on the runner."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Coded agents started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.coded/run_python_agent - code typed in the step calls a String command"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python agent runs main(inputs, ooa) of the code typed in the step. The code calls Change case through ooa.call() (ooa.string is in the toolkits it may call) and returns two outputs; calls is 1."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.coded/run_python_agent",
+              "args": {
+                "code": "def main(inputs, ooa):\n    r = ooa.call(\"ooa.string/change_case\", text=inputs[\"supplier\"], case=\"upper\")\n    ooa.log(\"Supplier in capitals: \" + r[\"result\"])\n    return {\"supplier\": r[\"result\"], \"lines\": len(inputs[\"lines\"])}\n",
+                "inputs": {
+                  "supplier": "Contoso ltd",
+                  "lines": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "uses": [
+                  "ooa.string"
+                ]
+              },
+              "out": {
+                "outputs": "cd_out",
+                "calls": "cd_calls"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "cd_text",
+                "value": {
+                  "expr": "$cd_out.supplier"
+                }
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_text$",
+                  "right": "CONTOSO LTD"
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cd_text",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cd_text: expected eq \"CONTOSO LTD\", got ${cd_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "cd_n",
+                "value": {
+                  "expr": "$cd_out.lines"
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lines",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lines: expected eq 3, got ${cd_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_calls$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check calls",
+              "else": [
+                {
+                  "id": "s18",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "calls: expected eq 1, got ${cd_calls}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.coded/run_python_agent: code typed in the step calls a String command\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s22",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.coded/run_python_agent: code typed in the step calls a String command: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.coded/run_python_agent - code typed in the step calls a String command"
+    },
+    {
+      "id": "s23",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.coded/run_python_agent - a module file with its own entry function"
+      },
+      "children": [
+        {
+          "id": "s24",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python agent can run a module file with another entry function (run). The module totals the lines, writes and reads a file with File commands, and returns the total and the text it read."
+          }
+        },
+        {
+          "id": "s25",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s26",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut-coded/invoice_agent.py",
+                "text": "\"\"\"A small coded agent: totals invoice lines, writes a summary file with a toolkit command and reads it back.\"\"\"\n\n\ndef total(lines):\n    return round(sum(l[\"qty\"] * l[\"price\"] for l in lines), 2)\n\n\ndef run(inputs, ooa):\n    t = total(inputs[\"lines\"])\n    ooa.call(\"ooa.file/write_text\", path=inputs[\"summary_file\"], text=\"Total \" + str(t))\n    back = ooa.call(\"ooa.file/read_text\", path=inputs[\"summary_file\"])\n    return {\"total\": t, \"summary\": back[\"text\"]}\n"
+              },
+              "description": "Write the module (in a real project it is a file in the repository)"
+            },
+            {
+              "id": "s27",
+              "action": "ooa.coded/run_python_agent",
+              "args": {
+                "file": "ut-coded/invoice_agent.py",
+                "entry": "run",
+                "uses": [
+                  "ooa.file"
+                ],
+                "inputs": {
+                  "lines": [
+                    {
+                      "qty": 2,
+                      "price": 10.5
+                    },
+                    {
+                      "qty": 1,
+                      "price": 4
+                    }
+                  ],
+                  "summary_file": "ut-coded/summary.txt"
+                }
+              },
+              "out": {
+                "outputs": "cd_out",
+                "calls": "cd_calls"
+              }
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "cd_n",
+                "value": {
+                  "expr": "$cd_out.total"
+                }
+              }
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_n$",
+                  "right": 25
+                }
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s31",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 25, got ${cd_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s32",
+              "action": "core/set",
+              "args": {
+                "variable": "cd_text",
+                "value": {
+                  "expr": "$cd_out.summary"
+                }
+              }
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_text$",
+                  "right": "Total 25.0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cd_text",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cd_text: expected eq \"Total 25.0\", got ${cd_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cd_calls$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check calls",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "calls: expected eq 2, got ${cd_calls}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.coded/run_python_agent: a module file with its own entry function\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.coded/run_python_agent: a module file with its own entry function: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.coded/run_python_agent - a module file with its own entry function"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.coded/run_python_agent - a toolkit not listed is refused"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "The code may only call the toolkits listed in uses: calling a File command with only ooa.string listed fails with CODE.TOOLKIT_NOT_LISTED."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s47",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "ooa.coded/run_python_agent",
+                  "args": {
+                    "code": "def main(inputs, ooa):\n    ooa.call(\"ooa.file/read_text\", path=\"x.txt\")\n    return {}\n",
+                    "uses": [
+                      "ooa.string"
+                    ]
+                  }
+                }
+              ],
+              "description": "These steps should fail with CODE.TOOLKIT_NOT_LISTED",
+              "catch": [
+                {
+                  "codes": [
+                    "CODE.TOOLKIT_NOT_LISTED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error CODE.TOOLKIT_NOT_LISTED",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error CODE.TOOLKIT_NOT_LISTED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.coded/run_python_agent: a toolkit not listed is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.coded/run_python_agent: a toolkit not listed is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.coded/run_python_agent - a toolkit not listed is refused"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.coded/run_python_agent - an entry that is not a Python name"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "The entry function must be a Python name: 2main fails with CODE.BAD_ENTRY before Python starts."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s61",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "ooa.coded/run_python_agent",
+                  "args": {
+                    "code": "def main(inputs, ooa):\n    return {}\n",
+                    "entry": "2main"
+                  }
+                }
+              ],
+              "description": "These steps should fail with CODE.BAD_ENTRY",
+              "catch": [
+                {
+                  "codes": [
+                    "CODE.BAD_ENTRY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s63",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error CODE.BAD_ENTRY",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error CODE.BAD_ENTRY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.coded/run_python_agent: an entry that is not a Python name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.coded/run_python_agent: an entry that is not a Python name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.coded/run_python_agent - an entry that is not a Python name"
+    },
+    {
+      "id": "s71",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s74",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s75",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

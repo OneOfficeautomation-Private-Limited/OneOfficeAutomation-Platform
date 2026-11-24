@@ -1,0 +1,1127 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_jobs",
+  "name": "UT Jobs and alerts",
+  "description": "Unit tests of every Jobs and alerts command: list runs, read this run, stop a run that has already ended, and raise a warning alert. Needs One CommandCenter.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "jb_jobs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "jb_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "jb_job",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "jb_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "jb_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "jb_stopped",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "jb_alerts",
+      "type": "Number",
+      "direction": "local",
+      "default": -1
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Jobs and alerts command: list runs, read this run, stop a run that has already ended, and raise a warning alert. Needs One CommandCenter."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Jobs and alerts started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.jobs/get_job - a run id is needed"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.jobs/get_job (a run id is needed) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.jobs/get_job",
+                  "args": {
+                    "job_id": " "
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with JOBS.NO_ID",
+              "catch": [
+                {
+                  "codes": [
+                    "JOBS.NO_ID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error JOBS.NO_ID",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error JOBS.NO_ID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/get_job: a run id is needed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/get_job: a run id is needed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.jobs/get_job - a run id is needed"
+    },
+    {
+      "id": "s74",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.jobs/raise_alert - an alert needs a message"
+      },
+      "children": [
+        {
+          "id": "s75",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.jobs/raise_alert (an alert needs a message) and checks its result."
+          }
+        },
+        {
+          "id": "s76",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s79",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.jobs/raise_alert",
+                  "args": {
+                    "message": " "
+                  },
+                  "id": "s77"
+                }
+              ],
+              "description": "These steps should fail with ALERT.NO_MESSAGE",
+              "catch": [
+                {
+                  "codes": [
+                    "ALERT.NO_MESSAGE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s80",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s81",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error ALERT.NO_MESSAGE",
+              "else": [
+                {
+                  "id": "s83",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error ALERT.NO_MESSAGE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s84",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/raise_alert: an alert needs a message\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/raise_alert: an alert needs a message: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.jobs/raise_alert - an alert needs a message"
+    },
+    {
+      "id": "s102",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.jobs/list_jobs - the active runs include this one"
+      },
+      "children": [
+        {
+          "id": "s103",
+          "action": "core/comment",
+          "args": {
+            "text": "List jobs lists runs the run's user may see. While this agent runs, the active runs are at least one (this run), and the count matches the list."
+          }
+        },
+        {
+          "id": "s104",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s105",
+              "action": "ooa.jobs/list_jobs",
+              "args": {
+                "status": "active",
+                "limit": 50
+              },
+              "out": {
+                "jobs": "jb_jobs",
+                "count": "jb_n"
+              }
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$jb_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check active runs",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "active runs: expected ge 1, got ${jb_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "jb_n",
+                "value": {
+                  "expr": "len($jb_jobs) - $jb_n"
+                }
+              }
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$jb_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check list length minus count",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "list length minus count: expected eq 0, got ${jb_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/list_jobs: the active runs include this one\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/list_jobs: the active runs include this one: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.jobs/list_jobs - the active runs include this one"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.jobs/get_job - this run is running"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "Get job reads a run by its id; this run's own id (sys.run_id) shows status running."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.jobs/get_job",
+              "args": {
+                "job_id": "$sys.run_id$"
+              },
+              "out": {
+                "job": "jb_job",
+                "status": "jb_status"
+              }
+            },
+            {
+              "id": "s121",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$jb_status$",
+                  "right": "running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check jb_status",
+              "else": [
+                {
+                  "id": "s123",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "jb_status: expected eq \"running\", got ${jb_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "jb_id",
+                "value": {
+                  "expr": "$jb_job.id"
+                }
+              }
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$jb_id$",
+                  "right": "$sys.run_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the run id",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the run id: expected eq \"sys.run_id\", got ${jb_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/get_job: this run is running\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/get_job: this run is running: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.jobs/get_job - this run is running"
+    },
+    {
+      "id": "s132",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.jobs/stop_job - a run that has already ended is not stopped"
+      },
+      "children": [
+        {
+          "id": "s133",
+          "action": "core/comment",
+          "args": {
+            "text": "Stop job stops a queued or running run. The newest finished run is taken from the history; stopping it changes nothing: stopped is false and status is the state it ended in."
+          }
+        },
+        {
+          "id": "s134",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s135",
+              "action": "ooa.jobs/list_jobs",
+              "args": {
+                "status": "history",
+                "limit": 1
+              },
+              "out": {
+                "jobs": "jb_jobs"
+              }
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "jb_id",
+                "value": {
+                  "expr": "$jb_jobs[0].id"
+                }
+              }
+            },
+            {
+              "id": "s137",
+              "action": "ooa.jobs/stop_job",
+              "args": {
+                "job_id": "$jb_id$"
+              },
+              "out": {
+                "stopped": "jb_stopped",
+                "status": "jb_status"
+              }
+            },
+            {
+              "id": "s138",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$jb_stopped$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check jb_stopped",
+              "else": [
+                {
+                  "id": "s140",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "jb_stopped: expected eq false, got ${jb_stopped}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "in",
+                  "left": "$jb_status$",
+                  "right": [
+                    "success",
+                    "failed",
+                    "stopped"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check status",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "status: expected in [\"success\", \"failed\", \"stopped\"], got ${jb_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/stop_job: a run that has already ended is not stopped\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/stop_job: a run that has already ended is not stopped: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.jobs/stop_job - a run that has already ended is not stopped"
+    },
+    {
+      "id": "s148",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.jobs/raise_alert - a warning alert with a subject"
+      },
+      "children": [
+        {
+          "id": "s149",
+          "action": "core/comment",
+          "args": {
+            "text": "Raise alert sends an alert to the alert rules of kind Raised by an agent; alerts is how many were raised (0 when no rule takes them). Raising the same subject again in this run raises none."
+          }
+        },
+        {
+          "id": "s150",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s151",
+              "action": "ooa.jobs/raise_alert",
+              "args": {
+                "message": "Unit test alert from UT Jobs and alerts; nothing to do.",
+                "severity": "warning",
+                "subject": "ut_unit_test_alert"
+              },
+              "out": {
+                "alerts": "jb_alerts"
+              }
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$jb_alerts$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check alerts raised",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "alerts raised: expected ge 0, got ${jb_alerts}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "ooa.jobs/raise_alert",
+              "args": {
+                "message": "Same subject again.",
+                "subject": "ut_unit_test_alert"
+              },
+              "out": {
+                "alerts": "jb_alerts"
+              }
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$jb_alerts$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check alerts for a repeated subject",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "alerts for a repeated subject: expected eq 0, got ${jb_alerts}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.jobs/raise_alert: a warning alert with a subject\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.jobs/raise_alert: a warning alert with a subject: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.jobs/raise_alert - a warning alert with a subject"
+    },
+    {
+      "id": "s163",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s164",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s165",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s166",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s167",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}

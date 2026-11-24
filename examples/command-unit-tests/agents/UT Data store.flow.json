@@ -1,0 +1,2206 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_data",
+  "name": "UT Data store",
+  "description": "Unit tests of every Data store command: records of the entity ut_customers and files in the bucket ut_files, each removed at the end. Locally they are files in the workspace; in One CommandCenter the entity and the bucket must exist.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ds_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ds_id2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ds_record",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ds_records",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ds_rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ds_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ds_total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ds_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ds_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ds_deleted",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ds_path",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ds_paths",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ds_file",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ds_files",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Data store command: records of the entity ut_customers and files in the bucket ut_files, each removed at the end. Locally they are files in the workspace; in One CommandCenter the entity and the bucket must exist."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Data store started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.data/create_record - add a customer"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Create record adds a record to an entity and gives back its id and the record as saved. Test records of earlier runs are removed first."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.data/query_records",
+              "args": {
+                "entity": "ut_customers",
+                "filters": [
+                  {
+                    "field": "name",
+                    "op": "starts_with",
+                    "value": "UT "
+                  }
+                ]
+              },
+              "out": {
+                "records": "ds_records"
+              },
+              "description": "Find the test records"
+            },
+            {
+              "id": "s8",
+              "action": "core/loop",
+              "args": {
+                "iterator": "list",
+                "over": "$ds_records$",
+                "as": "ds_rec"
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "ooa.data/delete_record",
+                  "args": {
+                    "entity": "ut_customers",
+                    "id": "$ds_rec.id$"
+                  }
+                }
+              ],
+              "description": "Delete each test record"
+            },
+            {
+              "id": "s10",
+              "action": "ooa.data/create_record",
+              "args": {
+                "entity": "ut_customers",
+                "values": {
+                  "name": "UT Contoso",
+                  "country": "IN",
+                  "credit": 5000
+                }
+              },
+              "out": {
+                "id": "ds_id",
+                "record": "ds_record"
+              }
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ds_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new id",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new id: expected notEmpty , got ${ds_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_text",
+                "value": {
+                  "expr": "$ds_record.name"
+                }
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_text$",
+                  "right": "UT Contoso"
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_text",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_text: expected eq \"UT Contoso\", got ${ds_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/create_record: add a customer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s21",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/create_record: add a customer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.data/create_record - add a customer"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.data/get_record - read the customer by id"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Get record reads one record by its id: its id and fields."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.data/create_record",
+              "args": {
+                "entity": "ut_customers",
+                "values": {
+                  "name": "UT Fabrikam",
+                  "country": "US",
+                  "credit": 1200
+                }
+              },
+              "out": {
+                "id": "ds_id"
+              }
+            },
+            {
+              "id": "s26",
+              "action": "ooa.data/get_record",
+              "args": {
+                "entity": "ut_customers",
+                "id": "$ds_id$"
+              },
+              "out": {
+                "record": "ds_record"
+              }
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_text",
+                "value": {
+                  "expr": "$ds_record.country"
+                }
+              }
+            },
+            {
+              "id": "s28",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_text$",
+                  "right": "US"
+                }
+              },
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_text",
+              "else": [
+                {
+                  "id": "s30",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_text: expected eq \"US\", got ${ds_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_n",
+                "value": {
+                  "expr": "$ds_record.credit"
+                }
+              }
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 1200
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check credit",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "credit: expected eq 1200, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/get_record: read the customer by id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/get_record: read the customer by id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.data/get_record - read the customer by id"
+    },
+    {
+      "id": "s39",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.data/update_record - change one field, clear another"
+      },
+      "children": [
+        {
+          "id": "s40",
+          "action": "core/comment",
+          "args": {
+            "text": "Update record changes the fields given; fields not given keep their values and an empty value clears a field."
+          }
+        },
+        {
+          "id": "s41",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s42",
+              "action": "ooa.data/create_record",
+              "args": {
+                "entity": "ut_customers",
+                "values": {
+                  "name": "UT Northwind",
+                  "country": "DE",
+                  "credit": 300
+                }
+              },
+              "out": {
+                "id": "ds_id"
+              }
+            },
+            {
+              "id": "s43",
+              "action": "ooa.data/update_record",
+              "args": {
+                "entity": "ut_customers",
+                "id": "$ds_id$",
+                "values": {
+                  "credit": 900,
+                  "country": ""
+                }
+              },
+              "out": {
+                "record": "ds_record"
+              }
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_n",
+                "value": {
+                  "expr": "$ds_record.credit"
+                }
+              }
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 900
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the changed credit",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the changed credit: expected eq 900, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_text",
+                "value": {
+                  "expr": "$ds_record.name"
+                }
+              }
+            },
+            {
+              "id": "s49",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_text$",
+                  "right": "UT Northwind"
+                }
+              },
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_text",
+              "else": [
+                {
+                  "id": "s51",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_text: expected eq \"UT Northwind\", got ${ds_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$ds_record$",
+                  "right": "country"
+                }
+              },
+              "children": [
+                {
+                  "id": "s53",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the cleared field",
+              "else": [
+                {
+                  "id": "s54",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the cleared field: expected notContains \"country\", got ${ds_record}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/update_record: change one field, clear another\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/update_record: change one field, clear another: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.data/update_record - change one field, clear another"
+    },
+    {
+      "id": "s59",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.data/query_records - filter, sort and count"
+      },
+      "children": [
+        {
+          "id": "s60",
+          "action": "core/comment",
+          "args": {
+            "text": "Query records gives the records matching every filter, sorted, as a table and a list. The three test customers made by the cases above, sorted by credit from the highest, start with Contoso; with a second filter (credit over 1000) two are left."
+          }
+        },
+        {
+          "id": "s61",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s62",
+              "action": "ooa.data/query_records",
+              "args": {
+                "entity": "ut_customers",
+                "filters": [
+                  {
+                    "field": "name",
+                    "op": "starts_with",
+                    "value": "UT "
+                  }
+                ],
+                "sort_by": "credit",
+                "descending": true
+              },
+              "out": {
+                "table": "ds_table",
+                "records": "ds_records",
+                "total": "ds_total"
+              }
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_total$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check test records",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "test records: expected eq 3, got ${ds_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_text",
+                "value": {
+                  "expr": "$ds_records[0].name"
+                }
+              }
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_text$",
+                  "right": "UT Contoso"
+                }
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_text",
+              "else": [
+                {
+                  "id": "s69",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_text: expected eq \"UT Contoso\", got ${ds_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "ooa.data/query_records",
+              "args": {
+                "entity": "ut_customers",
+                "filters": [
+                  {
+                    "field": "name",
+                    "op": "starts_with",
+                    "value": "UT "
+                  },
+                  {
+                    "field": "credit",
+                    "op": ">",
+                    "value": 1000
+                  }
+                ]
+              },
+              "out": {
+                "total": "ds_total",
+                "table": "ds_table"
+              }
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_total$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check records with credit over 1000",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "records with credit over 1000: expected eq 2, got ${ds_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_n",
+                "value": {
+                  "expr": "len($ds_table)"
+                }
+              }
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check table rows",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "table rows: expected eq 2, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/query_records: filter, sort and count\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/query_records: filter, sort and count: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.data/query_records - filter, sort and count"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.data/delete_record - delete every test customer; a second delete changes nothing"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete record removes a record (deleted true); deleting it again changes nothing (deleted false). All test customers are removed, and a query finds none."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.data/create_record",
+              "args": {
+                "entity": "ut_customers",
+                "values": {
+                  "name": "UT Temporary"
+                }
+              },
+              "out": {
+                "id": "ds_id2"
+              }
+            },
+            {
+              "id": "s86",
+              "action": "ooa.data/delete_record",
+              "args": {
+                "entity": "ut_customers",
+                "id": "$ds_id2$"
+              },
+              "out": {
+                "deleted": "ds_deleted"
+              }
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_deleted$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_deleted",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_deleted: expected eq true, got ${ds_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "ooa.data/delete_record",
+              "args": {
+                "entity": "ut_customers",
+                "id": "$ds_id2$"
+              },
+              "out": {
+                "deleted": "ds_deleted"
+              }
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_deleted$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_deleted",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_deleted: expected eq false, got ${ds_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "ooa.data/query_records",
+              "args": {
+                "entity": "ut_customers",
+                "filters": [
+                  {
+                    "field": "name",
+                    "op": "starts_with",
+                    "value": "UT "
+                  }
+                ]
+              },
+              "out": {
+                "records": "ds_records"
+              },
+              "description": "Find the test records"
+            },
+            {
+              "id": "s95",
+              "action": "core/loop",
+              "args": {
+                "iterator": "list",
+                "over": "$ds_records$",
+                "as": "ds_rec"
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "ooa.data/delete_record",
+                  "args": {
+                    "entity": "ut_customers",
+                    "id": "$ds_rec.id$"
+                  }
+                }
+              ],
+              "description": "Delete each test record"
+            },
+            {
+              "id": "s97",
+              "action": "ooa.data/query_records",
+              "args": {
+                "entity": "ut_customers",
+                "filters": [
+                  {
+                    "field": "name",
+                    "op": "starts_with",
+                    "value": "UT "
+                  }
+                ]
+              },
+              "out": {
+                "total": "ds_total"
+              }
+            },
+            {
+              "id": "s98",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_total$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check test records left",
+              "else": [
+                {
+                  "id": "s100",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "test records left: expected eq 0, got ${ds_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/delete_record: delete every test customer; a second delete changes nothing\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/delete_record: delete every test customer; a second delete changes nothing: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.data/delete_record - delete every test customer; a second delete changes nothing"
+    },
+    {
+      "id": "s105",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.data/upload_file - put a file at a path in the bucket"
+      },
+      "children": [
+        {
+          "id": "s106",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload file puts a file from the run's folder into a bucket at the path given, and gives back the path and its size in bytes."
+          }
+        },
+        {
+          "id": "s107",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s108",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut-data/invoice.txt",
+                "text": "Invoice INV-77 total 120.50"
+              },
+              "description": "A small file to upload"
+            },
+            {
+              "id": "s109",
+              "action": "ooa.data/upload_file",
+              "args": {
+                "file": "ut-data/invoice.txt",
+                "bucket": "ut_files",
+                "path": "ut/2026/invoice.txt"
+              },
+              "out": {
+                "path": "ds_path",
+                "bytes": "ds_n"
+              }
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_path$",
+                  "right": "ut/2026/invoice.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_path",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_path: expected eq \"ut/2026/invoice.txt\", got ${ds_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 27
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bytes",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bytes: expected eq 27, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/upload_file: put a file at a path in the bucket\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/upload_file: put a file at a path in the bucket: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.data/upload_file - put a file at a path in the bucket"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.data/upload_file - no overwrite when asked"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "With overwrite off, a path the bucket already has is refused with DATA.EXISTS."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.data/upload_file",
+              "args": {
+                "file": "ut-data/invoice.txt",
+                "bucket": "ut_files",
+                "path": "ut/2026/invoice.txt"
+              }
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s125",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "ooa.data/upload_file",
+                  "args": {
+                    "file": "ut-data/invoice.txt",
+                    "bucket": "ut_files",
+                    "path": "ut/2026/invoice.txt",
+                    "overwrite": false
+                  }
+                }
+              ],
+              "description": "These steps should fail with DATA.EXISTS",
+              "catch": [
+                {
+                  "codes": [
+                    "DATA.EXISTS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s127",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATA.EXISTS",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATA.EXISTS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/upload_file: no overwrite when asked\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/upload_file: no overwrite when asked: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.data/upload_file - no overwrite when asked"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.data/list_files - files under a prefix"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "List files gives the bucket's files whose path starts with the prefix, as a table and a list of paths."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.data/upload_file",
+              "args": {
+                "file": "ut-data/invoice.txt",
+                "bucket": "ut_files",
+                "path": "ut/2026/second.txt"
+              }
+            },
+            {
+              "id": "s139",
+              "action": "ooa.data/list_files",
+              "args": {
+                "bucket": "ut_files",
+                "prefix": "ut/2026/"
+              },
+              "out": {
+                "files": "ds_files",
+                "paths": "ds_paths"
+              }
+            },
+            {
+              "id": "s140",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ds_paths$",
+                  "right": "ut/2026/invoice.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the paths",
+              "else": [
+                {
+                  "id": "s142",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the paths: expected contains \"ut/2026/invoice.txt\", got ${ds_paths}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s143",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ds_paths$",
+                  "right": "ut/2026/second.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the paths",
+              "else": [
+                {
+                  "id": "s145",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the paths: expected contains \"ut/2026/second.txt\", got ${ds_paths}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_n",
+                "value": {
+                  "expr": "len($ds_files)"
+                }
+              }
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files listed",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files listed: expected eq 2, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/list_files: files under a prefix\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/list_files: files under a prefix: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.data/list_files - files under a prefix"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.data/download_file - save a bucket file in the run's folder"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Download file saves a file from the bucket where asked; its text is what was uploaded."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "ooa.data/download_file",
+              "args": {
+                "bucket": "ut_files",
+                "path": "ut/2026/invoice.txt",
+                "save_as": "ut-data/downloaded.txt"
+              },
+              "out": {
+                "file": "ds_file"
+              }
+            },
+            {
+              "id": "s158",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$ds_file$"
+              },
+              "out": {
+                "text": "ds_text"
+              }
+            },
+            {
+              "id": "s159",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_text$",
+                  "right": "Invoice INV-77 total 120.50"
+                }
+              },
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_text",
+              "else": [
+                {
+                  "id": "s161",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_text: expected eq \"Invoice INV-77 total 120.50\", got ${ds_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/download_file: save a bucket file in the run's folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/download_file: save a bucket file in the run's folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.data/download_file - save a bucket file in the run's folder"
+    },
+    {
+      "id": "s166",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.data/delete_file - tidy up the bucket"
+      },
+      "children": [
+        {
+          "id": "s167",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete file removes a file from the bucket (deleted true, then false for one that is gone); both test files are removed and the prefix lists nothing."
+          }
+        },
+        {
+          "id": "s168",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s169",
+              "action": "ooa.data/delete_file",
+              "args": {
+                "bucket": "ut_files",
+                "path": "ut/2026/invoice.txt"
+              },
+              "out": {
+                "deleted": "ds_deleted"
+              }
+            },
+            {
+              "id": "s170",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_deleted$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s171",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_deleted",
+              "else": [
+                {
+                  "id": "s172",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_deleted: expected eq true, got ${ds_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "ooa.data/delete_file",
+              "args": {
+                "bucket": "ut_files",
+                "path": "ut/2026/second.txt"
+              }
+            },
+            {
+              "id": "s174",
+              "action": "ooa.data/delete_file",
+              "args": {
+                "bucket": "ut_files",
+                "path": "ut/2026/invoice.txt"
+              },
+              "out": {
+                "deleted": "ds_deleted"
+              }
+            },
+            {
+              "id": "s175",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_deleted$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_deleted",
+              "else": [
+                {
+                  "id": "s177",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_deleted: expected eq false, got ${ds_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s178",
+              "action": "ooa.data/list_files",
+              "args": {
+                "bucket": "ut_files",
+                "prefix": "ut/"
+              },
+              "out": {
+                "paths": "ds_paths"
+              }
+            },
+            {
+              "id": "s179",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "empty",
+                  "left": "$ds_paths$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files left",
+              "else": [
+                {
+                  "id": "s181",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files left: expected empty , got ${ds_paths}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s182",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s183",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.data/delete_file: tidy up the bucket\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s184",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s185",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.data/delete_file: tidy up the bucket: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.data/delete_file - tidy up the bucket"
+    },
+    {
+      "id": "s186",
+      "action": "core/step",
+      "args": {
+        "title": "11. Summary"
+      },
+      "children": [
+        {
+          "id": "s187",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s188",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s189",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s190",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "11. Summary"
+    }
+  ]
+}

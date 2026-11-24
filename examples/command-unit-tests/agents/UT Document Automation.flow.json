@@ -1,0 +1,1799 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_documents",
+  "name": "UT Document Automation",
+  "description": "Unit tests of every Document Automation command: send a made-up invoice to the live process ut_invoices, wait for it, read, correct, list, mark collected and download the results. Needs One CommandCenter.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "dc_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dc_id2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dc_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dc_fields",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "dc_done",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "dc_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dc_ids",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "dc_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "dc_path",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dc_deleted",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "dc_review",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "dc_table",
+      "type": "Table",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Document Automation command: send a made-up invoice to the live process ut_invoices, wait for it, read, correct, list, mark collected and download the results. Needs One CommandCenter."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Document Automation started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.documents/send - send an invoice and wait until it is read"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Send document sends a PDF to a live Document Automation process; with wait on it comes back once read, with its id, status and the fields read. The made-up invoice is written first."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut-docs/ut-invoice.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 231 >>\nstream\nBT /F1 12 Tf 72 760 Td 16 TL (UT Supplies Ltd) Tj T* (Invoice number: INV-UT-1) Tj T* (Invoice date: 2026-11-20) Tj T* (PO number: PO-4711) Tj T* (Currency: EUR) Tj T* (Net: 100.00) Tj T* (Tax: 20.50) Tj T* (Total: 120.50) Tj T* ET\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000523 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n593\n%%EOF\n"
+              },
+              "description": "Write the made-up invoice PDF"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.documents/send",
+              "args": {
+                "process": "ut_invoices",
+                "path": "ut-docs/ut-invoice.pdf",
+                "wait": true
+              },
+              "out": {
+                "document_id": "dc_id",
+                "status": "dc_status",
+                "fields": "dc_fields",
+                "needs_review": "dc_review"
+              }
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$dc_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the document id",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the document id: expected notEmpty , got ${dc_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "in",
+                  "left": "$dc_status$",
+                  "right": [
+                    "success",
+                    "validation"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check status",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "status: expected in [\"success\", \"validation\"], got ${dc_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dc_fields$",
+                  "right": "invoice_number"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the fields read",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the fields read: expected contains \"invoice_number\", got ${dc_fields}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/send: send an invoice and wait until it is read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/send: send an invoice and wait until it is read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.documents/send - send an invoice and wait until it is read"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.documents/send - only PDF and pictures are sent"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Send document refuses other files before sending anything: a .txt fails with DOCS.FILE_TYPE."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut-docs/notes.txt",
+                "text": "not a document"
+              }
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s56",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "ooa.documents/send",
+                  "args": {
+                    "process": "ut_invoices",
+                    "path": "ut-docs/notes.txt"
+                  }
+                }
+              ],
+              "description": "These steps should fail with DOCS.FILE_TYPE",
+              "catch": [
+                {
+                  "codes": [
+                    "DOCS.FILE_TYPE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s58",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DOCS.FILE_TYPE",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DOCS.FILE_TYPE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/send: only PDF and pictures are sent\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/send: only PDF and pictures are sent: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.documents/send - only PDF and pictures are sent"
+    },
+    {
+      "id": "s66",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.documents/wait_for_document - send without waiting, then wait until read"
+      },
+      "children": [
+        {
+          "id": "s67",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for document waits until a document sent without waiting is read, then gives its result: done, and the file name sent."
+          }
+        },
+        {
+          "id": "s68",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s69",
+              "action": "ooa.documents/send",
+              "args": {
+                "process": "ut_invoices",
+                "path": "ut-docs/ut-invoice.pdf"
+              },
+              "out": {
+                "document_id": "dc_id2"
+              }
+            },
+            {
+              "id": "s70",
+              "action": "ooa.documents/wait_for_document",
+              "args": {
+                "document_id": "$dc_id2$",
+                "until": "read",
+                "timeout_seconds": 600,
+                "check_every_seconds": 5
+              },
+              "out": {
+                "done": "dc_done",
+                "file_name": "dc_text"
+              }
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_done$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_done",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_done: expected eq true, got ${dc_done}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_text$",
+                  "right": "ut-invoice.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_text",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_text: expected eq \"ut-invoice.pdf\", got ${dc_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/wait_for_document: send without waiting, then wait until read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/wait_for_document: send without waiting, then wait until read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.documents/wait_for_document - send without waiting, then wait until read"
+    },
+    {
+      "id": "s81",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.documents/get_result - status, fields and confidence by id"
+      },
+      "children": [
+        {
+          "id": "s82",
+          "action": "core/comment",
+          "args": {
+            "text": "Get result reads a document's status and what was read, by its id: done, the invoice number INV-UT-1 and a confidence for it."
+          }
+        },
+        {
+          "id": "s83",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s84",
+              "action": "ooa.documents/get_result",
+              "args": {
+                "document_id": "$dc_id$"
+              },
+              "out": {
+                "done": "dc_done",
+                "fields": "dc_fields"
+              }
+            },
+            {
+              "id": "s85",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_done$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_done",
+              "else": [
+                {
+                  "id": "s87",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_done: expected eq true, got ${dc_done}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "dc_text",
+                "value": {
+                  "expr": "$dc_fields.invoice_number"
+                }
+              }
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dc_text$",
+                  "right": "INV-UT-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the invoice number read",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the invoice number read: expected contains \"INV-UT-1\", got ${dc_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/get_result: status, fields and confidence by id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/get_result: status, fields and confidence by id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.documents/get_result - status, fields and confidence by id"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.documents/update_result - corrected values count as an approval"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Update result writes corrected field values back; they are kept as a review by the run's user, so the document is then approved (validated) with the corrected values."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s99",
+              "action": "ooa.documents/update_result",
+              "args": {
+                "document_id": "$dc_id$",
+                "fields": {
+                  "invoice_number": "INV-UT-1",
+                  "total": 120.5
+                }
+              },
+              "out": {
+                "status": "dc_status",
+                "fields": "dc_fields"
+              }
+            },
+            {
+              "id": "s100",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_status$",
+                  "right": "validated"
+                }
+              },
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_status",
+              "else": [
+                {
+                  "id": "s102",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_status: expected eq \"validated\", got ${dc_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s103",
+              "action": "ooa.documents/get_result",
+              "args": {
+                "document_id": "$dc_id$"
+              },
+              "out": {
+                "reviewed": "dc_review",
+                "fields": "dc_fields"
+              }
+            },
+            {
+              "id": "s104",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_review$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_review",
+              "else": [
+                {
+                  "id": "s106",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_review: expected eq true, got ${dc_review}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "dc_n",
+                "value": {
+                  "expr": "$dc_fields.total"
+                }
+              }
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_n$",
+                  "right": 120.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the corrected total",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the corrected total: expected eq 120.5, got ${dc_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/update_result: corrected values count as an approval\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/update_result: corrected values count as an approval: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.documents/update_result - corrected values count as an approval"
+    },
+    {
+      "id": "s115",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.documents/list_finished - the approved invoice is listed for a new collector"
+      },
+      "children": [
+        {
+          "id": "s116",
+          "action": "core/comment",
+          "args": {
+            "text": "List finished documents lists the process's documents that need nothing more and that this collector has not collected; the approved invoice is among them."
+          }
+        },
+        {
+          "id": "s117",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s118",
+              "action": "ooa.documents/list_finished",
+              "args": {
+                "process": "ut_invoices",
+                "collector": "ut_collector"
+              },
+              "out": {
+                "document_ids": "dc_ids",
+                "count": "dc_n",
+                "documents": "dc_table"
+              }
+            },
+            {
+              "id": "s119",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dc_ids$",
+                  "right": "$dc_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the listed ids",
+              "else": [
+                {
+                  "id": "s121",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the listed ids: expected contains \"dc_id\", got ${dc_ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$dc_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check documents listed",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "documents listed: expected ge 1, got ${dc_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/list_finished: the approved invoice is listed for a new collector\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/list_finished: the approved invoice is listed for a new collector: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.documents/list_finished - the approved invoice is listed for a new collector"
+    },
+    {
+      "id": "s129",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.documents/mark_collected - mark once; the second time it was already collected"
+      },
+      "children": [
+        {
+          "id": "s130",
+          "action": "core/comment",
+          "args": {
+            "text": "Mark collected marks documents for a collector: marked 1 the first time, already_collected 1 the second; then List finished documents leaves it out for that collector."
+          }
+        },
+        {
+          "id": "s131",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s132",
+              "action": "ooa.documents/mark_collected",
+              "args": {
+                "document_ids": [
+                  "$dc_id$"
+                ],
+                "collector": "ut_collector"
+              },
+              "out": {
+                "marked": "dc_n"
+              }
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check marked",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "marked: expected eq 1, got ${dc_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "ooa.documents/mark_collected",
+              "args": {
+                "document_ids": "$dc_id$",
+                "collector": "ut_collector"
+              },
+              "out": {
+                "already_collected": "dc_n"
+              }
+            },
+            {
+              "id": "s137",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check already collected",
+              "else": [
+                {
+                  "id": "s139",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "already collected: expected eq 1, got ${dc_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s140",
+              "action": "ooa.documents/list_finished",
+              "args": {
+                "process": "ut_invoices",
+                "collector": "ut_collector"
+              },
+              "out": {
+                "document_ids": "dc_ids"
+              }
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$dc_ids$",
+                  "right": "$dc_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the listed ids",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the listed ids: expected notContains \"dc_id\", got ${dc_ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/mark_collected: mark once; the second time it was already collected\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/mark_collected: mark once; the second time it was already collected: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.documents/mark_collected - mark once; the second time it was already collected"
+    },
+    {
+      "id": "s148",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.documents/download - results as JSON, kept in Document Automation"
+      },
+      "children": [
+        {
+          "id": "s149",
+          "action": "core/comment",
+          "args": {
+            "text": "Download saves a document's results to a folder; with delete_after off the document stays. The JSON holds the corrected invoice number."
+          }
+        },
+        {
+          "id": "s150",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s151",
+              "action": "ooa.documents/download",
+              "args": {
+                "document_id": "$dc_id$",
+                "kind": "json",
+                "folder": "ut-docs/out",
+                "delete_after": false
+              },
+              "out": {
+                "path": "dc_path",
+                "deleted": "dc_deleted"
+              }
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_deleted$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_deleted",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_deleted: expected eq false, got ${dc_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$dc_path$"
+              },
+              "out": {
+                "text": "dc_text"
+              }
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dc_text$",
+                  "right": "INV-UT-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the JSON",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the JSON: expected contains \"INV-UT-1\", got ${dc_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/download: results as JSON, kept in Document Automation\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/download: results as JSON, kept in Document Automation: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.documents/download - results as JSON, kept in Document Automation"
+    },
+    {
+      "id": "s163",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.documents/download - tidy up: CSV results, then the documents are deleted"
+      },
+      "children": [
+        {
+          "id": "s164",
+          "action": "core/comment",
+          "args": {
+            "text": "Download with delete_after on (the default) saves the results and deletes the document from Document Automation; both test documents are removed this way."
+          }
+        },
+        {
+          "id": "s165",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s166",
+              "action": "ooa.documents/download",
+              "args": {
+                "document_id": "$dc_id$",
+                "kind": "csv",
+                "folder": "ut-docs/out"
+              },
+              "out": {
+                "deleted": "dc_deleted",
+                "path": "dc_path"
+              }
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_deleted$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_deleted",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_deleted: expected eq true, got ${dc_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$dc_path$",
+                  "right": ".csv"
+                }
+              },
+              "children": [
+                {
+                  "id": "s171",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file",
+              "else": [
+                {
+                  "id": "s172",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file: expected endsWith \".csv\", got ${dc_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "ooa.documents/download",
+              "args": {
+                "document_id": "$dc_id2$",
+                "kind": "original",
+                "folder": "ut-docs/out"
+              },
+              "out": {
+                "deleted": "dc_deleted"
+              }
+            },
+            {
+              "id": "s174",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dc_deleted$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s175",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dc_deleted",
+              "else": [
+                {
+                  "id": "s176",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dc_deleted: expected eq true, got ${dc_deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.documents/download: tidy up: CSV results, then the documents are deleted\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.documents/download: tidy up: CSV results, then the documents are deleted: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.documents/download - tidy up: CSV results, then the documents are deleted"
+    },
+    {
+      "id": "s181",
+      "action": "core/step",
+      "args": {
+        "title": "10. Summary"
+      },
+      "children": [
+        {
+          "id": "s182",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s183",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s184",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s185",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "10. Summary"
+    }
+  ]
+}

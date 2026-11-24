@@ -1,0 +1,458 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_ai_skills",
+  "name": "UT Prompt Skills",
+  "description": "Unit tests of every Prompt Skill command against the stand-in model: list the skills and run a text skill and a JSON skill.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Prompt Skill command against the stand-in model: list the skills and run a text skill and a JSON skill."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Prompt Skills started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.ai_skills/run - a saved prompt template filled with values"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.ai_skills/run (a saved prompt template filled with values) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ai-skills/summarise_complaint.json",
+                "text": "{\"description\": \"One-line summary\", \"system\": \"Be brief.\", \"prompt\": \"Summarise this complaint: ${text}\", \"provider\": \"openai_compatible\", \"model\": \"m\", \"output\": \"text\"}"
+              },
+              "description": "Prepare the test file ai-skills/summarise_complaint.json"
+            },
+            {
+              "action": "ooa.ai_skills/run",
+              "args": {
+                "skill": "summarise_complaint",
+                "values": {
+                  "text": "My parcel came two weeks late and I want my money back"
+                },
+                "base_url": "{mock}",
+                "api_key": "$tok"
+              },
+              "out": {
+                "text": "s",
+                "success": "ok"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "Late delivery, wants a refund."
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"Late delivery, wants a refund.\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_skills/run: a saved prompt template filled with values\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s18",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_skills/run: a saved prompt template filled with values: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.ai_skills/run - a saved prompt template filled with values"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.ai_skills/list - the saved skills"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.ai_skills/list (the saved skills) and checks its result."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ai-skills/summarise_complaint.json",
+                "text": "{\"description\": \"One-line summary\", \"prompt\": \"Summarise: ${text}\", \"provider\": \"openai\", \"model\": \"m\"}"
+              },
+              "description": "Prepare the test file ai-skills/summarise_complaint.json"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 0
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.ai_skills/list",
+              "args": {},
+              "out": {
+                "skills": "all"
+              },
+              "id": "s24"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($all)"
+                }
+              },
+              "id": "s25"
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_skills/list: the saved skills\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_skills/list: the saved skills: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.ai_skills/list - the saved skills"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "3. Summary"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s36",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s37",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "3. Summary"
+    }
+  ]
+}
