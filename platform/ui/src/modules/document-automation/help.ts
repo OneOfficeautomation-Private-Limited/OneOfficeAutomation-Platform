@@ -61,7 +61,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     steps: [
       "In step 1, choose a process, or click New process.",
       "In step 2, set where documents come in. Upload files to try it, even on a draft.",
-      "Keep Read e-invoice data first on for ZATCA and GST invoices.",
+      "Keep Read e-invoice data first on for e-invoices (Peppol, Factur-X, ZUGFeRD, XRechnung, ZATCA, India GST and others).",
       "In step 3, choose the document type and check its fields on the same screen.",
       "In step 6, give important fields, such as the total, a stricter threshold.",
       "Click Save draft as you go. On a live process, Save changes applies at once.",
@@ -131,7 +131,7 @@ export const HINTS = {
   recognise: "DocFlow finds out what each document is and sends it to the matching process.",
   reviewReject: "The document is marked as rejected and nothing is delivered.",
   changeType: "Read the document again as another document type.",
-  einvoiceFirst: "Uses the invoice's own XML instead of OCR, and checks the values read against its QR code.",
+  einvoiceFirst: "Uses an e-invoice's own XML instead of reading the page, and checks the values read against its QR code. Choose which standards below; all by default.",
   fieldThresholds: "A field listed here goes to review under its own confidence, not the one above.",
   wronglyAutoApproved: "Went straight through with a wrong value, so no one checked it. Keep this at 0.",
   addToTestSet: "Copies this document and its approved values into a test set, to test engines on it later.",

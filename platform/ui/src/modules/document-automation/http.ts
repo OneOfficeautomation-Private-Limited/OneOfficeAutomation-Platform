@@ -3,7 +3,7 @@ import {
   INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
-  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList,
+  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
 } from "./api";
@@ -37,7 +37,7 @@ interface DfFlow {
   classify: { mode: "single" | "auto"; split: boolean; minScore?: number }; engine: { option: string; ocrProvider: string; extractionProvider: string };
   review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number> }; rules: DfRule[];
   deliveries: DfDelivery[];
-  intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean }; updatedAt: string;
+  intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[] }; updatedAt: string;
   stats?: Stats; docTypeNames?: string[];
 }
 interface DfFlag { rule: string; type: string; action: string; message: string; field?: string | null }
@@ -49,7 +49,7 @@ interface DfDocRow {
 /** Where a value is on the pages (docauto/grounding.py locations()); rows only for table fields. */
 interface DfPlace { page: number | null; bbox: { x: number; y: number; w: number; h: number } | null; grounded: boolean | null; groundedBy?: string | null }
 interface DfLocation extends DfPlace { rows?: (DfPlace & { row: number; cells: Record<string, DfPlace> })[] }
-interface DfEInvoice { source: string; values: Record<string, unknown>; checks?: { field: string; qr: unknown; read: unknown; result: "match" | "mismatch" | "differs" | "filled" }[] }
+interface DfEInvoice { source: string; standard?: string; values: Record<string, unknown>; checks?: { field: string; qr: unknown; read: unknown; result: "match" | "mismatch" | "differs" | "filled" }[] }
 /**
  * Why a document went to review (docauto/scoring.py review_reasons, plus DocFlow's rules): field null = the whole document.
  * reason: low_confidence | required_missing | validation | not_grounded | check_failed | document_confidence | rule | unclassified.
@@ -459,7 +459,7 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   private einvoiceOf(e: DfEInvoice, label: (field: string) => string): EInvoice {
     return {
-      source: e.source,
+      source: e.source, standard: e.standard,
       values: Object.fromEntries(Object.entries(e.values ?? {}).filter(([, v]) => v === null || typeof v !== "object").map(([k, v]) => [k, cell(v)])),
       checks: (e.checks ?? []).map((c) => ({ field: c.field, label: label(c.field), qr: text(c.qr), read: text(c.read), result: c.result })),
     };
@@ -551,7 +551,7 @@ export class HttpDocFlowApi implements DocFlowApi {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
         extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
         email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
-        einvoiceFirst: f.intake.einvoiceFirst ?? true, fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
+        einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
       },
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
         ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}) })),
@@ -569,7 +569,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const s = d.settings;
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
       ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
-      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst },
+      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [] },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split },
       engine: { ...cur.engine, extractionProvider: s.extraction },
       review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds },
@@ -636,6 +636,10 @@ export class HttpDocFlowApi implements DocFlowApi {
     return docTypeOf({ id: "", name: p.name, description: "", category: "custom", languages: p.languages, keywords: p.keywords, checks: [], version: 0, createdAt: "",
       learning: { enabled: true, aliases: {} }, fields: p.fields.filter((x) => !x.suggestOff).map((x) => ({ ...x, aliases: x.aliases ?? [], columns: x.columns ?? [] })) },
     new Set(), []);
+  }
+
+  async einvoiceStandards(): Promise<EInvoiceStandard[]> {
+    return this.call<EInvoiceStandard[]>("GET", "/df/einvoice-standards").catch(() => []);   // an older DocFlow: none listed
   }
 
   async languages(): Promise<Language[]> {

@@ -346,7 +346,7 @@ describe("Document Automation", () => {
   it("reads e-invoice data first in step 2 and gives fields their own review threshold in step 6", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    const einvoice = within(intake).getByRole("switch", { name: "Read e-invoice data first (ZATCA XML, QR codes)" });
+    const einvoice = within(intake).getByRole("switch", { name: "Read e-invoice data first" });
     expect(einvoice.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(einvoice);
     expect(einvoice.getAttribute("aria-checked")).toBe("false");
@@ -722,19 +722,10 @@ describe("Document Automation", () => {
   });
 
   it("has common format patterns that accept their examples and refuse near misses", () => {
-    const ok: Record<string, string[]> = {
-      digits: ["004512"], amount: ["1,250.00", "99.50", "-12.30", "1250.00"], "date-iso": ["2026-11-14"], "date-dmy": ["14/11/2026"],
-      email: ["name@example.com"], phone: ["+966 11 234 5678", "(022) 555-0101"], iban: ["SA0380000000608010167519", "SA03 8000 0000 6080 1016 7519"],
-      "ksa-vat": ["300012345600003"], "iban-sa": ["SA0380000000608010167519"], "ksa-vat-15": ["300012345600003"], "ksa-id": ["1012345678", "A1234567"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
-    };
-    const bad: Record<string, string[]> = {
-      digits: ["12a"], amount: ["12.5", "1,25.00"], "date-iso": ["2026-13-01"], "date-dmy": ["2026-11-14"], email: ["name@"], phone: ["12"],
-      iban: ["sa03"], "ksa-vat": ["300012345600004"], "iban-sa": ["GB12"], "ksa-vat-15": ["12345"], "ksa-id": ["ABC"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
-    };
     for (const f of FORMATS) {
       const re = new RegExp(f.pattern);
-      for (const v of ok[f.id]) expect(re.test(v), `${f.id} accepts ${v}`).toBe(true);
-      for (const v of bad[f.id]) expect(re.test(v), `${f.id} refuses ${v}`).toBe(false);
+      for (const v of f.ok) expect(re.test(v), `${f.id} accepts ${v}`).toBe(true);
+      for (const v of f.bad) expect(re.test(v), `${f.id} refuses ${v}`).toBe(false);
     }
   });
 

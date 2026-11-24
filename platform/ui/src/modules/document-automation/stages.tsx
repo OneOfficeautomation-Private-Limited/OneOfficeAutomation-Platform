@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
 import { FolderField } from "./folderPicker";
 import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle, ChoiceOrOwn, duration } from "./ui";
-import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, TAX_PRESETS, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EInvoiceStandard, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -30,6 +30,32 @@ const SEND_ON: [string, string][] = [
 ];
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
+
+/** Which e-invoice standards a process reads: every one (the default), or those ticked. */
+function EInvoiceStandards({ api, value, onChange }: { api: DocFlowApi; value: string[]; onChange: (v: string[]) => void }) {
+  const [list, setList] = useState<EInvoiceStandard[] | null>(null);
+  useEffect(() => { api.einvoiceStandards().then(setList, () => setList([])); }, [api]);
+  if (!list?.length) return null;
+  const all = !value.length;
+  const toggle = (id: string, on: boolean) => {
+    const cur = all ? list.map((x) => x.id) : value;
+    const next = on ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
+    onChange(next.length === list.length ? [] : next);
+  };
+  return (
+    <details style={{ marginLeft: 46 }}>
+      <summary className="df-small">Standards read: {all ? "all that DocFlow knows" : `${value.length} of ${list.length}`}</summary>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+        {(["xml", "qr"] as const).map((k) => <div key={k}>
+          <div className="df-small"><b>{k === "xml" ? "Read instead of the page (XML)" : "Check what was read (QR codes)"}</b></div>
+          {list.filter((x) => x.kind === k).map((x) => (
+            <label key={x.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="checkbox" checked={all || value.includes(x.id)} onChange={(e) => toggle(x.id, e.target.checked)} />{x.name}</label>))}
+        </div>)}
+      </div>
+    </details>
+  );
+}
 
 export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, processName }:
   { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string; processName?: string }) {
@@ -67,9 +93,10 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
       <button type="button" role="switch" className="df-switch" aria-checked={s.einvoiceFirst} aria-labelledby="df-einvoice-label"
         onClick={() => set({ einvoiceFirst: !s.einvoiceFirst })} />
-      <span><b id="df-einvoice-label">Read e-invoice data first (ZATCA XML, QR codes)</b>
+      <span><b id="df-einvoice-label">Read e-invoice data first</b>
         <span className="df-small" style={{ display: "block" }}>{HINTS.einvoiceFirst}</span></span>
     </div>
+    {s.einvoiceFirst && api && <EInvoiceStandards api={api} value={s.einvoiceStandards ?? []} onChange={(einvoiceStandards) => set({ einvoiceStandards })} />}
     {api && processId && <ProcessMailAccounts api={api} processId={processId} processName={processName} />}
     <div className={`df-way${email?.enabled ? " is-on" : ""}`}>
       <label style={{ display: "flex", gap: 10 }}>
@@ -274,7 +301,7 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
   );
 }
 
-const OPS = [[">", "more than"], [">=", "at least"], ["<", "less than"], ["<=", "at most"], ["==", "exactly"]];
+const OPS = [[">", "more than"], [">=", "at least"], ["<", "less than"], ["<=", "at most"], ["==", "exactly"], ["!=", "not"], ["between", "between"], ["outside", "outside"]];
 
 export function CheckDialog({ open, value, design, tables, onClose, onSave }:
   { open: boolean; value: Check | null; design: ProcessDesign; tables: RefTable[]; onClose: () => void; onSave: (c: Check) => void }) {
@@ -306,13 +333,15 @@ export function CheckDialog({ open, value, design, tables, onClose, onSave }:
     switch (c.type) {
       case "expression": return !!String(p.expression ?? "").trim();
       case "lookup": return !!(p.field && p.table && p.column);
-      case "threshold": return !!p.field && p.value !== "" && !isNaN(Number(p.value));
+      case "threshold": return !!p.field && !isNaN(parseAmount(p.value)) && (p.op !== "between" && p.op !== "outside" || !isNaN(parseAmount(p.value2)));
+      case "pattern": return !!p.field && !!String(p.pattern ?? "").trim() && (() => { try { new RegExp(String(p.pattern)); return true; } catch { return false; } })();
+      case "date_range": return !!p.field && (!!p.notFuture || !!p.notOlderThanDays || !!p.notLaterThanDays);
       case "duplicate": case "required": return ((p.fields as string[] | undefined) ?? []).length > 0;
       default: return true;
     }
   })();
   const save = () => {
-    const params = c.type === "threshold" ? { ...p, value: Number(p.value) } : p;
+    const params = c.type === "threshold" ? { ...p, value: parseAmount(p.value), ...(p.value2 !== undefined && p.value2 !== "" ? { value2: parseAmount(p.value2) } : {}) } : p;
     onSave({ ...c, params, name: c.name.trim() || RULE_KIND[c.type], kind: RULE_KIND[c.type], test: ruleTest(c.type, params) });
   };
   return (
@@ -320,14 +349,48 @@ export function CheckDialog({ open, value, design, tables, onClose, onSave }:
       footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!ready} onClick={save}>Save</Button></>}>
       <div className="df-grid df-g2">
         <Field label="Kind of check">{(id) => <Select id={id} value={c.type} onChange={(e) => setC({ ...c, type: e.target.value as RuleType, params: {} })}
-          options={(Object.keys(RULE_KIND) as RuleType[]).map((k) => ({ value: k, label: RULE_KIND[k] }))} />}</Field>
+          options={(Object.keys(RULE_KIND) as RuleType[]).filter((k) => k !== "ksa_vat" || c.type === "ksa_vat").map((k) => ({ value: k, label: RULE_KIND[k] }))} />}</Field>
         <Field label="Name">{(id) => <TextInput id={id} value={c.name} placeholder={RULE_KIND[c.type]} onChange={(e) => setC({ ...c, name: e.target.value })} />}</Field>
       </div>
       {c.type === "threshold" && (
         <div className="df-grid df-g3">
           {fieldSelect("field", "Field")}
           <Field label="Is">{(id) => <Select id={id} value={String(p.op ?? ">")} onChange={(e) => setP({ op: e.target.value })} options={OPS.map(([value, label]) => ({ value, label }))} />}</Field>
-          <Field label="Amount">{(id) => <TextInput id={id} inputMode="decimal" value={String(p.value ?? "")} onChange={(e) => setP({ value: e.target.value })} />}</Field>
+          <Field label={p.op === "between" || p.op === "outside" ? "From" : "Amount"}>{(id) => <TextInput id={id} inputMode="decimal" value={String(p.value ?? "")} onChange={(e) => setP({ value: e.target.value })} />}</Field>
+          {(p.op === "between" || p.op === "outside") && <Field label="To">{(id) => <TextInput id={id} inputMode="decimal" value={String(p.value2 ?? "")} onChange={(e) => setP({ value2: e.target.value })} />}</Field>}
+        </div>
+      )}
+      {(c.type === "tax" || c.type === "ksa_vat") && <>
+        <div className="df-grid df-g2">
+          <Field label="Country or rules" hint="A preset fills the usual rates and tax id format; you may change both.">
+            {(id) => <Select id={id} value={String(p.preset ?? (c.type === "ksa_vat" ? "ksa" : "custom"))} onChange={(e) => setC({ ...c, type: "tax", params: { ...p, preset: e.target.value } })}
+              options={TAX_PRESETS.map((x) => ({ value: x.id, label: x.name }))} />}
+          </Field>
+          <Field label="Tax rates (optional)" hint="Percentages, comma separated, e.g. 20, 5, 0. Empty: the preset's; none = any rate.">
+            {(id) => <TextInput id={id} value={String(p.rates ?? "")} placeholder="preset rates" onChange={(e) => setP({ rates: e.target.value })} />}
+          </Field>
+        </div>
+        <div className="df-grid df-g2">
+          {fieldSelect("idField", "Tax id field")}
+          <Field label="Tax id format (optional)" hint="A pattern; empty: the preset's.">
+            {(id) => <TextInput id={id} mono value={String(p.idPattern ?? "")} placeholder="preset format" onChange={(e) => setP({ idPattern: e.target.value })} />}
+          </Field>
+        </div>
+        <p className="df-small" style={{ margin: 0 }}>Also checks that the tax is one of the rates of the subtotal, and that subtotal + tax = total (to a cent or 0.1%).</p>
+      </>}
+      {c.type === "pattern" && (
+        <div className="df-grid df-g2">
+          {fieldSelect("field", "Field")}
+          <Field label="Must match" hint="A pattern (regular expression) the whole value must match.">
+            {(id) => <TextInput id={id} mono value={String(p.pattern ?? "")} onChange={(e) => setP({ pattern: e.target.value })} />}
+          </Field>
+        </div>
+      )}
+      {c.type === "date_range" && (
+        <div className="df-grid df-g3">
+          {fieldSelect("field", "Date field")}
+          <Field label="At most this many days old">{(id) => <TextInput id={id} inputMode="numeric" value={String(p.notOlderThanDays ?? "")} placeholder="any age" onChange={(e) => setP({ notOlderThanDays: e.target.value ? Number(e.target.value) : undefined })} />}</Field>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "end" }}><input type="checkbox" checked={!!p.notFuture} onChange={(e) => setP({ notFuture: e.target.checked })} />Not in the future</label>
         </div>
       )}
       {c.type === "lookup" && (
@@ -342,11 +405,10 @@ export function CheckDialog({ open, value, design, tables, onClose, onSave }:
       {c.type === "duplicate" && fieldList("fields", "Same values in these fields means a duplicate")}
       {c.type === "required" && fieldList("fields", "These fields must not be empty")}
       {c.type === "expression" && (
-        <Field label="Must be true" hint="Use the field names, for example abs(subtotal + vat_amount - total) <= 0.05">
+        <Field label="Must be true" hint="Use the field names, for example abs(subtotal + vat_amount - total) <= 0.05; value_or(discount, 0) counts a missing field as 0">
           {(id) => <TextInput id={id} mono value={String(p.expression ?? "")} onChange={(e) => setP({ expression: e.target.value })} />}
         </Field>
       )}
-      {c.type === "ksa_vat" && <p className="df-muted" style={{ margin: 0 }}>Checks the supplier VAT number (15 digits, starts and ends with 3), that VAT is 15% of the subtotal, and that the totals add up.</p>}
       <Field label="If it fails">{(id) => <Select id={id} value={c.ifFails} onChange={(e) => setC({ ...c, ifFails: e.target.value as Check["ifFails"] })}
         options={(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => ({ value: k, label: IF_FAILS[k] }))} />}</Field>
     </Dialog>

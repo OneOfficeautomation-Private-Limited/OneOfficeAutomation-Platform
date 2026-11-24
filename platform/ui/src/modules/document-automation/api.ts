@@ -62,8 +62,10 @@ export interface ReviewTable {
 export interface ReviewCheck { text: string; passed: boolean; detail: string }
 /** One value of the e-invoice QR code compared with what was read from the page. */
 export interface EInvoiceCheck { field: string; label: string; qr: string; read: string; result: "match" | "mismatch" | "differs" | "filled" }
-/** E-invoice data DocFlow read: the invoice's own XML (ZATCA), or a QR code on the page (ZATCA or India GST). */
-export interface EInvoice { source: "einvoice-xml" | "zatca-qr" | "gst-qr" | string; values: Record<string, string>; checks: EInvoiceCheck[] }
+/** E-invoice data DocFlow read: the invoice's own XML, or a QR code on the page. standard: which (UBL, CII, a QR code...), in words. */
+export interface EInvoice { source: "einvoice-xml" | string; standard?: string; values: Record<string, string>; checks: EInvoiceCheck[] }
+/** An e-invoice standard DocFlow reads: "xml" replaces reading the page, "qr" checks what was read. */
+export interface EInvoiceStandard { id: string; name: string; kind: "xml" | "qr" }
 /** A page of the document: its number (as places name it), its image and its size in pixels when known. */
 export interface ReviewPage { number: number; image: string; width?: number; height?: number }
 export interface ReviewTask {
@@ -97,7 +99,7 @@ export function modelName(id: string): string {
 }
 
 /** DocFlow's kinds of check (rules); `params` are DocFlow's own settings for that kind. */
-export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "threshold" | "required" | "expression";
+export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "tax" | "threshold" | "required" | "expression" | "pattern" | "date_range";
 export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
@@ -120,8 +122,10 @@ export type MsSignInState = { status: "pending" } | { status: "signed_in"; accou
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
-  /** Read e-invoice data (ZATCA XML, QR codes) before OCR; on by default. */
+  /** Read e-invoice data (XML, QR codes) before OCR; on by default. */
   einvoiceFirst: boolean;
+  /** The e-invoice standards read (EInvoiceStandard ids); empty: every one DocFlow knows. */
+  einvoiceStandards?: string[];
   /** Stricter (or looser) review thresholds for single fields: {field name: 0–1}, over fieldConfidence. */
   fieldThresholds: Record<string, number>;
 }
@@ -138,8 +142,32 @@ export interface ProcessDesign {
 }
 
 export const RULE_KIND: Record<RuleType, string> = {
-  duplicate: "Duplicate", lookup: "Reference data lookup", ksa_vat: "KSA VAT (ZATCA)", threshold: "Amount threshold", required: "Required fields", expression: "Arithmetic",
+  duplicate: "Duplicate", lookup: "Reference data lookup", tax: "Tax check", ksa_vat: "Tax check (Saudi Arabia)", threshold: "Amount threshold",
+  required: "Required fields", expression: "Arithmetic", pattern: "Format of a field", date_range: "Date check",
 };
+/** Tax check presets as DocFlow has them (GET /df/tax-presets); used when DocFlow does not list them. */
+export const TAX_PRESETS: { id: string; name: string }[] = [
+  { id: "custom", name: "Own rates and format" }, { id: "eu", name: "EU VAT (any member state, standard and reduced rates)" },
+  { id: "uk", name: "United Kingdom VAT" }, { id: "germany", name: "Germany VAT" }, { id: "france", name: "France VAT" },
+  { id: "india-gst", name: "India GST" }, { id: "ksa", name: "Saudi Arabia VAT" }, { id: "uae", name: "UAE VAT" }, { id: "bahrain", name: "Bahrain VAT" },
+  { id: "oman", name: "Oman VAT" }, { id: "australia", name: "Australia GST" }, { id: "new-zealand", name: "New Zealand GST" },
+  { id: "singapore", name: "Singapore GST" }, { id: "canada", name: "Canada GST/HST" }, { id: "japan", name: "Japan consumption tax" },
+];
+
+/** A number as people type it, in any common style: 1,000 · 1.000,50 · 1 000,5 · 1'000.50 → 1000 / 1000.5. NaN when it is none. */
+export function parseAmount(text: unknown): number {
+  let s = String(text ?? "").trim().replace(/[\s'’\u00a0]/g, "");
+  if (!s) return NaN;
+  const last = Math.max(s.lastIndexOf(","), s.lastIndexOf("."));
+  if (last >= 0) {
+    const seps = s.match(/[.,]/g) ?? [];
+    const tail = s.length - last - 1;
+    // one kind of separator before exactly 3 digits (1,000 or 1.000.000) is grouping; otherwise the last one is the decimal mark
+    const grouping = new Set(seps).size === 1 && tail === 3 && (seps.length > 1 || s[last] === ",");
+    s = grouping ? s.replace(/[.,]/g, "") : s.slice(0, last).replace(/[.,]/g, "") + "." + s.slice(last + 1);
+  }
+  return /^[-+]?\d*\.?\d+$/.test(s) ? Number(s) : NaN;
+}
 
 /** What a check tests, in words, from its kind and settings. */
 export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
@@ -148,9 +176,12 @@ export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
   switch (type) {
     case "expression": return t(p.expression);
     case "lookup": return `${t(p.field)} is in "${t(p.table)}" (${t(p.column)})`;
-    case "threshold": return `${t(p.field)} ${t(p.op ?? ">")} ${t(p.value)}`;
+    case "threshold": return p.op === "between" || p.op === "outside" ? `${t(p.field)} ${p.op} ${t(p.value)} and ${t(p.value2)}` : `${t(p.field)} ${t(p.op ?? ">")} ${t(p.value)}`;
     case "duplicate": return `Same ${list(p.fields)} seen before`;
-    case "ksa_vat": return "15-digit VAT number starting and ending with 3; VAT is 15%; totals add up";
+    case "ksa_vat": return "Saudi VAT number format; VAT is 15%; totals add up";
+    case "tax": return `${TAX_PRESETS.find((x) => x.id === (p.preset ?? "custom"))?.name ?? t(p.preset)}${p.rates ? "; rates " + t(p.rates) : ""}; tax id format; totals add up`;
+    case "pattern": return `${t(p.field)} matches ${t(p.pattern)}`;
+    case "date_range": return `${t(p.field)}${p.notFuture ? " not in the future" : ""}${p.notOlderThanDays ? `, at most ${t(p.notOlderThanDays)} days old` : ""}`;
     case "required": return list(p.fields);
   }
 }
@@ -374,6 +405,8 @@ export interface DocFlowApi {
   suggestDocType(files: File[]): Promise<DocType>;
   /** The languages document types can use: the offered ones first, then the others the engines know. */
   languages(): Promise<Language[]>;
+  /** The e-invoice standards DocFlow reads. */
+  einvoiceStandards(): Promise<EInvoiceStandard[]>;
   /** The languages offered for document types (administrators: Engines, Languages). */
   saveOfferedLanguages(codes: string[]): Promise<void>;
 
@@ -809,6 +842,13 @@ export class SampleApi implements DocFlowApi {
       fields: [f("invoice_number", "Invoice number", [], "Text", true), f("invoice_date", "Invoice date", [], "Date", true), f("total", "Total", [], "Amount", true)] };
   }
   private offered = ["en", "ar"];
+  async einvoiceStandards(): Promise<EInvoiceStandard[]> {
+    return [{ id: "ubl", name: "UBL 2.1 XML (Peppol, EN 16931, XRechnung UBL, ZATCA, and others)", kind: "xml" },
+      { id: "cii", name: "CII XML (Factur-X, ZUGFeRD, XRechnung CII)", kind: "xml" }, { id: "zatca-qr", name: "Saudi Arabia ZATCA QR code", kind: "qr" },
+      { id: "gst-qr", name: "India GST e-invoice QR code", kind: "qr" }, { id: "swiss-qr", name: "Swiss QR-bill", kind: "qr" },
+      { id: "epc-qr", name: "SEPA payment QR code (EPC, GiroCode)", kind: "qr" }];
+  }
+
   async languages(): Promise<Language[]> {
     const all = LANGUAGES.map((l) => ({ ...l, engines: [...l.engines], offered: this.offered.includes(l.code) }));
     return [...this.offered.map((c) => all.find((l) => l.code === c)).filter((l): l is Language => !!l), ...all.filter((l) => !l.offered)];

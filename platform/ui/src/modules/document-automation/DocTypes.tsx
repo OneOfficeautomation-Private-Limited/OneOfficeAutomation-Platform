@@ -257,7 +257,7 @@ function FieldDialog({ value, taken, onClose, onSave }: { value: DocTypeField | 
       <div className="df-grid df-g2">
         <Field label="Format check (optional)" hint={format === OWN ? undefined : known ? "Accepts: " + known.accepts : "Any value is accepted."}>
           {(id) => <Select id={id} value={format} onChange={(e) => chooseFormat(e.target.value)}
-            options={[{ value: "", label: "No check" }, ...FORMATS.map((x) => ({ value: x.id, label: x.label })), { value: OWN, label: "Own pattern…" }]} />}
+            options={[{ value: "", label: "No check" }, ...FORMATS.map((x) => ({ value: x.id, label: x.label, group: x.group })), { value: OWN, label: "Own pattern…", group: "Other" }]} />}
         </Field>
         <Field label="When the check fails" hint="Only note it: the value is kept and the note shows with the results.">
           {(id) => <Select id={id} value={f.strictness ?? "error"} disabled={!f.regex} onChange={(e) => setF({ ...f, strictness: e.target.value as CheckStrictness })} options={STRICTNESS} />}

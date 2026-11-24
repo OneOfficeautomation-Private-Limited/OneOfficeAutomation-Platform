@@ -1,8 +1,10 @@
 import type { EInvoice, EInvoiceCheck } from "../api";
 import { Chip, type Tone } from "../ui";
 
+/** The source in words when DocFlow does not name the standard (an older DocFlow). */
 const SOURCE: Record<string, string> = {
-  "einvoice-xml": "ZATCA e-invoice XML", "zatca-qr": "ZATCA QR code on the page", "gst-qr": "India GST e-invoice QR code",
+  "einvoice-xml": "E-invoice XML", "zatca-qr": "ZATCA QR code on the page", "gst-qr": "India GST e-invoice QR code",
+  "swiss-qr": "Swiss QR-bill", "epc-qr": "SEPA payment QR code",
 };
 const RESULT: Record<EInvoiceCheck["result"], { tone: Tone; label: string }> = {
   match: { tone: "ok", label: "Match" }, mismatch: { tone: "bad", label: "Mismatch" },
@@ -15,7 +17,7 @@ export function EInvoicePanel({ einvoice: e }: { einvoice: EInvoice }) {
   return (
     <section className="df-card df-pad" aria-label="E-invoice" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div className="df-head-row" style={{ gap: 8 }}>
-        <b>E-invoice</b><span className="df-muted">{SOURCE[e.source] ?? e.source}</span><span className="df-grow" />
+        <b>E-invoice</b><span className="df-muted">{e.standard ?? SOURCE[e.source] ?? e.source}</span><span className="df-grow" />
         {e.checks.length > 0 && (bad ? <Chip tone="bad">{bad} mismatch{bad > 1 ? "es" : ""}</Chip> : <Chip tone="ok">QR code agrees</Chip>)}
       </div>
       {e.source === "einvoice-xml" && <div className="df-small">The fields come from the invoice's own XML, not from reading the page.</div>}
