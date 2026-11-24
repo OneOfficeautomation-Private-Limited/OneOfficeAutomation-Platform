@@ -168,6 +168,8 @@ class H(BaseHTTPRequestHandler):
             data = json.dumps(payload).encode("utf-8")
         elif payload is None:
             data = b""
+        elif isinstance(payload, (bytes, bytearray)):   # files (pictures, PDFs, downloads) go out unchanged
+            data = bytes(payload)
         else:
             data = str(payload).encode("utf-8")
         self.send_response(status)
