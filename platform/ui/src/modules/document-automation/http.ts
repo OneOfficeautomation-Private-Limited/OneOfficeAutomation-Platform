@@ -175,7 +175,7 @@ const paramsOf = (d: Delivery, old?: DfDelivery): Record<string, unknown> => {
   const keep = { ...(old?.params ?? {}) };
   if (d.type === "start_bot") return { ...keep, bot: d.target, pool: d.pool ?? "" };
   if (d.type === "webhook") return { ...keep, url: d.target, method: d.method ?? "POST", headers: d.headers ?? {} };
-  return { ...keep, path: d.target };
+  return { ...keep, path: d.target, ...(d.type === "folder" ? { searchablePdf: !!d.searchablePdf } : {}) };
 };
 const checkOf = (r: DfRule): Check => ({
   id: r.id, on: r.enabled, name: r.name || RULE_KIND[r.type] || r.type, kind: RULE_KIND[r.type] ?? r.type, test: ruleTest(r.type, r.params ?? {}),
@@ -560,6 +560,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       },
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
         ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}),
+        ...(d.type === "folder" ? { searchablePdf: !!d.params.searchablePdf } : {}),
         ...(d.type === "webhook" ? { method: (String(d.params.method ?? "POST").toUpperCase() as Delivery["method"]), headers: (d.params.headers ?? {}) as Record<string, string> } : {}) })),
     };
     const seen = new Set<string>();

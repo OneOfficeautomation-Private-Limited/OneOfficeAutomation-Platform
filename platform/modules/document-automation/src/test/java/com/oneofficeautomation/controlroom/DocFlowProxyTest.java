@@ -691,7 +691,7 @@ class DocFlowProxyTest {
         assertFalse(DocFlowProxy.documentMatches(Map.of("process", "AP"), e));
         assertFalse(DocFlowProxy.documentMatches(Map.of("doc_type", "Invoice"), Map.of("process_id", "ap")));   // no type known: not a match
         assertEquals("Document needs review", TriggerKinds.KINDS.get(DocFlowProxy.DOCUMENT_EVENTS.get("needs_review")).label());
-        assertEquals(6, DocFlowProxy.DOCUMENT_EVENTS.size());
+        assertEquals(8, DocFlowProxy.DOCUMENT_EVENTS.size());
     }
 
     @Test void startBotAndEventsShareTheDocumentInputs() {

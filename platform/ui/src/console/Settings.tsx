@@ -162,8 +162,11 @@ const SECTIONS: Section[] = [
   { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [
       { key: "docflow_autostart", label: "Start with One CommandCenter", hint: "Starts DocFlow installed on this server, and stops it with One CommandCenter.", kind: "check" },
-      { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085.", kind: "text", placeholder: "http://127.0.0.1:8085" },
+      { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085. A path is allowed behind a reverse proxy.", kind: "text", placeholder: "http://127.0.0.1:8085" },
       { key: "docflow_token_ref", label: "Service token", hint: VAULT_REF, kind: "text", placeholder: "docflow/service/token" }] },
+    { title: "Timing", settings: [
+      { key: "docflow_review_sync_seconds", label: "Look at reviews every", hint: "5 or more; applies after a restart.", unit: "seconds", kind: "number", min: 5, max: 3600 },
+      { key: "docflow_mail_poll_seconds", label: "Look at process email inboxes every", hint: "10 or more; applies after a restart.", unit: "seconds", kind: "number", min: 10, max: 86400 }] },
   ] },
   { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "One CommandCenter's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
     { title: "Outgoing e-mail", settings: [

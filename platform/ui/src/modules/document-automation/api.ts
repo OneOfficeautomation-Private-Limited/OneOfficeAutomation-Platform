@@ -107,7 +107,9 @@ export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
 /** method and headers: a web address delivery's HTTP method (POST by default) and its own headers (an API key header...). */
 export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string;
-  method?: "POST" | "PUT" | "PATCH"; headers?: Record<string, string> }
+  method?: "POST" | "PUT" | "PATCH"; headers?: Record<string, string>;
+  /** Folder deliveries: also save a searchable PDF (the text read is under the page images, so it can be searched and copied). */
+  searchablePdf?: boolean }
 /**
  * A process's email inbox, read by the Command Center: IMAP (kind "email") or Microsoft 365 (kind "outlook"), as email
  * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.

@@ -374,7 +374,8 @@ public final class DocFlowProxy {
             Map<String, Object> d = (Map<String, Object>) raw;
             Map<String, Object> p = d.get("params") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
             String bot = String.valueOf(p.getOrDefault("bot", "")).trim();
-            if (!bot.endsWith(".flow.json")) bot = bot + ".flow.json";
+            // an agent's path; one given without its file kind is an agent flow (other agent kinds keep theirs)
+            if (!bot.matches("(?i).+\\.[a-z]+\\.json$|(?i).+\\.(py|ps1|js)$")) bot = bot + ".flow.json";
             ctx.require(u, "runs.start", "start agents from a document process");
             ctx.requirePathAccess(u.username(), u.role(), bot, "run", "start this agent");
             p.put("bot", bot);
@@ -1098,7 +1099,8 @@ public final class DocFlowProxy {
     static {
         for (String[] e : new String[][] {{"processed", "doc_processed", "Document processed"}, {"needs_review", "doc_needs_review", "Document needs review"},
                 {"approved", "doc_approved", "Review approved"}, {"rejected", "doc_rejected", "Review rejected"},
-                {"delivery_failed", "doc_delivery_failed", "Delivery failed"}, {"review_overdue", "doc_review_overdue", "Review overdue"}}) {
+                {"delivery_failed", "doc_delivery_failed", "Delivery failed"}, {"review_overdue", "doc_review_overdue", "Review overdue"},
+                {"failed", "doc_failed", "Document could not be read"}, {"delivered", "doc_delivered", "Delivery done"}}) {
             DOCUMENT_EVENTS.put(e[0], e[1]);
             EVENT_LABELS.put(e[1], e[2]);
         }

@@ -11,7 +11,7 @@ describe("trigger kinds", () => {
 
   it("has the Document Automation events in their own group, with an optional process and document type", () => {
     expect(TRIGGER_GROUPS.find(([g]) => g === "On Document Automation")?.[1]).toEqual(DOCUMENT_KINDS);
-    expect(DOCUMENT_KINDS.map((k) => KINDS[k].label)).toEqual(["Document processed", "Document needs review", "Review approved", "Review rejected", "Delivery failed", "Review overdue"]);
+    expect(DOCUMENT_KINDS.map((k) => KINDS[k].label)).toEqual(["Document processed", "Document needs review", "Review approved", "Review rejected", "Delivery failed", "Review overdue", "Document could not be read", "Delivery done"]);
     for (const k of DOCUMENT_KINDS) {
       expect(k.length).toBeLessThanOrEqual(20);   // the server keeps the kind in 20 characters
       expect(KINDS[k].fields.map((f) => f[0])).toEqual(["process", "doc_type"]);

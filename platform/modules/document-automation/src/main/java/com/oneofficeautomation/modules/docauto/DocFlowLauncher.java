@@ -43,6 +43,9 @@ final class DocFlowLauncher {
         String h = DocFlowConfig.load(data).getProperty("home", "").trim();
         if (!h.isEmpty()) candidates.add(Path.of(h));
         if (programDir != null) { candidates.add(programDir.resolve("DocFlow")); if (programDir.getParent() != null) candidates.add(programDir.getParent().resolve("DocFlow")); }
+        // the usual install folders, then the developer's checkout (only where it exists)
+        for (String root : new String[] {env.apply("ProgramFiles"), env.apply("LOCALAPPDATA")})
+            if (root != null && !root.isBlank()) candidates.add(Path.of(root, "OneOffice", "DocFlow"));
         candidates.add(Path.of(DEV_HOME));
         for (Path p : candidates)
             if (Files.isRegularFile(p.resolve("config").resolve("local.env")) && Files.isRegularFile(p.resolve("windows").resolve("start.ps1"))) return p;

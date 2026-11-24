@@ -292,6 +292,9 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
         : <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
             {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
           </Field>}
+      {d.type === "folder" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={!!d.searchablePdf} onChange={(e) => setD({ ...d, searchablePdf: e.target.checked })} />
+        Also save a searchable PDF (its text can be searched and copied)</label>}
       {d.type === "webhook" && <div className="df-grid" style={{ gridTemplateColumns: "1fr 3fr", gap: 12 }}>
         <Field label="Method">{(id) => <Select id={id} value={d.method ?? "POST"} onChange={(e) => setD({ ...d, method: e.target.value as Delivery["method"] })}
           options={["POST", "PUT", "PATCH"].map((m) => ({ value: m, label: m }))} />}</Field>

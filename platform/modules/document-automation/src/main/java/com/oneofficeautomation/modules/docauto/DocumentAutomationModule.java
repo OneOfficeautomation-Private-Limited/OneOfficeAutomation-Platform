@@ -55,8 +55,9 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         ctx.defineSetting("docflow_url", "", (v, saas) -> {
             // in the SaaS service the region's operator says where DocFlow is (OOA_DOCFLOW_URL), not the tenant
             if (saas && !v.isEmpty()) throw notInSaas();
-            if (!v.isEmpty() && !v.matches("(?i)https?://[^\\s/?#]+/?"))
-                throw new OoaException("CR.BAD_INPUT", "The Document Automation service is a web address such as http://127.0.0.1:8085");
+            // a host, or a host and a path (DocFlow behind a reverse proxy: https://apps.example.com/docflow)
+            if (!v.isEmpty() && !v.matches("(?i)https?://[^\\s/?#]+(?:/[^\\s?#]*)?"))
+                throw new OoaException("CR.BAD_INPUT", "The Document Automation service is a web address such as http://127.0.0.1:8085 or https://apps.example.com/docflow");
         });
         ctx.defineSetting("docflow_token_ref", "", (v, saas) -> {
             if (saas && !v.isEmpty()) throw notInSaas();
@@ -65,6 +66,13 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         // Settings > Document Automation > Start with One CommandCenter: 1 starts this computer's DocFlow with the platform
         ctx.defineSetting("docflow_autostart", 1, (v, saas) -> {
             if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting 'docflow_autostart' must be 0 or 1");
+        });
+        // how often reviews and the process email inboxes are looked at (seconds; read when One CommandCenter starts)
+        ctx.defineSetting("docflow_review_sync_seconds", 20, (v, saas) -> {
+            if (!v.matches("\\d{1,5}") || Integer.parseInt(v) < 5) throw new OoaException("CR.BAD_INPUT", "Look at reviews every: 5 seconds or more");
+        });
+        ctx.defineSetting("docflow_mail_poll_seconds", 30, (v, saas) -> {
+            if (!v.matches("\\d{1,5}") || Integer.parseInt(v) < 10) throw new OoaException("CR.BAD_INPUT", "Look at email inboxes every: 10 seconds or more");
         });
         // Settings > AI assistants (MCP) > Document Automation tools: 1 offers the documents_ tools, 0 does not
         ctx.defineSetting("mcp_documents", 1, (v, saas) -> {
@@ -82,8 +90,9 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         ctx.agentRoute("docflow/results", docflow::resultsForBot);
         ctx.callbackRoute("docflow-callback/start-bot", docflow::startBot);
         ctx.callbackRoute("docflow-callback/events", docflow::event);
-        ctx.every(Duration.ofSeconds(10), Duration.ofSeconds(20), docflow::syncReviews);
-        ctx.every(Duration.ofSeconds(15), Duration.ofSeconds(30), docflow::pollMail);
+        int rs = ctx.intSetting("docflow_review_sync_seconds"), rm = ctx.intSetting("docflow_mail_poll_seconds");
+        ctx.every(Duration.ofSeconds(10), Duration.ofSeconds(rs <= 0 ? 20 : Math.max(5, rs)), docflow::syncReviews);
+        ctx.every(Duration.ofSeconds(15), Duration.ofSeconds(rm <= 0 ? 30 : Math.max(10, rm)), docflow::pollMail);
 
         // a document review task shows only to people who may see its process's folder, and closes on the review screen
         ctx.taskKind(DocFlowProxy.TASK_KIND, new ModuleContext.TaskKind() {

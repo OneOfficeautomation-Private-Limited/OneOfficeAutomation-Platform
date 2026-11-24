@@ -19,7 +19,9 @@ const DOCUMENT: [kind: string, label: string, when: string][] = [
   ["doc_approved", "Review approved", "a reviewer approves a document"],
   ["doc_rejected", "Review rejected", "a reviewer rejects a document"],
   ["doc_delivery_failed", "Delivery failed", "a process could not deliver a document's results"],
-  ["doc_review_overdue", "Review overdue", "a review is past its process's review target"]];
+  ["doc_review_overdue", "Review overdue", "a review is past its process's review target"],
+  ["doc_failed", "Document could not be read", "a document fails to be read (damaged, password-protected, no engine)"],
+  ["doc_delivered", "Delivery done", "a process has delivered a document's results"]];
 export const DOCUMENT_KINDS = DOCUMENT.map(([k]) => k);
 function documentKinds() {
   const fields: F[] = [["process", "Process (name or id; empty: any process)", "AP invoices"], ["doc_type", "Document type (empty: any type)", "Invoice"]];
