@@ -28,6 +28,7 @@ interface DfFieldDef {
 }
 interface DfDocType {
   id: string; name: string; description: string; category: string; languages: string[]; keywords: string[]; fields: DfFieldDef[];
+  dateOrder?: string | null; decimalMark?: string | null;
   checks: string[]; learning: { enabled: boolean; aliases: Record<string, string[]> }; version: number; createdAt: string;
 }
 interface DfRule { id: string; type: RuleType; name: string; enabled: boolean; action: "review" | "reject" | "warn"; docTypes?: string[]; params: Record<string, unknown> }
@@ -157,6 +158,7 @@ function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow
   const origin = builtIn.has(t.id) ? "built-in" as const : "made-here" as const;
   return {
     id: t.id, name: t.name, origin, usedBy, keywords: t.keywords, languages: t.languages, description: t.description ?? "",
+    dateOrder: t.dateOrder ?? "", decimalMark: t.decimalMark ?? "",
     meta: `${origin === "built-in" ? "Built in" : "Made here"} · ${usedBy.length ? usedBy.length + " process" + (usedBy.length > 1 ? "es" : "") : "not used"}`,
     fields: t.fields.map((x) => ({
       key: x.name, label: (x.label ?? x.name).split(" / ")[0], aliases: [...((x.label ?? "").split(" / ").slice(1)), ...x.aliases],
@@ -618,7 +620,8 @@ export class HttpDocFlowApi implements DocFlowApi {
       };
     });
     const learning = cur ? { ...cur.learning, aliases: Object.fromEntries(t.fields.map((x) => [x.key, x.learned])) } : undefined;
-    const body = { name: t.name, description: t.description ?? cur?.description ?? "", keywords: t.keywords, languages: t.languages, fields, ...(learning ? { learning } : {}) };
+    const body = { name: t.name, description: t.description ?? cur?.description ?? "", keywords: t.keywords, languages: t.languages, fields,
+      dateOrder: t.dateOrder || null, decimalMark: t.decimalMark || null, ...(learning ? { learning } : {}) };
     const saved = t.id
       ? await this.call<DfDocType>("PUT", `/df/doctypes/${encodeURIComponent(t.id)}`, body)
       : await this.call<DfDocType>("POST", "/df/doctypes", { ...body, category: "custom" });

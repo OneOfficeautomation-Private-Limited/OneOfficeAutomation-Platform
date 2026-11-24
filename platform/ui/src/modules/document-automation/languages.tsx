@@ -18,7 +18,7 @@ export function LanguagePicker({ api, value, onChange }: { api: DocFlowApi; valu
       .map((c) => known.find((l) => l.code === c) ?? { code: c, name: c, engines: [], installed: !all, offered: false })];
   return (
     <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-      <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>Languages</legend>
+      <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>Languages{!value.length ? ": none ticked reads every language offered" : ""}</legend>
       <div className="df-langs">
         {shown.map((l) => (
           <label key={l.code} title={l.installed ? "Read by " + readBy(l) : "No engine on this server reads it yet"}>

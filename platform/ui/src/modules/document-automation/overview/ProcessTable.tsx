@@ -14,7 +14,7 @@ function when(iso: string | null): string {
   return d.toDateString() === new Date().toDateString()
     ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString([], { day: "numeric", month: "short" });
 }
-const n = (v: number, tone?: "bad" | "warn") => <span className={`df-num${v && tone ? " df-text-" + tone : ""}`}>{v.toLocaleString("en")}</span>;
+const n = (v: number, tone?: "bad" | "warn") => <span className={`df-num${v && tone ? " df-text-" + tone : ""}`}>{v.toLocaleString()}</span>;
 
 /** The columns: what the process is and how it is set up, then what is happening. */
 const COLS: Col[] = [

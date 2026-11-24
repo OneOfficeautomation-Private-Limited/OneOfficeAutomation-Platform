@@ -76,7 +76,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
           <SearchBox value={listQ} onChange={setListQ} placeholder="Search tables" />
           {list.map((x) => (
             <button key={x.id} type="button" className="df-list-item" aria-current={x.id === t.id} onClick={() => setChosen(x.id)}>
-              <span style={{ display: "flex", gap: 8 }}><b>{x.name}</b><span className="df-grow" /><span className="df-small df-num">{x.rows.toLocaleString("en")}</span></span>
+              <span style={{ display: "flex", gap: 8 }}><b>{x.name}</b><span className="df-grow" /><span className="df-small df-num">{x.rows.toLocaleString()}</span></span>
               <span className="df-small">{x.meta}</span>
             </button>
           ))}
@@ -86,7 +86,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
           <section className="df-card df-pad" aria-label={t.name}>
             <div className="df-head-row">
               <b style={{ fontSize: 16 }}>{t.name}</b>
-              <span className="df-muted">{t.rows.toLocaleString("en")} rows · {t.columns.length} columns</span>
+              <span className="df-muted">{t.rows.toLocaleString()} rows · {t.columns.length} columns</span>
               <span className="df-grow" />
               <Button onClick={download}>Download</Button>
               <Button onClick={() => setUploading(t)}>Replace with a new file</Button>
@@ -101,7 +101,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
 
           <section className="df-card" aria-label="Rows" style={{ overflow: "hidden" }}>
             <FilterBar onClear={() => { setQ(""); setColumn("all"); setFacets({}); }}
-              count={rows ? `${shown.length} of ${t.rows.toLocaleString("en")} rows${loaded.length < t.rows ? ` (first ${loaded.length} shown)` : ""}` : undefined}>
+              count={rows ? `${shown.length} of ${t.rows.toLocaleString()} rows${loaded.length < t.rows ? ` (first ${loaded.length} shown)` : ""}` : undefined}>
               <SearchBox value={q} onChange={setQ} placeholder="Search the rows" />
               <FilterSelect label="Search in" value={column} onChange={setColumn} options={[{ value: "all", label: "All columns" }, ...t.columns.map((c) => ({ value: c, label: c }))]} />
               {facetColumns.map((c) => <FilterSelect key={c} label={c} value={facets[c] ?? "all"} onChange={(v) => setFacets({ ...facets, [c]: v })}

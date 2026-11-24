@@ -232,6 +232,8 @@ export interface DocTypeField {
 export interface DocType {
   id: string; name: string; origin: "built-in" | "made-here"; meta: string; keywords: string[]; languages: string[]; usedBy: string[]; fields: DocTypeField[];
   description?: string;
+  /** How numeric dates of this type are written (DMY, MDY, YMD) and its decimal mark ("." or ","); "" = the server's setting. */
+  dateOrder?: string; decimalMark?: string;
 }
 
 /** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */

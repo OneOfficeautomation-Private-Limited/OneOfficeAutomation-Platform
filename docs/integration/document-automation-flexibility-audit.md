@@ -150,10 +150,10 @@ Resume: read this section, continue at the first batch not Done.
 
 | Batch | Items | Status |
 |---|---|---|
-| 1 | Bugs B1-B15 | In progress |
-| 2 | Country rules as optional packs R1-R16 | Not started |
-| 3 | Languages, numbers, dates L1-L11 | Not started |
-| 4 | Other options O1-O19, fixed values (section 4), strict rules S1-S13 | Not started |
-| 5 | Cloud-inspired ideas C1-C18 | Not started |
+| 1 | Bugs B1-B15 | Done |
+| 2 | Country rules as optional packs R1-R16 | Done |
+| 3 | Languages, numbers, dates L1-L11 | Done (L8: CSS is logical; the app has no right-to-left UI language yet) |
+| 4 | Other options O1-O19, fixed values (section 4), strict rules S1-S13 | In progress (done: O4, O5, O11, O12, O13, S2, S3, S4, S5, S6, S7, S11) |
+| 5 | Cloud-inspired ideas C1-C18 | In progress (done: C1, C2, C3, C11, C14; C10 field types) |
 | 6 | Unit tests: UT Document Automation in One CommandCenter, new cases, Java/UI tests, DocFlow suite | Not started |
 | Later | DA-2 to DA-7 phases (keys, events, engines, volume, Helm, regions), Entra client ID | Each its own phase per document-layer-plan.md |

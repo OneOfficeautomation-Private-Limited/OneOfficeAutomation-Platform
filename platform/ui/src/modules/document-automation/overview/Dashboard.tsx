@@ -19,10 +19,10 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
       <Kpi label="Straight through" value={o.straightThrough + "%"} sub={`${Math.round(o.today * o.straightThrough / 100)} with no human touch`} tone="ok" />
       <Kpi label="Waiting for review" value={o.waiting} sub={o.overdue ? `${o.overdue} overdue` : "none overdue"} tone={o.overdue ? "bad" : undefined} />
       <Kpi label="Failed" value={o.failed} tone={o.failed ? "bad" : undefined} />
-      <Kpi label="Pages read this month" value={o.pagesThisMonth.toLocaleString("en")} sub={o.cloudOptIn ? undefined : "all on this server"} />
+      <Kpi label="Pages read this month" value={o.pagesThisMonth.toLocaleString()} sub={o.cloudOptIn ? undefined : "all on this server"} />
       {o.cloudOptIn
         ? <Kpi label="Cloud cost this month" value={"$" + o.cloudCost} sub="cloud opt-in is on" />
-        : <Kpi label="Documents this month" value={month.toLocaleString("en")} sub="cloud opt-in is off: no cloud cost" />}
+        : <Kpi label="Documents this month" value={month.toLocaleString()} sub="cloud opt-in is off: no cloud cost" />}
     </div>
 
     <div className="df-grid df-g3">
@@ -69,7 +69,7 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
       <Card label="Documents by process" span>
         <b>Documents by process, this month</b>
         <HBars rows={byMonth.map((p) => ({ label: p.name, value: p.month, to: "#/process/" + encodeURIComponent(p.id),
-          text: `${p.month.toLocaleString("en")} · ${p.straightThrough}% straight through` }))} color={BLUE} empty="No documents this month." />
+          text: `${p.month.toLocaleString()} · ${p.straightThrough}% straight through` }))} color={BLUE} empty="No documents this month." />
       </Card>
       <Card label="Where pages were read">
         <div className="df-head-row"><b>Which engines read the pages</b><span className="df-grow" /><a href="#/engines">Engines</a></div>
@@ -140,7 +140,7 @@ function HBars({ rows, color, partColor, empty }:
               {r.part ? <span style={{ width: (r.part / r.value * 100) + "%", background: partColor }} /> : null}
             </span>
           </span>
-          <b className="df-num">{r.text ?? r.value.toLocaleString("en")}</b>
+          <b className="df-num">{r.text ?? r.value.toLocaleString()}</b>
         </li>
       ))}
     </ul>

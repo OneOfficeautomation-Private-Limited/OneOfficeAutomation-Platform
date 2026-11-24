@@ -16,7 +16,7 @@
 .df-tab[aria-current="page"] { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; }
 .df-tab { gap: 6px; }
 .df-tab-group { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
-.df-tab-group + .df-tab-group { padding-left: 12px; border-left: 1px solid var(--ui-divider); }
+.df-tab-group + .df-tab-group { padding-inline-start: 12px; border-inline-start: 1px solid var(--ui-divider); }
 .df-tab-group.is-menu { flex: 0 1 auto; }
 .df-tab-group.is-menu .df-tab { flex: none; }
 .df-tab-group-label { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-text-2); }
@@ -68,15 +68,15 @@
 .df-link:hover { text-decoration: underline; }
 .df-empty { padding: 28px; text-align: center; color: var(--ui-text-2); }
 .df-alert { display: flex; gap: 8px; align-items: baseline; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--ui-error-line); border-radius: var(--ui-radius); background: var(--ui-error-bg); color: var(--ui-error-text); }
-.df-alert .df-link { margin-left: auto; }
+.df-alert .df-link { margin-inline-start: auto; }
 .df-note { padding: 8px 10px; border-radius: var(--ui-radius); }
 .df-drop { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px; border: 1.5px dashed var(--ui-field); border-radius: 8px;
   background: var(--ui-tint); color: var(--ui-text); cursor: pointer; width: 100%; font: inherit; }
 .df-drop.is-over { border-color: var(--ui-accent); background: var(--ui-selected); }
 .df-switch { position: relative; width: 40px; height: 22px; border-radius: 11px; border: 0; padding: 0; background: var(--ui-field); cursor: pointer; flex: none; }
-.df-switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #ffffff; transition: left .12s; }
+.df-switch::after { content: ""; position: absolute; inset-inline-start: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #ffffff; transition: left .12s; }
 .df-switch[aria-checked="true"] { background: var(--ui-accent); }
-.df-switch[aria-checked="true"]::after { left: 21px; }
+.df-switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 
 /* 3. Tables and filters */
 .df-filters { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--ui-divider); flex-wrap: wrap; }
@@ -89,16 +89,16 @@
 .df-filter select { width: auto; min-width: 140px; }
 .df-table-wrap { overflow-x: auto; }
 .df-table { width: 100%; border-collapse: collapse; }
-.df-table th { position: sticky; top: 0; background: var(--ui-soft); text-align: left; font-size: 12px; font-weight: 600; color: var(--ui-text-2);
+.df-table th { position: sticky; top: 0; background: var(--ui-soft); text-align: start; font-size: 12px; font-weight: 600; color: var(--ui-text-2);
   padding: 8px 12px; border-bottom: 1px solid var(--ui-border); white-space: nowrap; }
 .df-table td { padding: 9px 12px; border-bottom: 1px solid var(--ui-divider); vertical-align: middle; }
 .df-table tbody tr:hover { background: var(--ui-row-hover); }
-.df-table .df-right { text-align: right; }
+.df-table .df-right { text-align: end; }
 .df-table a { font-weight: 600; text-decoration: none; }
 /* a wide table (the Overview's) scrolls sideways inside its card; its first column stays in view */
 .df-wide-table { min-width: 0; }   /* was 1900px for every column at once; since 13 Nov 2026 each view shows ten, which fit */
 .df-wide-table td { white-space: nowrap; }
-.df-wide-table th:first-child, .df-wide-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--ui-bg); box-shadow: 1px 0 0 var(--ui-divider); }
+.df-wide-table th:first-child, .df-wide-table td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--ui-bg); box-shadow: 1px 0 0 var(--ui-divider); }
 .df-wide-table th:first-child { z-index: 2; background: var(--ui-soft); }
 .df-sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .df-sort:hover { color: var(--ui-accent-text); }
@@ -110,13 +110,13 @@
 .df-step { border: 1px solid var(--ui-border); border-top-width: 3px; border-radius: 8px; padding: 10px 12px; min-width: 0; }
 .df-step.is-off { background: var(--ui-soft); }
 .df-step-n { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--ui-text-2); }
-.df-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 8px;
+.df-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: start; padding: 10px 14px; border-radius: 8px;
   border: 1px solid var(--ui-border); border-top-width: 4px; background: var(--ui-bg); font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-option[aria-selected="true"] { border-color: var(--ui-accent); border-top-color: inherit; background: var(--ui-tint); box-shadow: 0 0 0 1px var(--ui-accent); }
 .df-list { display: flex; flex-direction: column; gap: 6px; padding: 10px; align-self: start; }
 .df-list > * { flex: none; }   /* the search box grows along a row (filter bars), not down this column */
 .df-list-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--ui-radius); border: 1px solid transparent;
-  background: transparent; text-align: left; font: inherit; color: var(--ui-text); cursor: pointer; }
+  background: transparent; text-align: start; font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-list-item:hover { background: var(--ui-row-hover); }
 .df-list-item[aria-current="true"] { background: var(--ui-tint); border-color: var(--ui-accent); }
 .df-split { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
@@ -126,7 +126,7 @@
 .df-radio-card.is-on { border: 2px solid var(--ui-accent); background: var(--ui-tint); padding: 11px; }
 .df-files { border: 1px solid var(--ui-border); border-radius: 8px; }
 .df-files > div { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--ui-divider); }
-.df-stage { flex: 1 1 0; min-width: 150px; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 8px;
+.df-stage { flex: 1 1 0; min-width: 150px; display: flex; align-items: center; gap: 10px; text-align: start; padding: 10px 12px; border-radius: 8px;
   border: 1px solid var(--ui-border); background: var(--ui-bg); font: inherit; color: var(--ui-text); cursor: pointer; }
 .df-stage:disabled { opacity: .55; cursor: not-allowed; }
 .df-stage[aria-selected="true"] { border-color: var(--ui-accent); background: var(--ui-tint); box-shadow: 0 0 0 2px #c9dafb; }
@@ -142,10 +142,10 @@
 .df-paper p { margin: 0; align-self: flex-start; }
 .df-paper .is-flag { outline: 3px solid #b86e00; outline-offset: 3px; background: rgba(245, 179, 61, .22); }
 .df-paper .is-ok { outline: 2px solid var(--ui-run); outline-offset: 3px; }
-.df-review-fields { flex: 1 1 420px; max-width: 540px; min-width: 0; border-left: 1px solid var(--ui-border); display: flex; flex-direction: column; }
+.df-review-fields { flex: 1 1 420px; max-width: 540px; min-width: 0; border-inline-start: 1px solid var(--ui-border); display: flex; flex-direction: column; }
 .df-flag { border: 2px solid #b86e00; border-radius: 8px; padding: 12px; background: #fffaf1; }
 .df-review-why { padding: 10px 12px; border-radius: 8px; background: var(--ui-running-bg); color: var(--ui-warning-text); }
-.df-review-why ul { margin: 4px 0 0; padding-left: 18px; }
+.df-review-why ul { margin: 4px 0 0; padding-inline-start: 18px; }
 .df-field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: center; }
 .df-mark { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #ffffff; flex: none; }
 .df-bars { display: flex; align-items: flex-end; gap: 10px; height: 200px; margin-top: 16px; border-bottom: 1px solid var(--ui-border); padding: 0 4px; }
@@ -208,8 +208,8 @@
 
 /* Test lab: test sets (right values, results, best per column) */
 .df-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.df-pair { display: inline-flex; gap: 4px; margin-right: 10px; white-space: nowrap; }
-.df-best { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.df-pair { display: inline-flex; gap: 4px; margin-inline-end: 10px; white-space: nowrap; }
+.df-best { display: inline-flex; margin-inline-start: 6px; vertical-align: middle; }
 .df-wrong { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 860px) { .df-cost, .df-option-row { grid-template-columns: minmax(0, 1fr); } }
 
@@ -219,7 +219,7 @@
   .df-g2, .df-g3, .df-g4, .df-split { grid-template-columns: minmax(0, 1fr); }
   .df-g6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .df-span2 { grid-column: auto; }
-  .df-review-fields { max-width: none; border-left: 0; border-top: 1px solid var(--ui-border); }
+  .df-review-fields { max-width: none; border-inline-start: 0; border-top: 1px solid var(--ui-border); }
 }
 
 /* How to use this page, and option hints */
@@ -232,16 +232,16 @@
 .df-help-steps { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 16px; margin: 10px 0 0; padding: 0; }
 .df-help-steps li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
 .df-help-n { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-accent); color: #fff; font-size: 11px; font-weight: 700; }
-.df-hint { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
-.df-hint-bubble { position: absolute; top: 22px; left: -8px; z-index: 20; width: 260px; padding: 8px 10px; border-radius: var(--ui-radius);
-  background: var(--ui-frame); color: var(--ui-frame-text); font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; box-shadow: 0 4px 14px rgb(0 0 0 / 0.2); }
+.df-hint { position: relative; display: inline-flex; vertical-align: middle; margin-inline-start: 4px; }
+.df-hint-bubble { position: absolute; top: 22px; inset-inline-start: -8px; z-index: 20; width: 260px; padding: 8px 10px; border-radius: var(--ui-radius);
+  background: var(--ui-frame); color: var(--ui-frame-text); font-size: 12px; font-weight: 400; line-height: 1.4; text-align: start; white-space: normal; box-shadow: 0 4px 14px rgb(0 0 0 / 0.2); }
 .df-help-row { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding: 12px 24px 0; }
 .df-help-row .df-help { align-self: stretch; margin: 0; }
-.df-hint-bubble.is-left { left: auto; right: -8px; }
+.df-hint-bubble.is-left { inset-inline-start: auto; inset-inline-end: -8px; }
 .df-title-select { height: 34px; max-width: 360px; font-size: 18px; font-weight: 600; }
 .df-langs { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .df-langs label { display: inline-flex; gap: 6px; align-items: center; }
-.df-learned { display: inline-flex; gap: 2px; align-items: center; margin-right: 8px; }
+.df-learned { display: inline-flex; gap: 2px; align-items: center; margin-inline-end: 8px; }
 
 /* 13 Nov 2026 round 2, item 5: one tab style everywhere: Document Automation's page tabs are underline tabs like the
    console's (they were filled buttons) */
@@ -250,14 +250,14 @@
 .df-tab:hover { border: 0; background: var(--ui-row-hover); color: var(--ui-text); }
 .df-tab[aria-current="page"] { background: transparent; color: var(--ui-text); font-weight: 600; box-shadow: inset 0 -3px 0 var(--ui-accent); }
 .df-tab-group, .df-tab-group.is-menu { flex: none; gap: 2px; }
-.df-tab-group + .df-tab-group { padding-left: 8px; border-left: 0; }
+.df-tab-group + .df-tab-group { padding-inline-start: 8px; border-inline-start: 0; }
 /* round 2 item 5: the eight steps fit one row at 1366 px (step 8 wrapped) */
 .df-steps .df-stage { min-width: 112px; padding: 8px 10px; gap: 8px; }
 /* 14 Nov usability round, item 12: a learned label's remove button is large enough to click */
-.df-learned .df-link { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 22px; padding: 0 4px; margin-left: 2px; border-radius: 4px; }
+.df-learned .df-link { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 22px; padding: 0 4px; margin-inline-start: 2px; border-radius: 4px; }
 /* DA-1: Sign in with Microsoft (email inbox) */
 .df-ms-account { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
-.df-ms-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.df-ms-steps { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; }
 .df-ms-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-tint); color: var(--ui-text); }
 .df-ms-account .df-head-row { flex-wrap: wrap; }
 .df-ms-account .df-chip { white-space: normal; overflow-wrap: anywhere; max-width: 100%; height: auto; min-height: 22px; padding: 2px 8px; }
@@ -266,9 +266,9 @@
 .df-folder-field .ui-input[readonly] { background: var(--ui-soft); color: var(--ui-text); }
 .df-folder-links { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 12.5px; }
 .df-folder-pick { display: grid; grid-template-columns: minmax(180px, 250px) minmax(0, 1fr); border: 1px solid var(--ui-border); border-radius: 6px; overflow: hidden; height: 340px; }
-.df-folder-roots { display: flex; flex-direction: column; background: var(--ui-soft); border-right: 1px solid var(--ui-border); overflow-y: auto; }
+.df-folder-roots { display: flex; flex-direction: column; background: var(--ui-soft); border-inline-end: 1px solid var(--ui-border); overflow-y: auto; }
 .df-folder-label { padding: 10px 12px 6px; font-size: 12px; font-weight: 600; color: var(--ui-text); }
-.df-folder-root { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-divider); background: transparent; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.df-folder-root { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-divider); background: transparent; color: var(--ui-text); font: inherit; text-align: start; cursor: pointer; overflow-wrap: anywhere; }
 .df-folder-root:hover { background: var(--ui-tint); }
 .df-folder-root.is-on { background: var(--ui-tint); box-shadow: inset 3px 0 0 var(--ui-accent); }
 .df-folder-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding-bottom: 8px; }
@@ -278,14 +278,14 @@
 .df-folder-list .df-table td { padding: 4px 12px; }
 .df-folder-list tr.is-selected td { background: var(--ui-tint); }
 .df-folder-list tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--ui-accent); }
-.df-folder-name { border: 0; background: none; padding: 4px 0; font: inherit; color: var(--ui-text); cursor: pointer; text-align: left; width: 100%; }
+.df-folder-name { border: 0; background: none; padding: 4px 0; font: inherit; color: var(--ui-text); cursor: pointer; text-align: start; width: 100%; }
 .df-folder-list tr.is-selected .df-folder-name { font-weight: 700; }
-.df-folder-chosen { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; overflow-wrap: anywhere; }
+.df-folder-chosen { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-inline-end: auto; overflow-wrap: anywhere; }
 .df-folder-new { display: inline-flex; gap: 6px; align-items: center; }
 .df-folder-new .ui-input { width: 180px; }
 @media (max-width: 720px) {
   .df-folder-pick { grid-template-columns: 1fr; height: auto; }
-  .df-folder-roots { border-right: 0; border-bottom: 1px solid var(--ui-border); max-height: 150px; }
+  .df-folder-roots { border-inline-end: 0; border-bottom: 1px solid var(--ui-border); max-height: 150px; }
   .df-folder-list { max-height: 260px; }
 }
 /* MA-4: a process's mail accounts (mailRules.tsx) */

@@ -58,7 +58,7 @@ export function ClassificationStep({ api, design, setSettings, onType }:
       {teaching && <TeachDialog api={api} onClose={() => setTeaching(false)} onProposal={(d) => { setTeaching(false); propose(d, false); }} />}
       {naming && <NameDialog onClose={() => setNaming(false)} onDone={(name) => {
         setNaming(false);
-        propose({ id: "", name, origin: "made-here", meta: "", keywords: [], languages: ["en", "ar"], usedBy: [], fields: [] }, true);
+        propose({ id: "", name, origin: "made-here", meta: "", keywords: [], languages: [], usedBy: [], fields: [] }, true);
       }} />}
     </>
   );

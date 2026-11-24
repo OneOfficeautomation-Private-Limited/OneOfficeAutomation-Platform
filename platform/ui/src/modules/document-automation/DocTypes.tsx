@@ -97,7 +97,7 @@ export function DocTypes({ api }: { api: DocFlowApi }) {
       {teaching && <TeachDialog api={api} onClose={() => setTeaching(false)} onProposal={(d) => { setTeaching(false); propose(d, false); }} />}
       {naming && <NameDialog onClose={() => setNaming(false)} onDone={(name) => {
         setNaming(false);
-        propose({ id: "", name, origin: "made-here", meta: "", keywords: [], languages: ["en", "ar"], usedBy: [], fields: [] }, true);
+        propose({ id: "", name, origin: "made-here", meta: "", keywords: [], languages: [], usedBy: [], fields: [] }, true);
       }} />}
     </div>
   );
@@ -147,9 +147,19 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           <LanguagePicker api={api} value={t.languages} onChange={(languages) => set({ languages })} />
           <div><div className="df-small">Used by</div>{t.usedBy.length ? t.usedBy.join(", ") : "No process yet"}</div>
         </div>
-        <Field label="What it is (optional)" hint="A sentence about this kind of document. AI reading uses it to recognise the type and read it.">
-          {(id) => <TextInput id={id} value={t.description ?? ""} placeholder="Bills from suppliers asking us to pay for goods or services" onChange={(e) => set({ description: e.target.value })} />}
-        </Field>
+        <div className="df-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
+          <Field label="What it is (optional)" hint="A sentence about this kind of document. AI reading uses it to recognise the type and read it.">
+            {(id) => <TextInput id={id} value={t.description ?? ""} placeholder="Bills from suppliers asking us to pay for goods or services" onChange={(e) => set({ description: e.target.value })} />}
+          </Field>
+          <Field label="Dates written as" hint="For dates with numbers only, such as 03/04/2026.">
+            {(id) => <Select id={id} value={t.dateOrder ?? ""} onChange={(e) => set({ dateOrder: e.target.value })}
+              options={[{ value: "", label: "Server setting" }, { value: "DMY", label: "Day first (14/11/2026)" }, { value: "MDY", label: "Month first (11/14/2026)" }, { value: "YMD", label: "Year first (2026/11/14)" }]} />}
+          </Field>
+          <Field label="Decimal mark" hint="Whether 1.234 means one thousand two hundred and thirty-four.">
+            {(id) => <Select id={id} value={t.decimalMark ?? ""} onChange={(e) => set({ decimalMark: e.target.value })}
+              options={[{ value: "", label: "Server setting" }, { value: ".", label: "Point (1,234.50)" }, { value: ",", label: "Comma (1.234,50)" }]} />}
+          </Field>
+        </div>
       </section>
 
       <section className="df-card" aria-label="Fields to read" style={{ overflow: "hidden" }}>
