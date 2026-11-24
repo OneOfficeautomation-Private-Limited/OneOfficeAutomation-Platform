@@ -1,0 +1,3290 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_script",
+  "name": "UT Scripts",
+  "description": "Unit tests of every Scripts command: Python, PowerShell, JavaScript and VBScript, one-off and in sessions. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "j",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "sc_out",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sc_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sc_code",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "sc_result",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sc_err",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sc_open",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Scripts command: Python, PowerShell, JavaScript and VBScript, one-off and in sessions. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Scripts started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s82",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s83",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.script/run_powershell - output and JSON"
+      },
+      "children": [
+        {
+          "id": "s84",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_powershell (output and JSON) and checks its result."
+          }
+        },
+        {
+          "id": "s85",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.script/run_powershell",
+              "args": {
+                "script": "@{ total = 42 } | ConvertTo-Json -Compress"
+              },
+              "out": {
+                "json": "j",
+                "exit_code": "e"
+              },
+              "id": "s86"
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$j$",
+                  "right": {
+                    "total": 42
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check j",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "j: expected eq \"total\": 42, got ${j}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$e$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check e",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "e: expected eq 0, got ${e}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_powershell: output and JSON\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_powershell: output and JSON: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.script/run_powershell - output and JSON"
+    },
+    {
+      "id": "s97",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.script/run_vbscript - echo"
+      },
+      "children": [
+        {
+          "id": "s98",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_vbscript (echo) and checks its result."
+          }
+        },
+        {
+          "id": "s99",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.script/run_vbscript",
+              "args": {
+                "script": "WScript.Echo \"hi\""
+              },
+              "out": {
+                "output": "o"
+              },
+              "id": "s100"
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$o$",
+                  "right": "hi"
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check o",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "o: expected contains \"hi\", got ${o}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_vbscript: echo\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_vbscript: echo: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.script/run_vbscript - echo"
+    },
+    {
+      "id": "s108",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.script/run_vbscript_function - typed script (new)"
+      },
+      "children": [
+        {
+          "id": "s109",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_vbscript_function (typed script (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s110",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.script/run_vbscript_function",
+              "args": {
+                "script": "Function Twice(x)\r\n Twice = x & x\r\nEnd Function",
+                "function": "Twice",
+                "arguments": [
+                  "ab"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s111"
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "abab"
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"abab\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_vbscript_function: typed script (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_vbscript_function: typed script (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.script/run_vbscript_function - typed script (new)"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.script/run_python - needs Python or a typed script"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_python (needs Python or a typed script) and checks its result."
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s124",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.script/run_python",
+                  "args": {},
+                  "id": "s122"
+                }
+              ],
+              "description": "These steps should fail with SCRIPT.NO_SCRIPT",
+              "catch": [
+                {
+                  "codes": [
+                    "SCRIPT.NO_SCRIPT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s125",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SCRIPT.NO_SCRIPT",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SCRIPT.NO_SCRIPT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python: needs Python or a typed script\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python: needs Python or a typed script: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.script/run_python - needs Python or a typed script"
+    },
+    {
+      "id": "s133",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.script/run_python_function - no file and no script"
+      },
+      "children": [
+        {
+          "id": "s134",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_python_function (no file and no script) and checks its result."
+          }
+        },
+        {
+          "id": "s135",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s138",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.script/run_python_function",
+                  "args": {
+                    "function": "f"
+                  },
+                  "id": "s136"
+                }
+              ],
+              "description": "These steps should fail with SCRIPT.NO_SOURCE",
+              "catch": [
+                {
+                  "codes": [
+                    "SCRIPT.NO_SOURCE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s139",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s140",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SCRIPT.NO_SOURCE",
+              "else": [
+                {
+                  "id": "s142",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SCRIPT.NO_SOURCE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python_function: no file and no script\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python_function: no file and no script: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.script/run_python_function - no file and no script"
+    },
+    {
+      "id": "s147",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.script/run_javascript - needs a script"
+      },
+      "children": [
+        {
+          "id": "s148",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.script/run_javascript (needs a script) and checks its result."
+          }
+        },
+        {
+          "id": "s149",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s152",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.script/run_javascript",
+                  "args": {},
+                  "id": "s150"
+                }
+              ],
+              "description": "These steps should fail with SCRIPT.NO_SCRIPT",
+              "catch": [
+                {
+                  "codes": [
+                    "SCRIPT.NO_SCRIPT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s153",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s154",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SCRIPT.NO_SCRIPT",
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SCRIPT.NO_SCRIPT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_javascript: needs a script\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_javascript: needs a script: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.script/run_javascript - needs a script"
+    },
+    {
+      "id": "s161",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.script/run_python - arguments in, JSON out"
+      },
+      "children": [
+        {
+          "id": "s162",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python runs a Python 3 script with arguments; printed JSON comes back as a value too. Checks: exit code 0, the printed text and the JSON."
+          }
+        },
+        {
+          "id": "s163",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s164",
+              "action": "ooa.script/run_python",
+              "args": {
+                "script": "import sys, json\nprint(json.dumps({'sum': int(sys.argv[1]) + int(sys.argv[2])}))",
+                "arguments": [
+                  "40",
+                  "2"
+                ]
+              },
+              "out": {
+                "output": "sc_out",
+                "json": "sc_json",
+                "exit_code": "sc_code"
+              },
+              "description": "Add the two arguments and print JSON"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_code$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_code",
+              "else": [
+                {
+                  "id": "s167",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_code: expected eq 0, got ${sc_code}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s168",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sc_out$",
+                  "right": "42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_out",
+              "else": [
+                {
+                  "id": "s170",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_out: expected contains \"42\", got ${sc_out}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_json$",
+                  "right": {
+                    "sum": 42
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_json",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_json: expected eq \"sum\": 42, got ${sc_json}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python: arguments in, JSON out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python: arguments in, JSON out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.script/run_python - arguments in, JSON out"
+    },
+    {
+      "id": "s178",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.script/run_python_function - a function in a .py file"
+      },
+      "children": [
+        {
+          "id": "s179",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python function calls one function of a Python file with arguments and gives back what it returns. Checks: net of 120 at 20% is 100."
+          }
+        },
+        {
+          "id": "s180",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s181",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/py/tax.py",
+                "text": "def net(gross, rate=0.2):\n    return round(gross / (1 + rate), 2)\n"
+              },
+              "description": "A Python file with a function"
+            },
+            {
+              "id": "s182",
+              "action": "ooa.script/run_python_function",
+              "args": {
+                "file": "ut_tmp/py/tax.py",
+                "function": "net",
+                "arguments": [
+                  120
+                ]
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Call net(120)"
+            },
+            {
+              "id": "s183",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 100
+                }
+              },
+              "children": [
+                {
+                  "id": "s184",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s185",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 100, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python_function: a function in a .py file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python_function: a function in a .py file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.script/run_python_function - a function in a .py file"
+    },
+    {
+      "id": "s190",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.script/run_javascript - Node.js prints JSON"
+      },
+      "children": [
+        {
+          "id": "s191",
+          "action": "core/comment",
+          "args": {
+            "text": "Run JavaScript runs a script with Node.js (or JScript without it). Checks: exit code 0 and the printed JSON as a value."
+          }
+        },
+        {
+          "id": "s192",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s193",
+              "action": "ooa.script/run_javascript",
+              "args": {
+                "script": "console.log(JSON.stringify({items: [1, 2, 3].length}))"
+              },
+              "out": {
+                "json": "sc_json",
+                "exit_code": "sc_code"
+              },
+              "description": "Print a JSON object"
+            },
+            {
+              "id": "s194",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_code$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_code",
+              "else": [
+                {
+                  "id": "s196",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_code: expected eq 0, got ${sc_code}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_json$",
+                  "right": {
+                    "items": 3
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_json",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_json: expected eq \"items\": 3, got ${sc_json}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_javascript: Node.js prints JSON\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s202",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_javascript: Node.js prints JSON: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.script/run_javascript - Node.js prints JSON"
+    },
+    {
+      "id": "s204",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.script/run_javascript_function - a function in a .js file"
+      },
+      "children": [
+        {
+          "id": "s205",
+          "action": "core/comment",
+          "args": {
+            "text": "Run JavaScript function calls one function of a JavaScript file with arguments and gives back its result. Checks: add(2, 3) is 5."
+          }
+        },
+        {
+          "id": "s206",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s207",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/js/calc.js",
+                "text": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
+              },
+              "description": "A JavaScript file with a function"
+            },
+            {
+              "id": "s208",
+              "action": "ooa.script/run_javascript_function",
+              "args": {
+                "file": "ut_tmp/js/calc.js",
+                "function": "add",
+                "arguments": [
+                  2,
+                  3
+                ]
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Call add(2, 3)"
+            },
+            {
+              "id": "s209",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s210",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s211",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 5, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_javascript_function: a function in a .js file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_javascript_function: a function in a .js file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.script/run_javascript_function - a function in a .js file"
+    },
+    {
+      "id": "s216",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.script/open_session - a Python session keeps what one step defines"
+      },
+      "children": [
+        {
+          "id": "s217",
+          "action": "core/comment",
+          "args": {
+            "text": "Open session starts Python and keeps it running: what one step defines is there for the next. Checks: a variable set in one Run in session is read by the next."
+          }
+        },
+        {
+          "id": "s218",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s219",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s220",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py",
+                "script": "rate = 0.25"
+              },
+              "description": "Define a rate"
+            },
+            {
+              "id": "s221",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py",
+                "script": "200 * rate"
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Use it in the next step"
+            },
+            {
+              "id": "s222",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 50
+                }
+              },
+              "children": [
+                {
+                  "id": "s223",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s224",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 50, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s225",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/open_session: a Python session keeps what one step defines\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/open_session: a Python session keeps what one step defines: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.script/open_session - a Python session keeps what one step defines"
+    },
+    {
+      "id": "s230",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.script/run_in_session - the last expression comes back; errors without failing"
+      },
+      "children": [
+        {
+          "id": "s231",
+          "action": "core/comment",
+          "args": {
+            "text": "Run in session runs code in an open session; the value of a last expression comes back. With fail_on_error off an error is given back instead of stopping the agent. Checks both."
+          }
+        },
+        {
+          "id": "s232",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s233",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py2"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s234",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py2",
+                "script": "print('working')\n'A-' + str(6 * 7)"
+              },
+              "out": {
+                "result": "sc_result",
+                "output": "sc_out"
+              },
+              "description": "Print and give back a value"
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": "A-42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq \"A-42\", got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sc_out$",
+                  "right": "working"
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_out",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_out: expected contains \"working\", got ${sc_out}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py2",
+                "script": "1 / 0",
+                "fail_on_error": false
+              },
+              "out": {
+                "error": "sc_err"
+              },
+              "description": "Code that fails, without failing the step"
+            },
+            {
+              "id": "s242",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sc_err$",
+                  "right": "ZeroDivision"
+                }
+              },
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_err",
+              "else": [
+                {
+                  "id": "s244",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_err: expected contains \"ZeroDivision\", got ${sc_err}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s245",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py2"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s247",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_in_session: the last expression comes back; errors without failing\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s249",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_in_session: the last expression comes back; errors without failing: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.script/run_in_session - the last expression comes back; errors without failing"
+    },
+    {
+      "id": "s250",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.script/call_in_session - call a function defined earlier"
+      },
+      "children": [
+        {
+          "id": "s251",
+          "action": "core/comment",
+          "args": {
+            "text": "Call in session calls a function defined in an open session, with arguments and keyword arguments. Checks: the function's result."
+          }
+        },
+        {
+          "id": "s252",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s253",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py3"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py3",
+                "script": "def net(gross, rate=0.2):\n    return round(gross / (1 + rate), 2)\n"
+              },
+              "description": "Define a function"
+            },
+            {
+              "id": "s255",
+              "action": "ooa.script/call_in_session",
+              "args": {
+                "session": "ut_py3",
+                "function": "net",
+                "arguments": [
+                  110
+                ],
+                "keyword_arguments": {
+                  "rate": 0.1
+                }
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Call net(110, rate=0.1)"
+            },
+            {
+              "id": "s256",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 100
+                }
+              },
+              "children": [
+                {
+                  "id": "s257",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s258",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 100, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s259",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py3"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/call_in_session: call a function defined earlier\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s263",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/call_in_session: call a function defined earlier: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.script/call_in_session - call a function defined earlier"
+    },
+    {
+      "id": "s264",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.script/open_session - a JavaScript (Node.js) session"
+      },
+      "children": [
+        {
+          "id": "s265",
+          "action": "core/comment",
+          "args": {
+            "text": "The same with JavaScript: a function defined in one step is called in the next."
+          }
+        },
+        {
+          "id": "s266",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s267",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "javascript",
+                "session": "ut_js"
+              },
+              "description": "Start a JavaScript session"
+            },
+            {
+              "id": "s268",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_js",
+                "script": "globalThis.twice = function (x) { return x * 2; }"
+              },
+              "description": "Define a function"
+            },
+            {
+              "id": "s269",
+              "action": "ooa.script/call_in_session",
+              "args": {
+                "session": "ut_js",
+                "function": "twice",
+                "arguments": [
+                  21
+                ]
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Call twice(21)"
+            },
+            {
+              "id": "s270",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 42
+                }
+              },
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s272",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 42, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s273",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_js"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/open_session: a JavaScript (Node.js) session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s277",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/open_session: a JavaScript (Node.js) session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.script/open_session - a JavaScript (Node.js) session"
+    },
+    {
+      "id": "s278",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.script/open_session - a VBScript session"
+      },
+      "children": [
+        {
+          "id": "s279",
+          "action": "core/comment",
+          "args": {
+            "text": "The same with VBScript: a variable set in one step is read back with run_as eval in the next."
+          }
+        },
+        {
+          "id": "s280",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s281",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "vbscript",
+                "session": "ut_vbs"
+              },
+              "description": "Start a VBScript session"
+            },
+            {
+              "id": "s282",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_vbs",
+                "script": "total = 6 * 7"
+              },
+              "description": "Set a variable"
+            },
+            {
+              "id": "s283",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_vbs",
+                "script": "total",
+                "run_as": "eval"
+              },
+              "out": {
+                "result": "sc_result"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s284",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_result$",
+                  "right": 42
+                }
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_result",
+              "else": [
+                {
+                  "id": "s286",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_result: expected eq 42, got ${sc_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s287",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_vbs"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/open_session: a VBScript session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/open_session: a VBScript session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.script/open_session - a VBScript session"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.script/close_session - the session is no longer open"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Close session ends a script session and its program. Checks: Session is open is false after it."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s295",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py4"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s296",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py4"
+              },
+              "description": "End it"
+            },
+            {
+              "id": "s297",
+              "action": "core/set",
+              "args": {
+                "variable": "sc_open",
+                "value": true
+              }
+            },
+            {
+              "id": "s298",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/session_open",
+                  "args": {
+                    "session": "ut_py4"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s299",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "Still open"
+                  }
+                }
+              ],
+              "description": "Still open?",
+              "else": [
+                {
+                  "id": "s300",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sc_open",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s301",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sc_open$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sc_open",
+              "else": [
+                {
+                  "id": "s303",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sc_open: expected eq false, got ${sc_open}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/close_session: the session is no longer open\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s307",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/close_session: the session is no longer open: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.script/close_session - the session is no longer open"
+    },
+    {
+      "id": "s308",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.script/session_open - true while the session runs"
+      },
+      "children": [
+        {
+          "id": "s309",
+          "action": "core/comment",
+          "args": {
+            "text": "Session is open is a condition: true while the script session is open and its program runs."
+          }
+        },
+        {
+          "id": "s310",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s311",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py5"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s312",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s313",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/session_open",
+                  "args": {
+                    "session": "ut_py5"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s314",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is it open?"
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_cond",
+              "else": [
+                {
+                  "id": "s317",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_cond: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py5"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s320",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/session_open: true while the session runs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s322",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/session_open: true while the session runs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.script/session_open - true while the session runs"
+    },
+    {
+      "id": "s323",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.script/last_script_succeeded - after a good and a failing script"
+      },
+      "children": [
+        {
+          "id": "s324",
+          "action": "core/comment",
+          "args": {
+            "text": "Last script succeeded is a condition: true when the last script step of the session (or of the run) succeeded. Checks: true after good code, false after code that failed (fail_on_error off)."
+          }
+        },
+        {
+          "id": "s325",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s326",
+              "action": "ooa.script/open_session",
+              "args": {
+                "language": "python",
+                "session": "ut_py6"
+              },
+              "description": "Start a Python session"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py6",
+                "script": "x = 1"
+              },
+              "description": "Good code"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/last_script_succeeded",
+                  "args": {
+                    "session": "ut_py6"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Did it succeed?"
+            },
+            {
+              "id": "s331",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s332",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_cond",
+              "else": [
+                {
+                  "id": "s333",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_cond: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s334",
+              "action": "ooa.script/run_in_session",
+              "args": {
+                "session": "ut_py6",
+                "script": "raise ValueError('bad')",
+                "fail_on_error": false
+              },
+              "description": "Failing code"
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": true
+              }
+            },
+            {
+              "id": "s336",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/last_script_succeeded",
+                  "args": {
+                    "session": "ut_py6"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "It says it succeeded"
+                  }
+                }
+              ],
+              "description": "Did it succeed?",
+              "else": [
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s339",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s340",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_cond",
+              "else": [
+                {
+                  "id": "s341",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_cond: expected eq false, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s342",
+              "action": "ooa.script/close_session",
+              "args": {
+                "session": "ut_py6"
+              },
+              "description": "End the session"
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/last_script_succeeded: after a good and a failing script\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/last_script_succeeded: after a good and a failing script: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.script/last_script_succeeded - after a good and a failing script"
+    },
+    {
+      "id": "s347",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.script/script_succeeded - a PowerShell script that ends well"
+      },
+      "children": [
+        {
+          "id": "s348",
+          "action": "core/comment",
+          "args": {
+            "text": "Script succeeded is a condition: it runs a script and is true when it ends with exit code 0."
+          }
+        },
+        {
+          "id": "s349",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s350",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s351",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/script_succeeded",
+                  "args": {
+                    "language": "powershell",
+                    "script": "Write-Output 'ok'; exit 0"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s352",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s353",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s355",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/script_succeeded: a PowerShell script that ends well\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/script_succeeded: a PowerShell script that ends well: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.script/script_succeeded - a PowerShell script that ends well"
+    },
+    {
+      "id": "s360",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.script/script_succeeded - a Python script that exits with 3"
+      },
+      "children": [
+        {
+          "id": "s361",
+          "action": "core/comment",
+          "args": {
+            "text": "The same condition is false when the script ends with another exit code."
+          }
+        },
+        {
+          "id": "s362",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s363",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s364",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.script/script_succeeded",
+                  "args": {
+                    "language": "python",
+                    "script": "import sys\nsys.exit(3)"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s365",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s366",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s368",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq false, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/script_succeeded: a Python script that exits with 3\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/script_succeeded: a Python script that exits with 3: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.script/script_succeeded - a Python script that exits with 3"
+    },
+    {
+      "id": "s373",
+      "action": "core/step",
+      "args": {
+        "title": "21. Summary"
+      },
+      "children": [
+        {
+          "id": "s374",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s375",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s376",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s377",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "21. Summary"
+    }
+  ]
+}

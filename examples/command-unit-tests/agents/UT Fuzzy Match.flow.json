@@ -1,0 +1,755 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_fuzzy",
+  "name": "UT Fuzzy Match",
+  "description": "Unit tests of every Fuzzy Match command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Fuzzy Match command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Fuzzy Match started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s56",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.fuzzy/best_match - closest vendor"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.fuzzy/best_match (closest vendor) and checks its result."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.fuzzy/best_match",
+              "args": {
+                "text": "Acme Corp.",
+                "candidates": [
+                  "ACME Corporation",
+                  "Zeta Ltd"
+                ],
+                "algorithm": "token_set",
+                "threshold": 50
+              },
+              "out": {
+                "match": "m",
+                "found": "f"
+              },
+              "id": "s60"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": "ACME Corporation"
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq \"ACME Corporation\", got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq true, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.fuzzy/best_match: closest vendor\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.fuzzy/best_match: closest vendor: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.fuzzy/best_match - closest vendor"
+    },
+    {
+      "id": "s71",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.fuzzy/similarity - score"
+      },
+      "children": [
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.fuzzy/similarity (score) and checks its result."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.fuzzy/similarity",
+              "args": {
+                "text1": "kitten",
+                "text2": "sitting"
+              },
+              "out": {
+                "score": "s"
+              },
+              "id": "s74"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$s > 50 and $s < 70"
+                }
+              },
+              "id": "s75"
+            },
+            {
+              "id": "s76",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s78",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.fuzzy/similarity: score\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.fuzzy/similarity: score: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.fuzzy/similarity - score"
+    },
+    {
+      "id": "s83",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.fuzzy/fuzzy_lookup - join"
+      },
+      "children": [
+        {
+          "id": "s84",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.fuzzy/fuzzy_lookup (join) and checks its result."
+          }
+        },
+        {
+          "id": "s85",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": {
+                  "columns": [
+                    "name"
+                  ],
+                  "rows": [
+                    [
+                      "Acme Corp"
+                    ]
+                  ]
+                }
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": {
+                  "columns": [
+                    "vendor",
+                    "id"
+                  ],
+                  "rows": [
+                    [
+                      "ACME Corporation",
+                      7
+                    ]
+                  ]
+                }
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.fuzzy/fuzzy_lookup",
+              "args": {
+                "left_table": "$a",
+                "left_column": "name",
+                "right_table": "$b",
+                "right_column": "vendor",
+                "threshold": 50
+              },
+              "out": {
+                "matched": "m"
+              },
+              "id": "s88"
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq 1, got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.fuzzy/fuzzy_lookup: join\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.fuzzy/fuzzy_lookup: join: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.fuzzy/fuzzy_lookup - join"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.fuzzy/texts_similar - condition"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.fuzzy/texts_similar (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.fuzzy/texts_similar",
+                  "args": {
+                    "text1": "colour",
+                    "text2": "color",
+                    "threshold": 70
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s101"
+                }
+              ],
+              "id": "s100"
+            },
+            {
+              "id": "s102",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s104",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.fuzzy/texts_similar: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.fuzzy/texts_similar: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.fuzzy/texts_similar - condition"
+    },
+    {
+      "id": "s109",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s110",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s111",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s112",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s113",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

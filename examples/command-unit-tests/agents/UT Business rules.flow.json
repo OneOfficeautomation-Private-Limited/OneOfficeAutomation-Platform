@@ -1,0 +1,862 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_rules",
+  "name": "UT Business rules",
+  "description": "Unit tests of the Business rules command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "who",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "y",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Business rules command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Business rules started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s67",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.rules/evaluate_decision_table - approval limits from a CSV kept in Excel: the first matching rule"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rules/evaluate_decision_table (approval limits from a CSV kept in Excel: the first matching rule) and checks its result."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s71",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c1/limits.csv",
+                "text": "rule,in:amount,in:region,out:approver,out:needs_second\nsmall,<1000,-,team lead,false\neu large,1000..50000,\"EU, UK\",finance manager,false\nlarge,[1000..50000],-,controller,false\nhuge,>50000,-,CFO,true\n"
+              },
+              "description": "Prepare the test file limits.csv"
+            },
+            {
+              "action": "ooa.rules/evaluate_decision_table",
+              "args": {
+                "file": "ut_tmp/c1/limits.csv",
+                "inputs": {
+                  "amount": 4200,
+                  "region": "eu"
+                }
+              },
+              "out": {
+                "outputs": "o",
+                "rule": "r",
+                "matched": "m"
+              },
+              "id": "s72"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "who",
+                "value": "${o.approver}"
+              },
+              "id": "s73"
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$who$",
+                  "right": "finance manager"
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check who",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "who: expected eq \"finance manager\", got ${who}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "eu large"
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"eu large\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s82",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq true, got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s84",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rules/evaluate_decision_table: approval limits from a CSV kept in Excel: the first matching rule\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rules/evaluate_decision_table: approval limits from a CSV kept in Excel: the first matching rule: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.rules/evaluate_decision_table - approval limits from a CSV kept in Excel: the first matching rule"
+    },
+    {
+      "id": "s87",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.rules/evaluate_decision_table - collect: every rule that matches"
+      },
+      "children": [
+        {
+          "id": "s88",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rules/evaluate_decision_table (collect: every rule that matches) and checks its result."
+          }
+        },
+        {
+          "id": "s89",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s90",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c2/discounts.csv",
+                "text": "in:customer,in:items,out:discount\ngold,-,5\n-,>=10,3\nnot gold,-,0\n"
+              },
+              "description": "Prepare the test file discounts.csv"
+            },
+            {
+              "action": "ooa.rules/evaluate_decision_table",
+              "args": {
+                "file": "ut_tmp/c2/discounts.csv",
+                "inputs": {
+                  "customer": "Gold",
+                  "items": 12
+                },
+                "hit_policy": "collect"
+              },
+              "out": {
+                "all": "all"
+              },
+              "id": "s91"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($all)"
+                }
+              },
+              "id": "s92"
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rules/evaluate_decision_table: collect: every rule that matches\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rules/evaluate_decision_table: collect: every rule that matches: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.rules/evaluate_decision_table - collect: every rule that matches"
+    },
+    {
+      "id": "s100",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.rules/evaluate_decision_table - unique: two matching rules are an error"
+      },
+      "children": [
+        {
+          "id": "s101",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rules/evaluate_decision_table (unique: two matching rules are an error) and checks its result."
+          }
+        },
+        {
+          "id": "s102",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s103",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c3/u.csv",
+                "text": "in:x,out:y\n>1,a\n>2,b\n"
+              },
+              "description": "Prepare the test file u.csv"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s106",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.rules/evaluate_decision_table",
+                  "args": {
+                    "file": "ut_tmp/c3/u.csv",
+                    "inputs": {
+                      "x": 5
+                    },
+                    "hit_policy": "unique"
+                  },
+                  "id": "s104"
+                }
+              ],
+              "description": "These steps should fail with RULES.NOT_UNIQUE",
+              "catch": [
+                {
+                  "codes": [
+                    "RULES.NOT_UNIQUE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s107",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error RULES.NOT_UNIQUE",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error RULES.NOT_UNIQUE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rules/evaluate_decision_table: unique: two matching rules are an error\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rules/evaluate_decision_table: unique: two matching rules are an error: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.rules/evaluate_decision_table - unique: two matching rules are an error"
+    },
+    {
+      "id": "s115",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.rules/evaluate_decision_table - no match gives the defaults"
+      },
+      "children": [
+        {
+          "id": "s116",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.rules/evaluate_decision_table (no match gives the defaults) and checks its result."
+          }
+        },
+        {
+          "id": "s117",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s118",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c4/d.csv",
+                "text": "in:x,out:y\n<0,negative\n"
+              },
+              "description": "Prepare the test file d.csv"
+            },
+            {
+              "action": "ooa.rules/evaluate_decision_table",
+              "args": {
+                "file": "ut_tmp/c4/d.csv",
+                "inputs": {
+                  "x": 5
+                },
+                "default_outputs": {
+                  "y": "other"
+                }
+              },
+              "out": {
+                "outputs": "o",
+                "matched": "m"
+              },
+              "id": "s119"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "y",
+                "value": "${o.y}"
+              },
+              "id": "s120"
+            },
+            {
+              "id": "s121",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$y$",
+                  "right": "other"
+                }
+              },
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check y",
+              "else": [
+                {
+                  "id": "s123",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "y: expected eq \"other\", got ${y}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq false, got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rules/evaluate_decision_table: no match gives the defaults\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rules/evaluate_decision_table: no match gives the defaults: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.rules/evaluate_decision_table - no match gives the defaults"
+    },
+    {
+      "id": "s131",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s132",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s133",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s134",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s135",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

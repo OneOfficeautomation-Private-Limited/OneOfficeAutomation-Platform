@@ -1,0 +1,567 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_currency",
+  "name": "UT Currency",
+  "description": "Unit tests of every Currency command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Currency command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Currency started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s41",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s42",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.currency/convert - fixed rates (offline)"
+      },
+      "children": [
+        {
+          "id": "s43",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.currency/convert (fixed rates (offline)) and checks its result."
+          }
+        },
+        {
+          "id": "s44",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.currency/convert",
+              "args": {
+                "amount": 100,
+                "from_currency": "EUR",
+                "to_currency": "INR",
+                "source": "fixed",
+                "base_currency": "EUR",
+                "rates": {
+                  "INR": 90.5
+                }
+              },
+              "out": {
+                "amount": "a",
+                "rate": "r"
+              },
+              "id": "s45"
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$a$",
+                  "right": 9050
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a: expected eq 9050, got ${a}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 90.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s51",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 90.5, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.currency/convert: fixed rates (offline)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.currency/convert: fixed rates (offline): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.currency/convert - fixed rates (offline)"
+    },
+    {
+      "id": "s56",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.currency/get_rate - rates from a JSON address"
+      },
+      "children": [
+        {
+          "id": "s57",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.currency/get_rate (rates from a JSON address) and checks its result."
+          }
+        },
+        {
+          "id": "s58",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s59",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "rates.json",
+                "text": "{\"base\": \"USD\", \"rates\": {\"EUR\": 0.5}}"
+              },
+              "description": "Prepare the test file rates.json"
+            },
+            {
+              "action": "ooa.currency/get_rate",
+              "args": {
+                "from_currency": "USD",
+                "to_currency": "EUR",
+                "source": "json",
+                "url": "${standin_url}/rates/usd.json",
+                "rates_path": "rates",
+                "base_currency": "USD"
+              },
+              "out": {
+                "rate": "r"
+              },
+              "id": "s60"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 0.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 0.5, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.currency/get_rate: rates from a JSON address\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.currency/get_rate: rates from a JSON address: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.currency/get_rate - rates from a JSON address"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.currency/list_currencies - fixed list"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.currency/list_currencies (fixed list) and checks its result."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.currency/list_currencies",
+              "args": {
+                "source": "fixed",
+                "base_currency": "EUR",
+                "rates": {
+                  "USD": 1.1,
+                  "INR": 90
+                }
+              },
+              "out": {
+                "currencies": "c"
+              },
+              "id": "s71"
+            },
+            {
+              "id": "s72",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$c$",
+                  "right": "["
+                }
+              },
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c is a List",
+              "else": [
+                {
+                  "id": "s74",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c is a List: expected startsWith \"[\", got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.currency/list_currencies: fixed list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.currency/list_currencies: fixed list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.currency/list_currencies - fixed list"
+    },
+    {
+      "id": "s79",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s80",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s81",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s82",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s83",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}

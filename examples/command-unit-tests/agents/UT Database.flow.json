@@ -1,0 +1,4223 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_database",
+  "name": "UT Database",
+  "description": "Unit tests of every Database command against the SQL Server test database ooa_unit_test: queries, changes in transactions that are rolled back or cleaned up, and stored procedures. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "bulk",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "cols",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "exported",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ins",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "tables",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ids",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sum",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "db_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "db_rows",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_out",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "db_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "db_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "db_rec",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "db_sum",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "db_data",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "db_open",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "db_user",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "db_password",
+      "type": "Credential",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Database command against the SQL Server test database ooa_unit_test: queries, changes in transactions that are rolled back or cleaned up, and stored procedures. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Database started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s124",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s125",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.database/connect - create, insert, bulk insert, query, transaction, export, describe"
+      },
+      "children": [
+        {
+          "id": "s126",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/connect (create, insert, bulk insert, query, transaction, export, describe) and checks its result."
+          }
+        },
+        {
+          "id": "s127",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.database/connect",
+              "args": {
+                "jdbc_url": "jdbc:h2:mem:sample;DB_CLOSE_DELAY=-1",
+                "user": "sa"
+              },
+              "id": "s128"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "CREATE TABLE inv (id INT PRIMARY KEY, vendor VARCHAR(40), amount DECIMAL(10,2))"
+              },
+              "id": "s129"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "INSERT INTO inv VALUES (?, ?, ?)",
+                "parameters": [
+                  1,
+                  "Acme",
+                  120.5
+                ]
+              },
+              "out": {
+                "rows_affected": "ins"
+              },
+              "id": "s130"
+            },
+            {
+              "action": "ooa.database/bulk_insert",
+              "args": {
+                "table": "inv",
+                "data": {
+                  "columns": [
+                    "id",
+                    "vendor",
+                    "amount"
+                  ],
+                  "rows": [
+                    [
+                      2,
+                      "Zeta",
+                      80
+                    ],
+                    [
+                      3,
+                      "Acme",
+                      10
+                    ]
+                  ]
+                }
+              },
+              "out": {
+                "rows_inserted": "bulk"
+              },
+              "id": "s131"
+            },
+            {
+              "action": "ooa.database/begin_transaction",
+              "id": "s132"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "DELETE FROM inv"
+              },
+              "id": "s133"
+            },
+            {
+              "action": "ooa.database/rollback",
+              "id": "s134"
+            },
+            {
+              "action": "ooa.database/query",
+              "args": {
+                "sql": "SELECT vendor, SUM(amount) AS total FROM inv GROUP BY vendor ORDER BY vendor"
+              },
+              "out": {
+                "table": "t",
+                "row_count": "n"
+              },
+              "id": "s135"
+            },
+            {
+              "action": "ooa.database/begin_transaction",
+              "id": "s136"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "UPDATE inv SET amount = 0 WHERE id = 3"
+              },
+              "id": "s137"
+            },
+            {
+              "action": "ooa.database/commit",
+              "id": "s138"
+            },
+            {
+              "action": "ooa.database/export_to_file",
+              "args": {
+                "sql": "SELECT id FROM inv ORDER BY id",
+                "path": "ut_tmp/c1/ids.csv"
+              },
+              "out": {
+                "row_count": "exported"
+              },
+              "id": "s139"
+            },
+            {
+              "action": "ooa.database/list_tables",
+              "out": {
+                "table": "tables"
+              },
+              "id": "s140"
+            },
+            {
+              "action": "ooa.database/describe_table",
+              "args": {
+                "table": "INV"
+              },
+              "out": {
+                "table": "cols"
+              },
+              "id": "s141"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "DROP TABLE inv"
+              },
+              "id": "s142"
+            },
+            {
+              "action": "ooa.database/disconnect",
+              "id": "s143"
+            },
+            {
+              "id": "s144",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ins$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ins",
+              "else": [
+                {
+                  "id": "s146",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ins: expected eq 1, got ${ins}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bulk$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bulk",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bulk: expected eq 2, got ${bulk}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": {
+                    "columns": [
+                      "VENDOR",
+                      "TOTAL"
+                    ],
+                    "rows": [
+                      [
+                        "Acme",
+                        130.5
+                      ],
+                      [
+                        "Zeta",
+                        80
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"columns\": [\"VENDOR\", \"TOTAL\"], \"rows\": [[\"Acme\", 130.5], [\"Zeta\", 80]], got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$exported$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exported",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exported: expected eq 3, got ${exported}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s160",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_tmp/c1/ids.csv"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Look for ids.csv"
+            },
+            {
+              "id": "s162",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ids.csv exists",
+              "else": [
+                {
+                  "id": "s164",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ids.csv exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s165",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/connect: create, insert, bulk insert, query, transaction, export, describe\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/connect: create, insert, bulk insert, query, transaction, export, describe: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.database/connect - create, insert, bulk insert, query, transaction, export, describe"
+    },
+    {
+      "id": "s169",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.database/query - SQL error"
+      },
+      "children": [
+        {
+          "id": "s170",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/query (SQL error) and checks its result."
+          }
+        },
+        {
+          "id": "s171",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s175",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.database/connect",
+                  "args": {
+                    "jdbc_url": "jdbc:h2:mem:sample2",
+                    "user": "sa"
+                  },
+                  "id": "s172"
+                },
+                {
+                  "action": "ooa.database/query",
+                  "args": {
+                    "sql": "SELECT * FROM missing_table"
+                  },
+                  "id": "s173"
+                }
+              ],
+              "description": "These steps should fail with DB.SQL_ERROR",
+              "catch": [
+                {
+                  "codes": [
+                    "DB.SQL_ERROR"
+                  ],
+                  "children": [
+                    {
+                      "id": "s176",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s177",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DB.SQL_ERROR",
+              "else": [
+                {
+                  "id": "s179",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DB.SQL_ERROR: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/query: SQL error\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/query: SQL error: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.database/query - SQL error"
+    },
+    {
+      "id": "s184",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.database/call_procedure - no connection"
+      },
+      "children": [
+        {
+          "id": "s185",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/call_procedure (no connection) and checks its result."
+          }
+        },
+        {
+          "id": "s186",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s189",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.database/call_procedure",
+                  "args": {
+                    "procedure": "p"
+                  },
+                  "id": "s187"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s190",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/call_procedure: no connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/call_procedure: no connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.database/call_procedure - no connection"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.database/connect - URL built from database_type and file"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/connect (URL built from database_type and file) and checks its result."
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 0
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.database/connect",
+              "args": {
+                "database_type": "h2",
+                "file": "ut_tmp/c4/erp"
+              },
+              "id": "s202"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "CREATE TABLE t(id INT)"
+              },
+              "id": "s203"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "INSERT INTO t VALUES (1), (2)"
+              },
+              "id": "s204"
+            },
+            {
+              "action": "ooa.database/query",
+              "args": {
+                "sql": "SELECT id FROM t"
+              },
+              "out": {
+                "row_count": "n"
+              },
+              "id": "s205"
+            },
+            {
+              "action": "ooa.database/disconnect",
+              "args": {},
+              "id": "s206"
+            },
+            {
+              "id": "s207",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s209",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/connect: URL built from database_type and file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/connect: URL built from database_type and file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.database/connect - URL built from database_type and file"
+    },
+    {
+      "id": "s214",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.database/connect - file database without a file"
+      },
+      "children": [
+        {
+          "id": "s215",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/connect (file database without a file) and checks its result."
+          }
+        },
+        {
+          "id": "s216",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s219",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.database/connect",
+                  "args": {
+                    "database_type": "sqlite"
+                  },
+                  "id": "s217"
+                }
+              ],
+              "description": "These steps should fail with DB.BAD_INPUT",
+              "catch": [
+                {
+                  "codes": [
+                    "DB.BAD_INPUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s220",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s221",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DB.BAD_INPUT",
+              "else": [
+                {
+                  "id": "s223",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DB.BAD_INPUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s224",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s225",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/connect: file database without a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s226",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s227",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/connect: file database without a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.database/connect - file database without a file"
+    },
+    {
+      "id": "s228",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.database/query_rows - loop iterator with parameters"
+      },
+      "children": [
+        {
+          "id": "s229",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.database/query_rows (loop iterator with parameters) and checks its result."
+          }
+        },
+        {
+          "id": "s230",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s231",
+              "action": "core/set",
+              "args": {
+                "variable": "sum",
+                "value": 0
+              },
+              "description": "Test value for sum"
+            },
+            {
+              "id": "s232",
+              "action": "core/set",
+              "args": {
+                "variable": "ids",
+                "value": ""
+              },
+              "description": "Test value for ids"
+            },
+            {
+              "action": "ooa.database/connect",
+              "args": {
+                "jdbc_url": "jdbc:h2:mem:rows;DB_CLOSE_DELAY=-1"
+              },
+              "id": "s233"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "CREATE TABLE inv(id VARCHAR(10), amount DECIMAL(10,2))"
+              },
+              "id": "s234"
+            },
+            {
+              "action": "ooa.database/execute",
+              "args": {
+                "sql": "INSERT INTO inv VALUES ('A', 10), ('B', 20.5), ('C', 99)"
+              },
+              "id": "s235"
+            },
+            {
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.database/query_rows",
+                "iterator_args": {
+                  "sql": "SELECT id, amount FROM inv WHERE amount < ? ORDER BY id",
+                  "parameters": [
+                    50
+                  ]
+                },
+                "as": "row"
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sum",
+                    "value": {
+                      "expr": "$sum + $row.AMOUNT"
+                    }
+                  },
+                  "id": "s237"
+                },
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ids",
+                    "value": "${ids}${row.ID}"
+                  },
+                  "id": "s238"
+                }
+              ],
+              "id": "s236"
+            },
+            {
+              "action": "ooa.database/disconnect",
+              "args": {},
+              "id": "s239"
+            },
+            {
+              "id": "s240",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sum$",
+                  "right": 30.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sum",
+              "else": [
+                {
+                  "id": "s242",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sum: expected eq 30.5, got ${sum}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s243",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ids$",
+                  "right": "AB"
+                }
+              },
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ids",
+              "else": [
+                {
+                  "id": "s245",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ids: expected eq \"AB\", got ${ids}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s247",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/query_rows: loop iterator with parameters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s249",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/query_rows: loop iterator with parameters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.database/query_rows - loop iterator with parameters"
+    },
+    {
+      "id": "s250",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.database/connect - SQL Server test database with vault sign-in"
+      },
+      "children": [
+        {
+          "id": "s251",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect opens a database connection as a named session, here SQL Server with the user name and password from the vault. It stays open for the cases below. Checks: a query on it sees the 5 customers of the test data."
+          }
+        },
+        {
+          "id": "s252",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "db_user",
+                "value": {
+                  "$credential": "unit_tests/sqlserver/username"
+                }
+              },
+              "description": "User name from the vault"
+            },
+            {
+              "id": "s254",
+              "action": "core/set",
+              "args": {
+                "variable": "db_password",
+                "value": {
+                  "$credential": "unit_tests/sqlserver/password"
+                }
+              },
+              "description": "Password from the vault"
+            },
+            {
+              "id": "s255",
+              "action": "ooa.database/connect",
+              "args": {
+                "jdbc_url": "jdbc:sqlserver://localhost:1433;databaseName=ooa_unit_test;encrypt=false",
+                "user": "$db_user$",
+                "password": "$db_password$",
+                "session": "ut_sql"
+              },
+              "description": "Connect to ooa_unit_test"
+            },
+            {
+              "id": "s256",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Customers"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Customers"
+            },
+            {
+              "id": "s257",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s258",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s259",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s260",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 5, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s262",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/connect: SQL Server test database with vault sign-in\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s264",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/connect: SQL Server test database with vault sign-in: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.database/connect - SQL Server test database with vault sign-in"
+    },
+    {
+      "id": "s265",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.database/query - active customers with a parameter"
+      },
+      "children": [
+        {
+          "id": "s266",
+          "action": "core/comment",
+          "args": {
+            "text": "Query runs a SELECT with ? parameters and gives the rows as a table. Checks: 3 active customers with a credit limit of at least 10000, first by name is Ann Lee."
+          }
+        },
+        {
+          "id": "s267",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s268",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT Name, City FROM dbo.Customers WHERE Active = 1 AND CreditLimit >= ? ORDER BY Name",
+                "parameters": [
+                  10000
+                ]
+              },
+              "out": {
+                "table": "db_t",
+                "row_count": "db_rows"
+              },
+              "description": "Active customers over a limit"
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s271",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 3, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s272",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column": "Name"
+              },
+              "out": {
+                "value": "db_out"
+              },
+              "description": "First name"
+            },
+            {
+              "id": "s273",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_out$",
+                  "right": "Ann Lee"
+                }
+              },
+              "children": [
+                {
+                  "id": "s274",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_out",
+              "else": [
+                {
+                  "id": "s275",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_out: expected eq \"Ann Lee\", got ${db_out}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s276",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/query: active customers with a parameter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/query: active customers with a parameter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.database/query - active customers with a parameter"
+    },
+    {
+      "id": "s280",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.database/query_rows - loop over a customer's orders"
+      },
+      "children": [
+        {
+          "id": "s281",
+          "action": "core/comment",
+          "args": {
+            "text": "Query rows is a loop: it runs a SELECT and gives each row as a record. Checks: Ann Lee's orders add up to 3 items."
+          }
+        },
+        {
+          "id": "s282",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "db_sum",
+                "value": 0
+              }
+            },
+            {
+              "id": "s284",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.database/query_rows",
+                "iterator_args": {
+                  "session": "ut_sql",
+                  "sql": "SELECT Qty FROM dbo.Orders WHERE CustomerId = ?",
+                  "parameters": [
+                    1
+                  ]
+                },
+                "as": "db_rec"
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "db_sum",
+                    "value": {
+                      "expr": "$db_sum + $db_rec.Qty"
+                    }
+                  }
+                }
+              ],
+              "description": "Each order of customer 1"
+            },
+            {
+              "id": "s286",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_sum$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s287",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_sum",
+              "else": [
+                {
+                  "id": "s288",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_sum: expected eq 3, got ${db_sum}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s290",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/query_rows: loop over a customer's orders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s292",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/query_rows: loop over a customer's orders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.database/query_rows - loop over a customer's orders"
+    },
+    {
+      "id": "s293",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.database/begin_transaction - an insert rolled back"
+      },
+      "children": [
+        {
+          "id": "s294",
+          "action": "core/comment",
+          "args": {
+            "text": "Begin transaction starts a transaction: changes are kept only after Commit. Checks: a new customer is seen inside the transaction and gone after Rollback."
+          }
+        },
+        {
+          "id": "s295",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s296",
+              "action": "ooa.database/begin_transaction",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Start a transaction"
+            },
+            {
+              "id": "s297",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "INSERT INTO dbo.Customers (CustomerId, Name, City, CreditLimit) VALUES (?, ?, ?, ?)",
+                "parameters": [
+                  901,
+                  "UT Temp",
+                  "Pune",
+                  100
+                ]
+              },
+              "description": "Add a customer"
+            },
+            {
+              "id": "s298",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Customers"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Customers"
+            },
+            {
+              "id": "s299",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 6
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 6, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "ooa.database/rollback",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Undo it"
+            },
+            {
+              "id": "s304",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Customers"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Customers"
+            },
+            {
+              "id": "s305",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s306",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s308",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 5, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s309",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s310",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/begin_transaction: an insert rolled back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s311",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s312",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/begin_transaction: an insert rolled back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.database/begin_transaction - an insert rolled back"
+    },
+    {
+      "id": "s313",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.database/execute - update with parameters, rows affected"
+      },
+      "children": [
+        {
+          "id": "s314",
+          "action": "core/comment",
+          "args": {
+            "text": "Execute runs an INSERT, UPDATE, DELETE or DDL statement with ? parameters and gives the number of rows changed. Done in a transaction that is rolled back. Checks: 2 open orders closed."
+          }
+        },
+        {
+          "id": "s315",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s316",
+              "action": "ooa.database/begin_transaction",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Start a transaction"
+            },
+            {
+              "id": "s317",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "UPDATE dbo.Orders SET Status = ? WHERE Status = ?",
+                "parameters": [
+                  "Closed",
+                  "Open"
+                ]
+              },
+              "out": {
+                "rows_affected": "db_n"
+              },
+              "description": "Close the open orders"
+            },
+            {
+              "id": "s318",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s320",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 2, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s321",
+              "action": "ooa.database/rollback",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Undo it"
+            },
+            {
+              "id": "s322",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Orders WHERE Status = 'Open'"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Orders WHERE Status = 'Open'"
+            },
+            {
+              "id": "s323",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s324",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s326",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 2, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s327",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/execute: update with parameters, rows affected\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/execute: update with parameters, rows affected: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.database/execute - update with parameters, rows affected"
+    },
+    {
+      "id": "s331",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.database/rollback - a delete undone"
+      },
+      "children": [
+        {
+          "id": "s332",
+          "action": "core/comment",
+          "args": {
+            "text": "Rollback undoes the changes made since Begin transaction. Checks: products deleted in the transaction are all back."
+          }
+        },
+        {
+          "id": "s333",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s334",
+              "action": "ooa.database/begin_transaction",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Start a transaction"
+            },
+            {
+              "id": "s335",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Stock = 0 AND Sku NOT IN (SELECT Sku FROM dbo.Orders)"
+              },
+              "out": {
+                "rows_affected": "db_rows"
+              },
+              "description": "Delete the products without stock"
+            },
+            {
+              "id": "s336",
+              "action": "ooa.database/rollback",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Undo it"
+            },
+            {
+              "id": "s337",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Products"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Products"
+            },
+            {
+              "id": "s338",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s339",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s340",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s341",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 4, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s342",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/rollback: a delete undone\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s344",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/rollback: a delete undone: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.database/rollback - a delete undone"
+    },
+    {
+      "id": "s346",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.database/commit - a product kept, then cleaned up"
+      },
+      "children": [
+        {
+          "id": "s347",
+          "action": "core/comment",
+          "args": {
+            "text": "Commit keeps the changes made since Begin transaction. Checks: a product added and committed is there after the transaction; it is deleted again at the end."
+          }
+        },
+        {
+          "id": "s348",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s349",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku = 'UT-COMMIT'"
+              },
+              "description": "Remove a leftover from an earlier run"
+            },
+            {
+              "id": "s350",
+              "action": "ooa.database/begin_transaction",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Start a transaction"
+            },
+            {
+              "id": "s351",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "INSERT INTO dbo.Products (Sku, Title, Price, Stock) VALUES ('UT-COMMIT', 'Test item', 1.00, 1)"
+              },
+              "description": "Add a product"
+            },
+            {
+              "id": "s352",
+              "action": "ooa.database/commit",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Keep it"
+            },
+            {
+              "id": "s353",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Products WHERE Sku = 'UT-COMMIT'"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Products WHERE Sku = 'UT-COMMIT'"
+            },
+            {
+              "id": "s354",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s355",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s357",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 1, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s358",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku = 'UT-COMMIT'"
+              },
+              "description": "Clean up"
+            },
+            {
+              "id": "s359",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s360",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/commit: a product kept, then cleaned up\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s361",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s362",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/commit: a product kept, then cleaned up: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.database/commit - a product kept, then cleaned up"
+    },
+    {
+      "id": "s363",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.database/bulk_insert - a Data Table into Products, then cleaned up"
+      },
+      "children": [
+        {
+          "id": "s364",
+          "action": "core/comment",
+          "args": {
+            "text": "Bulk insert inserts every row of a Data Table into a database table in batches, all or nothing. Checks: 3 rows inserted and found; they are deleted again at the end."
+          }
+        },
+        {
+          "id": "s365",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s366",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku LIKE 'UT-B%'"
+              },
+              "description": "Remove leftovers from an earlier run"
+            },
+            {
+              "id": "s367",
+              "action": "core/set",
+              "args": {
+                "variable": "db_data",
+                "value": {
+                  "columns": [
+                    "Sku",
+                    "Title",
+                    "Price",
+                    "Stock"
+                  ],
+                  "rows": [
+                    [
+                      "UT-B1",
+                      "Bulk one",
+                      10.5,
+                      1
+                    ],
+                    [
+                      "UT-B2",
+                      "Bulk two",
+                      20,
+                      2
+                    ],
+                    [
+                      "UT-B3",
+                      "Bulk three",
+                      30,
+                      3
+                    ]
+                  ]
+                }
+              },
+              "description": "Three new products"
+            },
+            {
+              "id": "s368",
+              "action": "ooa.database/bulk_insert",
+              "args": {
+                "session": "ut_sql",
+                "table": "dbo.Products",
+                "data": "$db_data$",
+                "batch_size": 2
+              },
+              "out": {
+                "rows_inserted": "db_rows"
+              },
+              "description": "Insert them"
+            },
+            {
+              "id": "s369",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s370",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s371",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 3, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s372",
+              "action": "ooa.database/query",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT COUNT(*) FROM dbo.Products WHERE Sku LIKE 'UT-B%'"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Count: SELECT COUNT(*) FROM dbo.Products WHERE Sku LIKE 'UT-B%'"
+            },
+            {
+              "id": "s373",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column_index": 0
+              },
+              "out": {
+                "value": "db_n"
+              },
+              "description": "The count"
+            },
+            {
+              "id": "s374",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s375",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s376",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 3, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s377",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku LIKE 'UT-B%'"
+              },
+              "description": "Clean up"
+            },
+            {
+              "id": "s378",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s379",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/bulk_insert: a Data Table into Products, then cleaned up\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s380",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s381",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/bulk_insert: a Data Table into Products, then cleaned up: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.database/bulk_insert - a Data Table into Products, then cleaned up"
+    },
+    {
+      "id": "s382",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.database/bulk_insert - from a CSV file, then cleaned up"
+      },
+      "children": [
+        {
+          "id": "s383",
+          "action": "core/comment",
+          "args": {
+            "text": "Bulk insert can also read a delimited text file line by line. Checks: 2 rows inserted."
+          }
+        },
+        {
+          "id": "s384",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s385",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku LIKE 'UT-F%'"
+              },
+              "description": "Remove leftovers from an earlier run"
+            },
+            {
+              "id": "s386",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/db/products.csv",
+                "text": "Sku,Title,Price,Stock\nUT-F1,File one,5,1\nUT-F2,File two,6,2\n"
+              },
+              "description": "A CSV file of products"
+            },
+            {
+              "id": "s387",
+              "action": "ooa.database/bulk_insert",
+              "args": {
+                "session": "ut_sql",
+                "table": "dbo.Products",
+                "source_file": "ut_tmp/db/products.csv"
+              },
+              "out": {
+                "rows_inserted": "db_rows"
+              },
+              "description": "Insert the file's rows"
+            },
+            {
+              "id": "s388",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s389",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s390",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 2, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s391",
+              "action": "ooa.database/execute",
+              "args": {
+                "session": "ut_sql",
+                "sql": "DELETE FROM dbo.Products WHERE Sku LIKE 'UT-F%'"
+              },
+              "description": "Clean up"
+            },
+            {
+              "id": "s392",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s393",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/bulk_insert: from a CSV file, then cleaned up\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s394",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s395",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/bulk_insert: from a CSV file, then cleaned up: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.database/bulk_insert - from a CSV file, then cleaned up"
+    },
+    {
+      "id": "s396",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.database/call_procedure - rows from CustomerOrders"
+      },
+      "children": [
+        {
+          "id": "s397",
+          "action": "core/comment",
+          "args": {
+            "text": "Call procedure runs a stored procedure and gives back the rows it produces. Checks: customer 1 has 2 orders, the first for a Laptop stand."
+          }
+        },
+        {
+          "id": "s398",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s399",
+              "action": "ooa.database/call_procedure",
+              "args": {
+                "session": "ut_sql",
+                "procedure": "dbo.CustomerOrders",
+                "parameters": [
+                  1
+                ]
+              },
+              "out": {
+                "table": "db_t",
+                "row_count": "db_rows"
+              },
+              "description": "Orders of customer 1"
+            },
+            {
+              "id": "s400",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_rows$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s401",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_rows",
+              "else": [
+                {
+                  "id": "s402",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_rows: expected eq 2, got ${db_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s403",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$db_t$",
+                "row": 0,
+                "column": "Title"
+              },
+              "out": {
+                "value": "db_out"
+              },
+              "description": "First title"
+            },
+            {
+              "id": "s404",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_out$",
+                  "right": "Laptop stand"
+                }
+              },
+              "children": [
+                {
+                  "id": "s405",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_out",
+              "else": [
+                {
+                  "id": "s406",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_out: expected eq \"Laptop stand\", got ${db_out}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s407",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s408",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/call_procedure: rows from CustomerOrders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s409",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s410",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/call_procedure: rows from CustomerOrders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.database/call_procedure - rows from CustomerOrders"
+    },
+    {
+      "id": "s411",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.database/call_procedure - an output parameter from RaisePrice (rolled back)"
+      },
+      "children": [
+        {
+          "id": "s412",
+          "action": "core/comment",
+          "args": {
+            "text": "Call procedure also gives back output parameters: RaisePrice raises a price by a percentage and returns the new price. Run in a transaction that is rolled back. Checks: 1299.00 plus 10% is 1428.90."
+          }
+        },
+        {
+          "id": "s413",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s414",
+              "action": "ooa.database/begin_transaction",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Start a transaction"
+            },
+            {
+              "id": "s415",
+              "action": "ooa.database/call_procedure",
+              "args": {
+                "session": "ut_sql",
+                "procedure": "dbo.RaisePrice",
+                "parameters": [
+                  "SKU-100",
+                  10,
+                  {
+                    "value": null,
+                    "direction": "out",
+                    "type": "decimal",
+                    "name": "NewPrice"
+                  }
+                ]
+              },
+              "out": {
+                "out_parameters": "db_out"
+              },
+              "description": "Raise SKU-100 by 10%"
+            },
+            {
+              "id": "s416",
+              "action": "ooa.database/rollback",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Undo it"
+            },
+            {
+              "id": "s417",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_out.NewPrice$",
+                  "right": 1428.9
+                }
+              },
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check NewPrice",
+              "else": [
+                {
+                  "id": "s419",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "NewPrice: expected eq 1428.9"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s421",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/call_procedure: an output parameter from RaisePrice (rolled back)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s423",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/call_procedure: an output parameter from RaisePrice (rolled back): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.database/call_procedure - an output parameter from RaisePrice (rolled back)"
+    },
+    {
+      "id": "s424",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.database/describe_table - the columns of Products"
+      },
+      "children": [
+        {
+          "id": "s425",
+          "action": "core/comment",
+          "args": {
+            "text": "Describe table gives the columns of a table with their types and sizes. Checks: Products has 4 columns and Sku is one of them."
+          }
+        },
+        {
+          "id": "s426",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s427",
+              "action": "ooa.database/describe_table",
+              "args": {
+                "session": "ut_sql",
+                "table": "Products"
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Describe Products"
+            },
+            {
+              "id": "s428",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$db_t$"
+              },
+              "out": {
+                "count": "db_n"
+              },
+              "description": "Number of columns"
+            },
+            {
+              "id": "s429",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s430",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s431",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 4, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s432",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${db_t}",
+                  "right": "Sku"
+                }
+              },
+              "children": [
+                {
+                  "id": "s433",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the description",
+              "else": [
+                {
+                  "id": "s434",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the description: expected contains \"Sku\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s435",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s436",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/describe_table: the columns of Products\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s438",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/describe_table: the columns of Products: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.database/describe_table - the columns of Products"
+    },
+    {
+      "id": "s439",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.database/list_tables - the test tables"
+      },
+      "children": [
+        {
+          "id": "s440",
+          "action": "core/comment",
+          "args": {
+            "text": "List tables gives the tables and views the connection can see, here in schema dbo. Checks: Customers, Products and Orders are listed."
+          }
+        },
+        {
+          "id": "s441",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s442",
+              "action": "ooa.database/list_tables",
+              "args": {
+                "session": "ut_sql",
+                "schema": "dbo",
+                "include_views": false
+              },
+              "out": {
+                "table": "db_t"
+              },
+              "description": "Tables in dbo"
+            },
+            {
+              "id": "s443",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${db_t}",
+                  "right": "Customers"
+                }
+              },
+              "children": [
+                {
+                  "id": "s444",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the list of tables",
+              "else": [
+                {
+                  "id": "s445",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the list of tables: expected contains \"Customers\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s446",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${db_t}",
+                  "right": "Products"
+                }
+              },
+              "children": [
+                {
+                  "id": "s447",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the list of tables",
+              "else": [
+                {
+                  "id": "s448",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the list of tables: expected contains \"Products\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s449",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${db_t}",
+                  "right": "Orders"
+                }
+              },
+              "children": [
+                {
+                  "id": "s450",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the list of tables",
+              "else": [
+                {
+                  "id": "s451",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the list of tables: expected contains \"Orders\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s452",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s453",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/list_tables: the test tables\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s454",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s455",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/list_tables: the test tables: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.database/list_tables - the test tables"
+    },
+    {
+      "id": "s456",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.database/export_to_file - products to CSV"
+      },
+      "children": [
+        {
+          "id": "s457",
+          "action": "core/comment",
+          "args": {
+            "text": "Export to file runs a SELECT and writes its rows to a CSV file without loading them into memory. Checks: 4 rows, and the file has the header and SKU-100."
+          }
+        },
+        {
+          "id": "s458",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s459",
+              "action": "ooa.database/export_to_file",
+              "args": {
+                "session": "ut_sql",
+                "sql": "SELECT Sku, Stock FROM dbo.Products WHERE Price > ? ORDER BY Sku",
+                "parameters": [
+                  0
+                ],
+                "path": "ut_tmp/db/products-out.csv"
+              },
+              "out": {
+                "row_count": "db_n",
+                "path": "db_path"
+              },
+              "description": "Write the products to a CSV file"
+            },
+            {
+              "id": "s460",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s461",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_n",
+              "else": [
+                {
+                  "id": "s462",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_n: expected eq 4, got ${db_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s463",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/db/products-out.csv"
+              },
+              "out": {
+                "text": "db_text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s464",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$db_text$",
+                  "right": "Sku,Stock"
+                }
+              },
+              "children": [
+                {
+                  "id": "s465",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the header",
+              "else": [
+                {
+                  "id": "s466",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the header: expected startsWith \"Sku,Stock\", got ${db_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s467",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$db_text$",
+                  "right": "SKU-100,40"
+                }
+              },
+              "children": [
+                {
+                  "id": "s468",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file",
+              "else": [
+                {
+                  "id": "s469",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file: expected contains \"SKU-100,40\", got ${db_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s470",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s471",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/export_to_file: products to CSV\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s472",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s473",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/export_to_file: products to CSV: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.database/export_to_file - products to CSV"
+    },
+    {
+      "id": "s474",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.database/disconnect - the session is closed"
+      },
+      "children": [
+        {
+          "id": "s475",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the session (uncommitted changes are rolled back). Checks: the session is no longer open, and a query on it fails with SESSION.NOT_FOUND."
+          }
+        },
+        {
+          "id": "s476",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s477",
+              "action": "ooa.database/disconnect",
+              "args": {
+                "session": "ut_sql"
+              },
+              "description": "Close the SQL Server session"
+            },
+            {
+              "id": "s478",
+              "action": "core/set",
+              "args": {
+                "variable": "db_open",
+                "value": false
+              }
+            },
+            {
+              "id": "s479",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "core/session_open",
+                  "args": {
+                    "session": "ut_sql"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s480",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "db_open",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Still open?"
+            },
+            {
+              "id": "s481",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$db_open$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s482",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check db_open",
+              "else": [
+                {
+                  "id": "s483",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "db_open: expected eq false, got ${db_open}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s484",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s485",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s486",
+                  "action": "ooa.database/query",
+                  "args": {
+                    "session": "ut_sql",
+                    "sql": "SELECT 1"
+                  },
+                  "description": "Query the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s487",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s488",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s489",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s490",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s491",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s492",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.database/disconnect: the session is closed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s493",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s494",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.database/disconnect: the session is closed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.database/disconnect - the session is closed"
+    },
+    {
+      "id": "s495",
+      "action": "core/step",
+      "args": {
+        "title": "22. Summary"
+      },
+      "children": [
+        {
+          "id": "s496",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s497",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s498",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s499",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "22. Summary"
+    }
+  ]
+}
