@@ -34,19 +34,22 @@ def add(ua):
         f.act("ooa.window/wait_for", desc="Wait for the window", title="UT watched window", timeout_seconds=20, cont=True)
         close_test_window(f, "UT watched window")
 
-    with ua.case("ooa.triggerloop/key_pressed", "F9 pressed while the loop waits",
-                 "Each time a key is pressed runs the steps when the key (here F9) is pressed; a parallel branch presses F9 two "
-                 "seconds after the loop starts. Only the key and window are reported, never typed text.") as f:
+    # A person pressing F9 is checked by hand: the watcher ignores keys that programs press (Windows marks them), so an
+    # agent cannot press F9 for itself. Run "UT Trigger Loop (screen)" and press F9 to see that case count 1.
+    with ua.case("ooa.triggerloop/key_pressed", "nobody presses F9: the loop ends at max_seconds",
+                 "Each time a key is pressed runs the steps when a person presses the key (here F9); keys pressed by programs "
+                 "are ignored, so the F9 this agent presses is not counted and the loop ends after 3 seconds with no event. "
+                 "Only the key and window are reported, never typed text.") as f:
         f.set("ut_n", 0)
-        with f.parallel(2, desc="Watch for F9 while it is pressed"):
+        with f.parallel(2, desc="Watch for F9 while a program presses it"):
             with f.step("Watch"):
                 with f.loop(desc="Each time F9 is pressed", iterator="ooa.triggerloop/key_pressed", **{"as": "ev"},
-                            iterator_args={"key": "F9", "max_events": 1, "max_seconds": 15}):
+                            iterator_args={"key": "F9", "max_events": 1, "max_seconds": 3}):
                     f.expr("ut_n", "$ut_n + 1", desc="Count it")
-            with f.step("Press F9"):
-                f.act("core/delay", desc="Let the loop start", seconds=2)
-                f.act("ooa.desktop/press_keys", desc="Press F9", keys="f9")
-        ua.check_eq("ut_n", 1)
+            with f.step("Press F9 by program"):
+                f.act("core/delay", desc="Let the loop start", seconds=1)
+                f.act("ooa.desktop/press_keys", desc="Press F9 (a program key press: ignored)", keys="f9")
+        ua.check_eq("ut_n", 0)
 
     with ua.case("ooa.triggerloop/mouse_clicked", "no person clicks: the loop ends at max_seconds",
                  "Each click in a window runs the steps when a person clicks in the window (clicks made by programs are "

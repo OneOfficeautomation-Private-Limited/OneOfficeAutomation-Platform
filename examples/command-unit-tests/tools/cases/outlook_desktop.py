@@ -11,7 +11,7 @@ def add(ua):
     fix_samples(ua, ["ooa.outlook_desktop"])
     for s in find("ooa.outlook_desktop/", requires="desktop"):
         add_converted(ua, s)
-    for n, t in (("ut_id", "String"), ("ut_id2", "String"), ("ut_n", "Number"), ("ut_text", "String"), ("ut_list", "List"),
+    for n, t in (("ut_id", "String"), ("ut_path", "String"), ("ut_id2", "String"), ("ut_n", "Number"), ("ut_text", "String"), ("ut_list", "List"),
                  ("ut_mail", "Dictionary"), ("ev", "Dictionary"), ("ut_cond", "Boolean")):
         ua.var(n, t)
 
@@ -56,12 +56,13 @@ def add(ua):
         f.act("ooa.outlook_desktop/mark", desc="Mark it read, category Blue", id="$ut_id$", read=True, category="Blue category")
         tidy(f)
 
-    with ua.case("ooa.outlook_desktop/reply", "saved as a draft",
-                 "Reply answers an email; with save_as_draft the answer is only saved, never sent.") as f:
+    with ua.case("ooa.outlook_desktop/reply", "to an unsent draft: Outlook refuses",
+                 "Reply answers a received email; with save_as_draft the answer is only saved, never sent. The test mailbox "
+                 "has no received email to answer, and Outlook does not allow a reply to an unsent draft, so the step "
+                 "fails with OUTLOOK.FAILED.") as f:
         draft(f, "reply")
-        f.act("ooa.outlook_desktop/reply", desc="Reply as a draft", id="$ut_id$", body="Noted", save_as_draft=True, out={"draft_id": "ut_id2"})
-        ua.check("notEmpty", "$ut_id2$", what="draft id")
-        f.act("ooa.outlook_desktop/delete", desc="Delete the reply draft", id="$ut_id2$", cont=True)
+        ua.expect_error("OUTLOOK.FAILED", lambda g: g.act("ooa.outlook_desktop/reply", desc="Reply as a draft", id="$ut_id$",
+                                                          body="Noted", save_as_draft=True, out={"draft_id": "ut_id2"}))
         tidy(f)
 
     with ua.case("ooa.outlook_desktop/forward", "saved as a draft",
@@ -85,8 +86,9 @@ def add(ua):
     with ua.case("ooa.outlook_desktop/save_attachments", "the draft's CSV",
                  "Save attachments saves one email's attachments that fit a pattern.") as f:
         f.act("ooa.file/write_text", desc="A file to attach", path="ol_att/src/a.csv", text="1,2")
-        f.act("ooa.file/get_info", desc="Its full path", path="ol_att/src/a.csv", out={"info": "ut_mail"})
-        draft(f, "attachments", ["$ut_mail.path$"])
+        f.act("ooa.file/get_info", desc="Its folder and name", path="ol_att/src/a.csv", out={"info": "ut_mail"})
+        f.expr("ut_path", "$ut_mail.folder + '/' + $ut_mail.name", desc="Its full path")
+        draft(f, "attachments", ["$ut_path$"])
         f.act("ooa.outlook_desktop/save_attachments", desc="Save the CSV", id="$ut_id$", folder="ol_att/out", name_pattern="*.csv",
               overwrite=True, out={"files": "ut_list"})
         f.expr("ut_n", "len($ut_list)", desc="Count them")

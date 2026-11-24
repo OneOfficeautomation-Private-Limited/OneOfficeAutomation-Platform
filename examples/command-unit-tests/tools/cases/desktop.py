@@ -5,7 +5,7 @@ from helpers_desktop import add_converted, close_test_window, desktop_object, fi
 W = "UT keyboard window"
 TB = ("$t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.ScrollBars = 'Vertical'; "
       "$t.SetBounds(10, 10, 420, 240); $f.Controls.Add($t); ")
-NOTES = desktop_object(W, ControlType="Edit", AutomationId="notes")
+NOTES = desktop_object(W, ControlType="Document", AutomationId="notes")   # a multi-line text box is a Document
 
 
 def add(ua):
@@ -30,12 +30,14 @@ def add(ua):
         close_test_window(f, W)
 
     with ua.case("ooa.desktop/press_keys", "select all and replace",
-                 "Press keys presses keys and combinations (here Ctrl+A, then Delete) in the window in front.") as f:
+                 "Press keys presses keys and combinations (here Ctrl+Home, then Ctrl+Shift+End to select everything, then "
+                 "Delete) in the window in front. A multi-line Windows Forms text box ignores Ctrl+A, so it is not used.") as f:
         open_test_window(f, W, TB)
         f.act("ooa.window/activate", desc="Bring it to the front", title=W)
         f.act("ooa.desktop/mouse_click", desc="Click inside the text box", x=60, y=60, relative_to="window", window=W)
         f.act("ooa.desktop/type_text", desc="Type some text", text="old text", method="keystrokes", window=W)
-        f.act("ooa.desktop/press_keys", desc="Select everything", keys="ctrl+a", window=W)
+        f.act("ooa.desktop/press_keys", desc="Go to the start", keys="ctrl+home", window=W)
+        f.act("ooa.desktop/press_keys", desc="Select to the end", keys="ctrl+shift+end", window=W)
         f.act("ooa.desktop/press_keys", desc="Delete it", keys="delete", window=W)
         f.act("ooa.desktop/press_keys", desc="Type x three times", keys="x", times=3, window=W)
         read_notes(f)
@@ -80,12 +82,12 @@ def add(ua):
               out={"cancelled": "ut_ok"})
         ua.check_eq("ut_ok", True)
 
-    with ua.case("ooa.desktop/prompt_password", "nobody answers: empty",
-                 "Ask for a password shows a masked box; nobody answers within 2 seconds, so the password is empty.") as f:
+    with ua.case("ooa.desktop/prompt_password", "nobody answers: cancelled",
+                 "Ask for a password shows a masked box; nobody answers within 2 seconds, so the step fails as cancelled "
+                 "(DESKTOP.CANCELLED), which an agent catches.") as f:
         ua.var("ut_secret", "Credential")
-        f.act("ooa.desktop/prompt_password", desc="Ask for a password, 2 s", question="UT password", timeout_seconds=2,
-              out={"password": "ut_secret"})
-        ua.check("empty", "$ut_secret$", what="password")
+        ua.expect_error("DESKTOP.CANCELLED", lambda g: g.act("ooa.desktop/prompt_password", desc="Ask for a password, 2 s",
+                                                             question="UT password", timeout_seconds=2, out={"password": "ut_secret"}))
 
     with ua.case("ooa.desktop/block_input", "for one second, then unblock",
                  "Block input stops the person's mouse and keyboard for a while (Windows allows it only to an elevated "

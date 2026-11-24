@@ -190,6 +190,9 @@ def open_test_window(f, title: str, body: str = "", wait: int = 30):
     f.act("ooa.application/start_program", desc="Open the test window '" + title + "'", program="powershell.exe",
           arguments=["-NoProfile", "-WindowStyle", "Hidden", "-Command", winform_script(title, body)])
     f.act("ooa.window/wait_for", desc="Wait for the test window", title=title, timeout_seconds=wait)
+    if getattr(f, "cleanup", None) is not None:   # closed even when the case fails
+        f.cleanup.append(lambda g, t=title: g.act("ooa.window/close", desc="Close the test window (also after a failure)",
+                                                  title=t, cont=True))
 
 
 def close_test_window(f, title: str):

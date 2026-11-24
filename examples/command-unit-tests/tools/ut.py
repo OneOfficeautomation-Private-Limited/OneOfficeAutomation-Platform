@@ -56,6 +56,7 @@ class UnitAgent:
         self.covered.add(command)
         f = self.f
         label = f"{command}: {_safe(title)}"
+        f.cleanup = []          # steps a case asks to run even when it fails (e.g. close its test window)
         with f.step(f"{self.n}. {command} - {title}", why=why):
             with f.try_(desc="Run the command and check what it gave back") as t:
                 yield f
@@ -64,6 +65,11 @@ class UnitAgent:
             with f.catch(t, codes=("*",), message_to="ut_err"):
                 f.expr("ut_fail", "$ut_fail + 1", desc="Count the case as failed")
                 f.set("ut_report", "${ut_report}FAIL  " + label + ": ${ut_err}\n", desc="Add a FAIL line with the reason")
+            if f.cleanup:
+                with f.finally_(t):
+                    for step in f.cleanup:
+                        step(f)
+        f.cleanup = []
 
     # ---------- checks ----------
     def check(self, op: str, left, right=None, what: str = "the result"):

@@ -7,7 +7,7 @@ W = "UT vision window"
 FILL = ("$t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t); "
         "$f.TopMost = $true; ")
 MODEL = {"provider": "openai_compatible", "base_url": "$standin_url$/dsk/ai", "model": "ut-vision"}
-NOTES = desktop_object(W, ControlType="Edit", AutomationId="notes")
+NOTES = desktop_object(W, ControlType="Document", AutomationId="notes")   # a multi-line text box is a Document
 
 
 def add(ua):
@@ -43,7 +43,7 @@ def add(ua):
         open_test_window(f, W, FILL)
         f.act("ooa.ai_screen/click_described", desc="Click the notes box", description="the notes text box", **MODEL,
               out={"x": "ut_x", "y": "ut_y"})
-        f.act("ooa.desktop/press_keys", desc="Type abc", keys="a b c")
+        f.act("ooa.desktop/type_text", desc="Type abc", text="abc", method="keystrokes")
         f.act("ooa.desktop_ui/object_action", desc="Read the box", object=NOTES, action_="get_text", out={"result": "ut_text"})
         ua.check("contains", "$ut_text$", "abc", what="notes")
         close_test_window(f, W)

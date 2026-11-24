@@ -53,7 +53,7 @@ def add(ua):
         ua.check_eq("ut_text", "Saved Acme")
         f.act("ooa.desktop_ui/object_action", desc="Tick Urgent", object=URGENT, action_="check")
         f.act("ooa.desktop_ui/object_action", desc="Is it ticked?", object=URGENT, action_="get_status", out={"result": "ut_any"})
-        ua.check("eq", "$ut_any$", True, what="checked")
+        ua.check("eq", "$ut_any$", "checked", what="state (checked, unchecked or indeterminate)")
         f.act("ooa.desktop_ui/object_action", desc="Pick Green", object=COLOUR, action_="select_item", item="Green")
         f.act("ooa.desktop_ui/object_action", desc="Read the selection", object=COLOUR, action_="get_selected", out={"result": "ut_text"})
         ua.check_eq("ut_text", "Green")

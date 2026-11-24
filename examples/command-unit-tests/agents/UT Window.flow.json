@@ -168,6 +168,11 @@
       "direction": "local"
     },
     {
+      "name": "ut_x_name",
+      "type": "String",
+      "direction": "local"
+    },
+    {
       "name": "ut_x",
       "type": "Number",
       "direction": "local"
@@ -2489,32 +2494,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s221",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window move"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "11. ooa.window/move_resize - to a place and size"
     },
     {
-      "id": "s221",
+      "id": "s222",
       "action": "core/step",
       "args": {
         "title": "12. ooa.window/get_info - state and process"
       },
       "children": [
         {
-          "id": "s222",
+          "id": "s223",
           "action": "core/comment",
           "args": {
             "text": "Get window details gives the window's position, size, state and process id."
           }
         },
         {
-          "id": "s223",
+          "id": "s224",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s224",
+              "id": "s225",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -2529,7 +2545,7 @@
               "description": "Open the test window 'UT window info'"
             },
             {
-              "id": "s225",
+              "id": "s226",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window info",
@@ -2538,7 +2554,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s226",
+              "id": "s227",
               "action": "ooa.window/get_info",
               "args": {
                 "title": "UT window info"
@@ -2550,7 +2566,7 @@
               "description": "Read the details"
             },
             {
-              "id": "s227",
+              "id": "s228",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2561,7 +2577,7 @@
               },
               "children": [
                 {
-                  "id": "s228",
+                  "id": "s229",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2571,7 +2587,7 @@
               "description": "Check process id",
               "else": [
                 {
-                  "id": "s229",
+                  "id": "s230",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2582,7 +2598,7 @@
               ]
             },
             {
-              "id": "s230",
+              "id": "s231",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2592,7 +2608,7 @@
               },
               "children": [
                 {
-                  "id": "s231",
+                  "id": "s232",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2602,7 +2618,7 @@
               "description": "Check state",
               "else": [
                 {
-                  "id": "s232",
+                  "id": "s233",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2613,7 +2629,7 @@
               ]
             },
             {
-              "id": "s233",
+              "id": "s234",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window info"
@@ -2622,7 +2638,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s234",
+              "id": "s235",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -2633,7 +2649,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s235",
+              "id": "s236",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -2650,7 +2666,7 @@
               ],
               "children": [
                 {
-                  "id": "s236",
+                  "id": "s237",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -2661,7 +2677,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s237",
+                  "id": "s238",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -2672,32 +2688,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s239",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window info"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "12. ooa.window/get_info - state and process"
     },
     {
-      "id": "s238",
+      "id": "s240",
       "action": "core/step",
       "args": {
         "title": "13. ooa.window/maximize - maximize, minimize, restore"
       },
       "children": [
         {
-          "id": "s239",
+          "id": "s241",
           "action": "core/comment",
           "args": {
             "text": "Maximize, Minimize and Restore change the window's state; Get window details shows each one."
           }
         },
         {
-          "id": "s240",
+          "id": "s242",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s241",
+              "id": "s243",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -2712,7 +2739,7 @@
               "description": "Open the test window 'UT window states'"
             },
             {
-              "id": "s242",
+              "id": "s244",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window states",
@@ -2721,7 +2748,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s243",
+              "id": "s245",
               "action": "ooa.window/maximize",
               "args": {
                 "title": "UT window states"
@@ -2729,7 +2756,7 @@
               "description": "Maximize"
             },
             {
-              "id": "s244",
+              "id": "s246",
               "action": "ooa.window/get_info",
               "args": {
                 "title": "UT window states"
@@ -2740,7 +2767,7 @@
               "description": "Read the state"
             },
             {
-              "id": "s245",
+              "id": "s247",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2751,7 +2778,7 @@
               },
               "children": [
                 {
-                  "id": "s246",
+                  "id": "s248",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2761,7 +2788,7 @@
               "description": "Check state",
               "else": [
                 {
-                  "id": "s247",
+                  "id": "s249",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2772,7 +2799,7 @@
               ]
             },
             {
-              "id": "s248",
+              "id": "s250",
               "action": "ooa.window/minimize",
               "args": {
                 "title": "UT window states"
@@ -2780,7 +2807,7 @@
               "description": "Minimize"
             },
             {
-              "id": "s249",
+              "id": "s251",
               "action": "ooa.window/get_info",
               "args": {
                 "title": "UT window states"
@@ -2791,7 +2818,7 @@
               "description": "Read the state"
             },
             {
-              "id": "s250",
+              "id": "s252",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2802,7 +2829,7 @@
               },
               "children": [
                 {
-                  "id": "s251",
+                  "id": "s253",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2812,7 +2839,7 @@
               "description": "Check state",
               "else": [
                 {
-                  "id": "s252",
+                  "id": "s254",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2823,7 +2850,7 @@
               ]
             },
             {
-              "id": "s253",
+              "id": "s255",
               "action": "ooa.window/restore",
               "args": {
                 "title": "UT window states"
@@ -2831,7 +2858,7 @@
               "description": "Restore"
             },
             {
-              "id": "s254",
+              "id": "s256",
               "action": "ooa.window/get_info",
               "args": {
                 "title": "UT window states"
@@ -2842,7 +2869,7 @@
               "description": "Read the state"
             },
             {
-              "id": "s255",
+              "id": "s257",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2853,7 +2880,7 @@
               },
               "children": [
                 {
-                  "id": "s256",
+                  "id": "s258",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2863,7 +2890,7 @@
               "description": "Check state",
               "else": [
                 {
-                  "id": "s257",
+                  "id": "s259",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2874,7 +2901,7 @@
               ]
             },
             {
-              "id": "s258",
+              "id": "s260",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window states"
@@ -2883,7 +2910,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s259",
+              "id": "s261",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -2894,7 +2921,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s260",
+              "id": "s262",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -2911,7 +2938,7 @@
               ],
               "children": [
                 {
-                  "id": "s261",
+                  "id": "s263",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -2922,7 +2949,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s262",
+                  "id": "s264",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -2933,32 +2960,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s265",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window states"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "13. ooa.window/maximize - maximize, minimize, restore"
     },
     {
-      "id": "s263",
+      "id": "s266",
       "action": "core/step",
       "args": {
         "title": "14. ooa.window/minimize - gives the title"
       },
       "children": [
         {
-          "id": "s264",
+          "id": "s267",
           "action": "core/comment",
           "args": {
             "text": "Minimize gives the title of the window it minimized."
           }
         },
         {
-          "id": "s265",
+          "id": "s268",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s266",
+              "id": "s269",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -2973,7 +3011,7 @@
               "description": "Open the test window 'UT window minimize'"
             },
             {
-              "id": "s267",
+              "id": "s270",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window minimize",
@@ -2982,7 +3020,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s268",
+              "id": "s271",
               "action": "ooa.window/minimize",
               "args": {
                 "title": "UT window minimize"
@@ -2993,7 +3031,7 @@
               "description": "Minimize"
             },
             {
-              "id": "s269",
+              "id": "s272",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3004,7 +3042,7 @@
               },
               "children": [
                 {
-                  "id": "s270",
+                  "id": "s273",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3014,7 +3052,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s271",
+                  "id": "s274",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3025,7 +3063,7 @@
               ]
             },
             {
-              "id": "s272",
+              "id": "s275",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window minimize"
@@ -3034,7 +3072,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s273",
+              "id": "s276",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3045,7 +3083,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s274",
+              "id": "s277",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3062,7 +3100,7 @@
               ],
               "children": [
                 {
-                  "id": "s275",
+                  "id": "s278",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3073,7 +3111,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s276",
+                  "id": "s279",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3084,32 +3122,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s280",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window minimize"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "14. ooa.window/minimize - gives the title"
     },
     {
-      "id": "s277",
+      "id": "s281",
       "action": "core/step",
       "args": {
         "title": "15. ooa.window/restore - after maximize"
       },
       "children": [
         {
-          "id": "s278",
+          "id": "s282",
           "action": "core/comment",
           "args": {
             "text": "Restore brings a maximized window back to its normal size and gives its title."
           }
         },
         {
-          "id": "s279",
+          "id": "s283",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s280",
+              "id": "s284",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -3124,7 +3173,7 @@
               "description": "Open the test window 'UT window restore'"
             },
             {
-              "id": "s281",
+              "id": "s285",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window restore",
@@ -3133,7 +3182,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s282",
+              "id": "s286",
               "action": "ooa.window/maximize",
               "args": {
                 "title": "UT window restore"
@@ -3141,7 +3190,7 @@
               "description": "Maximize"
             },
             {
-              "id": "s283",
+              "id": "s287",
               "action": "ooa.window/restore",
               "args": {
                 "title": "UT window restore"
@@ -3152,7 +3201,7 @@
               "description": "Restore"
             },
             {
-              "id": "s284",
+              "id": "s288",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3163,7 +3212,7 @@
               },
               "children": [
                 {
-                  "id": "s285",
+                  "id": "s289",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3173,7 +3222,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s286",
+                  "id": "s290",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3184,7 +3233,7 @@
               ]
             },
             {
-              "id": "s287",
+              "id": "s291",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window restore"
@@ -3193,7 +3242,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s288",
+              "id": "s292",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3204,7 +3253,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s289",
+              "id": "s293",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3221,7 +3270,7 @@
               ],
               "children": [
                 {
-                  "id": "s290",
+                  "id": "s294",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3232,7 +3281,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s291",
+                  "id": "s295",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3243,32 +3292,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s296",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window restore"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "15. ooa.window/restore - after maximize"
     },
     {
-      "id": "s292",
+      "id": "s297",
       "action": "core/step",
       "args": {
         "title": "16. ooa.window/set_title - rename and back"
       },
       "children": [
         {
-          "id": "s293",
+          "id": "s298",
           "action": "core/comment",
           "args": {
             "text": "Set window title renames a window and gives the old title."
           }
         },
         {
-          "id": "s294",
+          "id": "s299",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s295",
+              "id": "s300",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -3283,7 +3343,7 @@
               "description": "Open the test window 'UT window title'"
             },
             {
-              "id": "s296",
+              "id": "s301",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window title",
@@ -3292,7 +3352,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s297",
+              "id": "s302",
               "action": "ooa.window/set_title",
               "args": {
                 "title": "UT window title",
@@ -3304,7 +3364,7 @@
               "description": "Rename it"
             },
             {
-              "id": "s298",
+              "id": "s303",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3315,7 +3375,7 @@
               },
               "children": [
                 {
-                  "id": "s299",
+                  "id": "s304",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3325,7 +3385,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s300",
+                  "id": "s305",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3336,7 +3396,7 @@
               ]
             },
             {
-              "id": "s301",
+              "id": "s306",
               "action": "ooa.window/set_title",
               "args": {
                 "title": "UT window renamed",
@@ -3345,7 +3405,7 @@
               "description": "Back to its name"
             },
             {
-              "id": "s302",
+              "id": "s307",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window title"
@@ -3354,7 +3414,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s303",
+              "id": "s308",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3365,7 +3425,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s304",
+              "id": "s309",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3382,7 +3442,7 @@
               ],
               "children": [
                 {
-                  "id": "s305",
+                  "id": "s310",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3393,7 +3453,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s306",
+                  "id": "s311",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3404,32 +3464,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s312",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window title"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "16. ooa.window/set_title - rename and back"
     },
     {
-      "id": "s307",
+      "id": "s313",
       "action": "core/step",
       "args": {
         "title": "17. ooa.window/get_active - after activating the test window"
       },
       "children": [
         {
-          "id": "s308",
+          "id": "s314",
           "action": "core/comment",
           "args": {
             "text": "Get active window gives the title of the window in front."
           }
         },
         {
-          "id": "s309",
+          "id": "s315",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s310",
+              "id": "s316",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -3444,7 +3515,7 @@
               "description": "Open the test window 'UT window active'"
             },
             {
-              "id": "s311",
+              "id": "s317",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window active",
@@ -3453,7 +3524,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s312",
+              "id": "s318",
               "action": "ooa.window/activate",
               "args": {
                 "title": "UT window active"
@@ -3461,17 +3532,17 @@
               "description": "Bring it to the front"
             },
             {
-              "id": "s313",
+              "id": "s319",
               "action": "ooa.window/get_active",
               "args": {},
               "out": {
                 "title": "ut_text",
-                "process_name": "ut_dict"
+                "process_name": "ut_x_name"
               },
               "description": "Read the active window"
             },
             {
-              "id": "s314",
+              "id": "s320",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3482,7 +3553,7 @@
               },
               "children": [
                 {
-                  "id": "s315",
+                  "id": "s321",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3492,7 +3563,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s316",
+                  "id": "s322",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3503,7 +3574,7 @@
               ]
             },
             {
-              "id": "s317",
+              "id": "s323",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window active"
@@ -3512,7 +3583,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s318",
+              "id": "s324",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3523,7 +3594,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s319",
+              "id": "s325",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3540,7 +3611,7 @@
               ],
               "children": [
                 {
-                  "id": "s320",
+                  "id": "s326",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3551,7 +3622,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s321",
+                  "id": "s327",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3562,32 +3633,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s328",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window active"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "17. ooa.window/get_active - after activating the test window"
     },
     {
-      "id": "s322",
+      "id": "s329",
       "action": "core/step",
       "args": {
         "title": "18. ooa.window/is_active - true after activating"
       },
       "children": [
         {
-          "id": "s323",
+          "id": "s330",
           "action": "core/comment",
           "args": {
             "text": "Window is active is a condition: true while that window is in front."
           }
         },
         {
-          "id": "s324",
+          "id": "s331",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s325",
+              "id": "s332",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -3602,7 +3684,7 @@
               "description": "Open the test window 'UT window is active'"
             },
             {
-              "id": "s326",
+              "id": "s333",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window is active",
@@ -3611,7 +3693,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s327",
+              "id": "s334",
               "action": "ooa.window/activate",
               "args": {
                 "title": "UT window is active"
@@ -3619,7 +3701,7 @@
               "description": "Bring it to the front"
             },
             {
-              "id": "s328",
+              "id": "s335",
               "action": "core/set",
               "args": {
                 "variable": "ut_cond",
@@ -3627,7 +3709,7 @@
               }
             },
             {
-              "id": "s329",
+              "id": "s336",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3640,7 +3722,7 @@
               },
               "children": [
                 {
-                  "id": "s330",
+                  "id": "s337",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_cond",
@@ -3651,7 +3733,7 @@
               "description": "Is it in front?"
             },
             {
-              "id": "s331",
+              "id": "s338",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3662,7 +3744,7 @@
               },
               "children": [
                 {
-                  "id": "s332",
+                  "id": "s339",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3672,7 +3754,7 @@
               "description": "Check active",
               "else": [
                 {
-                  "id": "s333",
+                  "id": "s340",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3683,7 +3765,7 @@
               ]
             },
             {
-              "id": "s334",
+              "id": "s341",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window is active"
@@ -3692,7 +3774,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s335",
+              "id": "s342",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3703,7 +3785,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s336",
+              "id": "s343",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3720,7 +3802,7 @@
               ],
               "children": [
                 {
-                  "id": "s337",
+                  "id": "s344",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3731,7 +3813,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s338",
+                  "id": "s345",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3742,32 +3824,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s346",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window is active"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "18. ooa.window/is_active - true after activating"
     },
     {
-      "id": "s339",
+      "id": "s347",
       "action": "core/step",
       "args": {
         "title": "19. ooa.window/exists - an open and a missing window"
       },
       "children": [
         {
-          "id": "s340",
+          "id": "s348",
           "action": "core/comment",
           "args": {
             "text": "Window exists is a condition: true while a window with the title is open."
           }
         },
         {
-          "id": "s341",
+          "id": "s349",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s342",
+              "id": "s350",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -3782,7 +3875,7 @@
               "description": "Open the test window 'UT window exists'"
             },
             {
-              "id": "s343",
+              "id": "s351",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window exists",
@@ -3791,7 +3884,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s344",
+              "id": "s352",
               "action": "core/set",
               "args": {
                 "variable": "ut_cond",
@@ -3799,7 +3892,7 @@
               }
             },
             {
-              "id": "s345",
+              "id": "s353",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3811,7 +3904,7 @@
               },
               "children": [
                 {
-                  "id": "s346",
+                  "id": "s354",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_cond",
@@ -3822,7 +3915,7 @@
               "description": "Is it open?"
             },
             {
-              "id": "s347",
+              "id": "s355",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3833,7 +3926,7 @@
               },
               "children": [
                 {
-                  "id": "s348",
+                  "id": "s356",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3843,7 +3936,7 @@
               "description": "Check exists",
               "else": [
                 {
-                  "id": "s349",
+                  "id": "s357",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3854,7 +3947,7 @@
               ]
             },
             {
-              "id": "s350",
+              "id": "s358",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3866,7 +3959,7 @@
               },
               "children": [
                 {
-                  "id": "s351",
+                  "id": "s359",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_cond",
@@ -3877,7 +3970,7 @@
               "description": "Is a missing window open?"
             },
             {
-              "id": "s352",
+              "id": "s360",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3888,7 +3981,7 @@
               },
               "children": [
                 {
-                  "id": "s353",
+                  "id": "s361",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3898,7 +3991,7 @@
               "description": "Check missing window",
               "else": [
                 {
-                  "id": "s354",
+                  "id": "s362",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3909,7 +4002,7 @@
               ]
             },
             {
-              "id": "s355",
+              "id": "s363",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window exists"
@@ -3918,7 +4011,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s356",
+              "id": "s364",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3929,7 +4022,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s357",
+              "id": "s365",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3946,7 +4039,7 @@
               ],
               "children": [
                 {
-                  "id": "s358",
+                  "id": "s366",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3957,7 +4050,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s359",
+                  "id": "s367",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3968,32 +4061,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s368",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window exists"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "19. ooa.window/exists - an open and a missing window"
     },
     {
-      "id": "s360",
+      "id": "s369",
       "action": "core/step",
       "args": {
         "title": "20. ooa.window/list - the test window is listed"
       },
       "children": [
         {
-          "id": "s361",
+          "id": "s370",
           "action": "core/comment",
           "args": {
             "text": "List windows gives the titles of the open windows."
           }
         },
         {
-          "id": "s362",
+          "id": "s371",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s363",
+              "id": "s372",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -4008,7 +4112,7 @@
               "description": "Open the test window 'UT window list'"
             },
             {
-              "id": "s364",
+              "id": "s373",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window list",
@@ -4017,7 +4121,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s365",
+              "id": "s374",
               "action": "ooa.window/list",
               "args": {},
               "out": {
@@ -4026,7 +4130,7 @@
               "description": "List the windows"
             },
             {
-              "id": "s366",
+              "id": "s375",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4037,7 +4141,7 @@
               },
               "children": [
                 {
-                  "id": "s367",
+                  "id": "s376",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4047,7 +4151,7 @@
               "description": "Check titles",
               "else": [
                 {
-                  "id": "s368",
+                  "id": "s377",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4058,7 +4162,7 @@
               ]
             },
             {
-              "id": "s369",
+              "id": "s378",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window list"
@@ -4067,7 +4171,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s370",
+              "id": "s379",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -4078,7 +4182,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s371",
+              "id": "s380",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -4095,7 +4199,7 @@
               ],
               "children": [
                 {
-                  "id": "s372",
+                  "id": "s381",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -4106,7 +4210,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s373",
+                  "id": "s382",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -4117,32 +4221,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s383",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window list"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "20. ooa.window/list - the test window is listed"
     },
     {
-      "id": "s374",
+      "id": "s384",
       "action": "core/step",
       "args": {
         "title": "21. ooa.window/capture - a picture of the window"
       },
       "children": [
         {
-          "id": "s375",
+          "id": "s385",
           "action": "core/comment",
           "args": {
             "text": "Capture window saves a picture of one window."
           }
         },
         {
-          "id": "s376",
+          "id": "s386",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s377",
+              "id": "s387",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -4157,7 +4272,7 @@
               "description": "Open the test window 'UT window capture'"
             },
             {
-              "id": "s378",
+              "id": "s388",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window capture",
@@ -4166,7 +4281,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s379",
+              "id": "s389",
               "action": "ooa.file/delete",
               "args": {
                 "path": "win_capture.png"
@@ -4175,7 +4290,7 @@
               "description": "No old picture"
             },
             {
-              "id": "s380",
+              "id": "s390",
               "action": "ooa.window/capture",
               "args": {
                 "title": "UT window capture",
@@ -4188,7 +4303,7 @@
               "description": "Capture it"
             },
             {
-              "id": "s381",
+              "id": "s391",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4199,7 +4314,7 @@
               },
               "children": [
                 {
-                  "id": "s382",
+                  "id": "s392",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4209,7 +4324,7 @@
               "description": "Check path",
               "else": [
                 {
-                  "id": "s383",
+                  "id": "s393",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4220,7 +4335,7 @@
               ]
             },
             {
-              "id": "s384",
+              "id": "s394",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window capture"
@@ -4229,7 +4344,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s385",
+              "id": "s395",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -4240,7 +4355,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s386",
+              "id": "s396",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -4257,7 +4372,7 @@
               ],
               "children": [
                 {
-                  "id": "s387",
+                  "id": "s397",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -4268,7 +4383,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s388",
+                  "id": "s398",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -4279,32 +4394,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s399",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window capture"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "21. ooa.window/capture - a picture of the window"
     },
     {
-      "id": "s389",
+      "id": "s400",
       "action": "core/step",
       "args": {
         "title": "22. ooa.window/close - closed and gone"
       },
       "children": [
         {
-          "id": "s390",
+          "id": "s401",
           "action": "core/comment",
           "args": {
             "text": "Close window closes it and, with wait_closed_seconds, waits until it is gone."
           }
         },
         {
-          "id": "s391",
+          "id": "s402",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s392",
+              "id": "s403",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -4319,7 +4445,7 @@
               "description": "Open the test window 'UT window close'"
             },
             {
-              "id": "s393",
+              "id": "s404",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window close",
@@ -4328,7 +4454,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s394",
+              "id": "s405",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window close",
@@ -4340,7 +4466,7 @@
               "description": "Close it"
             },
             {
-              "id": "s395",
+              "id": "s406",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4351,7 +4477,7 @@
               },
               "children": [
                 {
-                  "id": "s396",
+                  "id": "s407",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4361,7 +4487,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s397",
+                  "id": "s408",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4372,7 +4498,7 @@
               ]
             },
             {
-              "id": "s398",
+              "id": "s409",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window close",
@@ -4385,7 +4511,7 @@
               "description": "It is gone"
             },
             {
-              "id": "s399",
+              "id": "s410",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4396,7 +4522,7 @@
               },
               "children": [
                 {
-                  "id": "s400",
+                  "id": "s411",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4406,7 +4532,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s401",
+                  "id": "s412",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4417,7 +4543,7 @@
               ]
             },
             {
-              "id": "s402",
+              "id": "s413",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -4428,7 +4554,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s403",
+              "id": "s414",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -4445,7 +4571,7 @@
               ],
               "children": [
                 {
-                  "id": "s404",
+                  "id": "s415",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -4456,7 +4582,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s405",
+                  "id": "s416",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -4467,32 +4593,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s417",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window close"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "22. ooa.window/close - closed and gone"
     },
     {
-      "id": "s406",
+      "id": "s418",
       "action": "core/step",
       "args": {
         "title": "23. ooa.window/type_in_background - into the text box without focus"
       },
       "children": [
         {
-          "id": "s407",
+          "id": "s419",
           "action": "core/comment",
           "args": {
             "text": "Type in background puts text into a control of a window that need not be in front, by its class."
           }
         },
         {
-          "id": "s408",
+          "id": "s420",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s409",
+              "id": "s421",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -4507,7 +4644,7 @@
               "description": "Open the test window 'UT window background typing'"
             },
             {
-              "id": "s410",
+              "id": "s422",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT window background typing",
@@ -4516,7 +4653,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s411",
+              "id": "s423",
               "action": "ooa.window/type_in_background",
               "args": {
                 "title": "UT window background typing",
@@ -4530,7 +4667,7 @@
               "description": "Type into the text box"
             },
             {
-              "id": "s412",
+              "id": "s424",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4541,7 +4678,7 @@
               },
               "children": [
                 {
-                  "id": "s413",
+                  "id": "s425",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4551,7 +4688,7 @@
               "description": "Check control text",
               "else": [
                 {
-                  "id": "s414",
+                  "id": "s426",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4562,7 +4699,7 @@
               ]
             },
             {
-              "id": "s415",
+              "id": "s427",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT window background typing"
@@ -4571,7 +4708,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s416",
+              "id": "s428",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -4582,7 +4719,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s417",
+              "id": "s429",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -4599,7 +4736,7 @@
               ],
               "children": [
                 {
-                  "id": "s418",
+                  "id": "s430",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -4610,7 +4747,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s419",
+                  "id": "s431",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -4621,32 +4758,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s432",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window background typing"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "23. ooa.window/type_in_background - into the text box without focus"
     },
     {
-      "id": "s420",
+      "id": "s433",
       "action": "core/step",
       "args": {
         "title": "24. ooa.window/pick_point - nobody picks: time-out"
       },
       "children": [
         {
-          "id": "s421",
+          "id": "s434",
           "action": "core/comment",
           "args": {
             "text": "Pick a point (design time) waits for a person to click a spot; nobody clicks in an unattended run, so it ends with its time-out error after 2 seconds."
           }
         },
         {
-          "id": "s422",
+          "id": "s435",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s423",
+              "id": "s436",
               "action": "core/set",
               "args": {
                 "variable": "ut_got_error",
@@ -4654,12 +4802,12 @@
               }
             },
             {
-              "id": "s424",
+              "id": "s437",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "id": "s425",
+                  "id": "s438",
                   "action": "ooa.window/pick_point",
                   "args": {
                     "timeout_seconds": 2
@@ -4675,7 +4823,7 @@
                   ],
                   "children": [
                     {
-                      "id": "s426",
+                      "id": "s439",
                       "action": "core/set",
                       "args": {
                         "variable": "ut_got_error",
@@ -4688,7 +4836,7 @@
               ]
             },
             {
-              "id": "s427",
+              "id": "s440",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -4699,7 +4847,7 @@
               },
               "children": [
                 {
-                  "id": "s428",
+                  "id": "s441",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -4709,7 +4857,7 @@
               "description": "Check error *",
               "else": [
                 {
-                  "id": "s429",
+                  "id": "s442",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -4720,7 +4868,7 @@
               ]
             },
             {
-              "id": "s430",
+              "id": "s443",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -4731,7 +4879,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s431",
+              "id": "s444",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -4748,7 +4896,7 @@
               ],
               "children": [
                 {
-                  "id": "s432",
+                  "id": "s445",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -4759,7 +4907,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s433",
+                  "id": "s446",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -4776,21 +4924,21 @@
       "description": "24. ooa.window/pick_point - nobody picks: time-out"
     },
     {
-      "id": "s434",
+      "id": "s447",
       "action": "core/step",
       "args": {
         "title": "25. Summary"
       },
       "children": [
         {
-          "id": "s435",
+          "id": "s448",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s436",
+          "id": "s449",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -4799,7 +4947,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s437",
+          "id": "s450",
           "action": "core/if",
           "args": {
             "condition": {
@@ -4810,7 +4958,7 @@
           },
           "children": [
             {
-              "id": "s438",
+              "id": "s451",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",

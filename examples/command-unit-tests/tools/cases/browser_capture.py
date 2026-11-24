@@ -23,9 +23,9 @@ def add(ua):
         ua.expect_error("*", lambda ff: ff.act("ooa.browser/pick_element", desc="Wait 3 s for a pick", url=WEB + "form.html",
                                                browser="edge", timeout_minutes=0.05))
 
-    with ua.case("ooa.browser/record", "nothing done: no steps",
+    with ua.case("ooa.browser/record", "nothing done: only the Open step",
                  "Record web actions (design time) records what a person does on the page until the time-out (3 seconds); "
-                 "nobody acts, so no steps are recorded.") as f:
+                 "a recording always starts with the step that opens the page, and nobody acts, so that is the only step.") as f:
         f.act("ooa.browser/record", desc="Record for 3 s", url=WEB + "form.html", browser="edge", timeout_minutes=0.05,
               out={"count": "ut_n"})
-        ua.check_eq("ut_n", 0)
+        ua.check_eq("ut_n", 1)

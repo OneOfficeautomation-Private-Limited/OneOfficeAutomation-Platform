@@ -2306,7 +2306,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -2418,32 +2418,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s215",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "15. ooa.desktop/mouse_click - into a text box, then type"
     },
     {
-      "id": "s215",
+      "id": "s216",
       "action": "core/step",
       "args": {
         "title": "16. ooa.desktop/press_keys - select all and replace"
       },
       "children": [
         {
-          "id": "s216",
+          "id": "s217",
           "action": "core/comment",
           "args": {
-            "text": "Press keys presses keys and combinations (here Ctrl+A, then Delete) in the window in front."
+            "text": "Press keys presses keys and combinations (here Ctrl+Home, then Ctrl+Shift+End to select everything, then Delete) in the window in front. A multi-line Windows Forms text box ignores Ctrl+A, so it is not used."
           }
         },
         {
-          "id": "s217",
+          "id": "s218",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s218",
+              "id": "s219",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -2458,7 +2469,7 @@
               "description": "Open the test window 'UT keyboard window'"
             },
             {
-              "id": "s219",
+              "id": "s220",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT keyboard window",
@@ -2467,7 +2478,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s220",
+              "id": "s221",
               "action": "ooa.window/activate",
               "args": {
                 "title": "UT keyboard window"
@@ -2475,7 +2486,7 @@
               "description": "Bring it to the front"
             },
             {
-              "id": "s221",
+              "id": "s222",
               "action": "ooa.desktop/mouse_click",
               "args": {
                 "x": 60,
@@ -2486,7 +2497,7 @@
               "description": "Click inside the text box"
             },
             {
-              "id": "s222",
+              "id": "s223",
               "action": "ooa.desktop/type_text",
               "args": {
                 "text": "old text",
@@ -2496,16 +2507,25 @@
               "description": "Type some text"
             },
             {
-              "id": "s223",
+              "id": "s224",
               "action": "ooa.desktop/press_keys",
               "args": {
-                "keys": "ctrl+a",
+                "keys": "ctrl+home",
                 "window": "UT keyboard window"
               },
-              "description": "Select everything"
+              "description": "Go to the start"
             },
             {
-              "id": "s224",
+              "id": "s225",
+              "action": "ooa.desktop/press_keys",
+              "args": {
+                "keys": "ctrl+shift+end",
+                "window": "UT keyboard window"
+              },
+              "description": "Select to the end"
+            },
+            {
+              "id": "s226",
               "action": "ooa.desktop/press_keys",
               "args": {
                 "keys": "delete",
@@ -2514,7 +2534,7 @@
               "description": "Delete it"
             },
             {
-              "id": "s225",
+              "id": "s227",
               "action": "ooa.desktop/press_keys",
               "args": {
                 "keys": "x",
@@ -2524,7 +2544,7 @@
               "description": "Type x three times"
             },
             {
-              "id": "s226",
+              "id": "s228",
               "action": "ooa.desktop_ui/object_action",
               "args": {
                 "object": {
@@ -2536,7 +2556,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -2557,7 +2577,7 @@
               "description": "Read the text box"
             },
             {
-              "id": "s227",
+              "id": "s229",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2568,7 +2588,7 @@
               },
               "children": [
                 {
-                  "id": "s228",
+                  "id": "s230",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2578,7 +2598,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s229",
+                  "id": "s231",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2589,7 +2609,7 @@
               ]
             },
             {
-              "id": "s230",
+              "id": "s232",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT keyboard window"
@@ -2598,7 +2618,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s231",
+              "id": "s233",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -2609,7 +2629,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s232",
+              "id": "s234",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -2626,7 +2646,7 @@
               ],
               "children": [
                 {
-                  "id": "s233",
+                  "id": "s235",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -2637,7 +2657,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s234",
+                  "id": "s236",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -2648,32 +2668,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s237",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "16. ooa.desktop/press_keys - select all and replace"
     },
     {
-      "id": "s235",
+      "id": "s238",
       "action": "core/step",
       "args": {
         "title": "17. ooa.desktop/mouse_scroll - over the text box"
       },
       "children": [
         {
-          "id": "s236",
+          "id": "s239",
           "action": "core/comment",
           "args": {
             "text": "Mouse scroll turns the wheel at a point; a long text in the box scrolls without changing it."
           }
         },
         {
-          "id": "s237",
+          "id": "s240",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s238",
+              "id": "s241",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -2688,7 +2719,7 @@
               "description": "Open the test window 'UT keyboard window'"
             },
             {
-              "id": "s239",
+              "id": "s242",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT keyboard window",
@@ -2697,7 +2728,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s240",
+              "id": "s243",
               "action": "ooa.desktop_ui/object_action",
               "args": {
                 "object": {
@@ -2709,7 +2740,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -2728,7 +2759,7 @@
               "description": "Fill the box with many lines"
             },
             {
-              "id": "s241",
+              "id": "s244",
               "action": "ooa.desktop/mouse_scroll",
               "args": {
                 "amount": 5,
@@ -2741,7 +2772,7 @@
               "description": "Scroll down 5"
             },
             {
-              "id": "s242",
+              "id": "s245",
               "action": "ooa.desktop/mouse_scroll",
               "args": {
                 "amount": 5,
@@ -2754,7 +2785,7 @@
               "description": "Scroll up 5"
             },
             {
-              "id": "s243",
+              "id": "s246",
               "action": "ooa.desktop_ui/object_action",
               "args": {
                 "object": {
@@ -2766,7 +2797,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -2787,7 +2818,7 @@
               "description": "Read the text box"
             },
             {
-              "id": "s244",
+              "id": "s247",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2798,7 +2829,7 @@
               },
               "children": [
                 {
-                  "id": "s245",
+                  "id": "s248",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2808,7 +2839,7 @@
               "description": "Check text",
               "else": [
                 {
-                  "id": "s246",
+                  "id": "s249",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2819,7 +2850,7 @@
               ]
             },
             {
-              "id": "s247",
+              "id": "s250",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT keyboard window"
@@ -2828,7 +2859,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s248",
+              "id": "s251",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -2839,7 +2870,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s249",
+              "id": "s252",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -2856,7 +2887,7 @@
               ],
               "children": [
                 {
-                  "id": "s250",
+                  "id": "s253",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -2867,7 +2898,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s251",
+                  "id": "s254",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -2878,32 +2909,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s255",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "17. ooa.desktop/mouse_scroll - over the text box"
     },
     {
-      "id": "s252",
+      "id": "s256",
       "action": "core/step",
       "args": {
         "title": "18. ooa.desktop/clipboard_get - text put there first"
       },
       "children": [
         {
-          "id": "s253",
+          "id": "s257",
           "action": "core/comment",
           "args": {
             "text": "Get clipboard reads the clipboard's text and says whether there is text."
           }
         },
         {
-          "id": "s254",
+          "id": "s258",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s255",
+              "id": "s259",
               "action": "ooa.desktop/clipboard_set",
               "args": {
                 "text": "UT clip 42"
@@ -2911,7 +2953,7 @@
               "description": "Put text on the clipboard"
             },
             {
-              "id": "s256",
+              "id": "s260",
               "action": "ooa.desktop/clipboard_get",
               "args": {},
               "out": {
@@ -2921,7 +2963,7 @@
               "description": "Read it"
             },
             {
-              "id": "s257",
+              "id": "s261",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2932,7 +2974,7 @@
               },
               "children": [
                 {
-                  "id": "s258",
+                  "id": "s262",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2942,7 +2984,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s259",
+                  "id": "s263",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2953,7 +2995,7 @@
               ]
             },
             {
-              "id": "s260",
+              "id": "s264",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -2964,7 +3006,7 @@
               },
               "children": [
                 {
-                  "id": "s261",
+                  "id": "s265",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -2974,7 +3016,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s262",
+                  "id": "s266",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -2985,13 +3027,13 @@
               ]
             },
             {
-              "id": "s263",
+              "id": "s267",
               "action": "ooa.desktop/clipboard_clear",
               "args": {},
               "description": "Leave it empty"
             },
             {
-              "id": "s264",
+              "id": "s268",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3002,7 +3044,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s265",
+              "id": "s269",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3019,7 +3061,7 @@
               ],
               "children": [
                 {
-                  "id": "s266",
+                  "id": "s270",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3030,7 +3072,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s267",
+                  "id": "s271",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3047,26 +3089,26 @@
       "description": "18. ooa.desktop/clipboard_get - text put there first"
     },
     {
-      "id": "s268",
+      "id": "s272",
       "action": "core/step",
       "args": {
         "title": "19. ooa.desktop/clipboard_clear - nothing left"
       },
       "children": [
         {
-          "id": "s269",
+          "id": "s273",
           "action": "core/comment",
           "args": {
             "text": "Clear clipboard empties the clipboard."
           }
         },
         {
-          "id": "s270",
+          "id": "s274",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s271",
+              "id": "s275",
               "action": "ooa.desktop/clipboard_set",
               "args": {
                 "text": "to be cleared"
@@ -3074,13 +3116,13 @@
               "description": "Put text on the clipboard"
             },
             {
-              "id": "s272",
+              "id": "s276",
               "action": "ooa.desktop/clipboard_clear",
               "args": {},
               "description": "Clear it"
             },
             {
-              "id": "s273",
+              "id": "s277",
               "action": "ooa.desktop/clipboard_get",
               "args": {},
               "out": {
@@ -3089,7 +3131,7 @@
               "description": "Read it"
             },
             {
-              "id": "s274",
+              "id": "s278",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3100,7 +3142,7 @@
               },
               "children": [
                 {
-                  "id": "s275",
+                  "id": "s279",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3110,7 +3152,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s276",
+                  "id": "s280",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3121,7 +3163,7 @@
               ]
             },
             {
-              "id": "s277",
+              "id": "s281",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3132,7 +3174,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s278",
+              "id": "s282",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3149,7 +3191,7 @@
               ],
               "children": [
                 {
-                  "id": "s279",
+                  "id": "s283",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3160,7 +3202,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s280",
+                  "id": "s284",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3177,26 +3219,26 @@
       "description": "19. ooa.desktop/clipboard_clear - nothing left"
     },
     {
-      "id": "s281",
+      "id": "s285",
       "action": "core/step",
       "args": {
         "title": "20. ooa.desktop/prompt_file - nobody answers: cancelled"
       },
       "children": [
         {
-          "id": "s282",
+          "id": "s286",
           "action": "core/comment",
           "args": {
             "text": "Ask for a file shows a file dialog; with a time-out and nobody there it closes itself as cancelled."
           }
         },
         {
-          "id": "s283",
+          "id": "s287",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s284",
+              "id": "s288",
               "action": "ooa.desktop/prompt_file",
               "args": {
                 "title": "UT choose a file",
@@ -3210,7 +3252,7 @@
               "description": "Ask for a CSV file, 2 s"
             },
             {
-              "id": "s285",
+              "id": "s289",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3221,7 +3263,7 @@
               },
               "children": [
                 {
-                  "id": "s286",
+                  "id": "s290",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3231,7 +3273,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s287",
+                  "id": "s291",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3242,7 +3284,7 @@
               ]
             },
             {
-              "id": "s288",
+              "id": "s292",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3253,7 +3295,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s289",
+              "id": "s293",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3270,7 +3312,7 @@
               ],
               "children": [
                 {
-                  "id": "s290",
+                  "id": "s294",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3281,7 +3323,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s291",
+                  "id": "s295",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3298,26 +3340,26 @@
       "description": "20. ooa.desktop/prompt_file - nobody answers: cancelled"
     },
     {
-      "id": "s292",
+      "id": "s296",
       "action": "core/step",
       "args": {
         "title": "21. ooa.desktop/prompt_folder - nobody answers: cancelled"
       },
       "children": [
         {
-          "id": "s293",
+          "id": "s297",
           "action": "core/comment",
           "args": {
             "text": "Ask for a folder shows a folder dialog; with a time-out and nobody there it closes itself as cancelled."
           }
         },
         {
-          "id": "s294",
+          "id": "s298",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s295",
+              "id": "s299",
               "action": "ooa.desktop/prompt_folder",
               "args": {
                 "title": "UT choose a folder",
@@ -3329,7 +3371,7 @@
               "description": "Ask for a folder, 2 s"
             },
             {
-              "id": "s296",
+              "id": "s300",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3340,7 +3382,7 @@
               },
               "children": [
                 {
-                  "id": "s297",
+                  "id": "s301",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3350,7 +3392,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s298",
+                  "id": "s302",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3361,7 +3403,7 @@
               ]
             },
             {
-              "id": "s299",
+              "id": "s303",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3372,7 +3414,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s300",
+              "id": "s304",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3389,7 +3431,7 @@
               ],
               "children": [
                 {
-                  "id": "s301",
+                  "id": "s305",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3400,7 +3442,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s302",
+                  "id": "s306",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3417,69 +3459,104 @@
       "description": "21. ooa.desktop/prompt_folder - nobody answers: cancelled"
     },
     {
-      "id": "s303",
+      "id": "s307",
       "action": "core/step",
       "args": {
-        "title": "22. ooa.desktop/prompt_password - nobody answers: empty"
+        "title": "22. ooa.desktop/prompt_password - nobody answers: cancelled"
       },
       "children": [
         {
-          "id": "s304",
+          "id": "s308",
           "action": "core/comment",
           "args": {
-            "text": "Ask for a password shows a masked box; nobody answers within 2 seconds, so the password is empty."
+            "text": "Ask for a password shows a masked box; nobody answers within 2 seconds, so the step fails as cancelled (DESKTOP.CANCELLED), which an agent catches."
           }
         },
         {
-          "id": "s305",
+          "id": "s309",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s306",
-              "action": "ooa.desktop/prompt_password",
+              "id": "s310",
+              "action": "core/set",
               "args": {
-                "question": "UT password",
-                "timeout_seconds": 2
-              },
-              "out": {
-                "password": "ut_secret"
-              },
-              "description": "Ask for a password, 2 s"
+                "variable": "ut_got_error",
+                "value": false
+              }
             },
             {
-              "id": "s307",
+              "id": "s311",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s312",
+                  "action": "ooa.desktop/prompt_password",
+                  "args": {
+                    "question": "UT password",
+                    "timeout_seconds": 2
+                  },
+                  "out": {
+                    "password": "ut_secret"
+                  },
+                  "description": "Ask for a password, 2 s"
+                }
+              ],
+              "description": "These steps should fail with DESKTOP.CANCELLED",
+              "catch": [
+                {
+                  "codes": [
+                    "DESKTOP.CANCELLED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s313",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s314",
               "action": "core/if",
               "args": {
                 "condition": {
-                  "op": "empty",
-                  "left": "$ut_secret$"
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
                 }
               },
               "children": [
                 {
-                  "id": "s308",
+                  "id": "s315",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
                   }
                 }
               ],
-              "description": "Check password",
+              "description": "Check error DESKTOP.CANCELLED",
               "else": [
                 {
-                  "id": "s309",
+                  "id": "s316",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "password: expected empty , got ${ut_secret}"
+                    "message": "error DESKTOP.CANCELLED: expected eq true, got ${ut_got_error}"
                   },
                   "description": "Stop the case: the check failed"
                 }
               ]
             },
             {
-              "id": "s310",
+              "id": "s317",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3490,11 +3567,11 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s311",
+              "id": "s318",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.desktop/prompt_password: nobody answers: empty\n"
+                "value": "${ut_report}PASS  ooa.desktop/prompt_password: nobody answers: cancelled\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -3507,7 +3584,7 @@
               ],
               "children": [
                 {
-                  "id": "s312",
+                  "id": "s319",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3518,11 +3595,11 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s313",
+                  "id": "s320",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.desktop/prompt_password: nobody answers: empty: ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_password: nobody answers: cancelled: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -3532,29 +3609,29 @@
           ]
         }
       ],
-      "description": "22. ooa.desktop/prompt_password - nobody answers: empty"
+      "description": "22. ooa.desktop/prompt_password - nobody answers: cancelled"
     },
     {
-      "id": "s314",
+      "id": "s321",
       "action": "core/step",
       "args": {
         "title": "23. ooa.desktop/block_input - for one second, then unblock"
       },
       "children": [
         {
-          "id": "s315",
+          "id": "s322",
           "action": "core/comment",
           "args": {
             "text": "Block input stops the person's mouse and keyboard for a while (Windows allows it only to an elevated runner); Unblock input gives them back and says whether they were blocked."
           }
         },
         {
-          "id": "s316",
+          "id": "s323",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s317",
+              "id": "s324",
               "action": "ooa.desktop/block_input",
               "args": {
                 "seconds": 1
@@ -3562,7 +3639,7 @@
               "description": "Block input for 1 second"
             },
             {
-              "id": "s318",
+              "id": "s325",
               "action": "ooa.desktop/unblock_input",
               "args": {},
               "out": {
@@ -3571,7 +3648,7 @@
               "description": "Unblock input"
             },
             {
-              "id": "s319",
+              "id": "s326",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -3582,7 +3659,7 @@
               },
               "children": [
                 {
-                  "id": "s320",
+                  "id": "s327",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -3592,7 +3669,7 @@
               "description": "Check was_blocked",
               "else": [
                 {
-                  "id": "s321",
+                  "id": "s328",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -3603,7 +3680,7 @@
               ]
             },
             {
-              "id": "s322",
+              "id": "s329",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -3614,7 +3691,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s323",
+              "id": "s330",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -3631,7 +3708,7 @@
               ],
               "children": [
                 {
-                  "id": "s324",
+                  "id": "s331",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -3642,7 +3719,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s325",
+                  "id": "s332",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -3659,21 +3736,21 @@
       "description": "23. ooa.desktop/block_input - for one second, then unblock"
     },
     {
-      "id": "s326",
+      "id": "s333",
       "action": "core/step",
       "args": {
         "title": "24. Summary"
       },
       "children": [
         {
-          "id": "s327",
+          "id": "s334",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s328",
+          "id": "s335",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -3682,7 +3759,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s329",
+          "id": "s336",
           "action": "core/if",
           "args": {
             "condition": {
@@ -3693,7 +3770,7 @@
           },
           "children": [
             {
-              "id": "s330",
+              "id": "s337",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",

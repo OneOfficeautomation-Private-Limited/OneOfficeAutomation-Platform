@@ -1238,14 +1238,14 @@
       "id": "s108",
       "action": "core/step",
       "args": {
-        "title": "7. ooa.triggerloop/key_pressed - F9 pressed while the loop waits"
+        "title": "7. ooa.triggerloop/key_pressed - nobody presses F9: the loop ends at max_seconds"
       },
       "children": [
         {
           "id": "s109",
           "action": "core/comment",
           "args": {
-            "text": "Each time a key is pressed runs the steps when the key (here F9) is pressed; a parallel branch presses F9 two seconds after the loop starts. Only the key and window are reported, never typed text."
+            "text": "Each time a key is pressed runs the steps when a person presses the key (here F9); keys pressed by programs are ignored, so the F9 this agent presses is not counted and the loop ends after 3 seconds with no event. Only the key and window are reported, never typed text."
           }
         },
         {
@@ -1284,7 +1284,7 @@
                         "iterator_args": {
                           "key": "F9",
                           "max_events": 1,
-                          "max_seconds": 15
+                          "max_seconds": 3
                         }
                       },
                       "children": [
@@ -1309,14 +1309,14 @@
                   "id": "s116",
                   "action": "core/step",
                   "args": {
-                    "title": "Press F9"
+                    "title": "Press F9 by program"
                   },
                   "children": [
                     {
                       "id": "s117",
                       "action": "core/delay",
                       "args": {
-                        "seconds": 2
+                        "seconds": 1
                       },
                       "description": "Let the loop start"
                     },
@@ -1326,13 +1326,13 @@
                       "args": {
                         "keys": "f9"
                       },
-                      "description": "Press F9"
+                      "description": "Press F9 (a program key press: ignored)"
                     }
                   ],
-                  "description": "Press F9"
+                  "description": "Press F9 by program"
                 }
               ],
-              "description": "Watch for F9 while it is pressed"
+              "description": "Watch for F9 while a program presses it"
             },
             {
               "id": "s119",
@@ -1341,7 +1341,7 @@
                 "condition": {
                   "op": "eq",
                   "left": "$ut_n$",
-                  "right": 1
+                  "right": 0
                 }
               },
               "children": [
@@ -1360,7 +1360,7 @@
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                    "message": "ut_n: expected eq 0, got ${ut_n}"
                   },
                   "description": "Stop the case: the check failed"
                 }
@@ -1382,7 +1382,7 @@
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.triggerloop/key_pressed: F9 pressed while the loop waits\n"
+                "value": "${ut_report}PASS  ooa.triggerloop/key_pressed: nobody presses F9: the loop ends at max_seconds\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -1410,7 +1410,7 @@
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.triggerloop/key_pressed: F9 pressed while the loop waits: ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.triggerloop/key_pressed: nobody presses F9: the loop ends at max_seconds: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -1420,7 +1420,7 @@
           ]
         }
       ],
-      "description": "7. ooa.triggerloop/key_pressed - F9 pressed while the loop waits"
+      "description": "7. ooa.triggerloop/key_pressed - nobody presses F9: the loop ends at max_seconds"
     },
     {
       "id": "s126",

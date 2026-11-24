@@ -9,7 +9,7 @@ def add(ua):
     fix_samples(ua, ["ooa.window"])
     for s in find("ooa.window/", requires="desktop"):
         add_converted(ua, s)
-    for n, t in (("ut_text", "String"), ("ut_n", "Number"), ("ut_ok", "Boolean"), ("ut_list", "List"), ("ut_dict", "Dictionary"),
+    for n, t in (("ut_text", "String"), ("ut_n", "Number"), ("ut_ok", "Boolean"), ("ut_list", "List"), ("ut_dict", "Dictionary"), ("ut_x_name", "String"),
                  ("ut_x", "Number"), ("ut_y", "Number"), ("ut_w", "Number"), ("ut_h", "Number")):
         ua.var(n, t)
 
@@ -79,7 +79,7 @@ def add(ua):
     w = "UT window active"
     c, f = case("ooa.window/get_active", "after activating the test window", "Get active window gives the title of the window in front.", w)
     f.act("ooa.window/activate", desc="Bring it to the front", title=w)
-    f.act("ooa.window/get_active", desc="Read the active window", out={"title": "ut_text", "process_name": "ut_dict"})
+    f.act("ooa.window/get_active", desc="Read the active window", out={"title": "ut_text", "process_name": "ut_x_name"})
     ua.check_eq("ut_text", w)
     end(c, f, w)
 

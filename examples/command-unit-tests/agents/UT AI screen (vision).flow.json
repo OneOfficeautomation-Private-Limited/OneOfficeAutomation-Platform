@@ -365,32 +365,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s28",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "1. ooa.ai_screen/find_on_screen - a control that is there, and one that is not"
     },
     {
-      "id": "s28",
+      "id": "s29",
       "action": "core/step",
       "args": {
         "title": "2. ooa.ai_screen/read_described - the text the model reads"
       },
       "children": [
         {
-          "id": "s29",
+          "id": "s30",
           "action": "core/comment",
           "args": {
             "text": "Read described control asks the model for the text of the described control."
           }
         },
         {
-          "id": "s30",
+          "id": "s31",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s31",
+              "id": "s32",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -405,7 +416,7 @@
               "description": "Open the test window 'UT vision window'"
             },
             {
-              "id": "s32",
+              "id": "s33",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT vision window",
@@ -414,7 +425,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s33",
+              "id": "s34",
               "action": "ooa.ai_screen/read_described",
               "args": {
                 "description": "the notes text box",
@@ -429,7 +440,7 @@
               "description": "Read the notes box"
             },
             {
-              "id": "s34",
+              "id": "s35",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -440,7 +451,7 @@
               },
               "children": [
                 {
-                  "id": "s35",
+                  "id": "s36",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -450,7 +461,7 @@
               "description": "Check ut_ok",
               "else": [
                 {
-                  "id": "s36",
+                  "id": "s37",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -461,7 +472,7 @@
               ]
             },
             {
-              "id": "s37",
+              "id": "s38",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -472,7 +483,7 @@
               },
               "children": [
                 {
-                  "id": "s38",
+                  "id": "s39",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -482,7 +493,7 @@
               "description": "Check ut_text",
               "else": [
                 {
-                  "id": "s39",
+                  "id": "s40",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -493,7 +504,7 @@
               ]
             },
             {
-              "id": "s40",
+              "id": "s41",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT vision window"
@@ -502,7 +513,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s41",
+              "id": "s42",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -513,7 +524,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s42",
+              "id": "s43",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -530,7 +541,7 @@
               ],
               "children": [
                 {
-                  "id": "s43",
+                  "id": "s44",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -541,7 +552,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s44",
+                  "id": "s45",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -552,32 +563,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s46",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "2. ooa.ai_screen/read_described - the text the model reads"
     },
     {
-      "id": "s45",
+      "id": "s47",
       "action": "core/step",
       "args": {
         "title": "3. ooa.ai_screen/click_described - click into the notes box"
       },
       "children": [
         {
-          "id": "s46",
+          "id": "s48",
           "action": "core/comment",
           "args": {
             "text": "Click described control clicks the control the model finds; the click puts the cursor in the notes box, so keys typed next land there."
           }
         },
         {
-          "id": "s47",
+          "id": "s49",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s48",
+              "id": "s50",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -592,7 +614,7 @@
               "description": "Open the test window 'UT vision window'"
             },
             {
-              "id": "s49",
+              "id": "s51",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT vision window",
@@ -601,7 +623,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s50",
+              "id": "s52",
               "action": "ooa.ai_screen/click_described",
               "args": {
                 "description": "the notes text box",
@@ -616,15 +638,16 @@
               "description": "Click the notes box"
             },
             {
-              "id": "s51",
-              "action": "ooa.desktop/press_keys",
+              "id": "s53",
+              "action": "ooa.desktop/type_text",
               "args": {
-                "keys": "a b c"
+                "text": "abc",
+                "method": "keystrokes"
               },
               "description": "Type abc"
             },
             {
-              "id": "s52",
+              "id": "s54",
               "action": "ooa.desktop_ui/object_action",
               "args": {
                 "object": {
@@ -636,7 +659,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -657,7 +680,7 @@
               "description": "Read the box"
             },
             {
-              "id": "s53",
+              "id": "s55",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -668,7 +691,7 @@
               },
               "children": [
                 {
-                  "id": "s54",
+                  "id": "s56",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -678,7 +701,7 @@
               "description": "Check notes",
               "else": [
                 {
-                  "id": "s55",
+                  "id": "s57",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -689,7 +712,7 @@
               ]
             },
             {
-              "id": "s56",
+              "id": "s58",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT vision window"
@@ -698,7 +721,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s57",
+              "id": "s59",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -709,7 +732,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s58",
+              "id": "s60",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -726,7 +749,7 @@
               ],
               "children": [
                 {
-                  "id": "s59",
+                  "id": "s61",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -737,7 +760,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s60",
+                  "id": "s62",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -748,32 +771,43 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s63",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "3. ooa.ai_screen/click_described - click into the notes box"
     },
     {
-      "id": "s61",
+      "id": "s64",
       "action": "core/step",
       "args": {
         "title": "4. ooa.ai_screen/type_described - type into the notes box"
       },
       "children": [
         {
-          "id": "s62",
+          "id": "s65",
           "action": "core/comment",
           "args": {
             "text": "Type into described control clicks the control the model finds and types the text."
           }
         },
         {
-          "id": "s63",
+          "id": "s66",
           "action": "core/try",
           "args": {},
           "children": [
             {
-              "id": "s64",
+              "id": "s67",
               "action": "ooa.application/start_program",
               "args": {
                 "program": "powershell.exe",
@@ -788,7 +822,7 @@
               "description": "Open the test window 'UT vision window'"
             },
             {
-              "id": "s65",
+              "id": "s68",
               "action": "ooa.window/wait_for",
               "args": {
                 "title": "UT vision window",
@@ -797,7 +831,7 @@
               "description": "Wait for the test window"
             },
             {
-              "id": "s66",
+              "id": "s69",
               "action": "ooa.ai_screen/type_described",
               "args": {
                 "description": "the notes text box",
@@ -809,7 +843,7 @@
               "description": "Type into the notes box"
             },
             {
-              "id": "s67",
+              "id": "s70",
               "action": "ooa.desktop_ui/object_action",
               "args": {
                 "object": {
@@ -821,7 +855,7 @@
                   "properties": [
                     {
                       "name": "ControlType",
-                      "value": "Edit",
+                      "value": "Document",
                       "match": "equals",
                       "use": true
                     },
@@ -842,7 +876,7 @@
               "description": "Read the box"
             },
             {
-              "id": "s68",
+              "id": "s71",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -853,7 +887,7 @@
               },
               "children": [
                 {
-                  "id": "s69",
+                  "id": "s72",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -863,7 +897,7 @@
               "description": "Check notes",
               "else": [
                 {
-                  "id": "s70",
+                  "id": "s73",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -874,7 +908,7 @@
               ]
             },
             {
-              "id": "s71",
+              "id": "s74",
               "action": "ooa.window/close",
               "args": {
                 "title": "UT vision window"
@@ -883,7 +917,7 @@
               "description": "Close the test window"
             },
             {
-              "id": "s72",
+              "id": "s75",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -894,7 +928,7 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s73",
+              "id": "s76",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
@@ -911,7 +945,7 @@
               ],
               "children": [
                 {
-                  "id": "s74",
+                  "id": "s77",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -922,7 +956,7 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s75",
+                  "id": "s78",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
@@ -933,27 +967,38 @@
               ],
               "message_to": "ut_err"
             }
+          ],
+          "finally": [
+            {
+              "id": "s79",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window (also after a failure)"
+            }
           ]
         }
       ],
       "description": "4. ooa.ai_screen/type_described - type into the notes box"
     },
     {
-      "id": "s76",
+      "id": "s80",
       "action": "core/step",
       "args": {
         "title": "5. Summary"
       },
       "children": [
         {
-          "id": "s77",
+          "id": "s81",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s78",
+          "id": "s82",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -962,7 +1007,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s79",
+          "id": "s83",
           "action": "core/if",
           "args": {
             "condition": {
@@ -973,7 +1018,7 @@
           },
           "children": [
             {
-              "id": "s80",
+              "id": "s84",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
