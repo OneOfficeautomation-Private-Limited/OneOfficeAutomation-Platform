@@ -1,0 +1,1637 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_global_values",
+  "name": "UT Shared values",
+  "description": "Unit tests of every Shared value command on values named ut_...: read one, read all, change one and the Shared value is defined condition. Locally the values are the workspace file global-values.json; in One CommandCenter the shared values listed in the report must exist.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "gv_value",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gv_all",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "gv_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "gv_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Shared value command on values named ut_...: read one, read all, change one and the Shared value is defined condition. Locally the values are the workspace file global-values.json; in One CommandCenter the shared values listed in the report must exist."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Shared values started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s103",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.global_values/get - read a shared value as text and as a number"
+      },
+      "children": [
+        {
+          "id": "s104",
+          "action": "core/comment",
+          "args": {
+            "text": "Get shared value reads one value by name. Locally the values are first written to the workspace file global-values.json (in One CommandCenter that file is not used): ut_team is Finance and ut_threshold read as a Number is 1000."
+          }
+        },
+        {
+          "id": "s105",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s106",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "global-values.json",
+                "text": "{\"ut_team\": \"Finance\", \"ut_threshold\": 1000}"
+              },
+              "description": "The local shared values (only used outside One CommandCenter)"
+            },
+            {
+              "id": "s107",
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "ut_team",
+                "type": "String"
+              },
+              "out": {
+                "value": "gv_text"
+              }
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gv_text$",
+                  "right": "Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gv_text",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gv_text: expected eq \"Finance\", got ${gv_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "ut_threshold",
+                "type": "Number"
+              },
+              "out": {
+                "value": "gv_n"
+              }
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gv_n$",
+                  "right": 1000
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_threshold",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_threshold: expected eq 1000, got ${gv_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/get: read a shared value as text and as a number\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/get: read a shared value as text and as a number: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.global_values/get - read a shared value as text and as a number"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.global_values/get - default when not defined"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.global_values/get (default when not defined) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "ut_no_such_value",
+                "default": 5,
+                "type": "Number"
+              },
+              "out": {
+                "value": "v"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq 5, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/get: default when not defined\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/get: default when not defined: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.global_values/get - default when not defined"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.global_values/get_all - dictionary"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.global_values/get_all (dictionary) and checks its result."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.global_values/get_all",
+              "out": {
+                "values": "v"
+              },
+              "id": "s18"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$v$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"type\": \"object\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/get_all: dictionary\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/get_all: dictionary: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.global_values/get_all - dictionary"
+    },
+    {
+      "id": "s26",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.global_values/is_defined - condition"
+      },
+      "children": [
+        {
+          "id": "s27",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.global_values/is_defined (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.global_values/is_defined",
+                  "args": {
+                    "name": "ut_no_such_value"
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s31"
+                }
+              ],
+              "id": "s30"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/is_defined: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/is_defined: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.global_values/is_defined - condition"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.global_values/get_all - only the values whose names start ut_"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Get all shared values gives every value as a dictionary, here only the names starting ut_."
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s122",
+              "action": "ooa.global_values/get_all",
+              "args": {
+                "prefix": "ut_"
+              },
+              "out": {
+                "values": "gv_all"
+              }
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gv_all$",
+                  "right": "ut_team"
+                }
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the names",
+              "else": [
+                {
+                  "id": "s125",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the names: expected contains \"ut_team\", got ${gv_all}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gv_all$",
+                  "right": "ut_threshold"
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the names",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the names: expected contains \"ut_threshold\", got ${gv_all}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/get_all: only the values whose names start ut_\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/get_all: only the values whose names start ut_: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.global_values/get_all - only the values whose names start ut_"
+    },
+    {
+      "id": "s133",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.global_values/is_defined - a value that exists"
+      },
+      "children": [
+        {
+          "id": "s134",
+          "action": "core/comment",
+          "args": {
+            "text": "Shared value is defined is true for a value that exists (ut_team)."
+          }
+        },
+        {
+          "id": "s135",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s137",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.global_values/is_defined",
+                  "args": {
+                    "name": "ut_team"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s141",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/is_defined: a value that exists\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/is_defined: a value that exists: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.global_values/is_defined - a value that exists"
+    },
+    {
+      "id": "s146",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.global_values/set - change a value, read it back, then put it back"
+      },
+      "children": [
+        {
+          "id": "s147",
+          "action": "core/comment",
+          "args": {
+            "text": "Set shared value changes a value that exists; a later Get sees the new value. The old value is put back at the end of the case."
+          }
+        },
+        {
+          "id": "s148",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s149",
+              "action": "ooa.global_values/set",
+              "args": {
+                "name": "ut_threshold",
+                "value": "2500",
+                "type": "Number"
+              },
+              "out": {
+                "value": "gv_n"
+              }
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gv_n$",
+                  "right": 2500
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the value set",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the value set: expected eq 2500, got ${gv_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "ut_threshold",
+                "type": "Number"
+              },
+              "out": {
+                "value": "gv_n"
+              }
+            },
+            {
+              "id": "s154",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gv_n$",
+                  "right": 2500
+                }
+              },
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the value read back",
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the value read back: expected eq 2500, got ${gv_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s157",
+              "action": "ooa.global_values/set",
+              "args": {
+                "name": "ut_threshold",
+                "value": 1000,
+                "type": "Number"
+              }
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/set: change a value, read it back, then put it back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/set: change a value, read it back, then put it back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.global_values/set - change a value, read it back, then put it back"
+    },
+    {
+      "id": "s162",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.global_values/set - only existing values are changed"
+      },
+      "children": [
+        {
+          "id": "s163",
+          "action": "core/comment",
+          "args": {
+            "text": "Set shared value does not make new values: a name that is not defined fails with GLOBALS.NOT_FOUND."
+          }
+        },
+        {
+          "id": "s164",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s165",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s166",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "ooa.global_values/set",
+                  "args": {
+                    "name": "ut_not_defined",
+                    "value": 1
+                  }
+                }
+              ],
+              "description": "These steps should fail with GLOBALS.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "GLOBALS.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s168",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s169",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GLOBALS.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s171",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GLOBALS.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/set: only existing values are changed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/set: only existing values are changed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.global_values/set - only existing values are changed"
+    },
+    {
+      "id": "s176",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.global_values/set - a value that does not fit the type"
+      },
+      "children": [
+        {
+          "id": "s177",
+          "action": "core/comment",
+          "args": {
+            "text": "Set shared value refuses text for a Number: GLOBALS.WRONG_TYPE, and the value is unchanged."
+          }
+        },
+        {
+          "id": "s178",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s180",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "ooa.global_values/set",
+                  "args": {
+                    "name": "ut_threshold",
+                    "value": "lots",
+                    "type": "Number"
+                  }
+                }
+              ],
+              "description": "These steps should fail with GLOBALS.WRONG_TYPE",
+              "catch": [
+                {
+                  "codes": [
+                    "GLOBALS.WRONG_TYPE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s182",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s183",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s184",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GLOBALS.WRONG_TYPE",
+              "else": [
+                {
+                  "id": "s185",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GLOBALS.WRONG_TYPE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/set: a value that does not fit the type\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/set: a value that does not fit the type: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.global_values/set - a value that does not fit the type"
+    },
+    {
+      "id": "s190",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.global_values/set - a name that is not allowed"
+      },
+      "children": [
+        {
+          "id": "s191",
+          "action": "core/comment",
+          "args": {
+            "text": "Set shared value refuses a name with a space that starts with a digit: GLOBALS.BAD_NAME."
+          }
+        },
+        {
+          "id": "s192",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s194",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "ooa.global_values/set",
+                  "args": {
+                    "name": "9 lives",
+                    "value": 1
+                  }
+                }
+              ],
+              "description": "These steps should fail with GLOBALS.BAD_NAME",
+              "catch": [
+                {
+                  "codes": [
+                    "GLOBALS.BAD_NAME"
+                  ],
+                  "children": [
+                    {
+                      "id": "s196",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GLOBALS.BAD_NAME",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GLOBALS.BAD_NAME: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.global_values/set: a name that is not allowed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s202",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.global_values/set: a name that is not allowed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.global_values/set - a name that is not allowed"
+    },
+    {
+      "id": "s204",
+      "action": "core/step",
+      "args": {
+        "title": "11. Summary"
+      },
+      "children": [
+        {
+          "id": "s205",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s206",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s207",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s208",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "11. Summary"
+    }
+  ]
+}

@@ -1,0 +1,614 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_workflow_test",
+  "name": "UT Item Workflow",
+  "description": "Starts the sample workflow UT Workflow.process.json through One CommandCenter's workflow API and reads its run back.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cr_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8080",
+      "description": "One CommandCenter's address (its /api/workflows routes are used)."
+    },
+    {
+      "name": "cr_token",
+      "type": "Credential",
+      "direction": "local",
+      "default": {
+        "$credential": "unit_tests/ooa/cr_token"
+      }
+    },
+    {
+      "name": "wf_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wf_status",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "wf_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "wf_ref",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "wf_text",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Starts the sample workflow UT Workflow.process.json through One CommandCenter's workflow API and reads its run back."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item Workflow started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.rest/request - start the workflow with its start form's answers"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "POST /api/workflows/start starts the live version of the sample workflow with data that answers its start form, under a reference of our own; the answer is the run's id and the reference."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "core/set",
+              "args": {
+                "variable": "wf_ref",
+                "value": "ut_wf_${sys.run_id}"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "ooa.rest/request",
+              "args": {
+                "json": {
+                  "path": "Commands unit testing folder/items/workflow/UT Workflow.process.json",
+                  "data": {
+                    "quantity": 3,
+                    "unit_price": 12.5,
+                    "full_name": "UT Tester",
+                    "email": "ut.tester@example.com",
+                    "amount": 37.5,
+                    "category": "Travel",
+                    "agree": true
+                  },
+                  "reference": "$wf_ref$"
+                },
+                "url": "${cr_url}/api/workflows/start",
+                "method": "POST",
+                "bearer_token": "$cr_token$"
+              },
+              "out": {
+                "status": "wf_status",
+                "json": "wf_json"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wf_status$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check HTTP status",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "HTTP status: expected eq 200, got ${wf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "wf_id",
+                "value": {
+                  "expr": "$wf_json.id"
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$wf_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the workflow run id",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the workflow run id: expected notEmpty , got ${wf_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "wf_text",
+                "value": {
+                  "expr": "$wf_json.reference"
+                }
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wf_text$",
+                  "right": "$wf_ref$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the reference",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the reference: expected eq \"wf_ref\", got ${wf_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "${cr_url}/api/workflows/runs",
+                "query": {
+                  "reference": "$wf_ref$"
+                },
+                "bearer_token": "$cr_token$"
+              },
+              "out": {
+                "body": "wf_text"
+              },
+              "description": "Read the run back by its reference"
+            },
+            {
+              "id": "s21",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$wf_text$",
+                  "right": "$wf_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the run read back",
+              "else": [
+                {
+                  "id": "s23",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the run read back: expected contains \"wf_id\", got ${wf_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s24",
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "${cr_url}/api/workflows/runs/${wf_id}/cancel",
+                "method": "POST",
+                "bearer_token": "$cr_token$"
+              },
+              "out": {
+                "status": "wf_status"
+              },
+              "description": "Cancel the run (tidy up)"
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wf_status$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cancel status",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cancel status: expected eq 200, got ${wf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: start the workflow with its start form's answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: start the workflow with its start form's answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.rest/request - start the workflow with its start form's answers"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.rest/request - the start form's checks apply"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Starting without the required answers of the start form (no name, box not ticked) is refused; the API answers with an error status."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s35",
+              "action": "ooa.rest/request",
+              "args": {
+                "json": {
+                  "path": "Commands unit testing folder/items/workflow/UT Workflow.process.json",
+                  "data": {
+                    "quantity": 1,
+                    "unit_price": 1
+                  }
+                },
+                "fail_on_error": false,
+                "url": "${cr_url}/api/workflows/start",
+                "method": "POST",
+                "bearer_token": "$cr_token$"
+              },
+              "out": {
+                "status": "wf_status"
+              }
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$wf_status$",
+                  "right": 400
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check HTTP status",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "HTTP status: expected ge 400, got ${wf_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.rest/request: the start form's checks apply\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.rest/request: the start form's checks apply: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.rest/request - the start form's checks apply"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "3. Summary"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s46",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s47",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "3. Summary"
+    }
+  ]
+}

@@ -1,0 +1,769 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_powershell_test",
+  "name": "UT Item PowerShell script",
+  "description": "Calls the sample script UT invoice tools.ps1 with parameters and standard input and checks the JSON it gives back.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "items_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
+    },
+    {
+      "name": "ps_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ps_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ps_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ps_code",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Calls the sample script UT invoice tools.ps1 with parameters and standard input and checks the JSON it gives back."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item PowerShell script started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.script/run_powershell - parameters by position and JSON on standard input"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Run PowerShell script runs the sample with the currency and VAT rate as parameters and the invoice lines on standard input; it prints JSON: net 25, VAT 2.5, gross 27.5, currency GBP, exit code 0."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/powershell-script/UT invoice tools.ps1",
+                "target": "ut-items/UT invoice tools.ps1",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.ps1 into the work folder"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.script/run_powershell",
+              "args": {
+                "file": "ut-items/UT invoice tools.ps1",
+                "arguments": [
+                  "gbp",
+                  0.1
+                ],
+                "input": "{\"lines\": [{\"qty\": 2, \"price\": 10.5}, {\"qty\": 1, \"price\": 4}]}",
+                "timeout_seconds": 120
+              },
+              "out": {
+                "json": "ps_json",
+                "exit_code": "ps_code"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_code$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exit code",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exit code: expected eq 0, got ${ps_code}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_n",
+                "value": {
+                  "expr": "$ps_json.net"
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_n$",
+                  "right": 25
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check net",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "net: expected eq 25, got ${ps_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_n",
+                "value": {
+                  "expr": "$ps_json.vat"
+                }
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_n$",
+                  "right": 2.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check VAT",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "VAT: expected eq 2.5, got ${ps_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_n",
+                "value": {
+                  "expr": "$ps_json.gross"
+                }
+              }
+            },
+            {
+              "id": "s21",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_n$",
+                  "right": 27.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gross",
+              "else": [
+                {
+                  "id": "s23",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gross: expected eq 27.5, got ${ps_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_text",
+                "value": {
+                  "expr": "$ps_json.currency"
+                }
+              }
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_text$",
+                  "right": "GBP"
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ps_text",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ps_text: expected eq \"GBP\", got ${ps_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_powershell: parameters by position and JSON on standard input\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_powershell: parameters by position and JSON on standard input: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.script/run_powershell - parameters by position and JSON on standard input"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.script/run_powershell - default parameters"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Without arguments the script's defaults apply: EUR and 20 percent VAT on one line of 50."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s35",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/powershell-script/UT invoice tools.ps1",
+                "target": "ut-items/UT invoice tools.ps1",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.ps1 into the work folder"
+            },
+            {
+              "id": "s36",
+              "action": "ooa.script/run_powershell",
+              "args": {
+                "file": "ut-items/UT invoice tools.ps1",
+                "input": "{\"lines\": [{\"qty\": 1, \"price\": 50}]}"
+              },
+              "out": {
+                "json": "ps_json"
+              }
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_n",
+                "value": {
+                  "expr": "$ps_json.gross"
+                }
+              }
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_n$",
+                  "right": 60
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gross",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gross: expected eq 60, got ${ps_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ps_text",
+                "value": {
+                  "expr": "$ps_json.currency"
+                }
+              }
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ps_text$",
+                  "right": "EUR"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ps_text",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ps_text: expected eq \"EUR\", got ${ps_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_powershell: default parameters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_powershell: default parameters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.script/run_powershell - default parameters"
+    },
+    {
+      "id": "s49",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.script/run_powershell - bad input fails the script"
+      },
+      "children": [
+        {
+          "id": "s50",
+          "action": "core/comment",
+          "args": {
+            "text": "Text that is not JSON on standard input makes the script stop with an error; with fail_on_error off the step carries on and the exit code is not 0."
+          }
+        },
+        {
+          "id": "s51",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/powershell-script/UT invoice tools.ps1",
+                "target": "ut-items/UT invoice tools.ps1",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.ps1 into the work folder"
+            },
+            {
+              "id": "s53",
+              "action": "ooa.script/run_powershell",
+              "args": {
+                "file": "ut-items/UT invoice tools.ps1",
+                "input": "not json",
+                "fail_on_error": false
+              },
+              "out": {
+                "exit_code": "ps_code"
+              }
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$ps_code$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exit code",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exit code: expected ne 0, got ${ps_code}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_powershell: bad input fails the script\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_powershell: bad input fails the script: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.script/run_powershell - bad input fails the script"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s64",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s65",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}

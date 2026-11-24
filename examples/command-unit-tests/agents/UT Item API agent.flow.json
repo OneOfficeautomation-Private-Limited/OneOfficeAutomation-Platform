@@ -1,0 +1,713 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_api_agent_test",
+  "name": "UT Item API agent",
+  "description": "Runs the sample API agent UT API agent (no desktop steps) as a child agent and checks its outputs. Needs the agent repository (Studio or One CommandCenter).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "api_total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "api_cur",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "api_summary",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "api_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "api_error",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "api_outputs",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Runs the sample API agent UT API agent (no desktop steps) as a child agent and checks its outputs. Needs the agent repository (Studio or One CommandCenter)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item API agent started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. core/run_bot - inputs in, outputs mapped back"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Agent runs the API agent with a quantity, unit price and currency, and maps its outputs to this agent's variables: total 37.5, currency in capitals, a summary line."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "ut_api_agent_item",
+                "inputs": {
+                  "quantity": 3,
+                  "unit_price": 12.5,
+                  "currency": "usd"
+                },
+                "output_map": {
+                  "total": "api_total",
+                  "currency": "api_cur",
+                  "summary": "api_summary"
+                },
+                "timeout_seconds": 120
+              },
+              "out": {
+                "status": "api_status"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check api_status",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "api_status: expected eq \"success\", got ${api_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_total$",
+                  "right": 37.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 37.5, got ${api_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_cur$",
+                  "right": "USD"
+                }
+              },
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check api_cur",
+              "else": [
+                {
+                  "id": "s16",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "api_cur: expected eq \"USD\", got ${api_cur}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_summary$",
+                  "right": "3 x 12.5 = 37.50 USD"
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check api_summary",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "api_summary: expected eq \"3 x 12.5 = 37.50 USD\", got ${api_summary}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  core/run_bot: inputs in, outputs mapped back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s23",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  core/run_bot: inputs in, outputs mapped back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. core/run_bot - inputs in, outputs mapped back"
+    },
+    {
+      "id": "s24",
+      "action": "core/step",
+      "args": {
+        "title": "2. core/run_bot - the default currency"
+      },
+      "children": [
+        {
+          "id": "s25",
+          "action": "core/comment",
+          "args": {
+            "text": "Without a currency the API agent uses its default (eur), returned as EUR in the outputs."
+          }
+        },
+        {
+          "id": "s26",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s27",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "ut_api_agent_item",
+                "inputs": {
+                  "quantity": 2,
+                  "unit_price": 0.5
+                }
+              },
+              "out": {
+                "outputs": "api_outputs"
+              }
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "api_cur",
+                "value": {
+                  "expr": "$api_outputs.currency"
+                }
+              }
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_cur$",
+                  "right": "EUR"
+                }
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check api_cur",
+              "else": [
+                {
+                  "id": "s31",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "api_cur: expected eq \"EUR\", got ${api_cur}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s32",
+              "action": "core/set",
+              "args": {
+                "variable": "api_total",
+                "value": {
+                  "expr": "$api_outputs.total"
+                }
+              }
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_total$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 1, got ${api_total}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  core/run_bot: the default currency\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  core/run_bot: the default currency: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. core/run_bot - the default currency"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "3. core/run_bot - its business error, without failing this agent"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "A quantity of 0 makes the API agent throw BUSINESS.BAD_QUANTITY; with fail_on_error off this step carries on with status failed and the child's error."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s43",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "ut_api_agent_item",
+                "inputs": {
+                  "quantity": 0,
+                  "unit_price": 5
+                },
+                "fail_on_error": false
+              },
+              "out": {
+                "status": "api_status",
+                "error": "api_error"
+              }
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$api_status$",
+                  "right": "failed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check api_status",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "api_status: expected eq \"failed\", got ${api_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$api_error$",
+                  "right": "BAD_QUANTITY"
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the child's error",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the child's error: expected contains \"BAD_QUANTITY\", got ${api_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s51",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  core/run_bot: its business error, without failing this agent\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  core/run_bot: its business error, without failing this agent: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. core/run_bot - its business error, without failing this agent"
+    },
+    {
+      "id": "s54",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s55",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s56",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s57",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s58",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/process/v1.json",
+  "id": "UT_Workflow",
+  "name": "UT Workflow",
+  "description": "Workflow sample: an agent works out a total; large totals need an approval; then a person fills in the claim form and everyone concerned is told.",
+  "start_form": "Commands unit testing folder/items/form/UT Form.form.json",
+  "stages": [
+    {
+      "id": "work_out",
+      "type": "bot",
+      "name": "Work out the total",
+      "bot": "Commands unit testing folder/items/api-agent/UT API agent.flow.json",
+      "inputs": {
+        "quantity": "$quantity$",
+        "unit_price": "$unit_price$",
+        "currency": "eur"
+      },
+      "description": "Runs UT API agent with the start data."
+    },
+    {
+      "id": "big",
+      "type": "decision",
+      "name": "Over 100?",
+      "condition": "$total$ > 100",
+      "if_true": "approve",
+      "if_false": "claim"
+    },
+    {
+      "id": "approve",
+      "type": "approval",
+      "name": "Approve a large total",
+      "assignee": "role:admin",
+      "due_hours": 24,
+      "on_reject": "end"
+    },
+    {
+      "id": "claim",
+      "type": "form",
+      "name": "Fill in the claim",
+      "form": "Commands unit testing folder/items/form/UT Form.form.json",
+      "assignee": "role:admin",
+      "due_hours": 48
+    },
+    {
+      "id": "tell",
+      "type": "notify",
+      "name": "Tell the team",
+      "to": "role:admin",
+      "subject": "UT Workflow finished",
+      "message": "Total ${total} ${currency} for ${full_name}.",
+      "next": "end"
+    }
+  ]
+}

@@ -1,0 +1,892 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_insights",
+  "name": "UT Insights",
+  "description": "Unit tests of every Insights command: record values for a category ut_..., open and close transactions and read the values back.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "in_seconds",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "in_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "in_n",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Insights command: record values for a category ut_..., open and close transactions and read the values back."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Insights started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.insights/read_values - nothing recorded yet for a new category"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Read values gives the values of a category as a table. It runs first, after the local values of earlier runs are removed: the category ut_invoices has none."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.file/delete",
+              "args": {
+                "path": "insights/ut_invoices.jsonl"
+              },
+              "description": "Remove the values earlier runs recorded locally"
+            },
+            {
+              "id": "s22",
+              "action": "ooa.file/delete",
+              "args": {
+                "path": "insights/ut_claims.jsonl"
+              },
+              "description": "Remove the values earlier runs recorded locally"
+            },
+            {
+              "id": "s23",
+              "action": "ooa.insights/read_values",
+              "args": {
+                "category": "ut_invoices"
+              },
+              "out": {
+                "count": "in_n"
+              }
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$in_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check values recorded",
+              "else": [
+                {
+                  "id": "s26",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "values recorded: expected eq 0, got ${in_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.insights/read_values: nothing recorded yet for a new category\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.insights/read_values: nothing recorded yet for a new category: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.insights/read_values - nothing recorded yet for a new category"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.insights/tag_values - tag, transaction, read back"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.insights/tag_values (tag, transaction, read back) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.insights/tag_values",
+              "args": {
+                "category": "ut_invoices",
+                "values": {
+                  "amount": 120
+                }
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.insights/open_transaction",
+              "args": {
+                "transaction": "inv-1",
+                "category": "ut_invoices"
+              },
+              "id": "s8"
+            },
+            {
+              "action": "ooa.insights/close_transaction",
+              "args": {
+                "transaction": "inv-1",
+                "values": {
+                  "amount": 80
+                }
+              },
+              "out": {
+                "duration_seconds": "d"
+              },
+              "id": "s9"
+            },
+            {
+              "action": "ooa.insights/read_values",
+              "args": {
+                "category": "ut_invoices"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s10"
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.insights/tag_values: tag, transaction, read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.insights/tag_values: tag, transaction, read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.insights/tag_values - tag, transaction, read back"
+    },
+    {
+      "id": "s31",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.insights/open_transaction - open a transaction for one claim"
+      },
+      "children": [
+        {
+          "id": "s32",
+          "action": "core/comment",
+          "args": {
+            "text": "Open transaction marks the start of one business transaction (claim CL-1 of category ut_claims); Close transaction then records it, so reading that transaction back gives one row."
+          }
+        },
+        {
+          "id": "s33",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s34",
+              "action": "ooa.insights/open_transaction",
+              "args": {
+                "transaction": "CL-1",
+                "category": "ut_claims"
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.insights/close_transaction",
+              "args": {
+                "transaction": "CL-1",
+                "values": {
+                  "amount": 250,
+                  "minutes_saved": 12
+                }
+              },
+              "out": {
+                "duration_seconds": "in_seconds"
+              }
+            },
+            {
+              "id": "s36",
+              "action": "ooa.insights/read_values",
+              "args": {
+                "category": "ut_claims",
+                "transaction": "CL-1"
+              },
+              "out": {
+                "count": "in_n",
+                "table": "in_table"
+              }
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$in_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows for CL-1",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows for CL-1: expected eq 1, got ${in_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.insights/open_transaction: open a transaction for one claim\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.insights/open_transaction: open a transaction for one claim: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.insights/open_transaction - open a transaction for one claim"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.insights/close_transaction - a status in our own words, with its duration"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "Close transaction records the values, the outcome and how long the transaction took: the duration is at least the one-second pause, and a status given in our own words (policy expired) is recorded instead of the outcome."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s47",
+              "action": "ooa.insights/open_transaction",
+              "args": {
+                "transaction": "CL-2",
+                "category": "ut_claims"
+              }
+            },
+            {
+              "id": "s48",
+              "action": "core/delay",
+              "args": {
+                "seconds": 1
+              }
+            },
+            {
+              "id": "s49",
+              "action": "ooa.insights/close_transaction",
+              "args": {
+                "transaction": "CL-2",
+                "values": {
+                  "amount": 90
+                },
+                "outcome": "business_exception",
+                "status": "policy expired"
+              },
+              "out": {
+                "duration_seconds": "in_seconds"
+              }
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$in_seconds$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check duration in seconds",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "duration in seconds: expected ge 1, got ${in_seconds}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "ooa.insights/read_values",
+              "args": {
+                "category": "ut_claims",
+                "transaction": "CL-2"
+              },
+              "out": {
+                "table": "in_table"
+              }
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${in_table}",
+                  "right": "policy expired"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the outcome in the table",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the outcome in the table: expected contains \"policy expired\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.insights/close_transaction: a status in our own words, with its duration\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.insights/close_transaction: a status in our own words, with its duration: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.insights/close_transaction - a status in our own words, with its duration"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.insights/read_values - at most one record of several"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "Read values with max_records gives no more records than asked: two claims were recorded, one is read. The local values are removed afterwards."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s64",
+              "action": "ooa.insights/read_values",
+              "args": {
+                "category": "ut_claims",
+                "max_records": 1
+              },
+              "out": {
+                "count": "in_n"
+              }
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$in_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check records read",
+              "else": [
+                {
+                  "id": "s67",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "records read: expected eq 1, got ${in_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "ooa.file/delete",
+              "args": {
+                "path": "insights/ut_invoices.jsonl"
+              },
+              "description": "Remove the values earlier runs recorded locally"
+            },
+            {
+              "id": "s69",
+              "action": "ooa.file/delete",
+              "args": {
+                "path": "insights/ut_claims.jsonl"
+              },
+              "description": "Remove the values earlier runs recorded locally"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.insights/read_values: at most one record of several\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.insights/read_values: at most one record of several: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.insights/read_values - at most one record of several"
+    },
+    {
+      "id": "s74",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s75",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s76",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s77",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s78",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

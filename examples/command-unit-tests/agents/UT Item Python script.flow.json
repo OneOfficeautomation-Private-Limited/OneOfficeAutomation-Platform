@@ -1,0 +1,842 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_python_test",
+  "name": "UT Item Python script",
+  "description": "Calls the sample script UT invoice tools.py as a script (arguments and standard input) and as functions, and checks the JSON it gives back.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "items_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
+    },
+    {
+      "name": "py_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "py_result",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "py_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "py_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "py_code",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Calls the sample script UT invoice tools.py as a script (arguments and standard input) and as functions, and checks the JSON it gives back."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item Python script started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.script/run_python - as a script: JSON in, argument, JSON out"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python script runs the sample as a script: the invoice lines go in on standard input, the currency as its argument; it prints one JSON object (2 lines, total 25.0, USD) and ends with 0."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/python-script/UT invoice tools.py",
+                "target": "ut-items/UT invoice tools.py",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.py into the work folder"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.script/run_python",
+              "args": {
+                "file": "ut-items/UT invoice tools.py",
+                "arguments": [
+                  "usd"
+                ],
+                "input": "{\"lines\": [{\"qty\": 2, \"price\": 10.5}, {\"qty\": 1, \"price\": 4}]}",
+                "timeout_seconds": 60
+              },
+              "out": {
+                "json": "py_json",
+                "exit_code": "py_code"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_code$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exit code",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exit code: expected eq 0, got ${py_code}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "py_n",
+                "value": {
+                  "expr": "$py_json.total"
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_n$",
+                  "right": 25
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 25, got ${py_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "py_text",
+                "value": {
+                  "expr": "$py_json.currency"
+                }
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_text$",
+                  "right": "USD"
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check py_text",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "py_text: expected eq \"USD\", got ${py_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python: as a script: JSON in, argument, JSON out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s23",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python: as a script: JSON in, argument, JSON out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.script/run_python - as a script: JSON in, argument, JSON out"
+    },
+    {
+      "id": "s24",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.script/run_python_function - a function with keyword arguments"
+      },
+      "children": [
+        {
+          "id": "s25",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python function calls invoice_total of the sample with the lines and a 10 percent discount as keyword arguments, and gets its dictionary back."
+          }
+        },
+        {
+          "id": "s26",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s27",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/python-script/UT invoice tools.py",
+                "target": "ut-items/UT invoice tools.py",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.py into the work folder"
+            },
+            {
+              "id": "s28",
+              "action": "ooa.script/run_python_function",
+              "args": {
+                "file": "ut-items/UT invoice tools.py",
+                "function": "invoice_total",
+                "arguments": [
+                  [
+                    {
+                      "qty": 2,
+                      "price": 10.5
+                    },
+                    {
+                      "qty": 1,
+                      "price": 4
+                    }
+                  ]
+                ],
+                "keyword_arguments": {
+                  "discount_percent": 10
+                }
+              },
+              "out": {
+                "result": "py_result"
+              }
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "py_n",
+                "value": {
+                  "expr": "$py_result.total"
+                }
+              }
+            },
+            {
+              "id": "s30",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_n$",
+                  "right": 22.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total less 10 percent",
+              "else": [
+                {
+                  "id": "s32",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total less 10 percent: expected eq 22.5, got ${py_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python_function: a function with keyword arguments\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python_function: a function with keyword arguments: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.script/run_python_function - a function with keyword arguments"
+    },
+    {
+      "id": "s37",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.script/run_python_function - a static method of a class"
+      },
+      "children": [
+        {
+          "id": "s38",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Python function can call Class.method: Vat.add adds 20 percent VAT to 100."
+          }
+        },
+        {
+          "id": "s39",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s40",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/python-script/UT invoice tools.py",
+                "target": "ut-items/UT invoice tools.py",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.py into the work folder"
+            },
+            {
+              "id": "s41",
+              "action": "ooa.script/run_python_function",
+              "args": {
+                "file": "ut-items/UT invoice tools.py",
+                "function": "Vat.add",
+                "arguments": [
+                  100
+                ]
+              },
+              "out": {
+                "result": "py_result"
+              }
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_result$",
+                  "right": 120
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gross",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gross: expected eq 120, got ${py_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python_function: a static method of a class\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python_function: a static method of a class: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.script/run_python_function - a static method of a class"
+    },
+    {
+      "id": "s49",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.script/run_python_function - an exception in the script fails the step"
+      },
+      "children": [
+        {
+          "id": "s50",
+          "action": "core/comment",
+          "args": {
+            "text": "normalise_reference turns 'inv 42' into INV-42; with a text without a number it raises, and the step fails (checked with fail_on_error off: the error output names the ValueError)."
+          }
+        },
+        {
+          "id": "s51",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/python-script/UT invoice tools.py",
+                "target": "ut-items/UT invoice tools.py",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT invoice tools.py into the work folder"
+            },
+            {
+              "id": "s53",
+              "action": "ooa.script/run_python_function",
+              "args": {
+                "file": "ut-items/UT invoice tools.py",
+                "function": "normalise_reference",
+                "arguments": [
+                  "inv 42"
+                ]
+              },
+              "out": {
+                "result": "py_result"
+              }
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$py_result$",
+                  "right": "INV-42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check reference",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "reference: expected eq \"INV-42\", got ${py_result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "ooa.script/run_python_function",
+              "args": {
+                "file": "ut-items/UT invoice tools.py",
+                "function": "normalise_reference",
+                "arguments": [
+                  "none"
+                ],
+                "fail_on_error": false
+              },
+              "out": {
+                "error": "py_text"
+              }
+            },
+            {
+              "id": "s58",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$py_text$",
+                  "right": "ValueError"
+                }
+              },
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the error",
+              "else": [
+                {
+                  "id": "s60",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the error: expected contains \"ValueError\", got ${py_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.script/run_python_function: an exception in the script fails the step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.script/run_python_function: an exception in the script fails the step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.script/run_python_function - an exception in the script fails the step"
+    },
+    {
+      "id": "s65",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s66",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s67",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s68",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s69",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

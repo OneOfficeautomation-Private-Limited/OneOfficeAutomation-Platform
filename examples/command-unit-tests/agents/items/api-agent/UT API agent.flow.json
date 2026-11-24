@@ -1,0 +1,119 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "ApiTask",
+  "id": "ut_api_agent_item",
+  "name": "UT API agent",
+  "description": "Works out an invoice line total: quantity times unit price, in the currency given (in capitals). Use it whenever a total for a quantity and a unit price is needed.",
+  "tags": [
+    "unit-test",
+    "item-sample"
+  ],
+  "variables": [
+    {
+      "name": "quantity",
+      "type": "Number",
+      "direction": "input",
+      "required": true,
+      "description": "How many units."
+    },
+    {
+      "name": "unit_price",
+      "type": "Number",
+      "direction": "input",
+      "required": true,
+      "description": "Price of one unit."
+    },
+    {
+      "name": "currency",
+      "type": "String",
+      "direction": "in_out",
+      "default": "eur",
+      "description": "Currency code; returned in capitals."
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "quantity x unit_price, rounded to cents."
+    },
+    {
+      "name": "summary",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The total in words for people."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/comment",
+      "args": {
+        "text": "An API agent runs without a desktop: only steps that need no screen (here core, String and Number)."
+      }
+    },
+    {
+      "id": "s2",
+      "action": "core/if",
+      "description": "Refuse a quantity that is not positive",
+      "args": {
+        "condition": {
+          "op": "le",
+          "left": "$quantity$",
+          "right": 0
+        }
+      },
+      "children": [
+        {
+          "id": "s3",
+          "action": "core/throw",
+          "args": {
+            "code": "BUSINESS.BAD_QUANTITY",
+            "message": "Quantity must be more than 0, got ${quantity}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "action": "ooa.string/change_case",
+      "description": "Currency in capitals",
+      "args": {
+        "text": "$currency$",
+        "case": "upper"
+      },
+      "out": {
+        "result": "currency"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "core/set",
+      "description": "Total, rounded to cents",
+      "args": {
+        "variable": "total",
+        "value": {
+          "expr": "round($quantity * $unit_price, 2)"
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "action": "core/set",
+      "description": "The total in words",
+      "args": {
+        "variable": "summary",
+        "value": "${quantity} x ${unit_price} = ${total} ${currency}"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "core/log",
+      "args": {
+        "message": "UT API agent: ${summary}",
+        "level": "info"
+      }
+    }
+  ]
+}

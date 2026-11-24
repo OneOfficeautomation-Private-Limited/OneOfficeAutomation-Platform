@@ -1,0 +1,1896 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_locks",
+  "name": "UT Environment locks",
+  "description": "Unit tests of every Environment lock command on locks named ut_...: take, check and give back a lock, and the Lock is held condition. Every lock is given back at the end.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "got",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "mine",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "who",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "held",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "released",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "since",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "during",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "lk_released",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "lk_held",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "lk_mine",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "lk_since",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Environment lock command on locks named ut_...: take, check and give back a lock, and the Lock is held condition. Every lock is given back at the end."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Environment locks started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.locks/acquire - takes a free lock, then the run holds it"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/acquire (takes a free lock, then the run holds it) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "core/set",
+              "args": {
+                "variable": "got",
+                "value": false
+              },
+              "description": "Test value for got"
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "mine",
+                "value": false
+              },
+              "description": "Test value for mine"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "who",
+                "value": "x"
+              },
+              "description": "Test value for who"
+            },
+            {
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_samples SAP login",
+                "comment": "month end"
+              },
+              "out": {
+                "acquired": "got",
+                "held_by": "who"
+              },
+              "id": "s10"
+            },
+            {
+              "action": "ooa.locks/check",
+              "args": {
+                "name": "ut_SAMPLES sap LOGIN"
+              },
+              "out": {
+                "mine": "mine"
+              },
+              "id": "s11"
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$got$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check got",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "got: expected eq true, got ${got}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$mine$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check mine",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "mine: expected eq true, got ${mine}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$who$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s19",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check who",
+              "else": [
+                {
+                  "id": "s20",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "who: expected eq \"\", got ${who}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/acquire: takes a free lock, then the run holds it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/acquire: takes a free lock, then the run holds it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.locks/acquire - takes a free lock, then the run holds it"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.locks/acquire - taking it again from the same run renews the lease"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/acquire (taking it again from the same run renews the lease) and checks its result."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": false
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": false
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_samples renew",
+                "lease_seconds": 30
+              },
+              "out": {
+                "acquired": "a"
+              },
+              "id": "s30"
+            },
+            {
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_samples renew",
+                "lease_seconds": 600
+              },
+              "out": {
+                "acquired": "b"
+              },
+              "id": "s31"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$a$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a: expected eq true, got ${a}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s37",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/acquire: taking it again from the same run renews the lease\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/acquire: taking it again from the same run renews the lease: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.locks/acquire - taking it again from the same run renews the lease"
+    },
+    {
+      "id": "s56",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.locks/acquire - a lock needs a name"
+      },
+      "children": [
+        {
+          "id": "s57",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/acquire (a lock needs a name) and checks its result."
+          }
+        },
+        {
+          "id": "s58",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s61",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.locks/acquire",
+                  "args": {
+                    "name": "  "
+                  },
+                  "id": "s59"
+                }
+              ],
+              "description": "These steps should fail with LOCK.BAD_NAME",
+              "catch": [
+                {
+                  "codes": [
+                    "LOCK.BAD_NAME"
+                  ],
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error LOCK.BAD_NAME",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error LOCK.BAD_NAME: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/acquire: a lock needs a name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/acquire: a lock needs a name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.locks/acquire - a lock needs a name"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.locks/release - gives back the run's lock, so it is free"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/release (gives back the run's lock, so it is free) and checks its result."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "released",
+                "value": false
+              },
+              "description": "Test value for released"
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "held",
+                "value": true
+              },
+              "description": "Test value for held"
+            },
+            {
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_samples mailbox"
+              },
+              "id": "s75"
+            },
+            {
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples mailbox"
+              },
+              "out": {
+                "released": "released"
+              },
+              "id": "s76"
+            },
+            {
+              "action": "ooa.locks/check",
+              "args": {
+                "name": "ut_samples mailbox"
+              },
+              "out": {
+                "held": "held"
+              },
+              "id": "s77"
+            },
+            {
+              "id": "s78",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$released$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check released",
+              "else": [
+                {
+                  "id": "s80",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "released: expected eq true, got ${released}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s81",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$held$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check held",
+              "else": [
+                {
+                  "id": "s83",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "held: expected eq false, got ${held}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s84",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/release: gives back the run's lock, so it is free\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/release: gives back the run's lock, so it is free: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.locks/release - gives back the run's lock, so it is free"
+    },
+    {
+      "id": "s88",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.locks/release - a lock the run does not hold is left alone (released false)"
+      },
+      "children": [
+        {
+          "id": "s89",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/release (a lock the run does not hold is left alone (released false)) and checks its result."
+          }
+        },
+        {
+          "id": "s90",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "released",
+                "value": true
+              },
+              "description": "Test value for released"
+            },
+            {
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples never taken"
+              },
+              "out": {
+                "released": "released"
+              },
+              "id": "s92"
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$released$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check released",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "released: expected eq false, got ${released}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/release: a lock the run does not hold is left alone (released false)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/release: a lock the run does not hold is left alone (released false): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.locks/release - a lock the run does not hold is left alone (released false)"
+    },
+    {
+      "id": "s100",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.locks/check - a free lock: not held, nobody named"
+      },
+      "children": [
+        {
+          "id": "s101",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/check (a free lock: not held, nobody named) and checks its result."
+          }
+        },
+        {
+          "id": "s102",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "held",
+                "value": true
+              },
+              "description": "Test value for held"
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "who",
+                "value": "x"
+              },
+              "description": "Test value for who"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "since",
+                "value": "x"
+              },
+              "description": "Test value for since"
+            },
+            {
+              "action": "ooa.locks/check",
+              "args": {
+                "name": "ut_samples free"
+              },
+              "out": {
+                "held": "held",
+                "held_by": "who",
+                "since": "since"
+              },
+              "id": "s106"
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$held$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check held",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "held: expected eq false, got ${held}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$who$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check who",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "who: expected eq \"\", got ${who}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$since$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check since",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "since: expected eq \"\", got ${since}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/check: a free lock: not held, nobody named\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/check: a free lock: not held, nobody named: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.locks/check - a free lock: not held, nobody named"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.locks/is_held - condition: true while the run holds the lock, false after"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.locks/is_held (condition: true while the run holds the lock, false after) and checks its result."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "during",
+                "value": false
+              },
+              "description": "Test value for during"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "after",
+                "value": true
+              },
+              "description": "Test value for after"
+            },
+            {
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_samples condition"
+              },
+              "id": "s125"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.locks/is_held",
+                  "args": {
+                    "name": "ut_samples condition"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "during",
+                    "value": true
+                  },
+                  "id": "s127"
+                }
+              ],
+              "id": "s126"
+            },
+            {
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples condition"
+              },
+              "id": "s128"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.locks/is_held",
+                  "args": {
+                    "name": "ut_samples condition"
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "after",
+                    "value": false
+                  },
+                  "id": "s130"
+                }
+              ],
+              "id": "s129"
+            },
+            {
+              "id": "s131",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$during$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check during",
+              "else": [
+                {
+                  "id": "s133",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "during: expected eq true, got ${during}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s134",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$after$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check after",
+              "else": [
+                {
+                  "id": "s136",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "after: expected eq false, got ${after}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/is_held: condition: true while the run holds the lock, false after\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/is_held: condition: true while the run holds the lock, false after: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.locks/is_held - condition: true while the run holds the lock, false after"
+    },
+    {
+      "id": "s141",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.locks/check - a lock this run holds: held, mine, since when"
+      },
+      "children": [
+        {
+          "id": "s142",
+          "action": "core/comment",
+          "args": {
+            "text": "Check lock tells whether a lock is held, by whom and since when. While this run holds ut_check it is held, it is this run's and since is filled in."
+          }
+        },
+        {
+          "id": "s143",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s144",
+              "action": "ooa.locks/acquire",
+              "args": {
+                "name": "ut_check",
+                "lease_seconds": 60,
+                "comment": "unit test"
+              }
+            },
+            {
+              "id": "s145",
+              "action": "ooa.locks/check",
+              "args": {
+                "name": "ut_check"
+              },
+              "out": {
+                "held": "lk_held",
+                "mine": "lk_mine",
+                "since": "lk_since"
+              }
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$lk_held$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lk_held",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lk_held: expected eq true, got ${lk_held}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$lk_mine$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s150",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lk_mine",
+              "else": [
+                {
+                  "id": "s151",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lk_mine: expected eq true, got ${lk_mine}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$lk_since$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check since",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "since: expected notEmpty , got ${lk_since}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_check"
+              }
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/check: a lock this run holds: held, mine, since when\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/check: a lock this run holds: held, mine, since when: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.locks/check - a lock this run holds: held, mine, since when"
+    },
+    {
+      "id": "s160",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.locks/release - tidy up: give back every ut_ lock"
+      },
+      "children": [
+        {
+          "id": "s161",
+          "action": "core/comment",
+          "args": {
+            "text": "At the end every lock the agent used is given back (a lock it does not hold is left alone), and the last one is checked to be free."
+          }
+        },
+        {
+          "id": "s162",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s163",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples SAP login"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples SAP login"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_SAMPLES sap LOGIN"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_SAMPLES sap LOGIN"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples renew"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples renew"
+            },
+            {
+              "id": "s166",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples mailbox"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples mailbox"
+            },
+            {
+              "id": "s167",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples never taken"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples never taken"
+            },
+            {
+              "id": "s168",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples free"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples free"
+            },
+            {
+              "id": "s169",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_samples condition"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_samples condition"
+            },
+            {
+              "id": "s170",
+              "action": "ooa.locks/release",
+              "args": {
+                "name": "ut_check"
+              },
+              "out": {
+                "released": "lk_released"
+              },
+              "description": "Give back ut_check"
+            },
+            {
+              "id": "s171",
+              "action": "ooa.locks/check",
+              "args": {
+                "name": "ut_check"
+              },
+              "out": {
+                "held": "lk_held"
+              }
+            },
+            {
+              "id": "s172",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$lk_held$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lk_held",
+              "else": [
+                {
+                  "id": "s174",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lk_held: expected eq false, got ${lk_held}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.locks/release: tidy up: give back every ut_ lock\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.locks/release: tidy up: give back every ut_ lock: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.locks/release - tidy up: give back every ut_ lock"
+    },
+    {
+      "id": "s179",
+      "action": "core/step",
+      "args": {
+        "title": "10. Summary"
+      },
+      "children": [
+        {
+          "id": "s180",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s181",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s182",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s183",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "10. Summary"
+    }
+  ]
+}

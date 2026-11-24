@@ -1,0 +1,585 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_object_repository_test",
+  "name": "UT Item Object repository",
+  "description": "Opens the stand-in's test page in a headless browser and fills it in through the objects of the sample repository UT Shop.objects.json.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "items_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
+    },
+    {
+      "name": "or_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "or_attr",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Opens the stand-in's test page in a headless browser and fills it in through the objects of the sample repository UT Shop.objects.json."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item Object repository started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.browser/open - open the page in a headless browser"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "The sample repository is copied into the work folder (a repository must be inside the workspace) and the page is opened without a window; the heading is found through the repository."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/object-repository/UT Shop.objects.json",
+                "target": "ut-items/UT Shop.objects.json",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT Shop.objects.json into the work folder"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.browser/open",
+              "args": {
+                "url": "${standin_url}/plat-app/login",
+                "headless": true,
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/Heading"
+                },
+                "session": "ut_shop"
+              },
+              "out": {
+                "text": "or_text"
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$or_text$",
+                  "right": "UT Shop"
+                }
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check or_text",
+              "else": [
+                {
+                  "id": "s12",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "or_text: expected eq \"UT Shop\", got ${or_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.browser/open: open the page in a headless browser\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.browser/open: open the page in a headless browser: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.browser/open - open the page in a headless browser"
+    },
+    {
+      "id": "s17",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.browser/type_text - fill in the fields found by the repository"
+      },
+      "children": [
+        {
+          "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "Type text and Select option use the repository's User name (tag and id), Password (tag and name) and Country (drop-down) elements; the typed name is read back as the field's value."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s20",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/User name"
+                },
+                "text": "ut_robot",
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s21",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/Password"
+                },
+                "text": "made-up-pass",
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s22",
+              "action": "ooa.browser/select_option",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/Country"
+                },
+                "option": "IN",
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.browser/get_attribute",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/User name"
+                },
+                "attribute": "value",
+                "session": "ut_shop"
+              },
+              "out": {
+                "value": "or_attr"
+              }
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$or_attr$",
+                  "right": "ut_robot"
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check or_attr",
+              "else": [
+                {
+                  "id": "s26",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "or_attr: expected eq \"ut_robot\", got ${or_attr}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.browser/type_text: fill in the fields found by the repository\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.browser/type_text: fill in the fields found by the repository: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.browser/type_text - fill in the fields found by the repository"
+    },
+    {
+      "id": "s31",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.browser/click - sign in and read the message"
+      },
+      "children": [
+        {
+          "id": "s32",
+          "action": "core/comment",
+          "args": {
+            "text": "Click uses the Sign in element (a CSS selector); Get text uses the Message element (an XPath): it says Welcome, ut_robot (IN). The browser is closed afterwards."
+          }
+        },
+        {
+          "id": "s33",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s34",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/Sign in"
+                },
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "object": {
+                  "repository": "ut-items/UT Shop.objects.json",
+                  "element": "UT Shop web/Login/Message"
+                },
+                "session": "ut_shop"
+              },
+              "out": {
+                "text": "or_text"
+              }
+            },
+            {
+              "id": "s36",
+              "action": "ooa.browser/close",
+              "args": {
+                "session": "ut_shop"
+              }
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$or_text$",
+                  "right": "Welcome, ut_robot (IN)"
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check or_text",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "or_text: expected eq \"Welcome, ut_robot (IN)\", got ${or_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.browser/click: sign in and read the message\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.browser/click: sign in and read the message: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.browser/click - sign in and read the message"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s47",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s48",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}

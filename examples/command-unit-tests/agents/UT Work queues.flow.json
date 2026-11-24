@@ -1,0 +1,5904 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_workload",
+  "name": "UT Work queues",
+  "description": "Unit tests of every Work queue command on queues named ut_...: add, take, finish, fail, defer, tag, copy, move and delete items, the Queue has items condition and the Each work item loop. The queues are queue files in the workspace; every queue is emptied at the end.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "added",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "done",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "first",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "item",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "retry",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "second",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "third",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sum",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "data",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "none",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "tags",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "left",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "again",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "outcome",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "updated",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "skipped",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "business",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "system",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "attempt",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "finished",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "forced",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "copied",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "next",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "moved",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "there",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "it",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wq_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "wq_item",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wq_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "wq_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "wq_found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "wq_counts",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wq_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "wq_tags",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "wq_status",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Work queue command on queues named ut_...: add, take, finish, fail, defer, tag, copy, move and delete items, the Queue has items condition and the Each work item loop. The queues are queue files in the workspace; every queue is emptied at the end."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Work queues started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s453",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.workload/delete_items - empty every ut_ queue before the cases"
+      },
+      "children": [
+        {
+          "id": "s454",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete work items with status any and force on empties a queue. It runs first, so items left by an earlier run do not change the results; the check counts what is left in the last queue."
+          }
+        },
+        {
+          "id": "s455",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s456",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_invoices",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_invoices"
+            },
+            {
+              "id": "s457",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_q2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_q2"
+            },
+            {
+              "id": "s458",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_empty-q",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_empty-q"
+            },
+            {
+              "id": "s459",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_claims",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_claims"
+            },
+            {
+              "id": "s460",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tagq",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tagq"
+            },
+            {
+              "id": "s461",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_refs",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_refs"
+            },
+            {
+              "id": "s462",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_refs2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_refs2"
+            },
+            {
+              "id": "s463",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_rows",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_rows"
+            },
+            {
+              "id": "s464",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_kinds",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_kinds"
+            },
+            {
+              "id": "s465",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_stuck",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_stuck"
+            },
+            {
+              "id": "s466",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tidy"
+            },
+            {
+              "id": "s467",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tidy2"
+            },
+            {
+              "id": "s468",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_src",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_src"
+            },
+            {
+              "id": "s469",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_dst",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_dst"
+            },
+            {
+              "id": "s470",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_work",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_work"
+            },
+            {
+              "id": "s471",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_exceptions",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_exceptions"
+            },
+            {
+              "id": "s472",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_quiet",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_quiet"
+            },
+            {
+              "id": "s473",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_complete",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_complete"
+            },
+            {
+              "id": "s474",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_counts",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_counts"
+            },
+            {
+              "id": "s475",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_defer",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_defer"
+            },
+            {
+              "id": "s476",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_get",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_get"
+            },
+            {
+              "id": "s477",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_list",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_list"
+            },
+            {
+              "id": "s478",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_untag",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_untag"
+            },
+            {
+              "id": "s479",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_update",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_update"
+            },
+            {
+              "id": "s480",
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_update"
+              },
+              "out": {
+                "counts": "wq_counts"
+              }
+            },
+            {
+              "id": "s481",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_counts.total"
+                }
+              }
+            },
+            {
+              "id": "s482",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s483",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check items left",
+              "else": [
+                {
+                  "id": "s484",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "items left: expected eq 0, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s485",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s486",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/delete_items: empty every ut_ queue before the cases\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s487",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s488",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/delete_items: empty every ut_ queue before the cases: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.workload/delete_items - empty every ut_ queue before the cases"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.workload/add_item - local queue: add, get next, complete, fail, defer, counts"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/add_item (local queue: add, get next, complete, fail, defer, counts) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_invoices",
+                "data": {
+                  "no": 1
+                }
+              },
+              "out": {
+                "item_id": "a"
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.workload/add_items",
+              "args": {
+                "queue": "ut_invoices",
+                "table": {
+                  "columns": [
+                    "no"
+                  ],
+                  "rows": [
+                    [
+                      2
+                    ],
+                    [
+                      3
+                    ]
+                  ]
+                }
+              },
+              "out": {
+                "count": "added"
+              },
+              "id": "s8"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_invoices"
+              },
+              "out": {
+                "item_id": "first",
+                "data": "d"
+              },
+              "id": "s9"
+            },
+            {
+              "action": "ooa.workload/complete",
+              "args": {
+                "queue": "ut_invoices",
+                "item_id": "$first",
+                "result": {
+                  "ok": true
+                }
+              },
+              "id": "s10"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_invoices"
+              },
+              "out": {
+                "item_id": "second"
+              },
+              "id": "s11"
+            },
+            {
+              "action": "ooa.workload/fail",
+              "args": {
+                "queue": "ut_invoices",
+                "item_id": "$second",
+                "error": "bad",
+                "max_attempts": 1
+              },
+              "out": {
+                "will_retry": "retry"
+              },
+              "id": "s12"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_invoices"
+              },
+              "out": {
+                "item_id": "third"
+              },
+              "id": "s13"
+            },
+            {
+              "action": "ooa.workload/defer",
+              "args": {
+                "queue": "ut_invoices",
+                "item_id": "$third",
+                "until": "2099-01-01T00:00:00"
+              },
+              "id": "s14"
+            },
+            {
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_invoices",
+                "item_id": "$first"
+              },
+              "out": {
+                "item": "item"
+              },
+              "id": "s15"
+            },
+            {
+              "action": "ooa.workload/update_item",
+              "args": {
+                "queue": "ut_invoices",
+                "item_id": "$first",
+                "data": {
+                  "note": "x"
+                }
+              },
+              "id": "s16"
+            },
+            {
+              "action": "ooa.workload/list_items",
+              "args": {
+                "queue": "ut_invoices",
+                "status": "completed"
+              },
+              "out": {
+                "table": "done"
+              },
+              "id": "s17"
+            },
+            {
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_invoices"
+              },
+              "out": {
+                "counts": "c"
+              },
+              "id": "s18"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$added$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check added",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "added: expected eq 2, got ${added}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$d$",
+                  "right": {
+                    "no": 1
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check d",
+              "else": [
+                {
+                  "id": "s24",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "d: expected eq \"no\": 1, got ${d}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$retry$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check retry",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "retry: expected eq false, got ${retry}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$item$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check item",
+              "else": [
+                {
+                  "id": "s30",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "item: expected eq \"type\": \"object\", got ${item}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s31",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$c$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s33",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq \"type\": \"object\", got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/add_item: local queue: add, get next, complete, fail, defer, counts\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/add_item: local queue: add, get next, complete, fail, defer, counts: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.workload/add_item - local queue: add, get next, complete, fail, defer, counts"
+    },
+    {
+      "id": "s38",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.workload/each_item - loop over queue items"
+      },
+      "children": [
+        {
+          "id": "s39",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/each_item (loop over queue items) and checks its result."
+          }
+        },
+        {
+          "id": "s40",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "sum",
+                "value": 0
+              },
+              "description": "Test value for sum"
+            },
+            {
+              "action": "ooa.workload/add_items",
+              "args": {
+                "queue": "ut_q2",
+                "table": {
+                  "columns": [
+                    "n"
+                  ],
+                  "rows": [
+                    [
+                      1
+                    ],
+                    [
+                      2
+                    ]
+                  ]
+                }
+              },
+              "id": "s42"
+            },
+            {
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.workload/each_item",
+                "iterator_args": {
+                  "queue": "ut_q2"
+                },
+                "as": "it"
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sum",
+                    "value": {
+                      "expr": "$sum + $it.data.n"
+                    }
+                  },
+                  "id": "s44"
+                }
+              ],
+              "id": "s43"
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sum$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sum",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sum: expected eq 3, got ${sum}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/each_item: loop over queue items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/each_item: loop over queue items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.workload/each_item - loop over queue items"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.workload/has_items - empty queue"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/has_items (empty queue) and checks its result."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.workload/has_items",
+                  "args": {
+                    "queue": "ut_empty-q"
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s57"
+                }
+              ],
+              "id": "s56"
+            },
+            {
+              "id": "s58",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s60",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/has_items: empty queue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/has_items: empty queue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.workload/has_items - empty queue"
+    },
+    {
+      "id": "s65",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.workload/get_next - tags: take only an item with every tag given"
+      },
+      "children": [
+        {
+          "id": "s66",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/get_next (tags: take only an item with every tag given) and checks its result."
+          }
+        },
+        {
+          "id": "s67",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "id",
+                "value": ""
+              },
+              "description": "Test value for id"
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "data"
+              },
+              "description": "Test value for data"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "tags"
+              },
+              "description": "Test value for tags"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "none",
+                "value": true
+              },
+              "description": "Test value for none"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_claims",
+                "data": {
+                  "claim": "C-1"
+                },
+                "tags": [
+                  "home"
+                ]
+              },
+              "id": "s72"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_claims",
+                "data": {
+                  "claim": "C-2"
+                },
+                "tags": [
+                  "motor",
+                  "urgent"
+                ]
+              },
+              "id": "s73"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_claims",
+                "tags": [
+                  "URGENT",
+                  "motor"
+                ]
+              },
+              "out": {
+                "data": "data",
+                "tags": "tags"
+              },
+              "id": "s74"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_claims",
+                "tags": [
+                  "urgent"
+                ]
+              },
+              "out": {
+                "found": "none"
+              },
+              "id": "s75"
+            },
+            {
+              "id": "s76",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$data$",
+                  "right": {
+                    "claim": "C-2"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check data",
+              "else": [
+                {
+                  "id": "s78",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "data: expected eq \"claim\": \"C-2\", got ${data}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$tags$",
+                  "right": [
+                    "motor",
+                    "urgent"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check tags",
+              "else": [
+                {
+                  "id": "s81",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "tags: expected eq [\"motor\", \"urgent\"], got ${tags}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$none$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check none",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "none: expected eq false, got ${none}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/get_next: tags: take only an item with every tag given\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/get_next: tags: take only an item with every tag given: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.workload/get_next - tags: take only an item with every tag given"
+    },
+    {
+      "id": "s89",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.workload/tag_item - add and remove tags, then list by tag"
+      },
+      "children": [
+        {
+          "id": "s90",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/tag_item (add and remove tags, then list by tag) and checks its result."
+          }
+        },
+        {
+          "id": "s91",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "id",
+                "value": ""
+              },
+              "description": "Test value for id"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "after"
+              },
+              "description": "Test value for after"
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "left"
+              },
+              "description": "Test value for left"
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "table"
+              },
+              "description": "Test value for table"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_tagq",
+                "data": {
+                  "n": 1
+                },
+                "tags": [
+                  "new"
+                ]
+              },
+              "out": {
+                "item_id": "id"
+              },
+              "id": "s96"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_tagq",
+                "data": {
+                  "n": 2
+                }
+              },
+              "id": "s97"
+            },
+            {
+              "action": "ooa.workload/tag_item",
+              "args": {
+                "queue": "ut_tagq",
+                "item_id": "$id",
+                "tags": [
+                  "checked",
+                  "NEW"
+                ]
+              },
+              "out": {
+                "tags": "after"
+              },
+              "id": "s98"
+            },
+            {
+              "action": "ooa.workload/untag_item",
+              "args": {
+                "queue": "ut_tagq",
+                "item_id": "$id",
+                "tags": [
+                  "new"
+                ]
+              },
+              "out": {
+                "tags": "left"
+              },
+              "id": "s99"
+            },
+            {
+              "action": "ooa.workload/list_items",
+              "args": {
+                "queue": "ut_tagq",
+                "tags": [
+                  "checked"
+                ]
+              },
+              "out": {
+                "table": "table"
+              },
+              "id": "s100"
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$after$",
+                  "right": [
+                    "new",
+                    "checked"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check after",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "after: expected eq [\"new\", \"checked\"], got ${after}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$left$",
+                  "right": [
+                    "checked"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check left",
+              "else": [
+                {
+                  "id": "s106",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "left: expected eq [\"checked\"], got ${left}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${table}",
+                  "right": "checked"
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check table",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "table: expected it to contain checked, got ${table}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/tag_item: add and remove tags, then list by tag\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/tag_item: add and remove tags, then list by tag: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.workload/tag_item - add and remove tags, then list by tag"
+    },
+    {
+      "id": "s114",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.workload/add_item - unique reference: skip and update"
+      },
+      "children": [
+        {
+          "id": "s115",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/add_item (unique reference: skip and update) and checks its result."
+          }
+        },
+        {
+          "id": "s116",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "first",
+                "value": ""
+              },
+              "description": "Test value for first"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "again",
+                "value": ""
+              },
+              "description": "Test value for again"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "outcome",
+                "value": ""
+              },
+              "description": "Test value for outcome"
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "updated",
+                "value": ""
+              },
+              "description": "Test value for updated"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "item"
+              },
+              "description": "Test value for item"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_refs",
+                "data": {
+                  "amount": 10
+                },
+                "reference": "INV-1"
+              },
+              "out": {
+                "item_id": "first"
+              },
+              "id": "s122"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_refs",
+                "data": {
+                  "amount": 11
+                },
+                "reference": "INV-1",
+                "if_exists": "skip"
+              },
+              "out": {
+                "item_id": "again",
+                "outcome": "outcome"
+              },
+              "id": "s123"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_refs",
+                "data": {
+                  "amount": 12
+                },
+                "reference": "INV-1",
+                "if_exists": "update"
+              },
+              "out": {
+                "outcome": "updated"
+              },
+              "id": "s124"
+            },
+            {
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_refs",
+                "item_id": "$first"
+              },
+              "out": {
+                "item": "item"
+              },
+              "id": "s125"
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$outcome$",
+                  "right": "skipped"
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check outcome",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "outcome: expected eq \"skipped\", got ${outcome}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$updated$",
+                  "right": "updated"
+                }
+              },
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check updated",
+              "else": [
+                {
+                  "id": "s131",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "updated: expected eq \"updated\", got ${updated}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${item}",
+                  "right": "\"amount\":12"
+                }
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check item",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "item: expected it to contain \"amount\":12, got ${item}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/add_item: unique reference: skip and update\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/add_item: unique reference: skip and update: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.workload/add_item - unique reference: skip and update"
+    },
+    {
+      "id": "s139",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.workload/add_item - unique reference: a second item with the same reference is refused"
+      },
+      "children": [
+        {
+          "id": "s140",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/add_item (unique reference: a second item with the same reference is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s141",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s145",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.workload/add_item",
+                  "args": {
+                    "queue": "ut_refs2",
+                    "data": {
+                      "a": 1
+                    },
+                    "reference": "PO-7"
+                  },
+                  "id": "s142"
+                },
+                {
+                  "action": "ooa.workload/add_item",
+                  "args": {
+                    "queue": "ut_refs2",
+                    "data": {
+                      "a": 2
+                    },
+                    "reference": "PO-7"
+                  },
+                  "id": "s143"
+                }
+              ],
+              "description": "These steps should fail with QUEUE.DUPLICATE_REFERENCE",
+              "catch": [
+                {
+                  "codes": [
+                    "QUEUE.DUPLICATE_REFERENCE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s146",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error QUEUE.DUPLICATE_REFERENCE",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error QUEUE.DUPLICATE_REFERENCE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/add_item: unique reference: a second item with the same reference is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/add_item: unique reference: a second item with the same reference is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.workload/add_item - unique reference: a second item with the same reference is refused"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.workload/add_items - table with a reference column, repeats skipped"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/add_items (table with a reference column, repeats skipped) and checks its result."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "count",
+                "value": 0
+              },
+              "description": "Test value for count"
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "skipped",
+                "value": 0
+              },
+              "description": "Test value for skipped"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_rows",
+                "data": {
+                  "no": "A"
+                },
+                "reference": "A"
+              },
+              "id": "s159"
+            },
+            {
+              "action": "ooa.workload/add_items",
+              "args": {
+                "queue": "ut_rows",
+                "table": {
+                  "columns": [
+                    "no",
+                    "amount"
+                  ],
+                  "rows": [
+                    [
+                      "A",
+                      1
+                    ],
+                    [
+                      "B",
+                      2
+                    ],
+                    [
+                      "C",
+                      3
+                    ]
+                  ]
+                },
+                "reference_column": "no",
+                "if_exists": "skip"
+              },
+              "out": {
+                "count": "count",
+                "skipped": "skipped"
+              },
+              "id": "s160"
+            },
+            {
+              "id": "s161",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check count",
+              "else": [
+                {
+                  "id": "s163",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "count: expected eq 2, got ${count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s164",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$skipped$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check skipped",
+              "else": [
+                {
+                  "id": "s166",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "skipped: expected eq 1, got ${skipped}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/add_items: table with a reference column, repeats skipped\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/add_items: table with a reference column, repeats skipped: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.workload/add_items - table with a reference column, repeats skipped"
+    },
+    {
+      "id": "s171",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.workload/fail - business exception: final at once; system exception: retried"
+      },
+      "children": [
+        {
+          "id": "s172",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/fail (business exception: final at once; system exception: retried) and checks its result."
+          }
+        },
+        {
+          "id": "s173",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": ""
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": ""
+              },
+              "description": "Test value for b"
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "business",
+                "value": true
+              },
+              "description": "Test value for business"
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "system",
+                "value": false
+              },
+              "description": "Test value for system"
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "item"
+              },
+              "description": "Test value for item"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_kinds",
+                "data": {
+                  "n": 1
+                }
+              },
+              "id": "s179"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_kinds",
+                "data": {
+                  "n": 2
+                }
+              },
+              "id": "s180"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_kinds"
+              },
+              "out": {
+                "item_id": "a"
+              },
+              "id": "s181"
+            },
+            {
+              "action": "ooa.workload/fail",
+              "args": {
+                "queue": "ut_kinds",
+                "item_id": "$a",
+                "error": "no purchase order",
+                "kind": "business"
+              },
+              "out": {
+                "will_retry": "business"
+              },
+              "id": "s182"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_kinds"
+              },
+              "out": {
+                "item_id": "b"
+              },
+              "id": "s183"
+            },
+            {
+              "action": "ooa.workload/fail",
+              "args": {
+                "queue": "ut_kinds",
+                "item_id": "$b",
+                "error": "portal down",
+                "kind": "system"
+              },
+              "out": {
+                "will_retry": "system"
+              },
+              "id": "s184"
+            },
+            {
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_kinds",
+                "item_id": "$a"
+              },
+              "out": {
+                "item": "item"
+              },
+              "id": "s185"
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$business$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check business",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "business: expected eq false, got ${business}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$system$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check system",
+              "else": [
+                {
+                  "id": "s191",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "system: expected eq true, got ${system}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s192",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${item}",
+                  "right": "\"error_kind\":\"business\""
+                }
+              },
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check item",
+              "else": [
+                {
+                  "id": "s194",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "item: expected it to contain \"error_kind\":\"business\", got ${item}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/fail: business exception: final at once; system exception: retried\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/fail: business exception: final at once; system exception: retried: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.workload/fail - business exception: final at once; system exception: retried"
+    },
+    {
+      "id": "s199",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.workload/unlock_item - release an item stuck in progress; its attempts are kept"
+      },
+      "children": [
+        {
+          "id": "s200",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/unlock_item (release an item stuck in progress; its attempts are kept) and checks its result."
+          }
+        },
+        {
+          "id": "s201",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "id",
+                "value": ""
+              },
+              "description": "Test value for id"
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "attempt",
+                "value": 0
+              },
+              "description": "Test value for attempt"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_stuck",
+                "data": {
+                  "n": 1
+                }
+              },
+              "id": "s204"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_stuck"
+              },
+              "out": {
+                "item_id": "id"
+              },
+              "id": "s205"
+            },
+            {
+              "action": "ooa.workload/unlock_item",
+              "args": {
+                "queue": "ut_stuck",
+                "item_id": "$id"
+              },
+              "id": "s206"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_stuck"
+              },
+              "out": {
+                "attempt": "attempt"
+              },
+              "id": "s207"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$attempt$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attempt",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attempt: expected eq 2, got ${attempt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/unlock_item: release an item stuck in progress; its attempts are kept\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/unlock_item: release an item stuck in progress; its attempts are kept: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.workload/unlock_item - release an item stuck in progress; its attempts are kept"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.workload/delete_items - delete finished items; waiting ones stay unless forced"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/delete_items (delete finished items; waiting ones stay unless forced) and checks its result."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "core/set",
+              "args": {
+                "variable": "id",
+                "value": ""
+              },
+              "description": "Test value for id"
+            },
+            {
+              "id": "s219",
+              "action": "core/set",
+              "args": {
+                "variable": "finished",
+                "value": 0
+              },
+              "description": "Test value for finished"
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "forced",
+                "value": 0
+              },
+              "description": "Test value for forced"
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "c"
+              },
+              "description": "Test value for c"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_tidy",
+                "data": {
+                  "n": 1
+                }
+              },
+              "id": "s222"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_tidy",
+                "data": {
+                  "n": 2
+                },
+                "tags": [
+                  "keep"
+                ]
+              },
+              "id": "s223"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_tidy"
+              },
+              "out": {
+                "item_id": "id"
+              },
+              "id": "s224"
+            },
+            {
+              "action": "ooa.workload/complete",
+              "args": {
+                "queue": "ut_tidy",
+                "item_id": "$id"
+              },
+              "id": "s225"
+            },
+            {
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy"
+              },
+              "out": {
+                "count": "finished"
+              },
+              "id": "s226"
+            },
+            {
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy",
+                "status": "new",
+                "tags": [
+                  "keep"
+                ],
+                "force": true
+              },
+              "out": {
+                "count": "forced"
+              },
+              "id": "s227"
+            },
+            {
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_tidy"
+              },
+              "out": {
+                "counts": "c"
+              },
+              "id": "s228"
+            },
+            {
+              "id": "s229",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$finished$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check finished",
+              "else": [
+                {
+                  "id": "s231",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "finished: expected eq 1, got ${finished}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s232",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$forced$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check forced",
+              "else": [
+                {
+                  "id": "s234",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "forced: expected eq 1, got ${forced}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${c}",
+                  "right": "\"total\":0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected it to contain \"total\":0, got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s238",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/delete_items: delete finished items; waiting ones stay unless forced\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/delete_items: delete finished items; waiting ones stay unless forced: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.workload/delete_items - delete finished items; waiting ones stay unless forced"
+    },
+    {
+      "id": "s242",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.workload/delete_items - waiting items need force"
+      },
+      "children": [
+        {
+          "id": "s243",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/delete_items (waiting items need force) and checks its result."
+          }
+        },
+        {
+          "id": "s244",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s247",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.workload/delete_items",
+                  "args": {
+                    "queue": "ut_tidy2",
+                    "status": "new"
+                  },
+                  "id": "s245"
+                }
+              ],
+              "description": "These steps should fail with QUEUE.NEEDS_FORCE",
+              "catch": [
+                {
+                  "codes": [
+                    "QUEUE.NEEDS_FORCE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s248",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s249",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error QUEUE.NEEDS_FORCE",
+              "else": [
+                {
+                  "id": "s251",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error QUEUE.NEEDS_FORCE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/delete_items: waiting items need force\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s255",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/delete_items: waiting items need force: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.workload/delete_items - waiting items need force"
+    },
+    {
+      "id": "s256",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.workload/copy_items - copy to another queue: new items with the same data, reference and tags"
+      },
+      "children": [
+        {
+          "id": "s257",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/copy_items (copy to another queue: new items with the same data, reference and tags) and checks its result."
+          }
+        },
+        {
+          "id": "s258",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "copied",
+                "value": 0
+              },
+              "description": "Test value for copied"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "skipped",
+                "value": 0
+              },
+              "description": "Test value for skipped"
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "next"
+              },
+              "description": "Test value for next"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_src",
+                "data": {
+                  "n": 1
+                },
+                "reference": "R1",
+                "tags": [
+                  "eu"
+                ]
+              },
+              "id": "s262"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_src",
+                "data": {
+                  "n": 2
+                },
+                "reference": "R2"
+              },
+              "id": "s263"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_dst",
+                "data": {
+                  "n": 9
+                },
+                "reference": "R2"
+              },
+              "id": "s264"
+            },
+            {
+              "action": "ooa.workload/copy_items",
+              "args": {
+                "queue": "ut_src",
+                "to_queue": "ut_dst"
+              },
+              "out": {
+                "count": "copied",
+                "skipped": "skipped"
+              },
+              "id": "s265"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_dst",
+                "tags": [
+                  "eu"
+                ]
+              },
+              "out": {
+                "data": "next"
+              },
+              "id": "s266"
+            },
+            {
+              "id": "s267",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$copied$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check copied",
+              "else": [
+                {
+                  "id": "s269",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "copied: expected eq 1, got ${copied}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s270",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$skipped$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check skipped",
+              "else": [
+                {
+                  "id": "s272",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "skipped: expected eq 1, got ${skipped}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s273",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$next$",
+                  "right": {
+                    "n": 1
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s274",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check next",
+              "else": [
+                {
+                  "id": "s275",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "next: expected eq \"n\": 1, got ${next}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s276",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/copy_items: copy to another queue: new items with the same data, reference and tags\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/copy_items: copy to another queue: new items with the same data, reference and tags: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.workload/copy_items - copy to another queue: new items with the same data, reference and tags"
+    },
+    {
+      "id": "s280",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.workload/move_items - move failed items to a queue of their own"
+      },
+      "children": [
+        {
+          "id": "s281",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/move_items (move failed items to a queue of their own) and checks its result."
+          }
+        },
+        {
+          "id": "s282",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "id",
+                "value": ""
+              },
+              "description": "Test value for id"
+            },
+            {
+              "id": "s284",
+              "action": "core/set",
+              "args": {
+                "variable": "moved",
+                "value": 0
+              },
+              "description": "Test value for moved"
+            },
+            {
+              "id": "s285",
+              "action": "core/set",
+              "args": {
+                "variable": "left"
+              },
+              "description": "Test value for left"
+            },
+            {
+              "id": "s286",
+              "action": "core/set",
+              "args": {
+                "variable": "there"
+              },
+              "description": "Test value for there"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_work",
+                "data": {
+                  "n": 1
+                }
+              },
+              "id": "s287"
+            },
+            {
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_work",
+                "data": {
+                  "n": 2
+                }
+              },
+              "id": "s288"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_work"
+              },
+              "out": {
+                "item_id": "id"
+              },
+              "id": "s289"
+            },
+            {
+              "action": "ooa.workload/fail",
+              "args": {
+                "queue": "ut_work",
+                "item_id": "$id",
+                "kind": "business"
+              },
+              "id": "s290"
+            },
+            {
+              "action": "ooa.workload/move_items",
+              "args": {
+                "queue": "ut_work",
+                "to_queue": "ut_exceptions",
+                "status": "failed"
+              },
+              "out": {
+                "count": "moved"
+              },
+              "id": "s291"
+            },
+            {
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_work"
+              },
+              "out": {
+                "counts": "left"
+              },
+              "id": "s292"
+            },
+            {
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_exceptions"
+              },
+              "out": {
+                "counts": "there"
+              },
+              "id": "s293"
+            },
+            {
+              "id": "s294",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$moved$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check moved",
+              "else": [
+                {
+                  "id": "s296",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "moved: expected eq 1, got ${moved}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s297",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${left}",
+                  "right": "\"total\":1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check left",
+              "else": [
+                {
+                  "id": "s299",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "left: expected it to contain \"total\":1, got ${left}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${there}",
+                  "right": "\"new\":1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check there",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "there: expected it to contain \"new\":1, got ${there}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/move_items: move failed items to a queue of their own\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/move_items: move failed items to a queue of their own: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.workload/move_items - move failed items to a queue of their own"
+    },
+    {
+      "id": "s307",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.workload/get_next - wait_seconds: nothing arrives, found is false"
+      },
+      "children": [
+        {
+          "id": "s308",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.workload/get_next (wait_seconds: nothing arrives, found is false) and checks its result."
+          }
+        },
+        {
+          "id": "s309",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s310",
+              "action": "core/set",
+              "args": {
+                "variable": "found",
+                "value": true
+              },
+              "description": "Test value for found"
+            },
+            {
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_quiet",
+                "wait_seconds": 1
+              },
+              "out": {
+                "found": "found"
+              },
+              "id": "s311"
+            },
+            {
+              "id": "s312",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s313",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s314",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq false, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/get_next: wait_seconds: nothing arrives, found is false\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/get_next: wait_seconds: nothing arrives, found is false: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.workload/get_next - wait_seconds: nothing arrives, found is false"
+    },
+    {
+      "id": "s319",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.workload/complete - mark an item completed with result fields"
+      },
+      "children": [
+        {
+          "id": "s320",
+          "action": "core/comment",
+          "args": {
+            "text": "Complete work item ends an item that was taken with Get next item and keeps result fields with it. The check reads the item back: status completed and the result field paid."
+          }
+        },
+        {
+          "id": "s321",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s322",
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_complete",
+                "data": {
+                  "invoice": "INV-100"
+                }
+              }
+            },
+            {
+              "id": "s323",
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_complete"
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s324",
+              "action": "ooa.workload/complete",
+              "args": {
+                "queue": "ut_complete",
+                "item_id": "$wq_id$",
+                "result": {
+                  "paid": true
+                }
+              }
+            },
+            {
+              "id": "s325",
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_complete",
+                "item_id": "$wq_id$"
+              },
+              "out": {
+                "item": "wq_item"
+              }
+            },
+            {
+              "id": "s326",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_status",
+                "value": {
+                  "expr": "$wq_item.status"
+                }
+              }
+            },
+            {
+              "id": "s327",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_status$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s328",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_status",
+              "else": [
+                {
+                  "id": "s329",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_status: expected eq \"completed\", got ${wq_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s330",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_found",
+                "value": {
+                  "expr": "$wq_item.result.paid"
+                }
+              }
+            },
+            {
+              "id": "s331",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s332",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_found",
+              "else": [
+                {
+                  "id": "s333",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_found: expected eq true, got ${wq_found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s334",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/complete: mark an item completed with result fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s336",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s337",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/complete: mark an item completed with result fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.workload/complete - mark an item completed with result fields"
+    },
+    {
+      "id": "s338",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.workload/counts - count items by status"
+      },
+      "children": [
+        {
+          "id": "s339",
+          "action": "core/comment",
+          "args": {
+            "text": "Queue counts gives the number of items per status. Three items are added and one is completed: two new, one completed, three in all."
+          }
+        },
+        {
+          "id": "s340",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s341",
+              "action": "ooa.workload/add_items",
+              "args": {
+                "queue": "ut_counts",
+                "table": {
+                  "columns": [
+                    "n"
+                  ],
+                  "rows": [
+                    [
+                      1
+                    ],
+                    [
+                      2
+                    ],
+                    [
+                      3
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "id": "s342",
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_counts"
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s343",
+              "action": "ooa.workload/complete",
+              "args": {
+                "queue": "ut_counts",
+                "item_id": "$wq_id$"
+              }
+            },
+            {
+              "id": "s344",
+              "action": "ooa.workload/counts",
+              "args": {
+                "queue": "ut_counts"
+              },
+              "out": {
+                "counts": "wq_counts"
+              }
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_counts.new"
+                }
+              }
+            },
+            {
+              "id": "s346",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s347",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new items",
+              "else": [
+                {
+                  "id": "s348",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new items: expected eq 2, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s349",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_counts.completed"
+                }
+              }
+            },
+            {
+              "id": "s350",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s351",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check completed items",
+              "else": [
+                {
+                  "id": "s352",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "completed items: expected eq 1, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s353",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_counts.total"
+                }
+              }
+            },
+            {
+              "id": "s354",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s355",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check all items",
+              "else": [
+                {
+                  "id": "s356",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "all items: expected eq 3, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/counts: count items by status\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/counts: count items by status: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.workload/counts - count items by status"
+    },
+    {
+      "id": "s361",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.workload/defer - put an item aside until a later date"
+      },
+      "children": [
+        {
+          "id": "s362",
+          "action": "core/comment",
+          "args": {
+            "text": "Defer work item puts a taken item aside until a date (UTC). Until then Get next item does not offer it, and the item shows as deferred."
+          }
+        },
+        {
+          "id": "s363",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_defer",
+                "data": {
+                  "supplier": "Contoso"
+                }
+              }
+            },
+            {
+              "id": "s365",
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_defer"
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s366",
+              "action": "ooa.workload/defer",
+              "args": {
+                "queue": "ut_defer",
+                "item_id": "$wq_id$",
+                "until": "2099-01-01T00:00:00"
+              }
+            },
+            {
+              "id": "s367",
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_defer"
+              },
+              "out": {
+                "found": "wq_found"
+              }
+            },
+            {
+              "id": "s368",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_found$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s369",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_found",
+              "else": [
+                {
+                  "id": "s370",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_found: expected eq false, got ${wq_found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s371",
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_defer",
+                "item_id": "$wq_id$"
+              },
+              "out": {
+                "item": "wq_item"
+              }
+            },
+            {
+              "id": "s372",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_status",
+                "value": {
+                  "expr": "$wq_item.status"
+                }
+              }
+            },
+            {
+              "id": "s373",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_status$",
+                  "right": "deferred"
+                }
+              },
+              "children": [
+                {
+                  "id": "s374",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_status",
+              "else": [
+                {
+                  "id": "s375",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_status: expected eq \"deferred\", got ${wq_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s376",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s377",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/defer: put an item aside until a later date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s378",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s379",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/defer: put an item aside until a later date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.workload/defer - put an item aside until a later date"
+    },
+    {
+      "id": "s380",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.workload/get_item - read fields, reference, tags and status"
+      },
+      "children": [
+        {
+          "id": "s381",
+          "action": "core/comment",
+          "args": {
+            "text": "Get work item reads one item. An item added with a reference and a tag comes back new, with no attempts yet, its fields, reference and tag."
+          }
+        },
+        {
+          "id": "s382",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s383",
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_get",
+                "data": {
+                  "amount": 42.5
+                },
+                "reference": "PO-42",
+                "tags": [
+                  "eu"
+                ]
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s384",
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_get",
+                "item_id": "$wq_id$"
+              },
+              "out": {
+                "item": "wq_item"
+              }
+            },
+            {
+              "id": "s385",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_status",
+                "value": {
+                  "expr": "$wq_item.status"
+                }
+              }
+            },
+            {
+              "id": "s386",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_status$",
+                  "right": "new"
+                }
+              },
+              "children": [
+                {
+                  "id": "s387",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_status",
+              "else": [
+                {
+                  "id": "s388",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_status: expected eq \"new\", got ${wq_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s389",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_text",
+                "value": {
+                  "expr": "$wq_item.reference"
+                }
+              }
+            },
+            {
+              "id": "s390",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_text$",
+                  "right": "PO-42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s391",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_text",
+              "else": [
+                {
+                  "id": "s392",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_text: expected eq \"PO-42\", got ${wq_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s393",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_item.data.amount"
+                }
+              }
+            },
+            {
+              "id": "s394",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 42.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s395",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the amount field",
+              "else": [
+                {
+                  "id": "s396",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the amount field: expected eq 42.5, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s397",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_tags",
+                "value": {
+                  "expr": "$wq_item.tags"
+                }
+              }
+            },
+            {
+              "id": "s398",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$wq_tags$",
+                  "right": "eu"
+                }
+              },
+              "children": [
+                {
+                  "id": "s399",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the tags",
+              "else": [
+                {
+                  "id": "s400",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the tags: expected contains \"eu\", got ${wq_tags}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s401",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/get_item: read fields, reference, tags and status\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s403",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s404",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/get_item: read fields, reference, tags and status: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.workload/get_item - read fields, reference, tags and status"
+    },
+    {
+      "id": "s405",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.workload/list_items - only the completed items, as a table"
+      },
+      "children": [
+        {
+          "id": "s406",
+          "action": "core/comment",
+          "args": {
+            "text": "List work items gives a queue's items as a table, here only the completed ones: one of two."
+          }
+        },
+        {
+          "id": "s407",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s408",
+              "action": "ooa.workload/add_items",
+              "args": {
+                "queue": "ut_list",
+                "table": {
+                  "columns": [
+                    "n"
+                  ],
+                  "rows": [
+                    [
+                      1
+                    ],
+                    [
+                      2
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "id": "s409",
+              "action": "ooa.workload/get_next",
+              "args": {
+                "queue": "ut_list"
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s410",
+              "action": "ooa.workload/complete",
+              "args": {
+                "queue": "ut_list",
+                "item_id": "$wq_id$"
+              }
+            },
+            {
+              "id": "s411",
+              "action": "ooa.workload/list_items",
+              "args": {
+                "queue": "ut_list",
+                "status": "completed"
+              },
+              "out": {
+                "table": "wq_table"
+              }
+            },
+            {
+              "id": "s412",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "len($wq_table)"
+                }
+              }
+            },
+            {
+              "id": "s413",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s414",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows in the table",
+              "else": [
+                {
+                  "id": "s415",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows in the table: expected eq 1, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s416",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s417",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/list_items: only the completed items, as a table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s419",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/list_items: only the completed items, as a table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.workload/list_items - only the completed items, as a table"
+    },
+    {
+      "id": "s420",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.workload/untag_item - remove a tag, ignoring case"
+      },
+      "children": [
+        {
+          "id": "s421",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove tags takes tags off an item (ignoring case) and gives back the tags left."
+          }
+        },
+        {
+          "id": "s422",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s423",
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_untag",
+                "data": {
+                  "n": 1
+                },
+                "tags": [
+                  "urgent",
+                  "eu"
+                ]
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s424",
+              "action": "ooa.workload/untag_item",
+              "args": {
+                "queue": "ut_untag",
+                "item_id": "$wq_id$",
+                "tags": [
+                  "URGENT"
+                ]
+              },
+              "out": {
+                "tags": "wq_tags"
+              }
+            },
+            {
+              "id": "s425",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_tags$",
+                  "right": [
+                    "eu"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s426",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_tags",
+              "else": [
+                {
+                  "id": "s427",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_tags: expected eq [\"eu\"], got ${wq_tags}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s428",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s429",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/untag_item: remove a tag, ignoring case\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s430",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s431",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/untag_item: remove a tag, ignoring case: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.workload/untag_item - remove a tag, ignoring case"
+    },
+    {
+      "id": "s432",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.workload/update_item - change fields and put the item on hold"
+      },
+      "children": [
+        {
+          "id": "s433",
+          "action": "core/comment",
+          "args": {
+            "text": "Update work item merges new fields into an item and here puts it on hold indefinitely; the new status is deferred and both the old and the new field are there."
+          }
+        },
+        {
+          "id": "s434",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s435",
+              "action": "ooa.workload/add_item",
+              "args": {
+                "queue": "ut_update",
+                "data": {
+                  "amount": 10
+                }
+              },
+              "out": {
+                "item_id": "wq_id"
+              }
+            },
+            {
+              "id": "s436",
+              "action": "ooa.workload/update_item",
+              "args": {
+                "queue": "ut_update",
+                "item_id": "$wq_id$",
+                "data": {
+                  "note": "checked"
+                },
+                "status": "on_hold"
+              },
+              "out": {
+                "status": "wq_status"
+              }
+            },
+            {
+              "id": "s437",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_status$",
+                  "right": "deferred"
+                }
+              },
+              "children": [
+                {
+                  "id": "s438",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_status",
+              "else": [
+                {
+                  "id": "s439",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_status: expected eq \"deferred\", got ${wq_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s440",
+              "action": "ooa.workload/get_item",
+              "args": {
+                "queue": "ut_update",
+                "item_id": "$wq_id$"
+              },
+              "out": {
+                "item": "wq_item"
+              }
+            },
+            {
+              "id": "s441",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_text",
+                "value": {
+                  "expr": "$wq_item.data.note"
+                }
+              }
+            },
+            {
+              "id": "s442",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_text$",
+                  "right": "checked"
+                }
+              },
+              "children": [
+                {
+                  "id": "s443",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wq_text",
+              "else": [
+                {
+                  "id": "s444",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wq_text: expected eq \"checked\", got ${wq_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s445",
+              "action": "core/set",
+              "args": {
+                "variable": "wq_n",
+                "value": {
+                  "expr": "$wq_item.data.amount"
+                }
+              }
+            },
+            {
+              "id": "s446",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wq_n$",
+                  "right": 10
+                }
+              },
+              "children": [
+                {
+                  "id": "s447",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the kept field",
+              "else": [
+                {
+                  "id": "s448",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the kept field: expected eq 10, got ${wq_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s449",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s450",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/update_item: change fields and put the item on hold\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s451",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s452",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/update_item: change fields and put the item on hold: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.workload/update_item - change fields and put the item on hold"
+    },
+    {
+      "id": "s489",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.workload/delete_items - tidy up: empty every ut_ queue"
+      },
+      "children": [
+        {
+          "id": "s490",
+          "action": "core/comment",
+          "args": {
+            "text": "At the end every queue the agent used is emptied again (force on, any status)."
+          }
+        },
+        {
+          "id": "s491",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s492",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_invoices",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_invoices"
+            },
+            {
+              "id": "s493",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_q2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_q2"
+            },
+            {
+              "id": "s494",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_empty-q",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_empty-q"
+            },
+            {
+              "id": "s495",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_claims",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_claims"
+            },
+            {
+              "id": "s496",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tagq",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tagq"
+            },
+            {
+              "id": "s497",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_refs",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_refs"
+            },
+            {
+              "id": "s498",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_refs2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_refs2"
+            },
+            {
+              "id": "s499",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_rows",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_rows"
+            },
+            {
+              "id": "s500",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_kinds",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_kinds"
+            },
+            {
+              "id": "s501",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_stuck",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_stuck"
+            },
+            {
+              "id": "s502",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tidy"
+            },
+            {
+              "id": "s503",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_tidy2",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_tidy2"
+            },
+            {
+              "id": "s504",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_src",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_src"
+            },
+            {
+              "id": "s505",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_dst",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_dst"
+            },
+            {
+              "id": "s506",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_work",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_work"
+            },
+            {
+              "id": "s507",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_exceptions",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_exceptions"
+            },
+            {
+              "id": "s508",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_quiet",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_quiet"
+            },
+            {
+              "id": "s509",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_complete",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_complete"
+            },
+            {
+              "id": "s510",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_counts",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_counts"
+            },
+            {
+              "id": "s511",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_defer",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_defer"
+            },
+            {
+              "id": "s512",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_get",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_get"
+            },
+            {
+              "id": "s513",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_list",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_list"
+            },
+            {
+              "id": "s514",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_untag",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_untag"
+            },
+            {
+              "id": "s515",
+              "action": "ooa.workload/delete_items",
+              "args": {
+                "queue": "ut_update",
+                "status": "any",
+                "force": true
+              },
+              "description": "Empty the queue ut_update"
+            },
+            {
+              "id": "s516",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s517",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workload/delete_items: tidy up: empty every ut_ queue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s518",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s519",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workload/delete_items: tidy up: empty every ut_ queue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.workload/delete_items - tidy up: empty every ut_ queue"
+    },
+    {
+      "id": "s520",
+      "action": "core/step",
+      "args": {
+        "title": "25. Summary"
+      },
+      "children": [
+        {
+          "id": "s521",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s522",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s523",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s524",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "25. Summary"
+    }
+  ]
+}

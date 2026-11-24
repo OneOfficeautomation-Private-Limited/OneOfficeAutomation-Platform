@@ -1,0 +1,574 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_ai_agent_test",
+  "name": "UT Item AI agent",
+  "description": "Runs the sample AI agent UT AI agent (agents/items/ai-agent) as a child agent and checks its answer, status and output fields (stand-in model).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ai_answer",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_outputs",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ai_trace",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ai_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ai_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ai_run",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Runs the sample AI agent UT AI agent (agents/items/ai-agent) as a child agent and checks its answer, status and output fields (stand-in model)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item AI agent started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. core/run_bot - the AI agent uses its tool and fills its output fields"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Run Agent runs the AI agent with a request; the model calls UT API agent and the AI agent returns status completed, the output fields total 37.5 and currency EUR, and a trace with the tool call."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "ut_ai_agent_item",
+                "inputs": {
+                  "request": "Total for 3 units at 12.5 eur. TOOL_ARGS: {\"quantity\": 3, \"unit_price\": 12.5, \"currency\": \"eur\"}",
+                  "standin_url": "$standin_url$"
+                },
+                "output_map": {
+                  "answer": "ai_answer",
+                  "status": "ai_status",
+                  "outputs": "ai_outputs",
+                  "trace": "ai_trace"
+                },
+                "timeout_seconds": 300
+              },
+              "out": {
+                "status": "ai_run"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_run$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_run",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_run: expected eq \"success\", got ${ai_run}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_status$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_status",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_status: expected eq \"completed\", got ${ai_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ai_n",
+                "value": {
+                  "expr": "$ai_outputs.total"
+                }
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_n$",
+                  "right": 37.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 37.5, got ${ai_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "ai_text",
+                "value": {
+                  "expr": "$ai_outputs.currency"
+                }
+              }
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ai_text$",
+                  "right": "EUR"
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ai_text",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ai_text: expected eq \"EUR\", got ${ai_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${ai_trace}",
+                  "right": "ut_api_agent_item"
+                }
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the trace",
+              "else": [
+                {
+                  "id": "s24",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the trace: expected contains \"ut_api_agent_item\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  core/run_bot: the AI agent uses its tool and fills its output fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  core/run_bot: the AI agent uses its tool and fills its output fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. core/run_bot - the AI agent uses its tool and fills its output fields"
+    },
+    {
+      "id": "s29",
+      "action": "core/step",
+      "args": {
+        "title": "2. core/run_bot - a request the tool refuses"
+      },
+      "children": [
+        {
+          "id": "s30",
+          "action": "core/comment",
+          "args": {
+            "text": "With a quantity of 0 the tool fails with its business error; the AI agent still ends (the stand-in model reports what the tool said), and no total comes back."
+          }
+        },
+        {
+          "id": "s31",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s32",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "ut_ai_agent_item",
+                "inputs": {
+                  "request": "Total for none. TOOL_ARGS: {\"quantity\": 0, \"unit_price\": 12.5}",
+                  "standin_url": "$standin_url$"
+                },
+                "output_map": {
+                  "outputs": "ai_outputs",
+                  "status": "ai_status"
+                },
+                "timeout_seconds": 300
+              }
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ai_text",
+                "value": {
+                  "expr": "$ai_outputs.total"
+                }
+              }
+            },
+            {
+              "id": "s34",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "empty",
+                  "left": "$ai_text$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s36",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected empty , got ${ai_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  core/run_bot: a request the tool refuses\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  core/run_bot: a request the tool refuses: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. core/run_bot - a request the tool refuses"
+    },
+    {
+      "id": "s41",
+      "action": "core/step",
+      "args": {
+        "title": "3. Summary"
+      },
+      "children": [
+        {
+          "id": "s42",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s43",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s44",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s45",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "3. Summary"
+    }
+  ]
+}

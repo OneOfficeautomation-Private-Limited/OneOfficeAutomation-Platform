@@ -1,0 +1,880 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_document_type_test",
+  "name": "UT Item Document type",
+  "description": "Reads a made-up invoice with the fields of the sample document type UT Invoice.doc.json, the way the extraction agent Studio makes from it does (stand-in model), and checks each field.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "items_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
+    },
+    {
+      "name": "ai_key",
+      "type": "Credential",
+      "direction": "local",
+      "default": {
+        "$credential": "unit_tests/ai/api_key"
+      }
+    },
+    {
+      "name": "dt_type",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "dt_fields",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "dt_field",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "dt_desc",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dt_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "dt_values",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "dt_value",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "dt_accept",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "dt_conf",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Reads a made-up invoice with the fields of the sample document type UT Invoice.doc.json, the way the extraction agent Studio makes from it does (stand-in model), and checks each field."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item Document type started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.json/read_file - the document type's settings"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "The sample document type accepts PDF and text files, uses the model ut-model and has six fields."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/document-type/UT Invoice.doc.json",
+                "target": "ut-items/UT Invoice.doc.json",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT Invoice.doc.json into the work folder"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.json/read_file",
+              "args": {
+                "path": "ut-items/UT Invoice.doc.json"
+              },
+              "out": {
+                "value": "dt_type"
+              },
+              "description": "Read the document type"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_accept",
+                "value": {
+                  "expr": "$dt_type.accept"
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dt_accept$",
+                  "right": "pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check accepted files",
+              "else": [
+                {
+                  "id": "s12",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "accepted files: expected contains \"pdf\", got ${dt_accept}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_desc",
+                "value": {
+                  "expr": "$dt_type.model"
+                }
+              }
+            },
+            {
+              "id": "s14",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_desc$",
+                  "right": "ut-model"
+                }
+              },
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dt_desc",
+              "else": [
+                {
+                  "id": "s16",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dt_desc: expected eq \"ut-model\", got ${dt_desc}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s17",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "len($dt_type.fields)"
+                }
+              }
+            },
+            {
+              "id": "s18",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": 6
+                }
+              },
+              "children": [
+                {
+                  "id": "s19",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check fields",
+              "else": [
+                {
+                  "id": "s20",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "fields: expected eq 6, got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/read_file: the document type's settings\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/read_file: the document type's settings: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.json/read_file - the document type's settings"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.genai/extract - read the invoice with the document type's fields"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Each field of the document type becomes a description for Extract fields (its type in brackets when not text, may be missing when not required); the invoice PDF's text goes to the model, and every field comes back with the invoice's value."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s28",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/document-type/UT Invoice.doc.json",
+                "target": "ut-items/UT Invoice.doc.json",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT Invoice.doc.json into the work folder"
+            },
+            {
+              "id": "s29",
+              "action": "ooa.json/read_file",
+              "args": {
+                "path": "ut-items/UT Invoice.doc.json"
+              },
+              "out": {
+                "value": "dt_type"
+              },
+              "description": "Read the document type"
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_fields",
+                "value": {}
+              },
+              "description": "Start with no field descriptions"
+            },
+            {
+              "id": "s31",
+              "action": "core/loop",
+              "args": {
+                "iterator": "list",
+                "over": "$dt_type.fields$",
+                "as": "dt_field"
+              },
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "dt_desc",
+                    "value": "${dt_field.description}"
+                  }
+                },
+                {
+                  "id": "s33",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$dt_field.type$",
+                      "right": "String"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s34",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "dt_desc",
+                        "value": "${dt_desc} (${dt_field.type})"
+                      }
+                    }
+                  ],
+                  "description": "Not text: say the type"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$dt_field.required$",
+                      "right": true
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s36",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "dt_desc",
+                        "value": "${dt_desc} (may be missing)"
+                      }
+                    }
+                  ],
+                  "description": "Not required"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$dt_fields$",
+                    "key": "$dt_field.name$",
+                    "value": "$dt_desc$"
+                  },
+                  "out": {
+                    "dictionary": "dt_fields"
+                  }
+                }
+              ],
+              "description": "One description per field of the document type"
+            },
+            {
+              "id": "s38",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut-items/ut-invoice.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 241 >>\nstream\nBT /F1 12 Tf 72 760 Td 16 TL (Supplier: UT Supplies Ltd) Tj T* (Invoice number: INV-UT-1) Tj T* (Invoice date: 2026-11-20) Tj T* (PO number: PO-4711) Tj T* (Currency: EUR) Tj T* (Net: 100.00) Tj T* (Tax: 20.50) Tj T* (Total: 120.50) Tj T* ET\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000533 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n603\n%%EOF\n"
+              },
+              "description": "Write the made-up invoice PDF"
+            },
+            {
+              "id": "s39",
+              "action": "ooa.pdf/extract_text",
+              "args": {
+                "path": "ut-items/ut-invoice.pdf"
+              },
+              "out": {
+                "text": "dt_text"
+              }
+            },
+            {
+              "id": "s40",
+              "action": "ooa.genai/extract",
+              "args": {
+                "text": "$dt_text$",
+                "fields": "$dt_fields$",
+                "provider": "openai_compatible",
+                "model": "$dt_type.model$",
+                "base_url": "${standin_url}/v1",
+                "api_key": "$ai_key$"
+              },
+              "out": {
+                "fields": "dt_values"
+              }
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.supplier"
+                }
+              }
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": "UT Supplies Ltd"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check supplier",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "supplier: expected eq \"UT Supplies Ltd\", got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.invoice_number"
+                }
+              }
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": "INV-UT-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check invoice_number",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "invoice_number: expected eq \"INV-UT-1\", got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.po_number"
+                }
+              }
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": "PO-4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check po_number",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "po_number: expected eq \"PO-4711\", got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.currency"
+                }
+              }
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": "EUR"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check currency",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "currency: expected eq \"EUR\", got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.total"
+                }
+              }
+            },
+            {
+              "id": "s58",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$dt_value$",
+                  "right": 120.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check total",
+              "else": [
+                {
+                  "id": "s60",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "total: expected eq 120.5, got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "dt_value",
+                "value": {
+                  "expr": "$dt_values.invoice_date"
+                }
+              }
+            },
+            {
+              "id": "s62",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$dt_value$",
+                  "right": "2026-11-20"
+                }
+              },
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check invoice_date",
+              "else": [
+                {
+                  "id": "s64",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "invoice_date: expected contains \"2026-11-20\", got ${dt_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.genai/extract: read the invoice with the document type's fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.genai/extract: read the invoice with the document type's fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.genai/extract - read the invoice with the document type's fields"
+    },
+    {
+      "id": "s69",
+      "action": "core/step",
+      "args": {
+        "title": "3. Summary"
+      },
+      "children": [
+        {
+          "id": "s70",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s71",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s72",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s73",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "3. Summary"
+    }
+  ]
+}

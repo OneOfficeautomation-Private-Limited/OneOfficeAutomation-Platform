@@ -1,0 +1,108 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_ai_agent_item",
+  "name": "UT AI agent",
+  "description": "AI agent sample: given a request about an invoice line, it uses the agent UT API agent as its tool and returns the total and currency as output fields.",
+  "tags": [
+    "ai-agent",
+    "unit-test",
+    "item-sample"
+  ],
+  "variables": [
+    {
+      "name": "request",
+      "type": "String",
+      "direction": "input",
+      "required": true,
+      "description": "What the agent is asked to do this time."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "The local stand-in that plays the model."
+    },
+    {
+      "name": "api_key",
+      "type": "Credential",
+      "direction": "input",
+      "default": {
+        "$credential": "unit_tests/ai/api_key"
+      },
+      "description": "Made-up key for the stand-in model."
+    },
+    {
+      "name": "answer",
+      "type": "String",
+      "direction": "output",
+      "description": "The agent's final answer."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "description": "completed, limit_reached, stopped, failed or cancelled."
+    },
+    {
+      "name": "outputs",
+      "type": "Dictionary",
+      "direction": "output",
+      "description": "The output fields total and currency."
+    },
+    {
+      "name": "trace",
+      "type": "List",
+      "direction": "output",
+      "description": "Each model turn and tool call."
+    },
+    {
+      "name": "tokens",
+      "type": "Number",
+      "direction": "output",
+      "description": "Tokens used."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.ai_agent/run",
+      "description": "Plan with the model and call UT API agent as a tool",
+      "args": {
+        "goal": "$request$",
+        "instructions": "You are a careful accounts assistant. Use the tools to work out figures; never invent results.",
+        "role": "Accounts payable clerk",
+        "action_plan": "1. Call the total tool with the quantity and unit price. 2. Report the total and the currency.",
+        "tools": [
+          "ut_api_agent_item"
+        ],
+        "provider": "openai_compatible",
+        "model": "ut-model",
+        "base_url": "${standin_url}/plat-ai/v1",
+        "api_key": "$api_key$",
+        "output_fields": {
+          "total": "the invoice line total as a number",
+          "currency": "the currency code"
+        },
+        "max_steps": 4,
+        "max_tokens_total": 20000,
+        "max_duration_seconds": 120,
+        "temperature": 0,
+        "mask_pii": false,
+        "toxicity_guardrail": "log",
+        "toxicity_level": "medium",
+        "blocked_terms": [
+          "password"
+        ]
+      },
+      "out": {
+        "answer": "answer",
+        "status": "status",
+        "outputs": "outputs",
+        "trace": "trace",
+        "tokens": "tokens"
+      }
+    }
+  ]
+}
