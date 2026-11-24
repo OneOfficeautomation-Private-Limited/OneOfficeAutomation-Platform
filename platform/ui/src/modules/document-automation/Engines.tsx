@@ -30,7 +30,8 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
   const save = async (r: Routing) => {
     try { await api.saveRouting(r); setSaved(true); onOptIn?.(r.cloudOptIn); reload(); } catch (e) { reportError(e); }
   };
-  const cloudEngines = data.options.find((o) => o.id === "oneconnect")?.engines.filter((e) => e.id !== "abbyy") ?? [];
+  // every cloud engine that reads pages, from any option pack (ABBYY reads whole documents, not single weak pages)
+  const cloudEngines = data.options.flatMap((o) => o.engines).filter((e) => e.runs === "cloud" && e.does === "Reads pages" && e.id !== "abbyy");
 
   return (
     <div className="df-page">
@@ -49,7 +50,7 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
         onOption={(id) => { location.hash = "#/engines/catalog/" + id; }} />}
       {current === "languages" && <LanguagesPanel api={api} />}
-      {current === "cost" && <CostSection optIn={routing.cloudOptIn} claude={data.claude} />}
+      {current === "cost" && <CostSection optIn={routing.cloudOptIn} claude={data.claude} prices={data.prices} />}
     </div>
   );
 }

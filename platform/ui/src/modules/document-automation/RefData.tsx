@@ -40,7 +40,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
     </div>
   );
   const dialogs = <>
-    {uploading && <UploadDialog key={uploading === "new" ? "new" : uploading.id} api={api} replacing={uploading === "new" ? null : uploading}
+    {uploading && <UploadDialog key={uploading === "new" ? "new" : uploading.id} api={api} existing={tables ?? []} replacing={uploading === "new" ? null : uploading}
       onClose={() => setUploading(null)} onDone={(id) => { setUploading(null); setChosen(id); reload(); }} />}
     <Dialog open={!!deleting} onClose={() => setDeleting(null)} title={`Delete ${deleting?.name ?? ""}?`} width={480}
       footer={<><Button onClick={() => setDeleting(null)}>Cancel</Button>
@@ -125,7 +125,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
   );
 }
 
-function UploadDialog({ api, replacing, onClose, onDone }: { api: DocFlowApi; replacing: RefTable | null; onClose: () => void; onDone: (id: string) => void }) {
+function UploadDialog({ api, replacing, existing = [], onClose, onDone }: { api: DocFlowApi; replacing: RefTable | null; existing?: RefTable[]; onClose: () => void; onDone: (id: string) => void }) {
   const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState(replacing?.name ?? "");
@@ -133,8 +133,13 @@ function UploadDialog({ api, replacing, onClose, onDone }: { api: DocFlowApi; re
   const upload = async () => {
     if (!file) return;
     setBusy(true);
-    try { onDone((await api.uploadRefTable(file, name.trim() || file.name.replace(/\.[^.]+$/, ""))).id); } catch (e) { reportError(e); } finally { setBusy(false); }
+    const title = name.trim() || file.name.replace(/\.[^.]+$/, "");
+    try { onDone((await api.uploadRefTable(file, keepBoth && clash ? freeName(title) : title, replacing?.id)).id); } catch (e) { reportError(e); } finally { setBusy(false); }
   };
+  // another table has this name: uploading replaces it, unless both are kept (the new one gets "(2)")
+  const clash = !replacing && existing.some((t) => t.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const [keepBoth, setKeepBoth] = useState(false);
+  const freeName = (n: string) => { let k = 2; while (existing.some((t) => t.name.toLowerCase() === `${n} (${k})`.toLowerCase())) k++; return `${n} (${k})`; };
   return (
     <Dialog open onClose={onClose} title={replacing ? `Replace ${replacing.name}` : "Upload a table"} width={520}
       footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!file || busy} onClick={upload}>{busy ? "Uploading…" : "Upload"}</Button></>}>
@@ -147,9 +152,11 @@ function UploadDialog({ api, replacing, onClose, onDone }: { api: DocFlowApi; re
         </div>
       </div>
       <p className="df-small" style={{ margin: 0 }}>CSV or Excel. The first row holds the column names.</p>
-      <Field label="Table name" hint={replacing ? "Keep the name to replace this table." : "A table with the same name is replaced."}>
-        {(id) => <TextInput id={id} value={name} disabled={!!replacing} onChange={(e) => setName(e.target.value)} />}
+      <Field label="Table name" hint={replacing ? "This table is replaced; you may rename it." : clash ? "A table with this name exists." : undefined}>
+        {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}
       </Field>
+      {clash && <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={keepBoth} onChange={(e) => setKeepBoth(e.target.checked)} />
+        Keep both: save this one as {freeName(name.trim())} instead of replacing the table</label>}
     </Dialog>
   );
 }

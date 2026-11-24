@@ -8,7 +8,7 @@ const engine = (status: Engine["status"], runs: Engine["runs"]): Engine =>
 /** DA-1: the engine options and engines say in plain words whether they are ready, off or need something. */
 describe("engine status in plain words", () => {
   it("names the three options plainly", () => {
-    expect(PLAIN).toEqual({ onecore: "On this server", oneconnect: "Cloud reading", onemind: "AI reading" });
+    expect(PLAIN).toEqual({ onecore: "On this server", oneconnect: "Cloud reading", onemind: "AI reading", other: "Other engines" });
   });
 
   it("says Ready, Off: cloud not allowed, or what an engine still needs", () => {

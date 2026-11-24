@@ -3,8 +3,7 @@ import { Button, Icon } from "../../components";
 import type { DocFlowApi, DocumentRow } from "./api";
 import { folderLabel } from "./dialogs";
 import { Loading, StatusChip, reportError, useLoad } from "./ui";
-
-const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff";
+import { READABLE_FILES as ACCEPT } from "./formats";
 
 /**
  * Upload into one process: drop files on the box or click to choose them, check the list, then Start processing.
@@ -44,7 +43,7 @@ export function UploadFiles({ api, process, inbox = false, inputId, onAdded }:
           </div>
         </div>
       )}
-      <span className="df-small">PDF, PNG, JPG or TIFF, up to 500 pages each.</span>
+      <span className="df-small">PDF, pictures (PNG, JPG, TIFF, BMP, WEBP) or XML e-invoices.</span>
     </div>
   );
 }

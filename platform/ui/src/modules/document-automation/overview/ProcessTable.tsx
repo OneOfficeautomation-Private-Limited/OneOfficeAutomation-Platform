@@ -81,7 +81,7 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
         <FilterSelect label="Folder" value={folder} onChange={setFolder} options={[{ value: "all", label: "All folders" },
           ...[...new Set(all.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
         <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
-          { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }]} />
+          { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }, { value: "split", label: "Split from a batch" }]} />
         <div className="df-seg" role="group" aria-label="Show">
           <button type="button" aria-pressed={view === "activity"} onClick={() => setView("activity")}>Activity</button>
           <button type="button" aria-pressed={view === "setup"} onClick={() => setView("setup")}>Set-up</button>

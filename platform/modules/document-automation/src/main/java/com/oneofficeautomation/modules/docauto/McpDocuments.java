@@ -137,7 +137,7 @@ final class McpDocuments implements ModuleContext.McpTools {
     @SuppressWarnings("unchecked")
     private Map<String, Object> send(User u, Map<String, Object> args) {
         String process = need(args, "process"), fileName = need(args, "file_name");
-        if (!DocFlowProxy.READABLE.matcher(fileName).matches()) throw new OoaException("DOCS.FILE_TYPE", "Document Automation reads PDF, PNG, JPG and TIFF files, not " + fileName, "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+        if (!DocFlowProxy.READABLE.matcher(fileName).matches()) throw new OoaException("DOCS.FILE_TYPE", "Document Automation reads " + DocFlowProxy.READABLE_WORDS + ", not " + fileName, "Send the document as one of these files (save or print it as PDF first).");
         byte[] data;
         try { data = Base64.getMimeDecoder().decode(need(args, "content_base64")); } catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_INPUT", "content_base64 is not Base64"); }
         if (data.length == 0) throw new OoaException("CR.BAD_INPUT", "The file is empty");
@@ -145,8 +145,7 @@ final class McpDocuments implements ModuleContext.McpTools {
         Map<String, Object> flow = visibleProcesses(u).stream().filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst()
                 .orElseThrow(() -> new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "' that you may see", "Call " + LIST + " for the names."));
         String boundary = "ooa" + UUID.randomUUID().toString().replace("-", "");
-        String lower = fileName.toLowerCase(Locale.ROOT);
-        String type = lower.endsWith(".pdf") ? "application/pdf" : lower.endsWith(".png") ? "image/png" : lower.matches(".+\\.tiff?") ? "image/tiff" : "image/jpeg";
+        String type = DocFlowProxy.mimeOf(fileName);
         Map<String, Object> r = (Map<String, Object>) docflow.exchange(u, "POST", "df/flows/" + flow.get("id") + "/documents", "source=assistant&requireLive=true&wait=false",
                 DocFlowProxy.multipart(boundary, fileName, type, data), Map.of("Content-Type", "multipart/form-data; boundary=" + boundary), "Assistant (" + u.username() + ")").json();
         List<Object> docs = (List<Object>) r.getOrDefault("documents", List.of());

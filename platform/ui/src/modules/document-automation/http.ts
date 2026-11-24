@@ -3,7 +3,7 @@ import {
   INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
-  type ProcessRow, type ProcessSummary, type RefTable,
+  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
 } from "./api";
@@ -23,7 +23,8 @@ interface Stats {
 }
 interface DfFieldDef {
   name: string; type: string; label?: string | null; required: boolean; regex?: string | null; format?: string | null; aliases: string[]; columns: DfFieldDef[];
-  fallback?: string | null;
+  fallback?: string | null; description?: string | null; enumValues?: string[]; enumDescriptions?: Record<string, string>; allowOther?: boolean;
+  method?: "extract" | "infer" | "classify"; patternSeverity?: CheckStrictness; output?: string | null;
 }
 interface DfDocType {
   id: string; name: string; description: string; category: string; languages: string[]; keywords: string[]; fields: DfFieldDef[];
@@ -69,7 +70,14 @@ interface DfProvider {
 interface DfSetting { key: string; value: string }
 interface DfCosts {
   prices: Record<string, { ocr: number | null; extract: number | null }>; claudeModel: string; claudeEscalationModel?: string | null; cloudOptIn: boolean;
+  currency?: string; modelPrices?: Record<string, number | null>;
 }
+/** DocFlow's prices as the cost estimate uses them: engine ids, and Claude by model id. */
+const priceList = (c: DfCosts): PriceList => {
+  const pick = (use: "ocr" | "extract") => Object.fromEntries(Object.entries(c.prices).flatMap(([id, p]) => (p[use] ?? null) === null ? [] : [[id, p[use] as number]]));
+  const models = Object.fromEntries(Object.entries(c.modelPrices ?? {}).flatMap(([m, v]) => (v === null ? [] : [[m, v]])));
+  return { currency: c.currency ?? "USD", ocr: pick("ocr"), extract: { ...pick("extract"), ...models } };
+};
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -130,9 +138,17 @@ function sourceOf(r: DfDocRow): { source: Source; label: string } {
 }
 
 /** DocFlow's field types and the screens' names for them. */
-const FIELD_TYPES: Record<string, DocTypeField["type"]> = { string: "Text", date: "Date", currency: "Amount", number: "Number", table: "Table", enum: "Choice" };
+const FIELD_TYPES: Record<string, DocTypeField["type"]> = {
+  string: "Text", date: "Date", datetime: "Date and time", currency: "Amount", number: "Number", percentage: "Percentage", boolean: "Yes/No",
+  checkbox: "Ticked", signature: "Signed", enum: "Choice", multienum: "Several choices", email: "Email", phone: "Phone", address: "Address",
+  table: "Table", object: "Group",
+};
 const fieldType = (t: string): DocTypeField["type"] => FIELD_TYPES[t] ?? "Text";
-const dfFieldType = (t: DocTypeField["type"]) => Object.keys(FIELD_TYPES).find((k) => FIELD_TYPES[k] === t) ?? "string";
+/** The screens' type back to DocFlow's: the type DocFlow had is kept when the screens show it unchanged (one it has that the screens do not know). */
+const dfFieldType = (t: DocTypeField["type"], had?: string) =>
+  had && fieldType(had) === t ? had : Object.keys(FIELD_TYPES).find((k) => FIELD_TYPES[k] === t) ?? "string";
+const METHOD_TO_DF = { copy: "extract", "work-out": "infer", pick: "classify" } as const;
+const METHOD_OF = { extract: "copy", infer: "work-out", classify: "pick" } as const;
 
 /** A DocFlow document type as the screens show it. */
 function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow[]): DocType {
@@ -140,11 +156,13 @@ function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow
   const usedBy = flows.filter((fl) => fl.isInbox || !fl.docTypes.length || fl.docTypes.includes(t.id)).map((fl) => fl.name);
   const origin = builtIn.has(t.id) ? "built-in" as const : "made-here" as const;
   return {
-    id: t.id, name: t.name, origin, usedBy, keywords: t.keywords, languages: t.languages,
+    id: t.id, name: t.name, origin, usedBy, keywords: t.keywords, languages: t.languages, description: t.description ?? "",
     meta: `${origin === "built-in" ? "Built in" : "Made here"} · ${usedBy.length ? usedBy.length + " process" + (usedBy.length > 1 ? "es" : "") : "not used"}`,
     fields: t.fields.map((x) => ({
       key: x.name, label: (x.label ?? x.name).split(" / ")[0], aliases: [...((x.label ?? "").split(" / ").slice(1)), ...x.aliases],
       type: fieldType(x.type), required: x.required, regex: x.regex ?? "", learned: t.learning?.aliases?.[x.name] ?? [],
+      description: x.description ?? "", method: METHOD_OF[x.method ?? "extract"] ?? "copy", choices: x.enumValues ?? [],
+      choiceNotes: x.enumDescriptions ?? {}, allowOther: !!x.allowOther, strictness: x.patternSeverity ?? "error", writeAs: x.output ?? "", dfType: x.type,
     })),
   };
 }
@@ -469,14 +487,14 @@ export class HttpDocFlowApi implements DocFlowApi {
 
   async engineSettings(id: string): Promise<EngineField[]> {
     const s = await this.call<{ engines: Record<string, { fields: (EngineField & { default?: string })[] }> }>("GET", "/admin/settings");
-    return (s.engines[id]?.fields ?? []).map((f) => ({ key: f.key, label: f.label, type: f.type, value: String(f.value ?? ""), help: f.help, options: f.options, placeholder: f.placeholder }));
+    return (s.engines[id]?.fields ?? []).map((f) => ({ key: f.key, label: f.label, type: f.type, value: String(f.value ?? ""), help: f.help, options: f.options, suggestions: f.suggestions, placeholder: f.placeholder }));
   }
 
   async saveEngineSettings(values: Record<string, string>): Promise<void> {
     await this.call("PUT", "/admin/settings", { values });
   }
 
-  async engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: { model: string; escalationModel: string | null } }> {
+  async engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: { model: string; escalationModel: string | null }; prices?: PriceList }> {
     const [prov, costs, settings] = await Promise.all([
       this.call<{ providers: DfProvider[] }>("GET", "/providers"), this.call<DfCosts>("GET", "/costs"),
       // routing details are for people who may change engines; everyone else still sees the opt-in from /costs
@@ -486,6 +504,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const routing: Routing = {
       cloudOptIn: costs.cloudOptIn, retryBelow: Number(v("DOCAUTO_ESCALATE_THRESHOLD", "0.85")),
       localRetry: v("DOCAUTO_RETRY_LOCAL", "paddleocr"), cloudEngine: v("DOCAUTO_ESCALATE_TO", ""),
+      ocr: v("DOCAUTO_DEFAULT_OCR", "tesseract"), extraction: v("DOCAUTO_DEFAULT_EXTRACTION", "builtin-rules"),
     };
     const price = (id: string, local: boolean) => {
       const p = costs.prices[id];
@@ -500,10 +519,14 @@ export class HttpDocFlowApi implements DocFlowApi {
       runs: p.runsLocally ? "server" : "cloud", price: price(p.id, p.runsLocally), free: p.runsLocally,
       key: p.runsLocally ? "—" : p.available ? "Set" : "Not set",
     });
+    // engines from an option pack the screens do not name (a new or own pack) are listed as Other engines, not dropped
+    const others = prov.providers.filter((p) => !PACK_OPTION[p.optionPack]).map(engine);
     return {
       routing,
-      options: OPTIONS.map((o) => ({ ...o, engines: prov.providers.filter((p) => PACK_OPTION[p.optionPack] === o.id).map(engine) })),
+      options: [...OPTIONS.map((o) => ({ ...o, engines: prov.providers.filter((p) => PACK_OPTION[p.optionPack] === o.id).map(engine) })),
+        ...(others.length ? [{ id: "other" as const, name: "Other engines", description: "Engines from other option packs", color: "#5b6b7f", engines: others }] : [])],
       ...(costs.claudeModel ? { claude: { model: costs.claudeModel, escalationModel: escalation } } : {}),
+      prices: priceList(costs),
     };
   }
 
@@ -587,10 +610,14 @@ export class HttpDocFlowApi implements DocFlowApi {
     const cur = t.id ? await this.call<DfDocType>("GET", `/df/doctypes/${encodeURIComponent(t.id)}`) : null;
     const fields = t.fields.map((x) => {
       const old = cur?.fields.find((o) => o.name === x.key);
-      return { ...(old ?? {}), name: x.key, label: x.label, aliases: x.aliases, type: dfFieldType(x.type), required: x.required, regex: x.regex || null };
+      return {
+        ...(old ?? {}), name: x.key, label: x.label, aliases: x.aliases, type: dfFieldType(x.type, old?.type ?? x.dfType), required: x.required, regex: x.regex || null,
+        description: x.description || null, method: METHOD_TO_DF[x.method ?? "copy"], enumValues: x.choices ?? old?.enumValues ?? [],
+        enumDescriptions: x.choiceNotes ?? old?.enumDescriptions ?? {}, allowOther: !!x.allowOther, patternSeverity: x.strictness ?? "error", output: x.writeAs || null,
+      };
     });
     const learning = cur ? { ...cur.learning, aliases: Object.fromEntries(t.fields.map((x) => [x.key, x.learned])) } : undefined;
-    const body = { name: t.name, keywords: t.keywords, languages: t.languages, fields, ...(learning ? { learning } : {}) };
+    const body = { name: t.name, description: t.description ?? cur?.description ?? "", keywords: t.keywords, languages: t.languages, fields, ...(learning ? { learning } : {}) };
     const saved = t.id
       ? await this.call<DfDocType>("PUT", `/df/doctypes/${encodeURIComponent(t.id)}`, body)
       : await this.call<DfDocType>("POST", "/df/doctypes", { ...body, category: "custom" });
@@ -636,10 +663,11 @@ export class HttpDocFlowApi implements DocFlowApi {
     return (await this.call<{ rows: RefRow[] }>("GET", `/df/reftables/${encodeURIComponent(id)}?limit=${limit}`)).rows;
   }
 
-  async uploadRefTable(file: File, name: string): Promise<{ id: string }> {
+  async uploadRefTable(file: File, name: string, replaceId?: string): Promise<{ id: string }> {
     const form = new FormData();
     form.append("file", file, file.name);
     form.append("name", name);
+    if (replaceId) form.append("id", replaceId);
     return this.call<{ id: string }>("POST", "/df/reftables", form);
   }
 

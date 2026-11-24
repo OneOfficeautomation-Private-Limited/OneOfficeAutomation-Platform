@@ -4,7 +4,8 @@ import type { DocFlowApi, DocType, TestRun } from "./api";
 import { TEMPLATES, sampleFile, typeFor } from "./templates";
 import { FolderField } from "./folderPicker";
 import { HINTS } from "./help";
-import { Hint, reportError } from "./ui";
+import { ChoiceOrOwn, Hint, duration, reportError } from "./ui";
+import { POLL_SECONDS } from "./stages";
 
 /** A platform folder path as people read it: Finance/Accounts payable is "Finance / Accounts payable". */
 export const folderLabel = (f: string) => f.split("/").map((x) => x.trim()).filter(Boolean).join(" / ");
@@ -104,8 +105,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
           {watch && (
             <div className="df-grid" style={{ gridTemplateColumns: "3fr 1fr", gap: 12, margin: "10px 0 0 24px" }}>
               <FolderField api={api} label="Folder path" title="Choose the watched folder" value={path} placeholder="\\scan01\invoices" onChange={setPath} />
-              <Field label="Check every">{(id) => <Select id={id} value={every} onChange={(e) => setEvery(e.target.value)}
-                options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }]} />}</Field>
+              <Field label="Check every">{(id) => <ChoiceOrOwn id={id} value={Number(every)} onChange={(v) => setEvery(String(Math.round(v)))} options={POLL_SECONDS} label={duration} unit="seconds" min={5} />}</Field>
               <span className="df-small" style={{ gridColumn: "1 / -1" }}>Each file read moves to the folder's processed folder, so nothing is read twice.</span>
             </div>
           )}

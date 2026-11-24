@@ -76,7 +76,7 @@ describe("HttpDocFlowApi", () => {
       "/admin/settings": new Response(JSON.stringify({ error: { code: "CR.FORBIDDEN", message: "not allowed" } }), { status: 403 }),
     });
     const e = await api.engines();
-    expect(e.routing).toEqual({ cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" });
+    expect(e.routing).toEqual({ ocr: "tesseract", extraction: "builtin-rules", cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" });
     expect(e.options[0].engines[0]).toMatchObject({ id: "tesseract", status: "ready", price: "Free" });
     expect(e.options[1].engines[0]).toMatchObject({ id: "azure-di", status: "optin", runs: "cloud", price: "$1.5 · $10" });
   });

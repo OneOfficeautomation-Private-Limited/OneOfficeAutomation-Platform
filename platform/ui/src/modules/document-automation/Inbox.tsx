@@ -53,7 +53,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
           <FilterSelect label="Folder" value={folder} onChange={setFolder} options={[{ value: "all", label: "All folders" },
             ...[...new Set(processes.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
           <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
-            { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }]} />
+            { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }, { value: "split", label: "Split from a batch" }]} />
         </FilterBar>
         <div className="df-table-wrap">
           <table className="df-table" style={{ minWidth: 900 }}>

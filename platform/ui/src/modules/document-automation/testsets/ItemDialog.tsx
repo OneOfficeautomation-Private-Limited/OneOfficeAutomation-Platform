@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Button, Dialog, Field, TextInput } from "../../../components";
 import type { TestSetItem } from "../api";
+import { READABLE_FILES } from "../formats";
 import { value } from "./format";
 
 /**
@@ -32,7 +33,7 @@ export function ItemDialog({ item, fields, onSave, onClose }: {
       {!item && (
         <div className="ui-field">
           <span className="ui-field-label">Document</span>
-          <input ref={picker} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml" aria-label="Choose a document"
+          <input ref={picker} type="file" hidden accept={READABLE_FILES} aria-label="Choose a document"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
         </div>

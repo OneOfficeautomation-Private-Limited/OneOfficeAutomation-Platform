@@ -21,19 +21,26 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
   // each engine's real state from DocFlow; the built-in ones it does not list (PDF text, Rules) are always there
   const ready = (id: string) => (engines.find((e) => e.id === id)?.status ?? "ready") === "ready";
   const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Needs setting up</Chip>;
-  const retry = routing.localRetry ? engines.find((e) => e.id === routing.localRetry)?.name ?? (routing.localRetry === "paddleocr" ? "PaddleOCR" : routing.localRetry) : "";
-  const retryOn = !!routing.localRetry && ready(routing.localRetry);
+  const nameOf = (id: string) => engines.find((e) => e.id === id)?.name ?? ({ paddleocr: "PaddleOCR", tesseract: "Tesseract", "builtin-rules": "Rules" } as Record<string, string>)[id] ?? id;
+  // DocFlow tries the retry engines in order (comma separated); the first is shown
+  const firstRetry = routing.localRetry.split(",").map((x) => x.trim()).filter(Boolean)[0] ?? "";
+  const retry = firstRetry ? nameOf(firstRetry) : "";
+  const retryOn = !!firstRetry && ready(firstRetry);
+  const ocr = routing.ocr || "tesseract", fields = routing.extraction || "builtin-rules";
+  // engines that read pages on this server: any of them may re-read weak pages
+  const localReaders = engines.filter((e) => e.runs === "server" && e.does === "Reads pages" && e.id !== "pdf-text");
   const steps = [
     { n: "1 · ALWAYS", title: "Text layer", text: "Digital PDFs: read directly, no OCR", chip: chip("pdf-text", "PDF text"), color: "#4b5565" },
-    { n: "2 · LOCAL", title: "Read every page", text: "On this server, free", chip: chip("tesseract", "Tesseract"), color: "#2f6fde" },
+    { n: "2 · LOCAL", title: "Read every page", text: "On this server, free", chip: chip(ocr, nameOf(ocr)), color: "#2f6fde" },
     { n: retryOn ? "3 · LOCAL" : "3 · SKIPPED", title: `Retry pages under ${pct}%`, text: routing.localRetry && !retryOn ? `${retry} is not installed on DocFlow's server, so weak pages are not retried` : "The better read wins",
-      chip: routing.localRetry ? chip(routing.localRetry, retry) : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !retryOn },
+      chip: firstRetry ? chip(firstRetry, retry) : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !retryOn },
     { n: routing.cloudOptIn && routing.cloudEngine ? "4 · CLOUD" : "4 · CLOUD · SKIPPED", title: "Still weak: cloud OCR", text: "Costs per page",
       chip: !routing.cloudOptIn ? <Chip tone="mute">Off: cloud not allowed</Chip> : cloud
         ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "needs a key"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
       color: "#8b6ae8", off: !routing.cloudOptIn || !routing.cloudEngine },
-    { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: chip("builtin-rules", "Rules"), color: "#2f6fde" },
-    { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
+    { n: fields === "builtin-rules" || fields === "llm-local" ? "5 · LOCAL" : "5 · FIELDS", title: "Read the fields",
+      text: fields === "builtin-rules" ? "Rules from the document type" : "Unless a process chooses another engine", chip: chip(fields, nameOf(fields)), color: "#2f6fde" },
+    { n: "6 · ALWAYS", title: "Checks and review", text: "A field under its process's review level, or a failed check", chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
   ];
   return (
     <section className="df-card df-pad" aria-label="How a page is routed" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -56,7 +63,8 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
           options={retryOptions(routing.retryBelow)} />}</Field>
         <Field label="Local retry engine" info={HINTS.localRetry}>{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => onChange({ ...routing, localRetry: e.target.value })}
-          options={[{ value: "paddleocr", label: "PaddleOCR" }, { value: "", label: "None" }]} />}</Field>
+          options={[...[...new Set([...localReaders.filter((e) => e.id !== ocr).map((e) => e.id), ...(routing.localRetry ? [routing.localRetry] : [])])]
+            .map((v) => ({ value: v, label: v.split(",").map((x) => nameOf(x.trim())).join(", ") + (ready(v.split(",")[0].trim()) ? "" : " (not installed)") })), { value: "", label: "None" }]} />}</Field>
         <Field label="Cloud engine for pages still weak" info={HINTS.cloudEngine}>{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => onChange({ ...routing, cloudEngine: e.target.value })}
           options={[{ value: "", label: "None" }, ...cloudEngines.map((e) => ({ value: e.id, label: e.name }))]} />}</Field>
         <Button kind="primary" onClick={onSave}>{saved ? "Saved" : "Save routing"}</Button>

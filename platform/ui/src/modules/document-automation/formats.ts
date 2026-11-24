@@ -3,6 +3,9 @@
  * match, and says in words what it accepts. Patterns are anchored (^…$) and use only what both JavaScript and DocFlow's
  * Python accept, so they mean the same on the screen and in the service.
  */
+/** The files DocFlow reads (its SUPPORTED_EXT): every file picker of Document Automation offers these. */
+export const READABLE_FILES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.xml";
+
 export interface FieldFormat { id: string; label: string; pattern: string; accepts: string }
 
 export const FORMATS: FieldFormat[] = [

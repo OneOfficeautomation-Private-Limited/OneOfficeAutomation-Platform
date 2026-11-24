@@ -75,7 +75,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
       "Labels are the words DocFlow looks for on the page.",
       "Learned shows labels picked up from reviewers' corrections.",
       "Tick the languages on the documents. Need another? An administrator offers it in Engines, Languages.",
-      "Need a new type? Click Teach from samples and add 3 to 5 example files.",
+      "Need a new type? Click Teach from samples and add 1 to 5 example files.",
     ],
   },
   refdata: {

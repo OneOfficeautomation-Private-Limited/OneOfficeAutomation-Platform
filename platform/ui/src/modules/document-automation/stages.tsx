@@ -4,7 +4,7 @@ import { HINTS } from "./help";
 import { FolderField } from "./folderPicker";
 import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
-import { AdvancedToggle } from "./ui";
+import { AdvancedToggle, ChoiceOrOwn, duration } from "./ui";
 import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
@@ -60,8 +60,7 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
       <FolderField api={api} label="Watched folder" title="Choose the watched folder" hint="DocFlow reads every new file put here. Empty: upload only."
         value={s.inputFolder} placeholder="\\scan01\invoices" empty="No folder chosen: upload only" processId={processId} onChange={(v) => set({ inputFolder: v })} />
       <Field label="Check the folder every">
-        {(id) => <Select id={id} value={String(s.pollSeconds)} onChange={(e) => set({ pollSeconds: Number(e.target.value) })}
-          options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }, { value: "900", label: "15 minutes" }]} />}
+        {(id) => <ChoiceOrOwn id={id} value={s.pollSeconds} onChange={(v) => set({ pollSeconds: Math.round(v) })} options={POLL_SECONDS} label={duration} unit="seconds" min={5} />}
       </Field>
       <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Upload is always on. Agents send documents with the "Send document to process" action.</p>
     </div>
@@ -153,8 +152,8 @@ export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings 
 
 /** The thresholds a field can have of its own (70–99%), and the saved one when it is another. */
 const FIELD_LEVELS = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99];
-const levelOptions = (saved: number) => [...new Set([...FIELD_LEVELS, saved])].sort((a, b) => a - b)
-  .map((v) => ({ value: String(v), label: Math.round(v * 100) + "%" }));
+/** How often a watched folder is checked: common choices; any other number of seconds can be typed. */
+export const POLL_SECONDS = [10, 30, 60, 300, 900, 3600];
 
 export function ReviewStage({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
   const own = Object.keys(s.fieldThresholds ?? {}).length > 0;
@@ -187,10 +186,8 @@ function FieldThresholds({ s, set, fields }: { s: ProcessSettings; set: SetSetti
                   onChange={(e) => write(entries.map(([n, v]) => (n === name ? [e.target.value, v] : [n, v])))}>
                   {[{ name, label: labelOf(name) }, ...free].map((f) => <option key={f.name} value={f.name}>{f.label}</option>)}
                 </select></td>
-                <td><select className="ui-input ui-select" aria-label={`Threshold for ${labelOf(name)}`} value={String(level)}
-                  onChange={(e) => write(entries.map(([n, v]) => [n, n === name ? Number(e.target.value) : v]))}>
-                  {levelOptions(level).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select></td>
+                <td><ChoiceOrOwn id={`df-level-${i}`} ariaLabel={`Threshold for ${labelOf(name)}`} value={level} options={FIELD_LEVELS} label={(v) => Math.round(v * 1000) / 10 + "%"} unit="%" scale={100} min={1} max={100}
+                  onChange={(nv) => write(entries.map(([n, v]) => [n, n === name ? nv : v]))} /></td>
                 <td className="df-right"><Button kind="plain" aria-label={`Remove threshold for ${labelOf(name)}`} onClick={() => write(entries.filter(([n]) => n !== name))}>Remove</Button></td>
               </tr>
             ))}
@@ -206,12 +203,12 @@ function ReviewLevels({ s, set }: { s: ProcessSettings; set: SetSettings }) {
   return (
     <div className="df-grid df-g2">
       <Field label="Send to review when a field is under" hint="Lower: fewer reviews, more risk. Higher: more reviews.">
-        {(id) => <Select id={id} value={String(s.fieldConfidence)} onChange={(e) => set({ fieldConfidence: Number(e.target.value) })}
-          options={["0.7", "0.75", "0.8", "0.85", "0.9", "0.95"].map((v) => ({ value: v, label: Math.round(Number(v) * 100) + "% confidence" }))} />}
+        {(id) => <ChoiceOrOwn id={id} value={s.fieldConfidence} onChange={(v) => set({ fieldConfidence: v })} options={[0.7, 0.75, 0.8, 0.85, 0.9, 0.95]}
+          label={(v) => Math.round(v * 1000) / 10 + "% confidence"} unit="%" scale={100} min={1} max={100} />}
       </Field>
       <Field label="Review within" hint="After this, the review shows as overdue.">
-        {(id) => <Select id={id} value={String(s.slaHours)} onChange={(e) => set({ slaHours: Number(e.target.value) })}
-          options={[["4", "4 hours"], ["8", "8 hours"], ["24", "24 hours"], ["48", "2 days"], ["72", "3 days"]].map(([value, label]) => ({ value, label }))} />}
+        {(id) => <ChoiceOrOwn id={id} value={s.slaHours} onChange={(v) => set({ slaHours: v })} options={[1, 4, 8, 24, 48, 72, 120]}
+          label={(v) => duration(v * 3600)} unit="hours" min={0.25} />}
       </Field>
     </div>
   );

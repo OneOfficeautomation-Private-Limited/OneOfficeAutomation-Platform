@@ -5,7 +5,7 @@ import { Chip, FilterBar, FilterSelect, SearchBox, matches } from "../ui";
 import { EngineSettings } from "./EngineSettings";
 
 /** The three options in plain words; OneCore, OneConnect and OneMind stay as their labels. */
-export const PLAIN: Record<EngineOption["id"], string> = { onecore: "On this server", oneconnect: "Cloud reading", onemind: "AI reading" };
+export const PLAIN: Record<EngineOption["id"], string> = { onecore: "On this server", oneconnect: "Cloud reading", onemind: "AI reading", other: "Other engines" };
 
 /** An engine's state in plain words: ready, off because the cloud may not be used yet, or what it still needs. */
 export function engineStatus(e: Pick<Engine, "status" | "runs">): { tone: "ok" | "mute" | "warn"; label: string } {

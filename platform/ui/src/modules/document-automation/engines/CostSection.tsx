@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Field, Select, TextInput } from "../../../components";
-import { estimate, modelName, type ClaudeModels } from "../api";
+import { LIST_PRICES, estimate, modelName, money as fmt, type ClaudeModels, type PriceList } from "../api";
 import { Chip } from "../ui";
 
-const money = (v: number) => "$" + v.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CLOUD_OCR = [{ value: "azure-di", label: "Azure Document Intelligence" }, { value: "google-docai", label: "Google Document AI" }, { value: "aws-textract", label: "AWS Textract" }];
 const EXTRACTION = [
@@ -16,17 +15,21 @@ const EXTRACTION = [
  * would cost with each way of reading the fields. The plan's example: 10,000 pages, 20% weak pages to cloud OCR, 30%
  * with fields read by Azure gives $33 a month.
  */
-export function CostSection({ optIn, claude }: { optIn: boolean; claude?: ClaudeModels }) {
+export function CostSection({ optIn, claude, prices = LIST_PRICES }: { optIn: boolean; claude?: ClaudeModels; prices?: PriceList }) {
+  const money = (v: number) => fmt(v, prices.currency);
+  // engines DocFlow has a price for, beyond the ones named here (an own price set by the administrator)
+  const cloudOcr = [...CLOUD_OCR, ...Object.keys(prices.ocr).filter((id) => prices.ocr[id] > 0 && !CLOUD_OCR.some((x) => x.value === id)).map((id) => ({ value: id, label: id }))];
+  const extraction = [...EXTRACTION, ...Object.keys(prices.extract).filter((id) => !EXTRACTION.some((x) => x.value === id) && id !== "claude").map((id) => ({ value: id, label: modelName(id) }))];
   const [pages, setPages] = useState("10000");
   const [cloud, setCloud] = useState("20");
   const [fields, setFields] = useState("30");
   const [ocr, setOcr] = useState("azure-di");
   const [extract, setExtract] = useState("azure-di");
-  const at = (x: string) => estimate(Number(pages) || 0, (Number(cloud) || 0) / 100, (Number(fields) || 0) / 100, ocr, x);
+  const at = (x: string) => estimate(Number(pages) || 0, (Number(cloud) || 0) / 100, (Number(fields) || 0) / 100, ocr, x, prices);
   const e = at(extract);
   return (
     <section aria-label="Monthly cost estimate" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="df-head-row"><h3 className="df-section-title">Monthly cost estimate</h3><span className="df-grow" /><Chip tone="mute" dot={false}>list prices</Chip></div>
+      <div className="df-head-row"><h3 className="df-section-title">Monthly cost estimate</h3><span className="df-grow" /><Chip tone="mute" dot={false}>{prices === LIST_PRICES ? "list prices" : "prices set in DocFlow"} · {prices.currency}</Chip></div>
       <div className="df-cost">
         <div className="df-card df-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <b>The client's volumes</b>
@@ -35,23 +38,23 @@ export function CostSection({ optIn, claude }: { optIn: boolean; claude?: Claude
             <Field label="Weak pages to cloud (%)">{(id) => <TextInput id={id} inputMode="numeric" value={cloud} onChange={(x) => setCloud(x.target.value)} />}</Field>
             <Field label="Pages with fields (%)">{(id) => <TextInput id={id} inputMode="numeric" value={fields} onChange={(x) => setFields(x.target.value)} />}</Field>
           </div>
-          <Field label="Cloud OCR by">{(id) => <Select id={id} value={ocr} onChange={(x) => setOcr(x.target.value)} options={CLOUD_OCR} />}</Field>
-          <Field label="Field extraction by">{(id) => <Select id={id} value={extract} onChange={(x) => setExtract(x.target.value)} options={EXTRACTION} />}</Field>
+          <Field label="Cloud OCR by">{(id) => <Select id={id} value={ocr} onChange={(x) => setOcr(x.target.value)} options={cloudOcr} />}</Field>
+          <Field label="Field extraction by">{(id) => <Select id={id} value={extract} onChange={(x) => setExtract(x.target.value)} options={extraction} />}</Field>
         </div>
 
         <div className="df-card df-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <b>The bill</b>
           <table className="df-table">
             <tbody>
-              <tr><td style={{ paddingLeft: 0 }}>Local OCR · {e.localPages.toLocaleString("en")} pages</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(0)}</td></tr>
-              <tr><td style={{ paddingLeft: 0 }}>Cloud OCR · {e.cloudPages.toLocaleString("en")} × {money(e.ocrRate)}/1,000</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(e.ocr)}</td></tr>
-              <tr><td style={{ paddingLeft: 0 }}>Fields · {e.fieldPages.toLocaleString("en")} × {money(e.fieldRate)}/1,000</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(e.fields)}</td></tr>
+              <tr><td style={{ paddingLeft: 0 }}>Local OCR · {e.localPages.toLocaleString()} pages</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(0)}</td></tr>
+              <tr><td style={{ paddingLeft: 0 }}>Cloud OCR · {e.cloudPages.toLocaleString()} × {money(e.ocrRate)}/1,000</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(e.ocr)}</td></tr>
+              <tr><td style={{ paddingLeft: 0 }}>Fields · {e.fieldPages.toLocaleString()} × {money(e.fieldRate)}/1,000</td><td className="df-right df-num" style={{ paddingRight: 0 }}>{money(e.fields)}</td></tr>
             </tbody>
           </table>
           <div className="df-head-row" style={{ fontWeight: 700 }}><span>Total per month</span><span className="df-grow" /><span className="df-num" style={{ fontSize: 22 }} aria-live="polite">{money(e.total)}</span></div>
           {optIn
             ? <div className="df-note df-info">Cloud opt-in is on, so this is what the current routing would cost.</div>
-            : <div className="df-note df-ok">Today this costs <b>$0</b>: cloud opt-in is off, so every page stays on this server.</div>}
+            : <div className="df-note df-ok">Today this costs <b>{money(0)}</b>: cloud opt-in is off, so every page stays on this server.</div>}
           {extract.startsWith("claude-") && claude?.escalationModel && <div className="df-small">
             Documents that would go to review are read again by {modelName(claude.escalationModel)}, at its price, on top of this.</div>}
           <div className="df-small">Plus the server for local engines. Approximate list prices; check vendor pricing before quoting a client.</div>
@@ -61,7 +64,7 @@ export function CostSection({ optIn, claude }: { optIn: boolean; claude?: Claude
           <b>Same volumes, other ways to read fields</b>
           <table className="df-table">
             <tbody>
-              {EXTRACTION.map((x) => (
+              {extraction.map((x) => (
                 <tr key={x.value} aria-current={x.value === extract ? "true" : undefined} className={x.value === extract ? "df-row-current" : undefined}>
                   <td style={{ paddingLeft: 0 }}><button type="button" className="df-link" onClick={() => setExtract(x.value)}>{x.label}</button></td>
                   <td className="df-right df-num" style={{ paddingRight: 0 }}>{money(at(x.value).total)}</td>

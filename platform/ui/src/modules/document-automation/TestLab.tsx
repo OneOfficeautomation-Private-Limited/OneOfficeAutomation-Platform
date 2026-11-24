@@ -3,6 +3,7 @@ import { Button, Field, Select } from "../../components";
 import type { DocFlowApi, DocType, TestRun } from "./api";
 import { SetDetail } from "./testsets/SetDetail";
 import { SetList } from "./testsets/SetList";
+import { READABLE_FILES } from "./formats";
 import { AdvancedToggle, FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
 
 export const TESTLAB_SECTIONS = [{ id: "try", label: "Try one document" }, { id: "sets", label: "Test sets" }] as const;
@@ -78,7 +79,7 @@ function TryOne({ api, initialType = "", embedded = false }: { api: DocFlowApi; 
         <div className="df-grid" style={{ gridTemplateColumns: `minmax(0, 1.4fr) repeat(${advanced ? (compare ? 3 : 2) : 1}, minmax(0, 1fr)) auto`, alignItems: "end", gap: 12 }}>
           <div className="ui-field">
             <span className="ui-field-label">Document</span>
-            <input ref={picker} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Choose a document"
+            <input ref={picker} type="file" hidden accept={READABLE_FILES} aria-label="Choose a document"
               onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }} />
             <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
           </div>

@@ -145,3 +145,39 @@ export function Hint({ about, text }: { about: string; text: string }) {
     </span>
   );
 }
+
+/**
+ * A choice from common values, or any own value: the saved value is always shown (even when it is not one of the
+ * common ones), and "Other…" opens a box to type one. scale turns the typed number into the saved one (100 for
+ * percentages: 87 typed is 0.87 saved). Used for times, thresholds and limits, so none of them is fixed to a list.
+ */
+export function ChoiceOrOwn({ id, value, onChange, options, label, unit, scale = 1, min = 0, max, ariaLabel }:
+  { id: string; ariaLabel?: string; value: number; onChange: (v: number) => void; options: number[]; label: (v: number) => string; unit: string; scale?: number; min?: number; max?: number }) {
+  const known = options.some((o) => Math.abs(o - value) < 1e-9);
+  const [own, setOwn] = useState(false);
+  const typed = Math.round(value * scale * 100) / 100;
+  const list = [...new Set([...options, value])].sort((a, b) => a - b);
+  return (
+    <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <select id={id} aria-label={ariaLabel} className="ui-input ui-select" value={own ? "own" : String(value)} onChange={(e) => {
+        if (e.target.value === "own") { setOwn(true); return; }
+        setOwn(false); onChange(Number(e.target.value));
+      }}>
+        {list.map((v) => <option key={v} value={String(v)}>{label(v)}{!known && v === value ? " (saved)" : ""}</option>)}
+        <option value="own">Other…</option>
+      </select>
+      {own && <input className="ui-input" style={{ width: 96 }} type="number" aria-label={`Own value in ${unit}`} min={min} max={max} defaultValue={typed}
+        onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== "" && Number.isFinite(n) && n >= min && (max === undefined || n <= max)) onChange(n / scale); }} />}
+      {own && <span className="df-small">{unit}</span>}
+    </span>
+  );
+}
+
+/** Seconds, minutes, hours or days in words: 30 seconds, 2 minutes, 12 hours, 3 days. */
+export function duration(seconds: number): string {
+  const n = (v: number, w: string) => `${Math.round(v * 10) / 10} ${w}${Math.round(v * 10) / 10 === 1 ? "" : "s"}`;
+  if (seconds < 60) return n(seconds, "second");
+  if (seconds < 3600) return n(seconds / 60, "minute");
+  if (seconds < 86400 * 2 && seconds % 86400 !== 0) return n(seconds / 3600, "hour");
+  return n(seconds / 86400, "day");
+}

@@ -479,7 +479,15 @@ public final class DocFlowProxy {
     // ------------------------------------------------------------------ email inbox
 
     /** The attachment types a process reads from email (as Add documents accepts). */
-    static final Pattern READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?)$");
+    /** The files DocFlow reads (its SUPPORTED_EXT): one list for uploads, e-mail, agents and the assistant. */
+    static final Pattern READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?|bmp|webp|xml)$");
+    static final String READABLE_WORDS = "PDF, PNG, JPG, TIFF, BMP and WEBP files and XML e-invoices";
+    /** The MIME type DocFlow expects for a readable file name. */
+    static String mimeOf(String fileName) {
+        String lower = fileName.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".pdf") ? "application/pdf" : lower.endsWith(".png") ? "image/png" : lower.matches(".+\\.tiff?") ? "image/tiff"
+                : lower.endsWith(".bmp") ? "image/bmp" : lower.endsWith(".webp") ? "image/webp" : lower.endsWith(".xml") ? "application/xml" : "image/jpeg";
+    }
 
     /**
      * Reads the email inbox of every live process that has one, at most every interval_seconds (60 by default): new
@@ -524,7 +532,7 @@ public final class DocFlowProxy {
     // ------------------------------------------------------------------ Mail accounts (MA-2): a process as a mail rule's target
 
     /** What DocFlow reads from an email (its process intake): PDFs, images and XML e-invoices. */
-    static final Pattern MAIL_READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?|bmp|webp|xml)$");
+    static final Pattern MAIL_READABLE = READABLE;
 
     /** On saving a mail rule that sends emails here: the person may change this process (docs.manage, edit in its folder). Returns its name. */
     @SuppressWarnings("unchecked")

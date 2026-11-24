@@ -83,10 +83,11 @@ export type ReviewValues = Record<string, string | TableRow[]>;
 
 export type EngineStatus = "ready" | "optin" | "setup";
 export interface Engine { id: string; name: string; does: string; status: EngineStatus; runs: "server" | "cloud"; price: string; free: boolean; key: string }
-export interface EngineOption { id: "onecore" | "oneconnect" | "onemind"; name: string; description: string; color: string; engines: Engine[] }
+export interface EngineOption { id: "onecore" | "oneconnect" | "onemind" | "other"; name: string; description: string; color: string; engines: Engine[] }
 /** One setting of an engine (its address, key, model…), as DocFlow's settings describe it. Secrets come back masked. */
-export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; placeholder?: string }
-export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string }
+export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; suggestions?: string[]; placeholder?: string }
+/** ocr / extraction: the engines that read every page and the fields by default (DocFlow's defaults; a process may choose its own). */
+export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string; ocr?: string; extraction?: string }
 /** Claude's models: the one that reads the fields, and the one that re-reads a document that would go to review (null: off). */
 export interface ClaudeModels { model: string; escalationModel: string | null }
 /** "claude-haiku-5-5" → "Claude Haiku 5.5". */
@@ -178,12 +179,28 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
-export type FieldType = "Text" | "Date" | "Amount" | "Number" | "Table" | "Choice";
-/** A field a document type reads. key: its name in results and checks; aliases: other labels it has on pages; learned: labels picked up from reviews. */
-export interface DocTypeField { key: string; label: string; aliases: string[]; type: FieldType; required: boolean; regex: string; learned: string[] }
-/** id is "" for a type not saved yet (a new one, or one proposed from samples). */
+export type FieldType = "Text" | "Date" | "Date and time" | "Amount" | "Number" | "Percentage" | "Yes/No" | "Ticked" | "Signed"
+  | "Choice" | "Several choices" | "Email" | "Phone" | "Address" | "Table" | "Group";
+/** How a field is read: copied as printed, worked out from the whole document (a summary, "is it overdue?"), or a choice picked. */
+export type FieldMethod = "copy" | "work-out" | "pick";
+/** What a failed format check does: send to review (error), only note it (warn), or nothing (off). */
+export type CheckStrictness = "error" | "warn" | "off";
+/**
+ * A field a document type reads. key: its name in results and checks; aliases: other labels it has on pages; learned:
+ * labels picked up from reviews. description: what the field is, in plain words (AI reading follows it); choices and
+ * choiceNotes: a Choice field's values and what each means; allowOther: a value outside the choices is kept, not an
+ * error; writeAs: how the value is written in results (a date pattern, "2 decimals", "UPPER"...). dfType: DocFlow's own
+ * type name, kept so a type the screens do not know is never changed by saving.
+ */
+export interface DocTypeField {
+  key: string; label: string; aliases: string[]; type: FieldType; required: boolean; regex: string; learned: string[];
+  description?: string; method?: FieldMethod; choices?: string[]; choiceNotes?: Record<string, string>; allowOther?: boolean;
+  strictness?: CheckStrictness; writeAs?: string; dfType?: string;
+}
+/** id is "" for a type not saved yet (a new one, or one proposed from samples). description: what the type is, for people and AI recognising it. */
 export interface DocType {
   id: string; name: string; origin: "built-in" | "made-here"; meta: string; keywords: string[]; languages: string[]; usedBy: string[]; fields: DocTypeField[];
+  description?: string;
 }
 
 /** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */
@@ -329,7 +346,7 @@ export interface DocFlowApi {
   /** Where Export downloads a process's results (done and approved documents). */
   exportUrl(processId: string, format: "xlsx" | "csv"): string;
   /** claude: the models Claude uses, when DocFlow says (shown where Claude is set up). */
-  engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: ClaudeModels }>;
+  engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: ClaudeModels; prices?: PriceList }>;
   saveRouting(r: Routing): Promise<void>;
   /** Runs a tiny real request through one engine. */
   testEngine(id: string): Promise<{ ok: boolean; message: string }>;
@@ -346,7 +363,8 @@ export interface DocFlowApi {
   /** A table's rows (up to `limit`), for the preview and for downloading it. */
   refTableRows(id: string, limit?: number): Promise<RefRow[]>;
   /** Adds a table from a CSV or Excel file; a table with the same name is replaced. */
-  uploadRefTable(file: File, name: string): Promise<{ id: string }>;
+  /** replaceId: the table to replace (its name may change); without it a table with the same name is replaced. */
+  uploadRefTable(file: File, name: string, replaceId?: string): Promise<{ id: string }>;
   deleteRefTable(id: string): Promise<void>;
   /** Reads the file as the document type with engine A (and B), side by side. Nothing is kept. */
   runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun>;
@@ -802,9 +820,10 @@ export class SampleApi implements DocFlowApi {
   private tables = copy(REF_TABLES);
   async refTables() { return copy(this.tables); }
   async refTableRows(id: string) { return id === "suppliers" ? copy(SUPPLIER_ROWS) : []; }
-  async uploadRefTable(file: File, name: string) {
+  async uploadRefTable(file: File, name: string, replaceId?: string) {
     const title = name.trim() || file.name.replace(/\.[^.]+$/, "");
-    const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "table";
+    const same = this.tables.find((t) => t.name.toLowerCase() === title.toLowerCase());
+    const id = replaceId ?? same?.id ?? ((title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "table") + (this.tables.length ? "-" + this.tables.length : ""));
     this.tables = [...this.tables.filter((t) => t.id !== id), { id, name: title, rows: 0, meta: "Not used by any check", columns: [], updated: "now" }];
     return { id };
   }
@@ -937,11 +956,22 @@ export const EXTRACT_PER_1000: Record<string, number> = {
   "claude-opus-5-5": 32, "claude-sonnet-5-5": 16, "claude-haiku-5-5": 0.8,
 };
 
-export function estimate(pages: number, cloudShare: number, fieldShare: number, cloudOcr: string, extraction: string) {
+/** Prices per 1,000 pages as DocFlow has them (its list prices, or the administrator's own), in DocFlow's currency. */
+export interface PriceList { currency: string; ocr: Record<string, number>; extract: Record<string, number> }
+/** The list prices above, in US dollars: used when DocFlow gives none (the sample screens, an older DocFlow). */
+export const LIST_PRICES: PriceList = { currency: "USD", ocr: CLOUD_OCR_PER_1000, extract: EXTRACT_PER_1000 };
+
+export function estimate(pages: number, cloudShare: number, fieldShare: number, cloudOcr: string, extraction: string, prices: PriceList = LIST_PRICES) {
   const cloudPages = Math.round(pages * cloudShare);
   const fieldPages = Math.round(pages * fieldShare);
-  const ocr = (CLOUD_OCR_PER_1000[cloudOcr] ?? 0) * cloudPages / 1000;
-  const fields = (EXTRACT_PER_1000[extraction] ?? 0) * fieldPages / 1000;
-  return { localPages: pages - cloudPages, cloudPages, fieldPages, ocr, fields, total: Math.round((ocr + fields) * 100) / 100,
-    ocrRate: CLOUD_OCR_PER_1000[cloudOcr] ?? 0, fieldRate: EXTRACT_PER_1000[extraction] ?? 0 };
+  const ocrRate = prices.ocr[cloudOcr] ?? 0, fieldRate = prices.extract[extraction] ?? 0;
+  const ocr = ocrRate * cloudPages / 1000;
+  const fields = fieldRate * fieldPages / 1000;
+  return { localPages: pages - cloudPages, cloudPages, fieldPages, ocr, fields, total: Math.round((ocr + fields) * 100) / 100, ocrRate, fieldRate };
+}
+
+/** An amount in the price currency, written the way the person's browser writes money. */
+export function money(v: number, currency = "USD") {
+  try { return new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }
+  catch { return `${currency} ${v.toFixed(2)}`; }
 }
