@@ -5,7 +5,7 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | Agent | Needs | Commands covered | Cases | Result |
 |---|---|---|---|---|
 | UT AI Agents | commandcenter | 1/1 | 3 | not run: needs One CommandCenter services |
-| UT AI screen (vision) | desktop | 4/4 | 4 | FAIL 2 passed, 2 failed — click_described: Unknown key 'A B C'; type_described: notes box not found |
+| UT AI screen (vision) | desktop | 4/4 | 4 | FAIL 2 passed, 2 failed — test: keys 'a b c' is not a key name; multi-line box is a Document, not an Edit |
 | UT AWS AI services | standin | 11/11 | 15 | PASS 15 passed, 0 failed |
 | UT AWS EC2 | standin | 19/19 | 27 | PASS 27 passed, 0 failed |
 | UT Active Directory | ldap | 39/39 | 39 | PASS 39 passed, 0 failed |
@@ -18,7 +18,7 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | UT Boolean | local | 10/10 | 14 | PASS 14 passed, 0 failed |
 | UT Box | standin | 19/19 | 20 | PASS 20 passed, 0 failed |
 | UT Browser | standin | 30/30 | 38 | FAIL 37 passed, 1 failed — FAIL  ooa.browser/switch_tab: to the tab a link opened: No matching tab among 1 open tab(s) |
-| UT Browser (capture) | desktop | 3/3 | 3 | FAIL 2 passed, 1 failed — ooa.browser/record (nothing done): 1 step recorded, 0 expected |
+| UT Browser (capture) | desktop | 3/3 | 3 | FAIL 2 passed, 1 failed — record always starts with an Open step, so nothing done gives 1 (test) |
 | UT Business rules | local | 1/1 | 4 | PASS 4 passed, 0 failed |
 | UT CSV TXT | local | 5/5 | 7 | PASS 7 passed, 0 failed |
 | UT Coded agents | local | 1/1 | 4 | PASS 4 passed, 0 failed |
@@ -35,7 +35,7 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | UT Database | database | 13/13 | 20 | PASS 20 passed, 0 failed |
 | UT Databricks | standin | 17/17 | 19 | PASS 19 passed, 0 failed |
 | UT Date and time | local | 23/23 | 39 | PASS 39 passed, 0 failed |
-| UT Desktop objects | desktop | 12/12 | 12 | FAIL 10 passed, 2 failed — object_action check box returns "checked" not true; get_text_at_point empty |
+| UT Desktop objects | desktop | 12/12 | 12 | FAIL 11 passed, 1 failed — get_status gives "checked" (a word), test expected true |
 | UT Dictionary | local | 11/11 | 13 | PASS 13 passed, 0 failed |
 | UT DocuSign | standin | 22/22 | 23 | PASS 23 passed, 0 failed |
 | UT Document Automation | commandcenter | 7/7 | 9 | not run: needs One CommandCenter services |
@@ -62,7 +62,7 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | UT Hash and encrypt | local | 14/14 | 14 | PASS 14 passed, 0 failed |
 | UT Image | local | 8/8 | 10 | PASS 10 passed, 0 failed |
 | UT Insights | local | 4/4 | 5 | PASS 5 passed, 0 failed |
-| UT Interactive forms | desktop | 20/20 | 20 | FAIL 18 passed, 2 failed — hide_form / show_form: form window not found |
+| UT Interactive forms | desktop | 20/20 | 20 | PASS 20 passed, 0 failed (earlier hide/show misses: the form window's title appears a moment late) |
 | UT Interrupt handlers | local | 5/5 | 5 | PASS 5 passed, 0 failed |
 | UT Item AI agent | commandcenter | 0/0 | 2 | not run: needs One CommandCenter services |
 | UT Item API agent | commandcenter | 0/0 | 3 | not run: needs One CommandCenter services |
@@ -88,13 +88,13 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | UT Microsoft 365 Outlook mail and calendar | standin | 31/31 | 31 | PASS 31 passed, 0 failed |
 | UT Microsoft 365 Teams and Planner | standin | 22/22 | 22 | PASS 22 passed, 0 failed |
 | UT Microsoft 365 Users and groups | standin | 11/11 | 11 | PASS 11 passed, 0 failed |
-| UT Mouse and keyboard | desktop | 21/21 | 23 | FAIL 18 passed, 5 failed — 3 × notes box not found; prompt_password timed out; block_input needs administrator |
+| UT Mouse and keyboard | desktop | 21/21 | 23 | FAIL 18 passed, 5 failed — test: multi-line box is a Document (3); prompt_password fails as cancelled on time-out by design; block_input needs an administrator run |
 | UT Network | local | 9/9 | 12 | PASS 12 passed, 0 failed |
 | UT Number | local | 13/13 | 21 | PASS 21 passed, 0 failed |
 | UT OCR | local | 10/10 | 12 | PASS 11 passed, 0 failed |
 | UT Office Attachments | local | 9/9 | 12 | PASS 12 passed, 0 failed |
 | UT Okta | standin | 19/19 | 20 | PASS 20 passed, 0 failed |
-| UT Outlook desktop | desktop | 18/18 | 18 | stopped: classic Outlook has no profile on this PC; hung at ooa.outlook_desktop/send |
+| UT Outlook desktop | desktop | 18/18 | 18 | FAIL 16 passed, 2 failed — reply: Outlook cannot reply to an unsent draft (test); save_attachments: test used a missing 'path' field |
 | UT PDF | local | 17/17 | 22 | PASS 22 passed, 0 failed |
 | UT PGP | local | 6/6 | 6 | PASS 6 passed, 0 failed |
 | UT Play sound | desktop | 4/4 | 5 | PASS 5 passed, 0 failed |
@@ -119,9 +119,9 @@ Local run of 24 Nov 2026; screen-driving agents run 24 Nov 2026 19:10-21:45 with
 | UT Terminal emulator | standin | 18/18 | 19 | PASS 19 passed, 0 failed |
 | UT Terminal emulator (viewer) | desktop | 1/1 | 1 | PASS 1 passed, 0 failed |
 | UT Trigger Loop | local | 6/6 | 8 | PASS 8 passed, 0 failed |
-| UT Trigger Loop (screen) | desktop | 4/4 | 9 | FAIL 8 passed, 1 failed — ooa.triggerloop/key_pressed: F9 not caught |
+| UT Trigger Loop (screen) | desktop | 4/4 | 9 | FAIL 8 passed, 1 failed — key_pressed ignores keys pressed by programs by design; needs a person to press F9 |
 | UT Web goal agent | standin | 3/3 | 3 | PASS 3 passed, 0 failed |
-| UT Window | desktop | 19/19 | 24 | FAIL 22 passed, 2 failed — maximize/restore: still maximized; get_active returns text, not a dictionary |
+| UT Window | desktop | 19/19 | 24 | FAIL 22 passed, 2 failed — Restore after maximize+minimize stays maximized (platform bug); get_active test used a Dictionary variable |
 | UT Windows Services | local | 7/7 | 9 | PASS 9 passed, 0 failed |
 | UT Word | local | 16/16 | 17 | PASS 17 passed, 0 failed |
 | UT Work queues | local | 18/18 | 24 | PASS 24 passed, 0 failed |
