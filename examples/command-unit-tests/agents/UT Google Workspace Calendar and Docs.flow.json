@@ -1,0 +1,1570 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_google_calendar_docs",
+  "name": "UT Google Workspace Calendar and Docs",
+  "description": "Unit tests of the Google Workspace Calendar and Docs commands against the local Google stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Google Workspace Calendar and Docs commands against the local Google stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Google Workspace Calendar and Docs started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s46",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s47",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Google stand-in; the calendar and the documents start as seeded."
+          }
+        },
+        {
+          "id": "s48",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgoogle/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s49",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.google/calendar_create_event - with Meet link and attendee"
+      },
+      "children": [
+        {
+          "id": "s50",
+          "action": "core/comment",
+          "args": {
+            "text": "Create Google Calendar event gives the event id, its link and a Meet link."
+          }
+        },
+        {
+          "id": "s51",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s52",
+              "action": "ooa.google/calendar_create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject": "UT planning",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "time_zone": "UTC",
+                "notify": false,
+                "attendees": "ann.lee@ut-google.test",
+                "location": "Room 1",
+                "add_meet_link": true,
+                "reminder_minutes": 10
+              },
+              "out": {
+                "event_id": "s"
+              },
+              "description": "Create the test event 'UT planning'"
+            },
+            {
+              "id": "s53",
+              "action": "ooa.google/calendar_create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject": "UT planning 2",
+                "start": "2026-12-02T10:00:00",
+                "end": "2026-12-02T11:00:00",
+                "time_zone": "UTC",
+                "add_meet_link": true,
+                "notify": false
+              },
+              "out": {
+                "meet_link": "s2"
+              },
+              "description": "Create another to read the Meet link"
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check event id",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "event id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s2$",
+                  "right": "meet.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Meet link",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Meet link: expected contains \"meet.test\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/calendar_create_event: with Meet link and attendee\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/calendar_create_event: with Meet link and attendee: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.google/calendar_create_event - with Meet link and attendee"
+    },
+    {
+      "id": "s64",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.google/calendar_list_events - the review in November"
+      },
+      "children": [
+        {
+          "id": "s65",
+          "action": "core/comment",
+          "args": {
+            "text": "List Google Calendar events lists the events of a period, earliest first."
+          }
+        },
+        {
+          "id": "s66",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s67",
+              "action": "ooa.google/calendar_list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "start": "2026-11-01T00:00:00",
+                "end": "2026-11-30T00:00:00",
+                "time_zone": "UTC",
+                "search": "Month-end"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List November"
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][5]"
+                }
+              },
+              "description": "Take location for the check"
+            },
+            {
+              "id": "s72",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Room 4"
+                }
+              },
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check location",
+              "else": [
+                {
+                  "id": "s74",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "location: expected eq \"Room 4\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/calendar_list_events: the review in November\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/calendar_list_events: the review in November: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.google/calendar_list_events - the review in November"
+    },
+    {
+      "id": "s79",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.google/calendar_update_event - a new title and place"
+      },
+      "children": [
+        {
+          "id": "s80",
+          "action": "core/comment",
+          "args": {
+            "text": "Update Google Calendar event changes the title and location."
+          }
+        },
+        {
+          "id": "s81",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s82",
+              "action": "ooa.google/calendar_create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject": "UT to rename",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "time_zone": "UTC",
+                "notify": false
+              },
+              "out": {
+                "event_id": "s"
+              },
+              "description": "Create the test event 'UT to rename'"
+            },
+            {
+              "id": "s83",
+              "action": "ooa.google/calendar_update_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "event_id": "$s$",
+                "subject": "UT renamed",
+                "location": "Room 7",
+                "notify": false
+              },
+              "out": {
+                "link": "s2"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s84",
+              "action": "ooa.google/calendar_list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "start": "2026-12-01T00:00:00",
+                "end": "2026-12-02T00:00:00",
+                "time_zone": "UTC",
+                "search": "UT renamed"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List 1 December events with 'UT renamed'"
+            },
+            {
+              "id": "s85",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s87",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][5]"
+                }
+              },
+              "description": "Take location for the check"
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Room 7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check location",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "location: expected eq \"Room 7\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/calendar_update_event: a new title and place\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/calendar_update_event: a new title and place: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.google/calendar_update_event - a new title and place"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.google/calendar_delete_event - remove it"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete Google Calendar event removes the event from the calendar."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s99",
+              "action": "ooa.google/calendar_create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject": "UT delete me",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "time_zone": "UTC",
+                "notify": false
+              },
+              "out": {
+                "event_id": "s"
+              },
+              "description": "Create the test event 'UT delete me'"
+            },
+            {
+              "id": "s100",
+              "action": "ooa.google/calendar_delete_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "event_id": "$s$",
+                "notify": false
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s101",
+              "action": "ooa.google/calendar_list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "start": "2026-12-01T00:00:00",
+                "end": "2026-12-02T00:00:00",
+                "time_zone": "UTC",
+                "search": "UT delete me"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "List 1 December events with 'UT delete me'"
+            },
+            {
+              "id": "s102",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s104",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/calendar_delete_event: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/calendar_delete_event: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.google/calendar_delete_event - remove it"
+    },
+    {
+      "id": "s109",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.google/docs_create_document - with starting text"
+      },
+      "children": [
+        {
+          "id": "s110",
+          "action": "core/comment",
+          "args": {
+            "text": "Create Google Doc makes a document with text and gives its id and link."
+          }
+        },
+        {
+          "id": "s111",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s112",
+              "action": "ooa.google/docs_create_document",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "title": "UT Notes",
+                "text": "First line"
+              },
+              "out": {
+                "document_id": "s",
+                "url": "s2"
+              },
+              "description": "Create UT Notes"
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s2$",
+                  "right": "docs.google.com/document/d/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check link",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "link: expected contains \"docs.google.com/document/d/\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "ooa.google/docs_read_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s117",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "First line\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s119",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"First line\\n\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s120",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/docs_create_document: with starting text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/docs_create_document: with starting text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.google/docs_create_document - with starting text"
+    },
+    {
+      "id": "s124",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.google/docs_read_text - the letter by its link"
+      },
+      "children": [
+        {
+          "id": "s125",
+          "action": "core/comment",
+          "args": {
+            "text": "Read Google Doc text reads the text of a document given by its link."
+          }
+        },
+        {
+          "id": "s126",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s127",
+              "action": "ooa.google/docs_read_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "https://docs.google.com/document/d/doc-letter/edit"
+              },
+              "out": {
+                "text": "s",
+                "title": "s2"
+              },
+              "description": "Read UT Letter"
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "UT Letter"
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"UT Letter\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "Your order {{order}} is ready."
+                }
+              },
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s133",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Your order order is ready.\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/docs_read_text: the letter by its link\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/docs_read_text: the letter by its link: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.google/docs_read_text - the letter by its link"
+    },
+    {
+      "id": "s138",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.google/docs_replace_text - fill the placeholders"
+      },
+      "children": [
+        {
+          "id": "s139",
+          "action": "core/comment",
+          "args": {
+            "text": "Replace text in Google Doc fills placeholders and counts the places changed."
+          }
+        },
+        {
+          "id": "s140",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s141",
+              "action": "ooa.google/docs_create_document",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "title": "UT Filled",
+                "text": "Dear {{name}}, order {{order}} for {{name}}."
+              },
+              "out": {
+                "document_id": "s"
+              },
+              "description": "Make a copy of the letter text"
+            },
+            {
+              "id": "s142",
+              "action": "ooa.google/docs_replace_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "$s$",
+                "replacements": {
+                  "{{name}}": "Ann",
+                  "{{order}}": "A-7"
+                }
+              },
+              "out": {
+                "occurrences_changed": "n"
+              },
+              "description": "Fill it"
+            },
+            {
+              "id": "s143",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s145",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s146",
+              "action": "ooa.google/docs_read_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "Dear Ann, order A-7 for Ann.\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"Dear Ann, order A-7 for Ann.\\n\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/docs_replace_text: fill the placeholders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/docs_replace_text: fill the placeholders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.google/docs_replace_text - fill the placeholders"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.google/docs_append_text - a new paragraph"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Add text to Google Doc adds text at the end, on a new line."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "ooa.google/docs_create_document",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "title": "UT Append",
+                "text": "Line one"
+              },
+              "out": {
+                "document_id": "s"
+              },
+              "description": "Make a document"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.google/docs_append_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "$s$",
+                "text": "Line two"
+              },
+              "description": "Add a line"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.google/docs_read_text",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "document_id": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s160",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "Line one\nLine two\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s162",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"Line one\\nLine two\\n\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/docs_append_text: a new paragraph\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/docs_append_text: a new paragraph: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.google/docs_append_text - a new paragraph"
+    },
+    {
+      "id": "s167",
+      "action": "core/step",
+      "args": {
+        "title": "9. Summary"
+      },
+      "children": [
+        {
+          "id": "s168",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s169",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s170",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s171",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "9. Summary"
+    }
+  ]
+}
