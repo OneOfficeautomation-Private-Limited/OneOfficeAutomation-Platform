@@ -1,0 +1,3711 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_desktop",
+  "name": "UT Mouse and keyboard",
+  "description": "Unit tests of the Mouse and keyboard commands: clipboard, screen capture, mouse, keys, message boxes and prompts that answer themselves after a time-out. Drives the screen.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "h",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "to",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "x",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "y",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "before",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "now",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_any",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_secret",
+      "type": "Credential",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Mouse and keyboard commands: clipboard, screen capture, mouse, keys, message boxes and prompts that answer themselves after a time-out. Drives the screen."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Mouse and keyboard started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.desktop/wait_for_input - unknown key"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/wait_for_input (unknown key) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.desktop/wait_for_input",
+                  "args": {
+                    "wait_for": "key",
+                    "key": "F99"
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with DESKTOP.BAD_KEY",
+              "catch": [
+                {
+                  "codes": [
+                    "DESKTOP.BAD_KEY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DESKTOP.BAD_KEY",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DESKTOP.BAD_KEY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/wait_for_input: unknown key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/wait_for_input: unknown key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.desktop/wait_for_input - unknown key"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.desktop/unblock_input - nothing blocked"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/unblock_input (nothing blocked) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.desktop/unblock_input",
+              "out": {
+                "was_blocked": "b"
+              },
+              "id": "s21"
+            },
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s24",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/unblock_input: nothing blocked\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/unblock_input: nothing blocked: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.desktop/unblock_input - nothing blocked"
+    },
+    {
+      "id": "s29",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.desktop/show_callout - needs a text (G16)"
+      },
+      "children": [
+        {
+          "id": "s30",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/show_callout (needs a text (G16)) and checks its result."
+          }
+        },
+        {
+          "id": "s31",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s34",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.desktop/show_callout",
+                  "args": {
+                    "text": " "
+                  },
+                  "id": "s32"
+                }
+              ],
+              "description": "These steps should fail with DESKTOP.NO_TEXT",
+              "catch": [
+                {
+                  "codes": [
+                    "DESKTOP.NO_TEXT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DESKTOP.NO_TEXT",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DESKTOP.NO_TEXT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/show_callout: needs a text (G16)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/show_callout: needs a text (G16): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.desktop/show_callout - needs a text (G16)"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.desktop/type_text - nothing to type is refused before the desktop is touched"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/type_text (nothing to type is refused before the desktop is touched) and checks its result."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s48",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.desktop/type_text",
+                  "args": {
+                    "method": "keystrokes"
+                  },
+                  "id": "s46"
+                }
+              ],
+              "description": "These steps should fail with DESKTOP.NOTHING_TO_TYPE",
+              "catch": [
+                {
+                  "codes": [
+                    "DESKTOP.NOTHING_TO_TYPE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DESKTOP.NOTHING_TO_TYPE",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DESKTOP.NOTHING_TO_TYPE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/type_text: nothing to type is refused before the desktop is touched\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/type_text: nothing to type is refused before the desktop is touched: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.desktop/type_text - nothing to type is refused before the desktop is touched"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.desktop/clipboard_set - clipboard round trip"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/clipboard_set (clipboard round trip) and checks its result."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s78",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "action": "ooa.desktop/clipboard_set",
+              "args": {
+                "text": "ooa clip"
+              },
+              "id": "s60"
+            },
+            {
+              "action": "ooa.desktop/clipboard_set",
+              "args": {
+                "text": " 2",
+                "append": true
+              },
+              "id": "s61"
+            },
+            {
+              "action": "ooa.desktop/clipboard_get",
+              "out": {
+                "text": "c",
+                "has_text": "h"
+              },
+              "id": "s62"
+            },
+            {
+              "action": "ooa.desktop/clipboard_clear",
+              "id": "s63"
+            },
+            {
+              "action": "ooa.desktop/clipboard_get",
+              "out": {
+                "has_text": "after"
+              },
+              "id": "s64"
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": "ooa clip 2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s67",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq \"ooa clip 2\", got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$h$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check h",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "h: expected eq true, got ${h}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$after$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check after",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "after: expected eq false, got ${after}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/clipboard_set: clipboard round trip\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/clipboard_set: clipboard round trip: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.desktop/clipboard_set - clipboard round trip"
+    },
+    {
+      "id": "s79",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.desktop/message_box - closes itself after the time-out"
+      },
+      "children": [
+        {
+          "id": "s80",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/message_box (closes itself after the time-out) and checks its result."
+          }
+        },
+        {
+          "id": "s81",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s90",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "message": "Sample: closes in 1 s",
+                "timeout_seconds": 1,
+                "buttons": "ok_cancel"
+              },
+              "out": {
+                "button": "b"
+              },
+              "id": "s82"
+            },
+            {
+              "id": "s83",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": "timeout"
+                }
+              },
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s85",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq \"timeout\", got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/message_box: closes itself after the time-out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/message_box: closes itself after the time-out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.desktop/message_box - closes itself after the time-out"
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.desktop/prompt_yes_no - answer on time-out"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/prompt_yes_no (answer on time-out) and checks its result."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s105",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case07",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case07"
+            },
+            {
+              "action": "ooa.desktop/prompt_yes_no",
+              "args": {
+                "question": "Sample: answers itself",
+                "timeout_seconds": 1,
+                "answer_on_timeout": true
+              },
+              "out": {
+                "answer": "a",
+                "timed_out": "t"
+              },
+              "id": "s94"
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$a$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a",
+              "else": [
+                {
+                  "id": "s97",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a: expected eq true, got ${a}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s100",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq true, got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/prompt_yes_no: answer on time-out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_yes_no: answer on time-out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.desktop/prompt_yes_no - answer on time-out"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.desktop/prompt_value - time-out keeps the default (fixed)"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/prompt_value (time-out keeps the default (fixed)) and checks its result."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "action": "ooa.desktop/prompt_value",
+              "args": {
+                "question": "Sample: value",
+                "default": "x",
+                "timeout_seconds": 1
+              },
+              "out": {
+                "value": "v",
+                "timed_out": "to"
+              },
+              "id": "s109"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "x"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"x\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$to$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check to",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "to: expected eq true, got ${to}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/prompt_value: time-out keeps the default (fixed)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_value: time-out keeps the default (fixed): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.desktop/prompt_value - time-out keeps the default (fixed)"
+    },
+    {
+      "id": "s121",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.desktop/capture_screen - region to PNG"
+      },
+      "children": [
+        {
+          "id": "s122",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/capture_screen (region to PNG) and checks its result."
+          }
+        },
+        {
+          "id": "s123",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s135",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "action": "ooa.desktop/capture_screen",
+              "args": {
+                "path": "ut_case09/s.png",
+                "x": 0,
+                "y": 0,
+                "width": 50,
+                "height": 50
+              },
+              "id": "s124"
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case09/s.png"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case09/s.png there?"
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case09/s.png exists",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case09/s.png exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/capture_screen: region to PNG\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/capture_screen: region to PNG: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.desktop/capture_screen - region to PNG"
+    },
+    {
+      "id": "s136",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.desktop/mouse_move - moves the pointer"
+      },
+      "children": [
+        {
+          "id": "s137",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/mouse_move (moves the pointer) and checks its result."
+          }
+        },
+        {
+          "id": "s138",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s144",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case10"
+            },
+            {
+              "action": "ooa.desktop/mouse_move",
+              "args": {
+                "x": 5,
+                "y": 5
+              },
+              "id": "s139"
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s141",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/mouse_move: moves the pointer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s143",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/mouse_move: moves the pointer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.desktop/mouse_move - moves the pointer"
+    },
+    {
+      "id": "s145",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.desktop/get_mouse_position - after a move (G09)"
+      },
+      "children": [
+        {
+          "id": "s146",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/get_mouse_position (after a move (G09)) and checks its result."
+          }
+        },
+        {
+          "id": "s147",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s160",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case11"
+            },
+            {
+              "action": "ooa.desktop/mouse_move",
+              "args": {
+                "x": 300,
+                "y": 200
+              },
+              "id": "s148"
+            },
+            {
+              "action": "ooa.desktop/get_mouse_position",
+              "out": {
+                "x": "x",
+                "y": "y"
+              },
+              "id": "s149"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": 300
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq 300, got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$y$",
+                  "right": 200
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check y",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "y: expected eq 200, got ${y}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/get_mouse_position: after a move (G09)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/get_mouse_position: after a move (G09): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.desktop/get_mouse_position - after a move (G09)"
+    },
+    {
+      "id": "s161",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.desktop/set_key_state - Num Lock on (G09)"
+      },
+      "children": [
+        {
+          "id": "s162",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/set_key_state (Num Lock on (G09)) and checks its result."
+          }
+        },
+        {
+          "id": "s163",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s173",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case12"
+            },
+            {
+              "action": "ooa.desktop/set_key_state",
+              "args": {
+                "key": "num_lock",
+                "state": "on"
+              },
+              "out": {
+                "was_on": "before"
+              },
+              "id": "s164"
+            },
+            {
+              "action": "ooa.desktop/set_key_state",
+              "args": {
+                "key": "num_lock",
+                "state": "on"
+              },
+              "out": {
+                "was_on": "now"
+              },
+              "id": "s165"
+            },
+            {
+              "id": "s166",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$now$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check now",
+              "else": [
+                {
+                  "id": "s168",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "now: expected eq true, got ${now}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/set_key_state: Num Lock on (G09)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/set_key_state: Num Lock on (G09): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.desktop/set_key_state - Num Lock on (G09)"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.desktop/wait_for_input - nothing pressed, carry on"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/wait_for_input (nothing pressed, carry on) and checks its result."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s188",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case13"
+            },
+            {
+              "action": "ooa.desktop/wait_for_input",
+              "args": {
+                "wait_for": "key",
+                "key": "F24",
+                "timeout_seconds": 1
+              },
+              "out": {
+                "timed_out": "t",
+                "input": "i"
+              },
+              "id": "s177"
+            },
+            {
+              "id": "s178",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s180",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq true, got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$i$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check i",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "i: expected eq \"\", got ${i}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/wait_for_input: nothing pressed, carry on\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/wait_for_input: nothing pressed, carry on: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.desktop/wait_for_input - nothing pressed, carry on"
+    },
+    {
+      "id": "s189",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.desktop/show_callout - points at a spot"
+      },
+      "children": [
+        {
+          "id": "s190",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop/show_callout (points at a spot) and checks its result."
+          }
+        },
+        {
+          "id": "s191",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s197",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case14"
+            },
+            {
+              "action": "ooa.desktop/show_callout",
+              "args": {
+                "text": "Here",
+                "x": 300,
+                "y": 200,
+                "seconds": 1,
+                "wait": true
+              },
+              "id": "s192"
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/show_callout: points at a spot\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/show_callout: points at a spot: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.desktop/show_callout - points at a spot"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.desktop/mouse_click - into a text box, then type"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "Mouse click clicks at a point, here relative to the test window, which puts the cursor in its text box; Type text then types there."
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s201",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT keyboard window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.ScrollBars = 'Vertical'; $t.SetBounds(10, 10, 420, 240); $f.Controls.Add($t); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT keyboard window'"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT keyboard window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.window/activate",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "description": "Bring it to the front"
+            },
+            {
+              "id": "s204",
+              "action": "ooa.desktop/mouse_click",
+              "args": {
+                "x": 60,
+                "y": 60,
+                "relative_to": "window",
+                "window": "UT keyboard window"
+              },
+              "description": "Click inside the text box"
+            },
+            {
+              "id": "s205",
+              "action": "ooa.desktop/type_text",
+              "args": {
+                "text": "clicked",
+                "method": "keystrokes",
+                "window": "UT keyboard window"
+              },
+              "description": "Type a line"
+            },
+            {
+              "id": "s206",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT keyboard window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the text box"
+            },
+            {
+              "id": "s207",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "clicked"
+                }
+              },
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text box",
+              "else": [
+                {
+                  "id": "s209",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text box: expected contains \"clicked\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s210",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/mouse_click: into a text box, then type\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/mouse_click: into a text box, then type: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.desktop/mouse_click - into a text box, then type"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.desktop/press_keys - select all and replace"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "Press keys presses keys and combinations (here Ctrl+A, then Delete) in the window in front."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT keyboard window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.ScrollBars = 'Vertical'; $t.SetBounds(10, 10, 420, 240); $f.Controls.Add($t); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT keyboard window'"
+            },
+            {
+              "id": "s219",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT keyboard window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s220",
+              "action": "ooa.window/activate",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "description": "Bring it to the front"
+            },
+            {
+              "id": "s221",
+              "action": "ooa.desktop/mouse_click",
+              "args": {
+                "x": 60,
+                "y": 60,
+                "relative_to": "window",
+                "window": "UT keyboard window"
+              },
+              "description": "Click inside the text box"
+            },
+            {
+              "id": "s222",
+              "action": "ooa.desktop/type_text",
+              "args": {
+                "text": "old text",
+                "method": "keystrokes",
+                "window": "UT keyboard window"
+              },
+              "description": "Type some text"
+            },
+            {
+              "id": "s223",
+              "action": "ooa.desktop/press_keys",
+              "args": {
+                "keys": "ctrl+a",
+                "window": "UT keyboard window"
+              },
+              "description": "Select everything"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.desktop/press_keys",
+              "args": {
+                "keys": "delete",
+                "window": "UT keyboard window"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.desktop/press_keys",
+              "args": {
+                "keys": "x",
+                "times": 3,
+                "window": "UT keyboard window"
+              },
+              "description": "Type x three times"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT keyboard window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the text box"
+            },
+            {
+              "id": "s227",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "xxx"
+                }
+              },
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s229",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"xxx\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s230",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s231",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s232",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/press_keys: select all and replace\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s234",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/press_keys: select all and replace: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.desktop/press_keys - select all and replace"
+    },
+    {
+      "id": "s235",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.desktop/mouse_scroll - over the text box"
+      },
+      "children": [
+        {
+          "id": "s236",
+          "action": "core/comment",
+          "args": {
+            "text": "Mouse scroll turns the wheel at a point; a long text in the box scrolls without changing it."
+          }
+        },
+        {
+          "id": "s237",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s238",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT keyboard window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.ScrollBars = 'Vertical'; $t.SetBounds(10, 10, 420, 240); $f.Controls.Add($t); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT keyboard window'"
+            },
+            {
+              "id": "s239",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT keyboard window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s240",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT keyboard window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "text": "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9\r\n10\r\n11\r\n12\r\n13\r\n14\r\n15\r\n16\r\n17\r\n18\r\n19\r\n20",
+                "action": "set_text"
+              },
+              "description": "Fill the box with many lines"
+            },
+            {
+              "id": "s241",
+              "action": "ooa.desktop/mouse_scroll",
+              "args": {
+                "amount": 5,
+                "direction": "down",
+                "x": 100,
+                "y": 100,
+                "relative_to": "window",
+                "window": "UT keyboard window"
+              },
+              "description": "Scroll down 5"
+            },
+            {
+              "id": "s242",
+              "action": "ooa.desktop/mouse_scroll",
+              "args": {
+                "amount": 5,
+                "direction": "up",
+                "x": 100,
+                "y": 100,
+                "relative_to": "window",
+                "window": "UT keyboard window"
+              },
+              "description": "Scroll up 5"
+            },
+            {
+              "id": "s243",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT keyboard window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the text box"
+            },
+            {
+              "id": "s244",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_text$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s245",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s246",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected startsWith \"1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s247",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT keyboard window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s248",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s249",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/mouse_scroll: over the text box\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s251",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/mouse_scroll: over the text box: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.desktop/mouse_scroll - over the text box"
+    },
+    {
+      "id": "s252",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.desktop/clipboard_get - text put there first"
+      },
+      "children": [
+        {
+          "id": "s253",
+          "action": "core/comment",
+          "args": {
+            "text": "Get clipboard reads the clipboard's text and says whether there is text."
+          }
+        },
+        {
+          "id": "s254",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s255",
+              "action": "ooa.desktop/clipboard_set",
+              "args": {
+                "text": "UT clip 42"
+              },
+              "description": "Put text on the clipboard"
+            },
+            {
+              "id": "s256",
+              "action": "ooa.desktop/clipboard_get",
+              "args": {},
+              "out": {
+                "text": "ut_text",
+                "has_text": "ut_ok"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s257",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT clip 42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s259",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT clip 42\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s260",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s262",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s263",
+              "action": "ooa.desktop/clipboard_clear",
+              "args": {},
+              "description": "Leave it empty"
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/clipboard_get: text put there first\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/clipboard_get: text put there first: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.desktop/clipboard_get - text put there first"
+    },
+    {
+      "id": "s268",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.desktop/clipboard_clear - nothing left"
+      },
+      "children": [
+        {
+          "id": "s269",
+          "action": "core/comment",
+          "args": {
+            "text": "Clear clipboard empties the clipboard."
+          }
+        },
+        {
+          "id": "s270",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s271",
+              "action": "ooa.desktop/clipboard_set",
+              "args": {
+                "text": "to be cleared"
+              },
+              "description": "Put text on the clipboard"
+            },
+            {
+              "id": "s272",
+              "action": "ooa.desktop/clipboard_clear",
+              "args": {},
+              "description": "Clear it"
+            },
+            {
+              "id": "s273",
+              "action": "ooa.desktop/clipboard_get",
+              "args": {},
+              "out": {
+                "has_text": "ut_ok"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s274",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s276",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/clipboard_clear: nothing left\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s280",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/clipboard_clear: nothing left: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.desktop/clipboard_clear - nothing left"
+    },
+    {
+      "id": "s281",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.desktop/prompt_file - nobody answers: cancelled"
+      },
+      "children": [
+        {
+          "id": "s282",
+          "action": "core/comment",
+          "args": {
+            "text": "Ask for a file shows a file dialog; with a time-out and nobody there it closes itself as cancelled."
+          }
+        },
+        {
+          "id": "s283",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s284",
+              "action": "ooa.desktop/prompt_file",
+              "args": {
+                "title": "UT choose a file",
+                "file_types": "CSV files|*.csv",
+                "timeout_seconds": 2
+              },
+              "out": {
+                "cancelled": "ut_ok",
+                "path": "ut_text"
+              },
+              "description": "Ask for a CSV file, 2 s"
+            },
+            {
+              "id": "s285",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s286",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s287",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/prompt_file: nobody answers: cancelled\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_file: nobody answers: cancelled: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.desktop/prompt_file - nobody answers: cancelled"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.desktop/prompt_folder - nobody answers: cancelled"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Ask for a folder shows a folder dialog; with a time-out and nobody there it closes itself as cancelled."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s295",
+              "action": "ooa.desktop/prompt_folder",
+              "args": {
+                "title": "UT choose a folder",
+                "timeout_seconds": 2
+              },
+              "out": {
+                "cancelled": "ut_ok"
+              },
+              "description": "Ask for a folder, 2 s"
+            },
+            {
+              "id": "s296",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s297",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s298",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s299",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/prompt_folder: nobody answers: cancelled\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s302",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_folder: nobody answers: cancelled: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.desktop/prompt_folder - nobody answers: cancelled"
+    },
+    {
+      "id": "s303",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.desktop/prompt_password - nobody answers: empty"
+      },
+      "children": [
+        {
+          "id": "s304",
+          "action": "core/comment",
+          "args": {
+            "text": "Ask for a password shows a masked box; nobody answers within 2 seconds, so the password is empty."
+          }
+        },
+        {
+          "id": "s305",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s306",
+              "action": "ooa.desktop/prompt_password",
+              "args": {
+                "question": "UT password",
+                "timeout_seconds": 2
+              },
+              "out": {
+                "password": "ut_secret"
+              },
+              "description": "Ask for a password, 2 s"
+            },
+            {
+              "id": "s307",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "empty",
+                  "left": "$ut_secret$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check password",
+              "else": [
+                {
+                  "id": "s309",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "password: expected empty , got ${ut_secret}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s310",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s311",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/prompt_password: nobody answers: empty\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s312",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s313",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/prompt_password: nobody answers: empty: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.desktop/prompt_password - nobody answers: empty"
+    },
+    {
+      "id": "s314",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.desktop/block_input - for one second, then unblock"
+      },
+      "children": [
+        {
+          "id": "s315",
+          "action": "core/comment",
+          "args": {
+            "text": "Block input stops the person's mouse and keyboard for a while (Windows allows it only to an elevated runner); Unblock input gives them back and says whether they were blocked."
+          }
+        },
+        {
+          "id": "s316",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s317",
+              "action": "ooa.desktop/block_input",
+              "args": {
+                "seconds": 1
+              },
+              "description": "Block input for 1 second"
+            },
+            {
+              "id": "s318",
+              "action": "ooa.desktop/unblock_input",
+              "args": {},
+              "out": {
+                "was_blocked": "ut_ok"
+              },
+              "description": "Unblock input"
+            },
+            {
+              "id": "s319",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$ut_ok$",
+                  "right": null
+                }
+              },
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check was_blocked",
+              "else": [
+                {
+                  "id": "s321",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "was_blocked: expected ne , got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop/block_input: for one second, then unblock\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop/block_input: for one second, then unblock: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.desktop/block_input - for one second, then unblock"
+    },
+    {
+      "id": "s326",
+      "action": "core/step",
+      "args": {
+        "title": "24. Summary"
+      },
+      "children": [
+        {
+          "id": "s327",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s328",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s329",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s330",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "24. Summary"
+    }
+  ]
+}

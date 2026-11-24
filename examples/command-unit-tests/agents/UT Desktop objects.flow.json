@@ -1,0 +1,2658 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_desktop_ui",
+  "name": "UT Desktop objects",
+  "description": "Unit tests of the Desktop objects commands on a small Windows Forms test window: find controls, read and set them, read a table, parents, legacy (MSAA) objects.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_any",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_dict",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Desktop objects commands on a small Windows Forms test window: find controls, read and set them, read a table, parents, legacy (MSAA) objects."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Desktop objects started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.desktop_ui/get_parent - label to its group box (G10)"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.desktop_ui/get_parent (label to its group box (G10)) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s35",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA parent sample'; $g = New-Object Windows.Forms.GroupBox; $g.Text = 'Customer'; $g.SetBounds(12, 12, 300, 120); $l = New-Object Windows.Forms.Label; $l.Text = 'Total due'; $l.SetBounds(12, 30, 100, 20); $g.Controls.Add($l); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "id": "s21"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA parent sample",
+                "timeout_seconds": 30
+              },
+              "id": "s22"
+            },
+            {
+              "action": "ooa.desktop_ui/get_parent",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA parent sample",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Text",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Total due",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                }
+              },
+              "out": {
+                "name": "n",
+                "control_type": "t"
+              },
+              "id": "s23"
+            },
+            {
+              "action": "ooa.window/close",
+              "args": {
+                "title": "OOA parent sample"
+              },
+              "id": "s24"
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": "Customer"
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq \"Customer\", got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "Group"
+                }
+              },
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s30",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"Group\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s32",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/get_parent: label to its group box (G10)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/get_parent: label to its group box (G10): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.desktop_ui/get_parent - label to its group box (G10)"
+    },
+    {
+      "id": "s36",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.desktop_ui/object_action - type, click and read back"
+      },
+      "children": [
+        {
+          "id": "s37",
+          "action": "core/comment",
+          "args": {
+            "text": "Desktop object action does one thing to a captured control: set the text box, click Save, read the label the button changed, tick the check box, pick a list item."
+          }
+        },
+        {
+          "id": "s38",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s39",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s40",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s41",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "customer",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "text": "Acme",
+                "action": "set_text"
+              },
+              "description": "Type the customer"
+            },
+            {
+              "id": "s42",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Save",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "click"
+              },
+              "description": "Click Save"
+            },
+            {
+              "id": "s43",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Text",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "status",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the status label"
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Saved Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Saved Acme\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "CheckBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Urgent",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "check"
+              },
+              "description": "Tick Urgent"
+            },
+            {
+              "id": "s48",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "CheckBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Urgent",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_status"
+              },
+              "out": {
+                "result": "ut_any"
+              },
+              "description": "Is it ticked?"
+            },
+            {
+              "id": "s49",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_any$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check checked",
+              "else": [
+                {
+                  "id": "s51",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "checked: expected eq true, got ${ut_any}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "ComboBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "colour",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "item": "Green",
+                "action": "select_item"
+              },
+              "description": "Pick Green"
+            },
+            {
+              "id": "s53",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "ComboBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "colour",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_selected"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the selection"
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Green"
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Green\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/object_action: type, click and read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/object_action: type, click and read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.desktop_ui/object_action - type, click and read back"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.desktop_ui/find_objects - every button"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Find desktop objects gives every control that matches the object's properties."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s65",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s66",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s67",
+              "action": "ooa.desktop_ui/find_objects",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "timeout_seconds": 10
+              },
+              "out": {
+                "objects": "ut_list",
+                "count": "ut_n"
+              },
+              "description": "Find the buttons"
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check buttons",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "buttons: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/find_objects: every button\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/find_objects: every button: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.desktop_ui/find_objects - every button"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.desktop_ui/get_object_properties - the Save button"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Get object properties reads the control's recorded properties (name, type, automation id, position...)."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s79",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s80",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s81",
+              "action": "ooa.desktop_ui/get_object_properties",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Save",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                }
+              },
+              "out": {
+                "properties": "ut_dict"
+              },
+              "description": "Read the button's properties"
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_dict$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check properties",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "properties: expected notEmpty , got ${ut_dict}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/get_object_properties: the Save button\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/get_object_properties: the Save button: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.desktop_ui/get_object_properties - the Save button"
+    },
+    {
+      "id": "s90",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.desktop_ui/get_table - the people grid"
+      },
+      "children": [
+        {
+          "id": "s91",
+          "action": "core/comment",
+          "args": {
+            "text": "Get desktop table reads a grid or list control into a data table."
+          }
+        },
+        {
+          "id": "s92",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s93",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s94",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s95",
+              "action": "ooa.desktop_ui/get_table",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Table",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "people",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                }
+              },
+              "out": {
+                "table": "ut_table",
+                "row_count": "ut_n"
+              },
+              "description": "Read the grid"
+            },
+            {
+              "id": "s96",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s97",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s98",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s99",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/get_table: the people grid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/get_table: the people grid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.desktop_ui/get_table - the people grid"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.desktop_ui/wait_for_object - the window's button, and one that never comes"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for desktop object waits for a control to appear (or go); with fail_on_timeout off it says whether it came."
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s107",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s109",
+              "action": "ooa.desktop_ui/wait_for_object",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Save",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "timeout_seconds": 10
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Wait for Save"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "ooa.desktop_ui/wait_for_object",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "Name",
+                      "value": "Nope",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "timeout_seconds": 2,
+                "fail_on_timeout": false
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Wait 2 s for a missing button"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s116",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/wait_for_object: the window's button, and one that never comes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/wait_for_object: the window's button, and one that never comes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.desktop_ui/wait_for_object - the window's button, and one that never comes"
+    },
+    {
+      "id": "s122",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.desktop_ui/object_exists - the text box, and a missing control"
+      },
+      "children": [
+        {
+          "id": "s123",
+          "action": "core/comment",
+          "args": {
+            "text": "Desktop object exists is a condition: true when the control is there (or enabled, or focused)."
+          }
+        },
+        {
+          "id": "s124",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s125",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.desktop_ui/object_exists",
+                  "args": {
+                    "object": {
+                      "technology": "desktop",
+                      "window": {
+                        "title": "UT objects window",
+                        "title_match": "equals"
+                      },
+                      "properties": [
+                        {
+                          "name": "ControlType",
+                          "value": "Edit",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "AutomationId",
+                          "value": "customer",
+                          "match": "equals",
+                          "use": true
+                        }
+                      ],
+                      "index": 0
+                    },
+                    "wait_seconds": 5
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is the box there?"
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exists",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exists: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.desktop_ui/object_exists",
+                  "args": {
+                    "object": {
+                      "technology": "desktop",
+                      "window": {
+                        "title": "UT objects window",
+                        "title_match": "equals"
+                      },
+                      "properties": [
+                        {
+                          "name": "ControlType",
+                          "value": "Button",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "Name",
+                          "value": "Nope",
+                          "match": "equals",
+                          "use": true
+                        }
+                      ],
+                      "index": 0
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": false
+                  }
+                }
+              ],
+              "description": "Is a missing button there?"
+            },
+            {
+              "id": "s135",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check missing",
+              "else": [
+                {
+                  "id": "s137",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "missing: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s138",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/object_exists: the text box, and a missing control\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/object_exists: the text box, and a missing control: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.desktop_ui/object_exists - the text box, and a missing control"
+    },
+    {
+      "id": "s143",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.desktop_ui/get_text_at_point - the label's text"
+      },
+      "children": [
+        {
+          "id": "s144",
+          "action": "core/comment",
+          "args": {
+            "text": "Get text at a point reads the text of the control under a screen point; the label's centre comes from its coordinates."
+          }
+        },
+        {
+          "id": "s145",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s146",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s147",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s148",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT objects window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Text",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "status",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_coordinates"
+              },
+              "out": {
+                "result": "ut_dict"
+              },
+              "description": "Where is the label?"
+            },
+            {
+              "id": "s149",
+              "action": "ooa.desktop_ui/get_text_at_point",
+              "args": {
+                "x": {
+                  "expr": "$ut_dict.x + 5"
+                },
+                "y": {
+                  "expr": "$ut_dict.y + 5"
+                }
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read the text there"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "Ready"
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"Ready\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/get_text_at_point: the label's text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/get_text_at_point: the label's text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.desktop_ui/get_text_at_point - the label's text"
+    },
+    {
+      "id": "s158",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.desktop_ui/find_legacy_objects - push buttons through MSAA"
+      },
+      "children": [
+        {
+          "id": "s159",
+          "action": "core/comment",
+          "args": {
+            "text": "Find legacy (MSAA) objects lists the window's accessible objects by role and name."
+          }
+        },
+        {
+          "id": "s160",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s161",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s162",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.desktop_ui/find_legacy_objects",
+              "args": {
+                "window_title": "UT objects window",
+                "role": "push button"
+              },
+              "out": {
+                "objects": "ut_list",
+                "count": "ut_n"
+              },
+              "description": "The push buttons"
+            },
+            {
+              "id": "s164",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check objects",
+              "else": [
+                {
+                  "id": "s166",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "objects: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/find_legacy_objects: push buttons through MSAA\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/find_legacy_objects: push buttons through MSAA: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.desktop_ui/find_legacy_objects - push buttons through MSAA"
+    },
+    {
+      "id": "s172",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.desktop_ui/legacy_object_action - set and read the text box"
+      },
+      "children": [
+        {
+          "id": "s173",
+          "action": "core/comment",
+          "args": {
+            "text": "Legacy (MSAA) object action works on an accessible object: set its value, read it back, press Save."
+          }
+        },
+        {
+          "id": "s174",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s175",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s176",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s177",
+              "action": "ooa.desktop_ui/legacy_object_action",
+              "args": {
+                "window_title": "UT objects window",
+                "role": "editable text",
+                "value": "Globex",
+                "action": "set_value"
+              },
+              "description": "Set the text box"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.desktop_ui/legacy_object_action",
+              "args": {
+                "window_title": "UT objects window",
+                "role": "editable text",
+                "action": "get_value"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s179",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Globex"
+                }
+              },
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s181",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Globex\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s182",
+              "action": "ooa.desktop_ui/legacy_object_action",
+              "args": {
+                "window_title": "UT objects window",
+                "role": "push button",
+                "name": "Save"
+              },
+              "description": "Press Save"
+            },
+            {
+              "id": "s183",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/legacy_object_action: set and read the text box\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/legacy_object_action: set and read the text box: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.desktop_ui/legacy_object_action - set and read the text box"
+    },
+    {
+      "id": "s188",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.desktop_ui/pick_object - nobody picks: time-out"
+      },
+      "children": [
+        {
+          "id": "s189",
+          "action": "core/comment",
+          "args": {
+            "text": "Pick desktop object (design time) waits for a person to point at a control; nobody does in an unattended run, so it ends with its time-out error after 2 seconds."
+          }
+        },
+        {
+          "id": "s190",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s192",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "ooa.desktop_ui/pick_object",
+                  "args": {
+                    "timeout_seconds": 2
+                  },
+                  "description": "Wait 2 s for a pick"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s194",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s197",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s198",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s199",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/pick_object: nobody picks: time-out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s200",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s201",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/pick_object: nobody picks: time-out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.desktop_ui/pick_object - nobody picks: time-out"
+    },
+    {
+      "id": "s202",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.desktop_ui/record - nothing done in 3 seconds"
+      },
+      "children": [
+        {
+          "id": "s203",
+          "action": "core/comment",
+          "args": {
+            "text": "Record desktop actions records what a person does in a window until the time-out; nobody acts, so it records no steps."
+          }
+        },
+        {
+          "id": "s204",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s205",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT objects window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $l = New-Object Windows.Forms.Label; $l.Name = 'status'; $l.Text = 'Ready'; $l.SetBounds(10, 10, 300, 20); $f.Controls.Add($l); $t = New-Object Windows.Forms.TextBox; $t.Name = 'customer'; $t.SetBounds(10, 40, 200, 24); $f.Controls.Add($t); $c = New-Object Windows.Forms.CheckBox; $c.Name = 'urgent'; $c.Text = 'Urgent'; $c.SetBounds(10, 70, 120, 24); $f.Controls.Add($c); $d = New-Object Windows.Forms.ComboBox; $d.Name = 'colour'; $d.DropDownStyle = 'DropDownList'; [void]$d.Items.AddRange(@('Red','Green','Blue')); $d.SetBounds(10, 100, 120, 24); $f.Controls.Add($d); $b = New-Object Windows.Forms.Button; $b.Name = 'save'; $b.Text = 'Save'; $b.SetBounds(220, 40, 80, 26); $b.Add_Click({ $l.Text = 'Saved ' + $t.Text }); $f.Controls.Add($b); $g = New-Object Windows.Forms.DataGridView; $g.Name = 'people'; $g.SetBounds(10, 140, 400, 120); $g.AllowUserToAddRows = $false; [void]$g.Columns.Add('Name', 'Name'); [void]$g.Columns.Add('City', 'City'); [void]$g.Rows.Add('Ann', 'Oslo'); [void]$g.Rows.Add('Bob', 'Rome'); $f.Controls.Add($g); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT objects window'"
+            },
+            {
+              "id": "s206",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT objects window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s207",
+              "action": "ooa.desktop_ui/record",
+              "args": {
+                "timeout_seconds": 3,
+                "screenshot": false,
+                "window_title": "UT objects window"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Record for 3 s"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT objects window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.desktop_ui/record: nothing done in 3 seconds\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.desktop_ui/record: nothing done in 3 seconds: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.desktop_ui/record - nothing done in 3 seconds"
+    },
+    {
+      "id": "s216",
+      "action": "core/step",
+      "args": {
+        "title": "13. Summary"
+      },
+      "children": [
+        {
+          "id": "s217",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s218",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s219",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s220",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "13. Summary"
+    }
+  ]
+}

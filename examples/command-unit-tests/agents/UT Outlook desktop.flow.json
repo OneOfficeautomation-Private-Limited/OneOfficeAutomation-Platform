@@ -1,0 +1,2599 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_outlook_desktop",
+  "name": "UT Outlook desktop",
+  "description": "Unit tests of the Outlook desktop commands. They need Outlook with a mailbox; mail is only saved as drafts and deleted again, never sent.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_id2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_mail",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ev",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Outlook desktop commands. They need Outlook with a mailbox; mail is only saved as drafts and deleted again, never sent."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Outlook desktop started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.outlook_desktop/send - saves an email as a draft in Outlook (not sent)"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.outlook_desktop/send (saves an email as a draft in Outlook (not sent)) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s13",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "OOA sample draft",
+                "body": "draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "d"
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.outlook_desktop/delete",
+              "args": {
+                "id": "$d"
+              },
+              "id": "s8"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s10",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/send: saves an email as a draft in Outlook (not sent)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s12",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/send: saves an email as a draft in Outlook (not sent): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.outlook_desktop/send - saves an email as a draft in Outlook (not sent)"
+    },
+    {
+      "id": "s14",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.outlook_desktop/get_folders - lists the mailbox folders"
+      },
+      "children": [
+        {
+          "id": "s15",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.outlook_desktop/get_folders (lists the mailbox folders) and checks its result."
+          }
+        },
+        {
+          "id": "s16",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case02",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case02"
+            },
+            {
+              "action": "ooa.outlook_desktop/get_folders",
+              "args": {},
+              "out": {
+                "folders": "f"
+              },
+              "id": "s17"
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/get_folders: lists the mailbox folders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s21",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/get_folders: lists the mailbox folders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.outlook_desktop/get_folders - lists the mailbox folders"
+    },
+    {
+      "id": "s23",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.outlook_desktop/list - finds emails in the Inbox and gives the same table as the other services"
+      },
+      "children": [
+        {
+          "id": "s24",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.outlook_desktop/list (finds emails in the Inbox and gives the same table as the other services) and checks its result."
+          }
+        },
+        {
+          "id": "s25",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s31",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case03",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case03"
+            },
+            {
+              "action": "ooa.outlook_desktop/list",
+              "args": {
+                "max": 5
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "id": "s26"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/list: finds emails in the Inbox and gives the same table as the other services\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/list: finds emails in the Inbox and gives the same table as the other services: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.outlook_desktop/list - finds emails in the Inbox and gives the same table as the other services"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.outlook_desktop/connect - the default mailbox"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect attaches to Outlook (starting it if needed) for the steps that follow; Disconnect lets it go."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s35",
+              "action": "ooa.outlook_desktop/connect",
+              "args": {},
+              "description": "Connect to Outlook"
+            },
+            {
+              "id": "s36",
+              "action": "ooa.outlook_desktop/get_folders",
+              "args": {},
+              "out": {
+                "folders": "ut_list"
+              },
+              "description": "List the folders"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count them"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check folders",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "folders: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "ooa.outlook_desktop/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/connect: the default mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/connect: the default mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.outlook_desktop/connect - the default mailbox"
+    },
+    {
+      "id": "s46",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.outlook_desktop/disconnect - after connecting"
+      },
+      "children": [
+        {
+          "id": "s47",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect releases Outlook; Outlook itself stays open."
+          }
+        },
+        {
+          "id": "s48",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s49",
+              "action": "ooa.outlook_desktop/connect",
+              "args": {},
+              "description": "Connect to Outlook"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.outlook_desktop/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s51",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/disconnect: after connecting\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/disconnect: after connecting: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.outlook_desktop/disconnect - after connecting"
+    },
+    {
+      "id": "s55",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.outlook_desktop/folder_exists - Drafts is there"
+      },
+      "children": [
+        {
+          "id": "s56",
+          "action": "core/comment",
+          "args": {
+            "text": "Folder exists is a condition: true when the mailbox has the folder."
+          }
+        },
+        {
+          "id": "s57",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.outlook_desktop/folder_exists",
+                  "args": {
+                    "folder": "Drafts"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is there a Drafts folder?"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Drafts",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Drafts: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/folder_exists: Drafts is there\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/folder_exists: Drafts is there: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.outlook_desktop/folder_exists - Drafts is there"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.outlook_desktop/get - a draft by its id"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Get reads one email by its id."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s71",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a get",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s72",
+              "action": "ooa.outlook_desktop/get",
+              "args": {
+                "id": "$ut_id$"
+              },
+              "out": {
+                "email": "ut_mail"
+              },
+              "description": "Read the draft"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": "$ut_mail.subject$"
+              },
+              "description": "Its subject"
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT outlook 9f3a get"
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT outlook 9f3a get\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/get: a draft by its id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/get: a draft by its id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.outlook_desktop/get - a draft by its id"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.outlook_desktop/mark - read with a category"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Mark sets an email read or unread and can give it a category."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a mark",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.outlook_desktop/mark",
+              "args": {
+                "id": "$ut_id$",
+                "read": true,
+                "category": "Blue category"
+              },
+              "description": "Mark it read, category Blue"
+            },
+            {
+              "id": "s87",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s89",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/mark: read with a category\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/mark: read with a category: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.outlook_desktop/mark - read with a category"
+    },
+    {
+      "id": "s92",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.outlook_desktop/reply - saved as a draft"
+      },
+      "children": [
+        {
+          "id": "s93",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply answers an email; with save_as_draft the answer is only saved, never sent."
+          }
+        },
+        {
+          "id": "s94",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s95",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a reply",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s96",
+              "action": "ooa.outlook_desktop/reply",
+              "args": {
+                "id": "$ut_id$",
+                "body": "Noted",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id2"
+              },
+              "description": "Reply as a draft"
+            },
+            {
+              "id": "s97",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_id2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check draft id",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "draft id: expected notEmpty , got ${ut_id2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "ooa.outlook_desktop/delete",
+              "args": {
+                "id": "$ut_id2$"
+              },
+              "continueOnError": true,
+              "description": "Delete the reply draft"
+            },
+            {
+              "id": "s101",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/reply: saved as a draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/reply: saved as a draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.outlook_desktop/reply - saved as a draft"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.outlook_desktop/forward - saved as a draft"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "Forward sends an email on; with save_as_draft it is only saved, never sent."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s109",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a forward",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s110",
+              "action": "ooa.outlook_desktop/forward",
+              "args": {
+                "id": "$ut_id$",
+                "to": "nobody@example.invalid",
+                "body": "FYI",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id2"
+              },
+              "description": "Forward as a draft"
+            },
+            {
+              "id": "s111",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_id2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check draft id",
+              "else": [
+                {
+                  "id": "s113",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "draft id: expected notEmpty , got ${ut_id2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s114",
+              "action": "ooa.outlook_desktop/delete",
+              "args": {
+                "id": "$ut_id2$"
+              },
+              "continueOnError": true,
+              "description": "Delete the forward draft"
+            },
+            {
+              "id": "s115",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/forward: saved as a draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/forward: saved as a draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.outlook_desktop/forward - saved as a draft"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.outlook_desktop/save_email - as a text file"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email writes one email to a file (msg, txt, html or mht)."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a save",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s124",
+              "action": "ooa.outlook_desktop/save_email",
+              "args": {
+                "id": "$ut_id$",
+                "save_to": "ol_save",
+                "format": "txt",
+                "file_name": "draft.txt",
+                "overwrite": true
+              },
+              "out": {
+                "path": "ut_text"
+              },
+              "description": "Save it as text"
+            },
+            {
+              "id": "s125",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$ut_text$"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "UT outlook 9f3a"
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved email",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved email: expected contains \"UT outlook 9f3a\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/save_email: as a text file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/save_email: as a text file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.outlook_desktop/save_email - as a text file"
+    },
+    {
+      "id": "s134",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.outlook_desktop/save_attachments - the draft's CSV"
+      },
+      "children": [
+        {
+          "id": "s135",
+          "action": "core/comment",
+          "args": {
+            "text": "Save attachments saves one email's attachments that fit a pattern."
+          }
+        },
+        {
+          "id": "s136",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s137",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ol_att/src/a.csv",
+                "text": "1,2"
+              },
+              "description": "A file to attach"
+            },
+            {
+              "id": "s138",
+              "action": "ooa.file/get_info",
+              "args": {
+                "path": "ol_att/src/a.csv"
+              },
+              "out": {
+                "info": "ut_mail"
+              },
+              "description": "Its full path"
+            },
+            {
+              "id": "s139",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a attachments",
+                "body": "Unit test draft",
+                "attachments": [
+                  "$ut_mail.path$"
+                ],
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s140",
+              "action": "ooa.outlook_desktop/save_attachments",
+              "args": {
+                "id": "$ut_id$",
+                "folder": "ol_att/out",
+                "name_pattern": "*.csv",
+                "overwrite": true
+              },
+              "out": {
+                "files": "ut_list"
+              },
+              "description": "Save the CSV"
+            },
+            {
+              "id": "s141",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count them"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s147",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/save_attachments: the draft's CSV\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s149",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/save_attachments: the draft's CSV: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.outlook_desktop/save_attachments - the draft's CSV"
+    },
+    {
+      "id": "s150",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.outlook_desktop/save_all - every test draft"
+      },
+      "children": [
+        {
+          "id": "s151",
+          "action": "core/comment",
+          "args": {
+            "text": "Save all saves every matching email of a folder to files."
+          }
+        },
+        {
+          "id": "s152",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s153",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a save all",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s154",
+              "action": "ooa.outlook_desktop/save_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "save_to": "ol_all",
+                "format": "txt",
+                "overwrite": true
+              },
+              "out": {
+                "files": "ut_list"
+              },
+              "description": "Save the test drafts"
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count them"
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/save_all: every test draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/save_all: every test draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.outlook_desktop/save_all - every test draft"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.outlook_desktop/emails - each test draft"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "Each email in Outlook is a loop type over the matching emails of a folder."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s167",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a loop",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s169",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.outlook_desktop/emails",
+                "as": "ev",
+                "iterator_args": {
+                  "folder": "Drafts",
+                  "subject_contains": "UT outlook 9f3a",
+                  "max": 20
+                }
+              },
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_n",
+                    "value": {
+                      "expr": "$ut_n + 1"
+                    }
+                  },
+                  "description": "Count it"
+                }
+              ],
+              "description": "Each test draft"
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check drafts",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "drafts: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/emails: each test draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/emails: each test draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.outlook_desktop/emails - each test draft"
+    },
+    {
+      "id": "s179",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.outlook_desktop/move - a draft to Deleted Items"
+      },
+      "children": [
+        {
+          "id": "s180",
+          "action": "core/comment",
+          "args": {
+            "text": "Move moves one email to another folder and gives its new id."
+          }
+        },
+        {
+          "id": "s181",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s182",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a move",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s183",
+              "action": "ooa.outlook_desktop/move",
+              "args": {
+                "id": "$ut_id$",
+                "folder": "Deleted Items"
+              },
+              "out": {
+                "id": "ut_id2"
+              },
+              "description": "Move it to Deleted Items"
+            },
+            {
+              "id": "s184",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_id2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new id",
+              "else": [
+                {
+                  "id": "s186",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new id: expected notEmpty , got ${ut_id2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "ooa.outlook_desktop/delete",
+              "args": {
+                "id": "$ut_id2$"
+              },
+              "continueOnError": true,
+              "description": "Delete it for good"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/move: a draft to Deleted Items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/move: a draft to Deleted Items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.outlook_desktop/move - a draft to Deleted Items"
+    },
+    {
+      "id": "s192",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.outlook_desktop/move_all - the test drafts to Deleted Items"
+      },
+      "children": [
+        {
+          "id": "s193",
+          "action": "core/comment",
+          "args": {
+            "text": "Move all moves every matching email of a folder to another and gives their new ids."
+          }
+        },
+        {
+          "id": "s194",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s195",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a move all",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s196",
+              "action": "ooa.outlook_desktop/move_all",
+              "args": {
+                "folder": "Drafts",
+                "to_folder": "Deleted Items",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Move the test drafts"
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check moved",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "moved: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Deleted Items",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "continueOnError": true,
+              "description": "Remove them from Deleted Items"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/move_all: the test drafts to Deleted Items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/move_all: the test drafts to Deleted Items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.outlook_desktop/move_all - the test drafts to Deleted Items"
+    },
+    {
+      "id": "s205",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.outlook_desktop/delete_all - the test drafts only"
+      },
+      "children": [
+        {
+          "id": "s206",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete all deletes every matching email of a folder (here only drafts with the test subject) and gives how many."
+          }
+        },
+        {
+          "id": "s207",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s208",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a delete all",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s209",
+              "action": "ooa.outlook_desktop/delete_all",
+              "args": {
+                "folder": "Drafts",
+                "subject_contains": "UT outlook 9f3a",
+                "max": 50
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Delete the test drafts"
+            },
+            {
+              "id": "s210",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check deleted",
+              "else": [
+                {
+                  "id": "s212",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "deleted: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/delete_all: the test drafts only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/delete_all: the test drafts only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.outlook_desktop/delete_all - the test drafts only"
+    },
+    {
+      "id": "s217",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.outlook_desktop/delete - one draft"
+      },
+      "children": [
+        {
+          "id": "s218",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete removes one email by its id."
+          }
+        },
+        {
+          "id": "s219",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s220",
+              "action": "ooa.outlook_desktop/send",
+              "args": {
+                "to": "nobody@example.invalid",
+                "subject": "UT outlook 9f3a delete",
+                "body": "Unit test draft",
+                "save_as_draft": true
+              },
+              "out": {
+                "draft_id": "ut_id"
+              },
+              "description": "Create a test draft (not sent)"
+            },
+            {
+              "id": "s221",
+              "action": "ooa.outlook_desktop/delete",
+              "args": {
+                "id": "$ut_id$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.outlook_desktop/delete: one draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s225",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.outlook_desktop/delete: one draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.outlook_desktop/delete - one draft"
+    },
+    {
+      "id": "s226",
+      "action": "core/step",
+      "args": {
+        "title": "19. Summary"
+      },
+      "children": [
+        {
+          "id": "s227",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s228",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s229",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s230",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "19. Summary"
+    }
+  ]
+}

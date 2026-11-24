@@ -1,0 +1,639 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_web_agent",
+  "name": "UT Web goal agent",
+  "description": "Unit tests of the Web goal agent: a headless browser session on a stand-in page and a goal run against the stand-in's scripted model (OpenAI-compatible).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Web goal agent: a headless browser session on a stand-in page and a goal run against the stand-in's scripted model (OpenAI-compatible)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Web goal agent started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.web_agent/start_session - a session the goal agent can use"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Start session opens a browser on an address for the goal agent; the normal Browser commands can read it too."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.web_agent/start_session",
+              "args": {
+                "url": "$standin_url$/dsk/web/form.html",
+                "browser": "edge",
+                "headless": true,
+                "session": "goal"
+              },
+              "description": "Open the order form in a headless Edge"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.browser/page_info",
+              "args": {
+                "session": "goal"
+              },
+              "out": {
+                "title": "ut_text"
+              },
+              "description": "Read the page title"
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT Order form"
+                }
+              },
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s11",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT Order form\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "ooa.web_agent/end_session",
+              "args": {
+                "session": "goal"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.web_agent/start_session: a session the goal agent can use\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.web_agent/start_session: a session the goal agent can use: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.web_agent/start_session - a session the goal agent can use"
+    },
+    {
+      "id": "s17",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.web_agent/run - a goal reached with the scripted model"
+      },
+      "children": [
+        {
+          "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "Run gives the model a goal and the page; it acts step by step until it calls finish. The scripted model finishes at once and reports what it read."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s20",
+              "action": "ooa.web_agent/start_session",
+              "args": {
+                "url": "$standin_url$/dsk/web/form.html",
+                "browser": "edge",
+                "headless": true,
+                "session": "goal"
+              },
+              "description": "Open the order form in a headless Edge"
+            },
+            {
+              "id": "s21",
+              "action": "ooa.web_agent/run",
+              "args": {
+                "session": "goal",
+                "goal": "Tell me the title of the order form page",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/v1",
+                "model": "qa-scripted",
+                "max_steps": 3,
+                "timeout_seconds": 120
+              },
+              "out": {
+                "success": "ut_ok",
+                "answer": "ut_text",
+                "steps": "ut_list"
+              },
+              "description": "Ask for the form's title"
+            },
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s24",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "QA scripted model"
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check answer",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "answer: expected contains \"QA scripted model\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "ooa.web_agent/end_session",
+              "args": {
+                "session": "goal"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.web_agent/run: a goal reached with the scripted model\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.web_agent/run: a goal reached with the scripted model: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.web_agent/run - a goal reached with the scripted model"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.web_agent/end_session - the session is gone afterwards"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "End session closes the goal agent's browser; reading the page after it fails."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "ooa.web_agent/start_session",
+              "args": {
+                "url": "$standin_url$/dsk/web/form.html",
+                "browser": "edge",
+                "headless": true,
+                "session": "goal"
+              },
+              "description": "Open the order form in a headless Edge"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.web_agent/end_session",
+              "args": {
+                "session": "goal"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s39",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "ooa.browser/page_info",
+                  "args": {
+                    "session": "goal"
+                  },
+                  "description": "Read after closing"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s41",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.web_agent/end_session: the session is gone afterwards\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.web_agent/end_session: the session is gone afterwards: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.web_agent/end_session - the session is gone afterwards"
+    },
+    {
+      "id": "s49",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s50",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s51",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s52",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s53",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}
