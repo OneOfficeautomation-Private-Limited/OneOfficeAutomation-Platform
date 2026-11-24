@@ -55,6 +55,48 @@
       "type": "Boolean",
       "direction": "local",
       "default": false
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "full",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "lst",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "tbl",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
     }
   ],
   "steps": [
@@ -686,18 +728,2032 @@
       "id": "s60",
       "action": "core/step",
       "args": {
-        "title": "5. Summary"
+        "title": "5. ooa.office_attach/excel_list_open - the case's workbook is listed"
       },
       "children": [
         {
           "id": "s61",
           "action": "core/comment",
           "args": {
-            "text": "How many cases passed; the run fails when any case failed."
+            "text": "List open workbooks lists the workbooks open in the running Excel. (Runs only when the input ut_screen is on, because it takes over the screen.)"
           }
         },
         {
           "id": "s62",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s63",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s64",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "ooa.excel/create_workbook",
+                  "args": {
+                    "path": "case5/Sales.xlsx",
+                    "sheet": "Data"
+                  },
+                  "description": "Create the workbook"
+                },
+                {
+                  "id": "s67",
+                  "action": "ooa.excel/write_table",
+                  "args": {
+                    "table": {
+                      "columns": [
+                        "Item",
+                        "Qty"
+                      ],
+                      "rows": [
+                        [
+                          "pen",
+                          2
+                        ],
+                        [
+                          "cup",
+                          3
+                        ]
+                      ]
+                    }
+                  },
+                  "description": "Two rows"
+                },
+                {
+                  "id": "s68",
+                  "action": "ooa.excel/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s69",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case5/Sales.xlsx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Sales.xlsx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s71",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Excel"
+                },
+                {
+                  "id": "s72",
+                  "action": "ooa.office_attach/excel_list_open",
+                  "args": {},
+                  "out": {
+                    "workbooks": "lst"
+                  },
+                  "description": "List open workbooks"
+                },
+                {
+                  "id": "s73",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s74",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "${lst}",
+                      "right": "Sales.xlsx"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s75",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check the list",
+                  "else": [
+                    {
+                      "id": "s76",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "the list: expected contains \"Sales.xlsx\""
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/excel_list_open needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/excel_list_open: the case's workbook is listed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/excel_list_open: the case's workbook is listed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.office_attach/excel_list_open - the case's workbook is listed"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.office_attach/excel_read_range - used area as a table"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Read range reads a sheet of an open workbook as a Data Table. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "ooa.excel/create_workbook",
+                  "args": {
+                    "path": "case6/Sales.xlsx",
+                    "sheet": "Data"
+                  },
+                  "description": "Create the workbook"
+                },
+                {
+                  "id": "s89",
+                  "action": "ooa.excel/write_table",
+                  "args": {
+                    "table": {
+                      "columns": [
+                        "Item",
+                        "Qty"
+                      ],
+                      "rows": [
+                        [
+                          "pen",
+                          2
+                        ],
+                        [
+                          "cup",
+                          3
+                        ]
+                      ]
+                    }
+                  },
+                  "description": "Two rows"
+                },
+                {
+                  "id": "s90",
+                  "action": "ooa.excel/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s91",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case6/Sales.xlsx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Sales.xlsx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s93",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Excel"
+                },
+                {
+                  "id": "s94",
+                  "action": "ooa.office_attach/excel_read_range",
+                  "args": {
+                    "workbook": "Sales.xlsx",
+                    "sheet": "Data"
+                  },
+                  "out": {
+                    "table": "tbl",
+                    "row_count": "n"
+                  },
+                  "description": "Read the used area"
+                },
+                {
+                  "id": "s95",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s96",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$n$",
+                      "right": 2
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s97",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check n",
+                  "else": [
+                    {
+                      "id": "s98",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "n: expected eq 2, got ${n}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/excel_read_range needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/excel_read_range: used area as a table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/excel_read_range: used area as a table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.office_attach/excel_read_range - used area as a table"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.office_attach/excel_write_range - write then read back"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Write range writes values into an open workbook; reading the cell gives them back. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s107",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "ooa.excel/create_workbook",
+                  "args": {
+                    "path": "case7/Sales.xlsx",
+                    "sheet": "Data"
+                  },
+                  "description": "Create the workbook"
+                },
+                {
+                  "id": "s111",
+                  "action": "ooa.excel/write_table",
+                  "args": {
+                    "table": {
+                      "columns": [
+                        "Item",
+                        "Qty"
+                      ],
+                      "rows": [
+                        [
+                          "pen",
+                          2
+                        ],
+                        [
+                          "cup",
+                          3
+                        ]
+                      ]
+                    }
+                  },
+                  "description": "Two rows"
+                },
+                {
+                  "id": "s112",
+                  "action": "ooa.excel/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s113",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case7/Sales.xlsx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Sales.xlsx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s115",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Excel"
+                },
+                {
+                  "id": "s116",
+                  "action": "ooa.office_attach/excel_write_range",
+                  "args": {
+                    "workbook": "Sales.xlsx",
+                    "sheet": "Data",
+                    "start_cell": "D1",
+                    "values": "checked"
+                  },
+                  "out": {
+                    "range": "text"
+                  },
+                  "description": "Write a value in D1"
+                },
+                {
+                  "id": "s117",
+                  "action": "ooa.office_attach/excel_read_range",
+                  "args": {
+                    "workbook": "Sales.xlsx",
+                    "sheet": "Data",
+                    "range": "D1:D1",
+                    "header": false
+                  },
+                  "out": {
+                    "table": "tbl"
+                  },
+                  "description": "Read D1"
+                },
+                {
+                  "id": "s118",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "${tbl}",
+                      "right": "checked"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s120",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check the cell",
+                  "else": [
+                    {
+                      "id": "s121",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "the cell: expected contains \"checked\""
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s122",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/excel_write_range needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/excel_write_range: write then read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/excel_write_range: write then read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.office_attach/excel_write_range - write then read back"
+    },
+    {
+      "id": "s127",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.office_attach/excel_save - saved value is in the file"
+      },
+      "children": [
+        {
+          "id": "s128",
+          "action": "core/comment",
+          "args": {
+            "text": "Save workbook saves an open workbook; the file read without Excel holds the new value. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s129",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s130",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "ooa.excel/create_workbook",
+                  "args": {
+                    "path": "case8/Sales.xlsx",
+                    "sheet": "Data"
+                  },
+                  "description": "Create the workbook"
+                },
+                {
+                  "id": "s134",
+                  "action": "ooa.excel/write_table",
+                  "args": {
+                    "table": {
+                      "columns": [
+                        "Item",
+                        "Qty"
+                      ],
+                      "rows": [
+                        [
+                          "pen",
+                          2
+                        ],
+                        [
+                          "cup",
+                          3
+                        ]
+                      ]
+                    }
+                  },
+                  "description": "Two rows"
+                },
+                {
+                  "id": "s135",
+                  "action": "ooa.excel/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s136",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case8/Sales.xlsx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Sales.xlsx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s138",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Excel"
+                },
+                {
+                  "id": "s139",
+                  "action": "ooa.office_attach/excel_write_range",
+                  "args": {
+                    "workbook": "Sales.xlsx",
+                    "sheet": "Data",
+                    "start_cell": "D1",
+                    "values": "saved"
+                  },
+                  "description": "Write a value"
+                },
+                {
+                  "id": "s140",
+                  "action": "ooa.office_attach/excel_save",
+                  "args": {
+                    "workbook": "Sales.xlsx"
+                  },
+                  "description": "Save it"
+                },
+                {
+                  "id": "s141",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Excel.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s142",
+                  "action": "ooa.excel/open",
+                  "args": {
+                    "path": "case8/Sales.xlsx"
+                  },
+                  "description": "Open the file"
+                },
+                {
+                  "id": "s143",
+                  "action": "ooa.excel/get_cell",
+                  "args": {
+                    "cell": "D1"
+                  },
+                  "out": {
+                    "value": "text"
+                  },
+                  "description": "Read D1"
+                },
+                {
+                  "id": "s144",
+                  "action": "ooa.excel/close",
+                  "args": {}
+                },
+                {
+                  "id": "s145",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$text$",
+                      "right": "saved"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s146",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check text",
+                  "else": [
+                    {
+                      "id": "s147",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "text: expected eq \"saved\", got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/excel_save needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/excel_save: saved value is in the file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/excel_save: saved value is in the file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.office_attach/excel_save - saved value is in the file"
+    },
+    {
+      "id": "s153",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.office_attach/word_list_open - the case's document is listed"
+      },
+      "children": [
+        {
+          "id": "s154",
+          "action": "core/comment",
+          "args": {
+            "text": "List open documents lists the documents open in the running Word. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s155",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s156",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s157",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "ooa.word/create_document",
+                  "args": {
+                    "path": "case9/Letter.docx"
+                  },
+                  "description": "Create the document"
+                },
+                {
+                  "id": "s160",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "Dear {{name}},"
+                  },
+                  "description": "A line with a placeholder"
+                },
+                {
+                  "id": "s161",
+                  "action": "ooa.word/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s162",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case9/Letter.docx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Letter.docx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s164",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Word"
+                },
+                {
+                  "id": "s165",
+                  "action": "ooa.office_attach/word_list_open",
+                  "args": {},
+                  "out": {
+                    "documents": "lst"
+                  },
+                  "description": "List open documents"
+                },
+                {
+                  "id": "s166",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s167",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "${lst}",
+                      "right": "Letter.docx"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s168",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check the list",
+                  "else": [
+                    {
+                      "id": "s169",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "the list: expected contains \"Letter.docx\""
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s170",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/word_list_open needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/word_list_open: the case's document is listed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/word_list_open: the case's document is listed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.office_attach/word_list_open - the case's document is listed"
+    },
+    {
+      "id": "s175",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.office_attach/word_read_text - text of the open document"
+      },
+      "children": [
+        {
+          "id": "s176",
+          "action": "core/comment",
+          "args": {
+            "text": "Read text reads an open document, including changes not yet saved. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s177",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s178",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s180",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "ooa.word/create_document",
+                  "args": {
+                    "path": "case10/Letter.docx"
+                  },
+                  "description": "Create the document"
+                },
+                {
+                  "id": "s182",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "Dear {{name}},"
+                  },
+                  "description": "A line with a placeholder"
+                },
+                {
+                  "id": "s183",
+                  "action": "ooa.word/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s184",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case10/Letter.docx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s185",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Letter.docx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s186",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Word"
+                },
+                {
+                  "id": "s187",
+                  "action": "ooa.office_attach/word_append_text",
+                  "args": {
+                    "document": "Letter.docx",
+                    "text": "Unsaved line"
+                  },
+                  "description": "Add a line (not saved)"
+                },
+                {
+                  "id": "s188",
+                  "action": "ooa.office_attach/word_read_text",
+                  "args": {
+                    "document": "Letter.docx"
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read the text"
+                },
+                {
+                  "id": "s189",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s190",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$text$",
+                      "right": "Unsaved line"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s191",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check text",
+                  "else": [
+                    {
+                      "id": "s192",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "text: expected contains \"Unsaved line\", got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/word_read_text needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/word_read_text: text of the open document\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/word_read_text: text of the open document: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.office_attach/word_read_text - text of the open document"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.office_attach/word_replace_text - fill a placeholder"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "Replace text replaces a placeholder in an open document and counts it. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s201",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s203",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s204",
+                  "action": "ooa.word/create_document",
+                  "args": {
+                    "path": "case11/Letter.docx"
+                  },
+                  "description": "Create the document"
+                },
+                {
+                  "id": "s205",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "Dear {{name}},"
+                  },
+                  "description": "A line with a placeholder"
+                },
+                {
+                  "id": "s206",
+                  "action": "ooa.word/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s207",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case11/Letter.docx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Letter.docx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s209",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Word"
+                },
+                {
+                  "id": "s210",
+                  "action": "ooa.office_attach/word_replace_text",
+                  "args": {
+                    "document": "Letter.docx",
+                    "find": "{{name}}",
+                    "replace_with": "Asha"
+                  },
+                  "out": {
+                    "count": "n"
+                  },
+                  "description": "Fill {{name}}"
+                },
+                {
+                  "id": "s211",
+                  "action": "ooa.office_attach/word_read_text",
+                  "args": {
+                    "document": "Letter.docx"
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read the text"
+                },
+                {
+                  "id": "s212",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s213",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$n$",
+                      "right": 1
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s214",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check n",
+                  "else": [
+                    {
+                      "id": "s215",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "n: expected eq 1, got ${n}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                },
+                {
+                  "id": "s216",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$text$",
+                      "right": "Dear Asha,"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s217",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check text",
+                  "else": [
+                    {
+                      "id": "s218",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "text: expected contains \"Dear Asha,\", got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s219",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/word_replace_text needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/word_replace_text: fill a placeholder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s223",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/word_replace_text: fill a placeholder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.office_attach/word_replace_text - fill a placeholder"
+    },
+    {
+      "id": "s224",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.office_attach/word_save - saved text is in the file"
+      },
+      "children": [
+        {
+          "id": "s225",
+          "action": "core/comment",
+          "args": {
+            "text": "Save document saves an open document; reading the file without Word shows the new text. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s226",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s227",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s228",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s229",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "ooa.word/create_document",
+                  "args": {
+                    "path": "case12/Letter.docx"
+                  },
+                  "description": "Create the document"
+                },
+                {
+                  "id": "s231",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "Dear {{name}},"
+                  },
+                  "description": "A line with a placeholder"
+                },
+                {
+                  "id": "s232",
+                  "action": "ooa.word/close",
+                  "args": {
+                    "save": true
+                  },
+                  "description": "Save and close"
+                },
+                {
+                  "id": "s233",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "case12/Letter.docx"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "Find the full path"
+                },
+                {
+                  "id": "s234",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "full",
+                    "value": "${info.folder}\\Letter.docx"
+                  },
+                  "description": "The full path"
+                },
+                {
+                  "id": "s235",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "var app = Type.GetTypeFromProgID(args[\"app\"].ToString());\ndynamic o;\ntry { o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString()); }\ncatch { o = Activator.CreateInstance(app); }\nif (args[\"app\"].ToString() == \"Excel.Application\") o.Workbooks.Open(args[\"path\"].ToString());\nelse o.Documents.Open(args[\"path\"].ToString());\nreturn \"opened\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "out": {
+                    "result": "r"
+                  },
+                  "description": "Open it in a hidden Word"
+                },
+                {
+                  "id": "s236",
+                  "action": "ooa.office_attach/word_append_text",
+                  "args": {
+                    "document": "Letter.docx",
+                    "text": "Saved line"
+                  },
+                  "description": "Add a line"
+                },
+                {
+                  "id": "s237",
+                  "action": "ooa.office_attach/word_save",
+                  "args": {
+                    "document": "Letter.docx"
+                  },
+                  "description": "Save it"
+                },
+                {
+                  "id": "s238",
+                  "action": "ooa.dotnet/run_csharp",
+                  "args": {
+                    "code": "dynamic o = System.Runtime.InteropServices.Marshal.GetActiveObject(args[\"app\"].ToString());\nbool excel = args[\"app\"].ToString() == \"Excel.Application\";\ndynamic files = excel ? o.Workbooks : o.Documents;\nforeach (dynamic f in files) { if (string.Equals((string)f.FullName, args[\"path\"].ToString(), StringComparison.OrdinalIgnoreCase)) { f.Close(false); break; } }\nif (files.Count == 0 && !(bool)o.Visible) o.Quit();\nreturn \"closed\";",
+                    "arguments": {
+                      "app": "Word.Application",
+                      "path": "$full$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Close only this case's file"
+                },
+                {
+                  "id": "s239",
+                  "action": "ooa.word/extract_text",
+                  "args": {
+                    "path": "case12/Letter.docx"
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read the file"
+                },
+                {
+                  "id": "s240",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$text$",
+                      "right": "Saved line"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s241",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check text",
+                  "else": [
+                    {
+                      "id": "s242",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "text: expected contains \"Saved line\", got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.office_attach/word_save needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.office_attach/word_save: saved text is in the file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s247",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.office_attach/word_save: saved text is in the file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.office_attach/word_save - saved text is in the file"
+    },
+    {
+      "id": "s248",
+      "action": "core/step",
+      "args": {
+        "title": "13. Summary"
+      },
+      "children": [
+        {
+          "id": "s249",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s250",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -706,7 +2762,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s63",
+          "id": "s251",
           "action": "core/if",
           "args": {
             "condition": {
@@ -717,7 +2773,7 @@
           },
           "children": [
             {
-              "id": "s64",
+              "id": "s252",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -729,7 +2785,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "5. Summary"
+      "description": "13. Summary"
     }
   ]
 }
