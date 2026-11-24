@@ -1,0 +1,3784 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_terminal",
+  "name": "UT Terminal emulator",
+  "description": "Unit tests of the Terminal commands on the stand-in's VT100 host over Telnet (port 2323): sign in, fill the Name prompt, read the menu screen, fields, cursor and the command line.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "terminal_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 2323,
+      "description": "Port of the stand-in's VT host (Telnet)."
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "title",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "screen",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "user",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "result",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_row",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_col",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_field",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Terminal commands on the stand-in's VT100 host over Telnet (port 2323): sign in, fill the Name prompt, read the menu screen, fields, cursor and the command line."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Terminal emulator started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.terminal/connect - signs in to a VT host over SSH and waits for its first screen; a position and the cursor read back"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/connect (signs in to a VT host over SSH and waits for its first screen; a position and the cursor read back) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s24",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s7"
+            },
+            {
+              "action": "ooa.terminal/get_text",
+              "args": {
+                "row": 1,
+                "column": 1,
+                "length": 11
+              },
+              "out": {
+                "text": "title"
+              },
+              "id": "s8"
+            },
+            {
+              "action": "ooa.terminal/get_cursor",
+              "args": {},
+              "out": {
+                "row": "r",
+                "column": "c"
+              },
+              "id": "s9"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s10"
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$title$",
+                  "right": "SAMPLE HOST"
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check title",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "title: expected eq \"SAMPLE HOST\", got ${title}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s16",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 2, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": 7
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq 7, got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/connect: signs in to a VT host over SSH and waits for its first screen; a position and the cursor read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s23",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/connect: signs in to a VT host over SSH and waits for its first screen; a position and the cursor read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.terminal/connect - signs in to a VT host over SSH and waits for its first screen; a position and the cursor read back"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.terminal/get_screen - reads the whole screen, one line per row"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/get_screen (reads the whole screen, one line per row) and checks its result."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s39",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case02",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case02"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s28"
+            },
+            {
+              "action": "ooa.terminal/get_screen",
+              "args": {},
+              "out": {
+                "text": "screen"
+              },
+              "id": "s29"
+            },
+            {
+              "action": "ooa.string/count_occurrences",
+              "args": {
+                "text": "$screen",
+                "find": "SAMPLE HOST"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s30"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s31"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/get_screen: reads the whole screen, one line per row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/get_screen: reads the whole screen, one line per row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.terminal/get_screen - reads the whole screen, one line per row"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.terminal/set_field - fills a field found by its label, presses Enter and waits for the next screen in the same step"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/set_field (fills a field found by its label, presses Enter and waits for the next screen in the same step) and checks its result."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case03",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case03"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s43"
+            },
+            {
+              "action": "ooa.terminal/set_field",
+              "args": {
+                "label": "Name",
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s44"
+            },
+            {
+              "action": "ooa.terminal/get_field",
+              "args": {
+                "label": "User"
+              },
+              "out": {
+                "text": "user"
+              },
+              "id": "s45"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s46"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$user$",
+                  "right": "Ada"
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check user",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "user: expected eq \"Ada\", got ${user}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s51",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/set_field: fills a field found by its label, presses Enter and waits for the next screen in the same step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/set_field: fills a field found by its label, presses Enter and waits for the next screen in the same step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.terminal/set_field - fills a field found by its label, presses Enter and waits for the next screen in the same step"
+    },
+    {
+      "id": "s55",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.terminal/get_all_fields - lists the fields that take input, with their positions"
+      },
+      "children": [
+        {
+          "id": "s56",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/get_all_fields (lists the fields that take input, with their positions) and checks its result."
+          }
+        },
+        {
+          "id": "s57",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s74",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case04",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case04"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s58"
+            },
+            {
+              "action": "ooa.terminal/set_field",
+              "args": {
+                "label": "Name",
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s59"
+            },
+            {
+              "action": "ooa.terminal/set_field",
+              "args": {
+                "label": "Code",
+                "text": "X42",
+                "press_key": "Enter",
+                "wait_for_text": "Result: X42",
+                "timeout_seconds": 10
+              },
+              "id": "s60"
+            },
+            {
+              "action": "ooa.terminal/get_all_fields",
+              "args": {
+                "only_input_fields": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s61"
+            },
+            {
+              "action": "ooa.terminal/get_field",
+              "args": {
+                "label": "Result"
+              },
+              "out": {
+                "text": "result"
+              },
+              "id": "s62"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s63"
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s66",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$result$",
+                  "right": "X42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check result",
+              "else": [
+                {
+                  "id": "s69",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "result: expected eq \"X42\", got ${result}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/get_all_fields: lists the fields that take input, with their positions\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s73",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/get_all_fields: lists the fields that take input, with their positions: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.terminal/get_all_fields - lists the fields that take input, with their positions"
+    },
+    {
+      "id": "s75",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.terminal/send_text - types a command, presses Enter and waits for the answer; Find text on screen gives its row"
+      },
+      "children": [
+        {
+          "id": "s76",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/send_text (types a command, presses Enter and waits for the answer; Find text on screen gives its row) and checks its result."
+          }
+        },
+        {
+          "id": "s77",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s78"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s79"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "7",
+                "press_key": "Enter",
+                "wait_for_text": "Result: 7",
+                "timeout_seconds": 10
+              },
+              "id": "s80"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "hello",
+                "press_key": "Enter",
+                "wait_for_text": "You typed: hello",
+                "timeout_seconds": 10
+              },
+              "id": "s81"
+            },
+            {
+              "action": "ooa.terminal/search_field",
+              "args": {
+                "text": "You typed"
+              },
+              "out": {
+                "found": "found",
+                "row": "row"
+              },
+              "id": "s82"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s83"
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$row$",
+                  "right": 10
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check row",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "row: expected eq 10, got ${row}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/send_text: types a command, presses Enter and waits for the answer; Find text on screen gives its row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/send_text: types a command, presses Enter and waits for the answer; Find text on screen gives its row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.terminal/send_text - types a command, presses Enter and waits for the answer; Find text on screen gives its row"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.terminal/set_key_mapping - a friendly key name pressed by Press key, written another way (Return for Enter)"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/set_key_mapping (a friendly key name pressed by Press key, written another way (Return for Enter)) and checks its result."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s111",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s98"
+            },
+            {
+              "action": "ooa.terminal/set_key_mapping",
+              "args": {
+                "mappings": {
+                  "Submit": "Return"
+                }
+              },
+              "id": "s99"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada"
+              },
+              "id": "s100"
+            },
+            {
+              "action": "ooa.terminal/send_key",
+              "args": {
+                "key": "Submit",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s101"
+            },
+            {
+              "action": "ooa.terminal/wait_for_text",
+              "args": {
+                "text": "MAIN MENU",
+                "timeout_seconds": 5
+              },
+              "out": {
+                "found": "found"
+              },
+              "id": "s102"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s103"
+            },
+            {
+              "id": "s104",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s106",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/set_key_mapping: a friendly key name pressed by Press key, written another way (Return for Enter)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/set_key_mapping: a friendly key name pressed by Press key, written another way (Return for Enter): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.terminal/set_key_mapping - a friendly key name pressed by Press key, written another way (Return for Enter)"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.terminal/send_key - presses Ctrl+C and waits for what the host shows"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/send_key (presses Ctrl+C and waits for what the host shows) and checks its result."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s122",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case07",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case07"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s115"
+            },
+            {
+              "action": "ooa.terminal/send_key",
+              "args": {
+                "key": "Ctrl+C",
+                "wait_for_text": "^C",
+                "timeout_seconds": 10
+              },
+              "id": "s116"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s117"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/send_key: presses Ctrl+C and waits for what the host shows\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/send_key: presses Ctrl+C and waits for what the host shows: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.terminal/send_key - presses Ctrl+C and waits for what the host shows"
+    },
+    {
+      "id": "s123",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.terminal/wait_for_prompt - waits for the command line's prompt"
+      },
+      "children": [
+        {
+          "id": "s124",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/wait_for_prompt (waits for the command line's prompt) and checks its result."
+          }
+        },
+        {
+          "id": "s125",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s126"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s127"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "7",
+                "press_key": "Enter"
+              },
+              "id": "s128"
+            },
+            {
+              "action": "ooa.terminal/wait_for_prompt",
+              "args": {
+                "prompt": "> ",
+                "timeout_seconds": 10
+              },
+              "out": {
+                "found": "found"
+              },
+              "id": "s129"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s130"
+            },
+            {
+              "id": "s131",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s133",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/wait_for_prompt: waits for the command line's prompt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s137",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/wait_for_prompt: waits for the command line's prompt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.terminal/wait_for_prompt - waits for the command line's prompt"
+    },
+    {
+      "id": "s139",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.terminal/set_cursor - moves the cursor (on a VT host with arrow keys)"
+      },
+      "children": [
+        {
+          "id": "s140",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/set_cursor (moves the cursor (on a VT host with arrow keys)) and checks its result."
+          }
+        },
+        {
+          "id": "s141",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s158",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "id": "s142"
+            },
+            {
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "id": "s143"
+            },
+            {
+              "action": "ooa.terminal/set_cursor",
+              "args": {
+                "row": 5,
+                "column": 7
+              },
+              "id": "s144"
+            },
+            {
+              "action": "core/delay",
+              "args": {
+                "seconds": 0.5
+              },
+              "id": "s145"
+            },
+            {
+              "action": "ooa.terminal/get_cursor",
+              "args": {},
+              "out": {
+                "row": "r",
+                "column": "c"
+              },
+              "id": "s146"
+            },
+            {
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "id": "s147"
+            },
+            {
+              "id": "s148",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s150",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 5, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s151",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": 7
+                }
+              },
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s153",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq 7, got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/set_cursor: moves the cursor (on a VT host with arrow keys)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/set_cursor: moves the cursor (on a VT host with arrow keys): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.terminal/set_cursor - moves the cursor (on a VT host with arrow keys)"
+    },
+    {
+      "id": "s159",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.terminal/clear_screen - a VT host has no Clear key: a clear error"
+      },
+      "children": [
+        {
+          "id": "s160",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.terminal/clear_screen (a VT host has no Clear key: a clear error) and checks its result."
+          }
+        },
+        {
+          "id": "s161",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s174",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case10"
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s165",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.terminal/connect",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": "$terminal_port$",
+                    "terminal_type": "vt-telnet",
+                    "user": "agent",
+                    "password": {
+                      "$credential": "unit_tests/terminal/password"
+                    },
+                    "wait_for_text": "Name:",
+                    "connect_timeout_seconds": 15
+                  },
+                  "id": "s162"
+                },
+                {
+                  "action": "ooa.terminal/clear_screen",
+                  "args": {},
+                  "id": "s163"
+                }
+              ],
+              "description": "These steps should fail with TERMINAL.NOT_ON_VT",
+              "catch": [
+                {
+                  "codes": [
+                    "TERMINAL.NOT_ON_VT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s166",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TERMINAL.NOT_ON_VT",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TERMINAL.NOT_ON_VT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/clear_screen: a VT host has no Clear key: a clear error\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/clear_screen: a VT host has no Clear key: a clear error: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.terminal/clear_screen - a VT host has no Clear key: a clear error"
+    },
+    {
+      "id": "s175",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.terminal/get_text - a rectangle and the last line"
+      },
+      "children": [
+        {
+          "id": "s176",
+          "action": "core/comment",
+          "args": {
+            "text": "Get text reads text at a position, a rectangle of rows, or the line the cursor is on."
+          }
+        },
+        {
+          "id": "s177",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s178",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "description": "Type the name and press Enter"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.terminal/get_text",
+              "args": {
+                "row": 3,
+                "column": 7,
+                "length": 3
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read row 3 from column 7"
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Ada"
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Ada\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "ooa.terminal/get_text",
+              "args": {
+                "what": "rectangle",
+                "row": 1,
+                "column": 1,
+                "height": 3,
+                "width": 9
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read rows 1 to 3, 9 columns wide"
+            },
+            {
+              "id": "s185",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "MAIN MENU"
+                }
+              },
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rectangle",
+              "else": [
+                {
+                  "id": "s187",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rectangle: expected contains \"MAIN MENU\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s188",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "User: Ada"
+                }
+              },
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rectangle",
+              "else": [
+                {
+                  "id": "s190",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rectangle: expected contains \"User: Ada\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s192",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/get_text: a rectangle and the last line\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s194",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s195",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/get_text: a rectangle and the last line: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.terminal/get_text - a rectangle and the last line"
+    },
+    {
+      "id": "s196",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.terminal/get_cursor - the cursor waits on the Code row"
+      },
+      "children": [
+        {
+          "id": "s197",
+          "action": "core/comment",
+          "args": {
+            "text": "Get cursor position gives the row and column of the cursor; the menu screen puts it at row 5, column 1."
+          }
+        },
+        {
+          "id": "s198",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s199",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s200",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "description": "Type the name and press Enter"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.terminal/get_cursor",
+              "args": {},
+              "out": {
+                "row": "ut_row",
+                "column": "ut_col"
+              },
+              "description": "Read the cursor"
+            },
+            {
+              "id": "s202",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_row$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_row",
+              "else": [
+                {
+                  "id": "s204",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_row: expected eq 5, got ${ut_row}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s205",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_col$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s206",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_col",
+              "else": [
+                {
+                  "id": "s207",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_col: expected eq 1, got ${ut_col}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s208",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/get_cursor: the cursor waits on the Code row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/get_cursor: the cursor waits on the Code row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.terminal/get_cursor - the cursor waits on the Code row"
+    },
+    {
+      "id": "s213",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.terminal/get_field - the field after a label, and by number"
+      },
+      "children": [
+        {
+          "id": "s214",
+          "action": "core/comment",
+          "args": {
+            "text": "Get field reads one field, found by the label before it or by its number; on a VT screen 'User:' is a label and the text after it an input field."
+          }
+        },
+        {
+          "id": "s215",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s216",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s217",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "description": "Type the name and press Enter"
+            },
+            {
+              "id": "s218",
+              "action": "ooa.terminal/get_field",
+              "args": {
+                "label": "User"
+              },
+              "out": {
+                "text": "ut_text",
+                "field": "ut_field"
+              },
+              "description": "The field after 'User:'"
+            },
+            {
+              "id": "s219",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Ada"
+                }
+              },
+              "children": [
+                {
+                  "id": "s220",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check User field",
+              "else": [
+                {
+                  "id": "s221",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "User field: expected eq \"Ada\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s222",
+              "action": "ooa.terminal/get_field",
+              "args": {
+                "index": 1
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Field number 1"
+            },
+            {
+              "id": "s223",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "MAIN MENU"
+                }
+              },
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s225",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"MAIN MENU\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/get_field: the field after a label, and by number\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s230",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/get_field: the field after a label, and by number: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.terminal/get_field - the field after a label, and by number"
+    },
+    {
+      "id": "s231",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.terminal/search_field - where the menu title is"
+      },
+      "children": [
+        {
+          "id": "s232",
+          "action": "core/comment",
+          "args": {
+            "text": "Find text on screen gives the row and column where text appears, and how often."
+          }
+        },
+        {
+          "id": "s233",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s234",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s235",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "description": "Type the name and press Enter"
+            },
+            {
+              "id": "s236",
+              "action": "ooa.terminal/search_field",
+              "args": {
+                "text": "MENU"
+              },
+              "out": {
+                "found": "ut_ok",
+                "row": "ut_row",
+                "column": "ut_col",
+                "count": "ut_n"
+              },
+              "description": "Find 'MENU'"
+            },
+            {
+              "id": "s237",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s239",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s240",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_row$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_row",
+              "else": [
+                {
+                  "id": "s242",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_row: expected eq 1, got ${ut_row}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s243",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_col$",
+                  "right": 6
+                }
+              },
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_col",
+              "else": [
+                {
+                  "id": "s245",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_col: expected eq 6, got ${ut_col}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s246",
+              "action": "ooa.terminal/search_field",
+              "args": {
+                "text": "NOWHERE"
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Text that is not there"
+            },
+            {
+              "id": "s247",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s249",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s250",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/search_field: where the menu title is\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/search_field: where the menu title is: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.terminal/search_field - where the menu title is"
+    },
+    {
+      "id": "s255",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.terminal/wait_for_text - an answer, and text that never comes"
+      },
+      "children": [
+        {
+          "id": "s256",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for text waits until text shows on the screen; with fail_on_timeout off it just says it did not come."
+          }
+        },
+        {
+          "id": "s257",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s258",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s259",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada",
+                "press_key": "Enter",
+                "wait_for_text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "description": "Type the name and press Enter"
+            },
+            {
+              "id": "s260",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "X9",
+                "press_key": "Enter"
+              },
+              "description": "Type a code and press Enter"
+            },
+            {
+              "id": "s261",
+              "action": "ooa.terminal/wait_for_text",
+              "args": {
+                "text": "Result: X9",
+                "timeout_seconds": 10
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Wait for the result"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "ooa.terminal/wait_for_text",
+              "args": {
+                "text": "NEVER SHOWN",
+                "timeout_seconds": 1,
+                "fail_on_timeout": false
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Wait briefly for text that never comes"
+            },
+            {
+              "id": "s266",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s268",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s269",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s271",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/wait_for_text: an answer, and text that never comes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s273",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/wait_for_text: an answer, and text that never comes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.terminal/wait_for_text - an answer, and text that never comes"
+    },
+    {
+      "id": "s274",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.terminal/wait - for the cursor to reach the Code row"
+      },
+      "children": [
+        {
+          "id": "s275",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for screen waits for a condition: here for the cursor to reach row 5, column 1 (the menu's Code row) after the name is typed, then a plain pause in seconds."
+          }
+        },
+        {
+          "id": "s276",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": "cursor_at"
+              },
+              "description": "The condition to wait for"
+            },
+            {
+              "id": "s278",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s279",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "Ada"
+              },
+              "description": "Type the name"
+            },
+            {
+              "id": "s280",
+              "action": "ooa.terminal/send_key",
+              "args": {
+                "key": "Enter",
+                "wait_for_host": false
+              },
+              "description": "Press Enter without waiting"
+            },
+            {
+              "id": "s281",
+              "action": "ooa.terminal/wait",
+              "args": {
+                "condition": "$ut_text$",
+                "row": 5,
+                "column": 1,
+                "timeout_seconds": 10
+              },
+              "out": {
+                "met": "ut_ok"
+              },
+              "description": "Wait for the cursor at row 5, column 1"
+            },
+            {
+              "id": "s282",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s283",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s284",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s285",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": "seconds"
+              },
+              "description": "Now a plain pause"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.terminal/wait",
+              "args": {
+                "condition": "$ut_text$",
+                "timeout_seconds": 1
+              },
+              "out": {
+                "met": "ut_ok"
+              },
+              "description": "Pause one second"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.terminal/wait_for_text",
+              "args": {
+                "text": "MAIN MENU",
+                "timeout_seconds": 10
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "The menu is there"
+            },
+            {
+              "id": "s288",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s290",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s291",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/wait: for the cursor to reach the Code row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/wait: for the cursor to reach the Code row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.terminal/wait - for the cursor to reach the Code row"
+    },
+    {
+      "id": "s296",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.terminal/hide_terminal - nothing shown is fine"
+      },
+      "children": [
+        {
+          "id": "s297",
+          "action": "core/comment",
+          "args": {
+            "text": "Hide terminal closes the viewer window Show terminal opened; with none open it does nothing, and the session goes on."
+          }
+        },
+        {
+          "id": "s298",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s299",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s300",
+              "action": "ooa.terminal/hide_terminal",
+              "args": {},
+              "description": "Hide the viewer"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.terminal/get_screen",
+              "args": {},
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "The session still answers"
+            },
+            {
+              "id": "s302",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "SAMPLE HOST"
+                }
+              },
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check screen",
+              "else": [
+                {
+                  "id": "s304",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "screen: expected contains \"SAMPLE HOST\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s305",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/hide_terminal: nothing shown is fine\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/hide_terminal: nothing shown is fine: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.terminal/hide_terminal - nothing shown is fine"
+    },
+    {
+      "id": "s310",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.terminal/disconnect - the session is gone afterwards"
+      },
+      "children": [
+        {
+          "id": "s311",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the connection; reading the screen after it fails because no session is open."
+          }
+        },
+        {
+          "id": "s312",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s313",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "127.0.0.1",
+                "port": "$terminal_port$",
+                "terminal_type": "vt-telnet",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/terminal/password"
+                },
+                "wait_for_text": "Name:",
+                "connect_timeout_seconds": 15
+              },
+              "description": "Sign in to the test VT host over Telnet"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.terminal/disconnect",
+              "args": {},
+              "description": "Disconnect"
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s316",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "ooa.terminal/get_screen",
+                  "args": {},
+                  "description": "Read after disconnecting"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s318",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s321",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/disconnect: the session is gone afterwards\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/disconnect: the session is gone afterwards: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.terminal/disconnect - the session is gone afterwards"
+    },
+    {
+      "id": "s326",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.terminal/connect - a host that does not answer"
+      },
+      "children": [
+        {
+          "id": "s327",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect fails with a clear error when nothing listens at the host and port."
+          }
+        },
+        {
+          "id": "s328",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s330",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s331",
+                  "action": "ooa.terminal/connect",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": 1,
+                    "terminal_type": "vt-telnet",
+                    "session": "nowhere",
+                    "connect_timeout_seconds": 3
+                  },
+                  "description": "Connect to a closed port"
+                }
+              ],
+              "description": "These steps should fail with TERMINAL.CONNECT_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "TERMINAL.CONNECT_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s332",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TERMINAL.CONNECT_FAILED",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TERMINAL.CONNECT_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.terminal/connect: a host that does not answer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.terminal/connect: a host that does not answer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.terminal/connect - a host that does not answer"
+    },
+    {
+      "id": "s340",
+      "action": "core/step",
+      "args": {
+        "title": "20. Summary"
+      },
+      "children": [
+        {
+          "id": "s341",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s342",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s343",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s344",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "20. Summary"
+    }
+  ]
+}

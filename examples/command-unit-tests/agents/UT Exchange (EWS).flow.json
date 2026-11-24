@@ -1,0 +1,5003 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_exchange",
+  "name": "UT Exchange (EWS)",
+  "description": "Unit tests of the Exchange (EWS) commands on the stand-in's made-up mailbox (/dsk/ews): two invoice emails, folders Inbox, Invoices and Done. Nothing is really sent.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "nid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_msg",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ev",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_table",
+      "type": "Table",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Exchange (EWS) commands on the stand-in's made-up mailbox (/dsk/ews): two invoice emails, folders Inbox, Invoices and Done. Nothing is really sent."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Exchange (EWS) started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s288",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.exchange/list - connect, find unread invoices and read the first (stand-in EWS server)"
+      },
+      "children": [
+        {
+          "id": "s289",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/list (connect, find unread invoices and read the first (stand-in EWS server)) and checks its result."
+          }
+        },
+        {
+          "id": "s290",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s310",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/37-exchange.json/0/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s291"
+            },
+            {
+              "action": "ooa.exchange/list",
+              "args": {
+                "unread_only": true,
+                "subject_contains": "Invoice"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "id": "s292"
+            },
+            {
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$t",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "id"
+              },
+              "id": "s293"
+            },
+            {
+              "action": "ooa.exchange/get",
+              "args": {
+                "id": "$id",
+                "mark_read": false
+              },
+              "out": {
+                "email": "e"
+              },
+              "id": "s294"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "text",
+                "value": {
+                  "expr": "$e.text"
+                }
+              },
+              "id": "s295"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s296"
+            },
+            {
+              "id": "s297",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s299",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s300",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$id$",
+                  "right": "AAMkID1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s301",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check id",
+              "else": [
+                {
+                  "id": "s302",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "id: expected eq \"AAMkID1\", got ${id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$text$",
+                  "right": "Please pay"
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected eq \"Please pay\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/list: connect, find unread invoices and read the first (stand-in EWS server)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/list: connect, find unread invoices and read the first (stand-in EWS server): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.exchange/list - connect, find unread invoices and read the first (stand-in EWS server)"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.exchange/send - send keeps a copy in Sent Items (stand-in EWS server)"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/send (send keeps a copy in Sent Items (stand-in EWS server)) and checks its result."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s320",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case02",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case02"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/37-exchange.json/1/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s314"
+            },
+            {
+              "action": "ooa.exchange/send",
+              "args": {
+                "to": "ap@acme.test",
+                "subject": "Report",
+                "body": "Done"
+              },
+              "id": "s315"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s317",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/send: send keeps a copy in Sent Items (stand-in EWS server)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s319",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/send: send keeps a copy in Sent Items (stand-in EWS server): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.exchange/send - send keeps a copy in Sent Items (stand-in EWS server)"
+    },
+    {
+      "id": "s321",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.exchange/move - move to a folder path, new id returned (stand-in EWS server)"
+      },
+      "children": [
+        {
+          "id": "s322",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/move (move to a folder path, new id returned (stand-in EWS server)) and checks its result."
+          }
+        },
+        {
+          "id": "s323",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s333",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case03",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case03"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/37-exchange.json/2/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s324"
+            },
+            {
+              "action": "ooa.exchange/move",
+              "args": {
+                "id": "AAMkID1",
+                "to_folder": "Inbox/Done"
+              },
+              "out": {
+                "new_id": "nid"
+              },
+              "id": "s325"
+            },
+            {
+              "id": "s326",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$nid$",
+                  "right": "AAMkNEW"
+                }
+              },
+              "children": [
+                {
+                  "id": "s327",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check nid",
+              "else": [
+                {
+                  "id": "s328",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "nid: expected eq \"AAMkNEW\", got ${nid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s330",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/move: move to a folder path, new id returned (stand-in EWS server)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s331",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s332",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/move: move to a folder path, new id returned (stand-in EWS server): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.exchange/move - move to a folder path, new id returned (stand-in EWS server)"
+    },
+    {
+      "id": "s334",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.exchange/mark - mark read, then delete to Deleted Items (stand-in EWS server)"
+      },
+      "children": [
+        {
+          "id": "s335",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/mark (mark read, then delete to Deleted Items (stand-in EWS server)) and checks its result."
+          }
+        },
+        {
+          "id": "s336",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s344",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case04",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case04"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/37-exchange.json/3/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s337"
+            },
+            {
+              "action": "ooa.exchange/mark",
+              "args": {
+                "id": "AAMkID1",
+                "read": true
+              },
+              "id": "s338"
+            },
+            {
+              "action": "ooa.exchange/delete",
+              "args": {
+                "id": "AAMkID1"
+              },
+              "id": "s339"
+            },
+            {
+              "id": "s340",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s341",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/mark: mark read, then delete to Deleted Items (stand-in EWS server)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s343",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/mark: mark read, then delete to Deleted Items (stand-in EWS server): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.exchange/mark - mark read, then delete to Deleted Items (stand-in EWS server)"
+    },
+    {
+      "id": "s345",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.exchange/save_attachments - save the PDF attachment only (stand-in EWS server)"
+      },
+      "children": [
+        {
+          "id": "s346",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/save_attachments (save the PDF attachment only (stand-in EWS server)) and checks its result."
+          }
+        },
+        {
+          "id": "s347",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/37-exchange.json/4/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s348"
+            },
+            {
+              "action": "ooa.exchange/save_attachments",
+              "args": {
+                "id": "AAMkID1",
+                "target_folder": "ut_case05/att",
+                "name_pattern": "*.pdf"
+              },
+              "out": {
+                "files": "f"
+              },
+              "id": "s349"
+            },
+            {
+              "id": "s350",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_case05/att/inv.pdf"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read ut_case05/att/inv.pdf"
+            },
+            {
+              "id": "s351",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "%PDF-1.7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s352",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case05/att/inv.pdf",
+              "else": [
+                {
+                  "id": "s353",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case05/att/inv.pdf: expected eq \"%PDF-1.7\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s359",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case05/att/note.txt"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case05/att/note.txt there?"
+            },
+            {
+              "id": "s361",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s362",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case05/att/note.txt absent",
+              "else": [
+                {
+                  "id": "s363",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case05/att/note.txt absent: expected eq false, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s354",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s355",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/save_attachments: save the PDF attachment only (stand-in EWS server)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s357",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/save_attachments: save the PDF attachment only (stand-in EWS server): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.exchange/save_attachments - save the PDF attachment only (stand-in EWS server)"
+    },
+    {
+      "id": "s365",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.exchange/connect - not a web address"
+      },
+      "children": [
+        {
+          "id": "s366",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (not a web address) and checks its result."
+          }
+        },
+        {
+          "id": "s367",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s379",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s370",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "mail.example.test/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    }
+                  },
+                  "id": "s368"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.BAD_URL",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.BAD_URL"
+                  ],
+                  "children": [
+                    {
+                      "id": "s371",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s372",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s373",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.BAD_URL",
+              "else": [
+                {
+                  "id": "s374",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.BAD_URL: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s375",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s376",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: not a web address\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s377",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s378",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: not a web address: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.exchange/connect - not a web address"
+    },
+    {
+      "id": "s88",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.exchange/connect - password typed as plain text is refused"
+      },
+      "children": [
+        {
+          "id": "s89",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (password typed as plain text is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s90",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s93",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "https://mail.example.test/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": "secret"
+                  },
+                  "id": "s91"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.NO_SECRET",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.NO_SECRET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s94",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.NO_SECRET",
+              "else": [
+                {
+                  "id": "s97",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.NO_SECRET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: password typed as plain text is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s101",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: password typed as plain text is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.exchange/connect - password typed as plain text is refused"
+    },
+    {
+      "id": "s380",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.exchange/connect - impersonate without a mailbox"
+      },
+      "children": [
+        {
+          "id": "s381",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (impersonate without a mailbox) and checks its result."
+          }
+        },
+        {
+          "id": "s382",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s394",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "id": "s384",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s385",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "https://mail.example.test/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "impersonate": true
+                  },
+                  "id": "s383"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.BAD_INPUT",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.BAD_INPUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s386",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s387",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s388",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.BAD_INPUT",
+              "else": [
+                {
+                  "id": "s389",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.BAD_INPUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s390",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s391",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: impersonate without a mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s392",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s393",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: impersonate without a mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.exchange/connect - impersonate without a mailbox"
+    },
+    {
+      "id": "s395",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.exchange/connect - sign-in refused (HTTP 401)"
+      },
+      "children": [
+        {
+          "id": "s396",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (sign-in refused (HTTP 401)) and checks its result."
+          }
+        },
+        {
+          "id": "s397",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s409",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "id": "s399",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s400",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/8/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s398"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.AUTH_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.AUTH_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s401",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s402",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s403",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.AUTH_FAILED",
+              "else": [
+                {
+                  "id": "s404",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.AUTH_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s405",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s406",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: sign-in refused (HTTP 401)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s407",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s408",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: sign-in refused (HTTP 401): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.exchange/connect - sign-in refused (HTTP 401)"
+    },
+    {
+      "id": "s410",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.exchange/connect - address is not an EWS service (HTTP 404)"
+      },
+      "children": [
+        {
+          "id": "s411",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (address is not an EWS service (HTTP 404)) and checks its result."
+          }
+        },
+        {
+          "id": "s412",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s424",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case10"
+            },
+            {
+              "id": "s414",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s415",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/9/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s413"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.BAD_URL",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.BAD_URL"
+                  ],
+                  "children": [
+                    {
+                      "id": "s416",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s417",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.BAD_URL",
+              "else": [
+                {
+                  "id": "s419",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.BAD_URL: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s421",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: address is not an EWS service (HTTP 404)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s423",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: address is not an EWS service (HTTP 404): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.exchange/connect - address is not an EWS service (HTTP 404)"
+    },
+    {
+      "id": "s425",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.exchange/connect - mailbox the user may not open (ErrorAccessDenied)"
+      },
+      "children": [
+        {
+          "id": "s426",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/connect (mailbox the user may not open (ErrorAccessDenied)) and checks its result."
+          }
+        },
+        {
+          "id": "s427",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s439",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case11"
+            },
+            {
+              "id": "s429",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s430",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/10/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic",
+                    "mailbox": "ceo@acme.test"
+                  },
+                  "id": "s428"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.ACCESS_DENIED",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.ACCESS_DENIED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s431",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s432",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s433",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.ACCESS_DENIED",
+              "else": [
+                {
+                  "id": "s434",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.ACCESS_DENIED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s435",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s436",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/connect: mailbox the user may not open (ErrorAccessDenied)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s438",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/connect: mailbox the user may not open (ErrorAccessDenied): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.exchange/connect - mailbox the user may not open (ErrorAccessDenied)"
+    },
+    {
+      "id": "s440",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.exchange/get - email no longer there (ErrorItemNotFound)"
+      },
+      "children": [
+        {
+          "id": "s441",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/get (email no longer there (ErrorItemNotFound)) and checks its result."
+          }
+        },
+        {
+          "id": "s442",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s455",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case12"
+            },
+            {
+              "id": "s445",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s446",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/11/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s443"
+                },
+                {
+                  "action": "ooa.exchange/get",
+                  "args": {
+                    "id": "AAMkGone"
+                  },
+                  "id": "s444"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s447",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s448",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s449",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s450",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s451",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s452",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/get: email no longer there (ErrorItemNotFound)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s453",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s454",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/get: email no longer there (ErrorItemNotFound): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.exchange/get - email no longer there (ErrorItemNotFound)"
+    },
+    {
+      "id": "s173",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.exchange/list - no open session"
+      },
+      "children": [
+        {
+          "id": "s174",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/list (no open session) and checks its result."
+          }
+        },
+        {
+          "id": "s175",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s570",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session an earlier case left open"
+            },
+            {
+              "id": "s177",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s178",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/list",
+                  "id": "s176"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s179",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s180",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s182",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s183",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/list: no open session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/list: no open session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.exchange/list - no open session"
+    },
+    {
+      "id": "s456",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.exchange/list - unread_only and read_only together"
+      },
+      "children": [
+        {
+          "id": "s457",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/list (unread_only and read_only together) and checks its result."
+          }
+        },
+        {
+          "id": "s458",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s471",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case14"
+            },
+            {
+              "id": "s461",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s462",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/13/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s459"
+                },
+                {
+                  "action": "ooa.exchange/list",
+                  "args": {
+                    "unread_only": true,
+                    "read_only": true
+                  },
+                  "id": "s460"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.BAD_INPUT",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.BAD_INPUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s463",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s464",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s465",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.BAD_INPUT",
+              "else": [
+                {
+                  "id": "s466",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.BAD_INPUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s467",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s468",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/list: unread_only and read_only together\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s469",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s470",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/list: unread_only and read_only together: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.exchange/list - unread_only and read_only together"
+    },
+    {
+      "id": "s472",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.exchange/send - no recipient"
+      },
+      "children": [
+        {
+          "id": "s473",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/send (no recipient) and checks its result."
+          }
+        },
+        {
+          "id": "s474",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s487",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case15"
+            },
+            {
+              "id": "s477",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s478",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/14/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s475"
+                },
+                {
+                  "action": "ooa.exchange/send",
+                  "args": {
+                    "to": " ; ",
+                    "subject": "x"
+                  },
+                  "id": "s476"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.BAD_ADDRESS",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.BAD_ADDRESS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s479",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s480",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s481",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.BAD_ADDRESS",
+              "else": [
+                {
+                  "id": "s482",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.BAD_ADDRESS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s483",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s484",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/send: no recipient\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s485",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s486",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/send: no recipient: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.exchange/send - no recipient"
+    },
+    {
+      "id": "s488",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.exchange/move - destination folder missing"
+      },
+      "children": [
+        {
+          "id": "s489",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/move (destination folder missing) and checks its result."
+          }
+        },
+        {
+          "id": "s490",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s503",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case16"
+            },
+            {
+              "id": "s493",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s494",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.exchange/connect",
+                  "args": {
+                    "ews_url": "$standin_url$/dsk/mock/37-exchange.json/15/EWS/Exchange.asmx",
+                    "user": "ACME\\bot",
+                    "password": {
+                      "$credential": "unit_tests/exchange/password"
+                    },
+                    "sign_in": "basic"
+                  },
+                  "id": "s491"
+                },
+                {
+                  "action": "ooa.exchange/move",
+                  "args": {
+                    "id": "AAMkID1",
+                    "to_folder": "Inbox/Nowhere"
+                  },
+                  "id": "s492"
+                }
+              ],
+              "description": "These steps should fail with EXCHANGE.NO_FOLDER",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCHANGE.NO_FOLDER"
+                  ],
+                  "children": [
+                    {
+                      "id": "s495",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s496",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s497",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCHANGE.NO_FOLDER",
+              "else": [
+                {
+                  "id": "s498",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCHANGE.NO_FOLDER: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s499",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s500",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/move: destination folder missing\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s501",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s502",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/move: destination folder missing: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.exchange/move - destination folder missing"
+    },
+    {
+      "id": "s504",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.exchange/reply - replies with a file: saved as a draft, the file added, then sent"
+      },
+      "children": [
+        {
+          "id": "s505",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/reply (replies with a file: saved as a draft, the file added, then sent) and checks its result."
+          }
+        },
+        {
+          "id": "s506",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s515",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case17"
+            },
+            {
+              "id": "s507",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case17/answer.txt",
+                "text": "OK"
+              },
+              "description": "Prepare the test file ut_case17/answer.txt"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/55-mail-services.json/34/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s508"
+            },
+            {
+              "action": "ooa.exchange/reply",
+              "args": {
+                "id": "AAMkID1",
+                "body": "See attached",
+                "attachments": [
+                  "ut_case17/answer.txt"
+                ]
+              },
+              "id": "s509"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s510"
+            },
+            {
+              "id": "s511",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s512",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/reply: replies with a file: saved as a draft, the file added, then sent\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s513",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s514",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/reply: replies with a file: saved as a draft, the file added, then sent: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.exchange/reply - replies with a file: saved as a draft, the file added, then sent"
+    },
+    {
+      "id": "s516",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.exchange/reply_all - replies to everyone but the original sender"
+      },
+      "children": [
+        {
+          "id": "s517",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/reply_all (replies to everyone but the original sender) and checks its result."
+          }
+        },
+        {
+          "id": "s518",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s526",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case18",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case18"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/55-mail-services.json/35/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s519"
+            },
+            {
+              "action": "ooa.exchange/reply_all",
+              "args": {
+                "id": "AAMkID1",
+                "body": "Team only",
+                "exclude_sender": true
+              },
+              "id": "s520"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s521"
+            },
+            {
+              "id": "s522",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s523",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/reply_all: replies to everyone but the original sender\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s524",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s525",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/reply_all: replies to everyone but the original sender: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.exchange/reply_all - replies to everyone but the original sender"
+    },
+    {
+      "id": "s527",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.exchange/forward - forwards the original as an .eml attachment"
+      },
+      "children": [
+        {
+          "id": "s528",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/forward (forwards the original as an .eml attachment) and checks its result."
+          }
+        },
+        {
+          "id": "s529",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s537",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case19",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case19"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/55-mail-services.json/36/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s530"
+            },
+            {
+              "action": "ooa.exchange/forward",
+              "args": {
+                "id": "AAMkID1",
+                "to": "ap@acme.test",
+                "note": "FYI",
+                "as_attachment": true
+              },
+              "id": "s531"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s532"
+            },
+            {
+              "id": "s533",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s534",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/forward: forwards the original as an .eml attachment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s535",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s536",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/forward: forwards the original as an .eml attachment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.exchange/forward - forwards the original as an .eml attachment"
+    },
+    {
+      "id": "s538",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.exchange/get_folders - lists the mailbox folders"
+      },
+      "children": [
+        {
+          "id": "s539",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/get_folders (lists the mailbox folders) and checks its result."
+          }
+        },
+        {
+          "id": "s540",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s552",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case20",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case20"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/55-mail-services.json/37/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s541"
+            },
+            {
+              "action": "ooa.exchange/get_folders",
+              "out": {
+                "folders": "f"
+              },
+              "id": "s542"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$f"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s543"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s544"
+            },
+            {
+              "id": "s545",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s546",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s547",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s548",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s549",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/get_folders: lists the mailbox folders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s550",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s551",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/get_folders: lists the mailbox folders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.exchange/get_folders - lists the mailbox folders"
+    },
+    {
+      "id": "s553",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.exchange/save_email_as_eml - saves a whole email as an .eml file"
+      },
+      "children": [
+        {
+          "id": "s554",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.exchange/save_email_as_eml (saves a whole email as an .eml file) and checks its result."
+          }
+        },
+        {
+          "id": "s555",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s569",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case21",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case21"
+            },
+            {
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/mock/55-mail-services.json/38/EWS/Exchange.asmx",
+                "user": "ACME\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "id": "s556"
+            },
+            {
+              "action": "ooa.exchange/save_email_as_eml",
+              "args": {
+                "id": "AAMkID1",
+                "local_path": "ut_case21/mail.eml"
+              },
+              "out": {
+                "path": "p"
+              },
+              "id": "s557"
+            },
+            {
+              "action": "ooa.exchange/disconnect",
+              "id": "s558"
+            },
+            {
+              "id": "s563",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s564",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case21/mail.eml"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s565",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case21/mail.eml there?"
+            },
+            {
+              "id": "s566",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s567",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case21/mail.eml exists",
+              "else": [
+                {
+                  "id": "s568",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case21/mail.eml exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s559",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s560",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/save_email_as_eml: saves a whole email as an .eml file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s561",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s562",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/save_email_as_eml: saves a whole email as an .eml file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.exchange/save_email_as_eml - saves a whole email as an .eml file"
+    },
+    {
+      "id": "s571",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.exchange/test_connection - the test mailbox answers"
+      },
+      "children": [
+        {
+          "id": "s572",
+          "action": "core/comment",
+          "args": {
+            "text": "Test connection signs in once and says whether the mailbox answers, without opening a session."
+          }
+        },
+        {
+          "id": "s573",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s574",
+              "action": "ooa.exchange/test_connection",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "out": {
+                "ok": "ut_ok",
+                "message": "ut_msg"
+              },
+              "description": "Test the connection"
+            },
+            {
+              "id": "s575",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s576",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s577",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s578",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s579",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/test_connection: the test mailbox answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s580",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s581",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/test_connection: the test mailbox answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.exchange/test_connection - the test mailbox answers"
+    },
+    {
+      "id": "s582",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.exchange/folder_exists - a folder that is there, and one that is not"
+      },
+      "children": [
+        {
+          "id": "s583",
+          "action": "core/comment",
+          "args": {
+            "text": "Folder exists is a condition: true when the folder path is in the mailbox. Inbox/Invoices is there, Inbox/Nowhere is not."
+          }
+        },
+        {
+          "id": "s584",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s585",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s586",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s587",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.exchange/folder_exists",
+                  "args": {
+                    "folder": "Inbox/Invoices"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s588",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is Inbox/Invoices there?"
+            },
+            {
+              "id": "s589",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s590",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Inbox/Invoices exists",
+              "else": [
+                {
+                  "id": "s591",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Inbox/Invoices exists: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s592",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.exchange/folder_exists",
+                  "args": {
+                    "folder": "Inbox/Nowhere"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s593",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_ok",
+                    "value": false
+                  }
+                }
+              ],
+              "description": "Is Inbox/Nowhere there?"
+            },
+            {
+              "id": "s594",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s595",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check Inbox/Nowhere missing",
+              "else": [
+                {
+                  "id": "s596",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "Inbox/Nowhere missing: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s597",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s598",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s599",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/folder_exists: a folder that is there, and one that is not\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s600",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s601",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/folder_exists: a folder that is there, and one that is not: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.exchange/folder_exists - a folder that is there, and one that is not"
+    },
+    {
+      "id": "s602",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.exchange/disconnect - a closed session cannot be used"
+      },
+      "children": [
+        {
+          "id": "s603",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the session; a list step after it fails because no session is open."
+          }
+        },
+        {
+          "id": "s604",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s605",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s606",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s607",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s608",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s609",
+                  "action": "ooa.exchange/list",
+                  "args": {},
+                  "description": "List after closing"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s610",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s611",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s612",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s613",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s614",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s615",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/disconnect: a closed session cannot be used\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s616",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s617",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/disconnect: a closed session cannot be used: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.exchange/disconnect - a closed session cannot be used"
+    },
+    {
+      "id": "s618",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.exchange/delete - one email to Deleted Items"
+      },
+      "children": [
+        {
+          "id": "s619",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete moves one email, by its id, to Deleted Items (or removes it for good with permanent)."
+          }
+        },
+        {
+          "id": "s620",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s621",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s622",
+              "action": "ooa.exchange/delete",
+              "args": {
+                "id": "AAMkID2"
+              },
+              "description": "Delete Invoice 43"
+            },
+            {
+              "id": "s623",
+              "action": "ooa.exchange/delete",
+              "args": {
+                "id": "AAMkID1",
+                "permanent": true
+              },
+              "description": "Delete Invoice 42 for good"
+            },
+            {
+              "id": "s624",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s625",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s626",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/delete: one email to Deleted Items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s627",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s628",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/delete: one email to Deleted Items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.exchange/delete - one email to Deleted Items"
+    },
+    {
+      "id": "s629",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.exchange/delete_all - every invoice email"
+      },
+      "children": [
+        {
+          "id": "s630",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete all deletes every email that matches the filters and gives how many; both invoices match."
+          }
+        },
+        {
+          "id": "s631",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s632",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s633",
+              "action": "ooa.exchange/delete_all",
+              "args": {
+                "subject_contains": "Invoice"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Delete the invoice emails"
+            },
+            {
+              "id": "s634",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s635",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s636",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s637",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s638",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s639",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/delete_all: every invoice email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s640",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s641",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/delete_all: every invoice email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.exchange/delete_all - every invoice email"
+    },
+    {
+      "id": "s642",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.exchange/move_all - invoices to Inbox/Done"
+      },
+      "children": [
+        {
+          "id": "s643",
+          "action": "core/comment",
+          "args": {
+            "text": "Move all moves every matching email to a folder and gives their new ids."
+          }
+        },
+        {
+          "id": "s644",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s645",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s646",
+              "action": "ooa.exchange/move_all",
+              "args": {
+                "status": "unread",
+                "subject_contains": "Invoice",
+                "to_folder": "Inbox/Done"
+              },
+              "out": {
+                "new_ids": "ut_list"
+              },
+              "description": "Move the unread invoices to Done"
+            },
+            {
+              "id": "s647",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count the moved emails"
+            },
+            {
+              "id": "s648",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s649",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s650",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s651",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s652",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s653",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/move_all: invoices to Inbox/Done\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s654",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s655",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/move_all: invoices to Inbox/Done: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.exchange/move_all - invoices to Inbox/Done"
+    },
+    {
+      "id": "s656",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.exchange/save_all_attachments - PDF files of every matching email"
+      },
+      "children": [
+        {
+          "id": "s657",
+          "action": "core/comment",
+          "args": {
+            "text": "Save all attachments saves the attachments of every matching email that fit the name pattern; only Invoice 42 has a PDF."
+          }
+        },
+        {
+          "id": "s658",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s659",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ex_att",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty folder"
+            },
+            {
+              "id": "s660",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s661",
+              "action": "ooa.exchange/save_all_attachments",
+              "args": {
+                "subject_contains": "Invoice",
+                "target_folder": "ex_att",
+                "name_pattern": "*.pdf",
+                "overwrite": true
+              },
+              "out": {
+                "files": "ut_list"
+              },
+              "description": "Save the PDF attachments"
+            },
+            {
+              "id": "s662",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count the saved files"
+            },
+            {
+              "id": "s663",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s664",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s665",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s666",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ex_att/inv.pdf"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read the saved PDF's first bytes"
+            },
+            {
+              "id": "s667",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_text$",
+                  "right": "%PDF"
+                }
+              },
+              "children": [
+                {
+                  "id": "s668",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved file",
+              "else": [
+                {
+                  "id": "s669",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved file: expected startsWith \"%PDF\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s670",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s671",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s672",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/save_all_attachments: PDF files of every matching email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s673",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s674",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/save_all_attachments: PDF files of every matching email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.exchange/save_all_attachments - PDF files of every matching email"
+    },
+    {
+      "id": "s675",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.exchange/emails - each unread invoice"
+      },
+      "children": [
+        {
+          "id": "s676",
+          "action": "core/comment",
+          "args": {
+            "text": "Each email in the mailbox is a loop type: the steps run once per matching email, with its fields."
+          }
+        },
+        {
+          "id": "s677",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s678",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s679",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s680",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": ""
+              }
+            },
+            {
+              "id": "s681",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.exchange/emails",
+                "as": "ev",
+                "iterator_args": {
+                  "unread_only": true,
+                  "subject_contains": "Invoice",
+                  "max_results": 10
+                }
+              },
+              "children": [
+                {
+                  "id": "s682",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_n",
+                    "value": {
+                      "expr": "$ut_n + 1"
+                    }
+                  },
+                  "description": "Count the email"
+                },
+                {
+                  "id": "s683",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_text",
+                    "value": "${ut_text}$ev.subject$;"
+                  },
+                  "description": "Collect the subject"
+                }
+              ],
+              "description": "Each unread invoice"
+            },
+            {
+              "id": "s684",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s685",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s686",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s687",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Invoice 42;Invoice 43;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s688",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s689",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Invoice 42;Invoice 43;\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s690",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s691",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s692",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/emails: each unread invoice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s693",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s694",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/emails: each unread invoice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.exchange/emails - each unread invoice"
+    },
+    {
+      "id": "s695",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.exchange/list - the whole test mailbox"
+      },
+      "children": [
+        {
+          "id": "s696",
+          "action": "core/comment",
+          "args": {
+            "text": "List gives a table of the matching emails; the test mailbox's Inbox has two."
+          }
+        },
+        {
+          "id": "s697",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s698",
+              "action": "ooa.exchange/connect",
+              "args": {
+                "ews_url": "$standin_url$/dsk/ews/EWS/Exchange.asmx",
+                "user": "UT\\bot",
+                "password": {
+                  "$credential": "unit_tests/exchange/password"
+                },
+                "sign_in": "basic"
+              },
+              "description": "Connect to the test mailbox"
+            },
+            {
+              "id": "s699",
+              "action": "ooa.exchange/list",
+              "args": {},
+              "out": {
+                "table": "ut_table",
+                "count": "ut_n"
+              },
+              "description": "List the Inbox"
+            },
+            {
+              "id": "s700",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s701",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s702",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s703",
+              "action": "ooa.exchange/get",
+              "args": {
+                "id": "AAMkID1"
+              },
+              "out": {
+                "email": "ev"
+              },
+              "description": "Read Invoice 42"
+            },
+            {
+              "id": "s704",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": "$ev.subject$"
+              },
+              "description": "Its subject"
+            },
+            {
+              "id": "s705",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "Invoice 42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s706",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s707",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"Invoice 42\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s708",
+              "action": "ooa.exchange/disconnect",
+              "args": {},
+              "description": "Close the session"
+            },
+            {
+              "id": "s709",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s710",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.exchange/list: the whole test mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s711",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s712",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.exchange/list: the whole test mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.exchange/list - the whole test mailbox"
+    },
+    {
+      "id": "s713",
+      "action": "core/step",
+      "args": {
+        "title": "31. Summary"
+      },
+      "children": [
+        {
+          "id": "s714",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s715",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s716",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s717",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "31. Summary"
+    }
+  ]
+}

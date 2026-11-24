@@ -1,0 +1,4324 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_file_transfer",
+  "name": "UT FTP and SFTP",
+  "description": "Unit tests of the FTP / SFTP commands on the stand-in's FTP server (port 2121, user agent): folders, uploads, downloads, listing, renames, deletes and folder sync.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ftp_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 2121,
+      "description": "Port of the stand-in's FTP server."
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_table",
+      "type": "Table",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the FTP / SFTP commands on the stand-in's FTP server (port 2121, user agent): folders, uploads, downloads, listing, renames, deletes and folder sync."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT FTP and SFTP started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.file_transfer/send_command - refuses a command that closes the connection"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/send_command (refuses a command that closes the connection) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.file_transfer/send_command",
+                  "args": {
+                    "command": "QUIT"
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with TRANSFER.BAD_COMMAND",
+              "catch": [
+                {
+                  "codes": [
+                    "TRANSFER.BAD_COMMAND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TRANSFER.BAD_COMMAND",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TRANSFER.BAD_COMMAND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/send_command: refuses a command that closes the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/send_command: refuses a command that closes the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.file_transfer/send_command - refuses a command that closes the connection"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.file_transfer/send_command - refuses a sign-in command"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/send_command (refuses a sign-in command) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.file_transfer/send_command",
+                  "args": {
+                    "command": "USER eve"
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with TRANSFER.BAD_COMMAND",
+              "catch": [
+                {
+                  "codes": [
+                    "TRANSFER.BAD_COMMAND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TRANSFER.BAD_COMMAND",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TRANSFER.BAD_COMMAND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/send_command: refuses a sign-in command\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/send_command: refuses a sign-in command: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.file_transfer/send_command - refuses a sign-in command"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.file_transfer/send_command - refuses a command that needs a data connection"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/send_command (refuses a command that needs a data connection) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s37",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.file_transfer/send_command",
+                  "args": {
+                    "command": "LIST /"
+                  },
+                  "id": "s35"
+                }
+              ],
+              "description": "These steps should fail with TRANSFER.BAD_COMMAND",
+              "catch": [
+                {
+                  "codes": [
+                    "TRANSFER.BAD_COMMAND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TRANSFER.BAD_COMMAND",
+              "else": [
+                {
+                  "id": "s41",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TRANSFER.BAD_COMMAND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/send_command: refuses a command that needs a data connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/send_command: refuses a command that needs a data connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.file_transfer/send_command - refuses a command that needs a data connection"
+    },
+    {
+      "id": "s46",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.file_transfer/sync_folder - delete_extra is not allowed both ways"
+      },
+      "children": [
+        {
+          "id": "s47",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/sync_folder (delete_extra is not allowed both ways) and checks its result."
+          }
+        },
+        {
+          "id": "s48",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s51",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.file_transfer/sync_folder",
+                  "args": {
+                    "direction": "both",
+                    "local_folder": "sync",
+                    "remote_folder": "/data",
+                    "delete_extra": true
+                  },
+                  "id": "s49"
+                }
+              ],
+              "description": "These steps should fail with TRANSFER.BAD_OPTION",
+              "catch": [
+                {
+                  "codes": [
+                    "TRANSFER.BAD_OPTION"
+                  ],
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error TRANSFER.BAD_OPTION",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error TRANSFER.BAD_OPTION: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/sync_folder: delete_extra is not allowed both ways\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/sync_folder: delete_extra is not allowed both ways: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.file_transfer/sync_folder - delete_extra is not allowed both ways"
+    },
+    {
+      "id": "s74",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.file_transfer/connect - signs in and lists an empty folder of its own"
+      },
+      "children": [
+        {
+          "id": "s75",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/connect (signs in and lists an empty folder of its own) and checks its result."
+          }
+        },
+        {
+          "id": "s76",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s77"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c1"
+              },
+              "id": "s78"
+            },
+            {
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/c1"
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s79"
+            },
+            {
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$t"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s80"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s81"
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/connect: signs in and lists an empty folder of its own\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/connect: signs in and lists an empty folder of its own: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.file_transfer/connect - signs in and lists an empty folder of its own"
+    },
+    {
+      "id": "s90",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.file_transfer/upload - uploads a file and lists it"
+      },
+      "children": [
+        {
+          "id": "s91",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/upload (uploads a file and lists it) and checks its result."
+          }
+        },
+        {
+          "id": "s92",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s107",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "id": "s93",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case06/a.txt",
+                "text": "hello"
+              },
+              "description": "Prepare the test file ut_case06/a.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s94"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c2"
+              },
+              "id": "s95"
+            },
+            {
+              "action": "ooa.file_transfer/upload",
+              "args": {
+                "local_path": "ut_case06/a.txt",
+                "remote_path": "/c2/a.txt"
+              },
+              "id": "s96"
+            },
+            {
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/c2",
+                "kind": "files"
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s97"
+            },
+            {
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$t"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s98"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s99"
+            },
+            {
+              "id": "s100",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s102",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/upload: uploads a file and lists it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/upload: uploads a file and lists it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.file_transfer/upload - uploads a file and lists it"
+    },
+    {
+      "id": "s108",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.file_transfer/download - downloads what was uploaded"
+      },
+      "children": [
+        {
+          "id": "s109",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/download (downloads what was uploaded) and checks its result."
+          }
+        },
+        {
+          "id": "s110",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s125",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case07",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case07"
+            },
+            {
+              "id": "s111",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case07/a.txt",
+                "text": "hello"
+              },
+              "description": "Prepare the test file ut_case07/a.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s112"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c3"
+              },
+              "id": "s113"
+            },
+            {
+              "action": "ooa.file_transfer/upload",
+              "args": {
+                "local_path": "ut_case07/a.txt",
+                "remote_path": "/c3/a.txt"
+              },
+              "id": "s114"
+            },
+            {
+              "action": "ooa.file_transfer/download",
+              "args": {
+                "remote_path": "/c3/a.txt",
+                "local_path": "ut_case07/back.txt"
+              },
+              "id": "s115"
+            },
+            {
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_case07/back.txt"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s116"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s117"
+            },
+            {
+              "id": "s118",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "hello"
+                }
+              },
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s120",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"hello\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/download: downloads what was uploaded\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/download: downloads what was uploaded: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.file_transfer/download - downloads what was uploaded"
+    },
+    {
+      "id": "s126",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.file_transfer/rename - renames (moves) a file on the server"
+      },
+      "children": [
+        {
+          "id": "s127",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/rename (renames (moves) a file on the server) and checks its result."
+          }
+        },
+        {
+          "id": "s128",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s144",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "id": "s129",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case08/a.txt",
+                "text": "hello"
+              },
+              "description": "Prepare the test file ut_case08/a.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s130"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c4"
+              },
+              "id": "s131"
+            },
+            {
+              "action": "ooa.file_transfer/upload",
+              "args": {
+                "local_path": "ut_case08/a.txt",
+                "remote_path": "/c4/a.txt"
+              },
+              "id": "s132"
+            },
+            {
+              "action": "ooa.file_transfer/rename",
+              "args": {
+                "from": "/c4/a.txt",
+                "to": "/c4/b.txt"
+              },
+              "id": "s133"
+            },
+            {
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/c4",
+                "pattern": "b.txt"
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s134"
+            },
+            {
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$t"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s135"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s136"
+            },
+            {
+              "id": "s137",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s139",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s141",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/rename: renames (moves) a file on the server\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s143",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/rename: renames (moves) a file on the server: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.file_transfer/rename - renames (moves) a file on the server"
+    },
+    {
+      "id": "s145",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.file_transfer/delete - deletes one file"
+      },
+      "children": [
+        {
+          "id": "s146",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/delete (deletes one file) and checks its result."
+          }
+        },
+        {
+          "id": "s147",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s163",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "id": "s148",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case09/a.txt",
+                "text": "hello"
+              },
+              "description": "Prepare the test file ut_case09/a.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s149"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c5"
+              },
+              "id": "s150"
+            },
+            {
+              "action": "ooa.file_transfer/upload",
+              "args": {
+                "local_path": "ut_case09/a.txt",
+                "remote_path": "/c5/a.txt"
+              },
+              "id": "s151"
+            },
+            {
+              "action": "ooa.file_transfer/delete",
+              "args": {
+                "remote_path": "/c5/a.txt"
+              },
+              "id": "s152"
+            },
+            {
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/c5"
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s153"
+            },
+            {
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$t"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s154"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s155"
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/delete: deletes one file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/delete: deletes one file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.file_transfer/delete - deletes one file"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.file_transfer/delete_files - deletes the files that match a pattern"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/delete_files (deletes the files that match a pattern) and checks its result."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s183",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case10"
+            },
+            {
+              "id": "s167",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case10/out/a.csv",
+                "text": "1"
+              },
+              "description": "Prepare the test file ut_case10/out/a.csv"
+            },
+            {
+              "id": "s168",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case10/out/b.csv",
+                "text": "2"
+              },
+              "description": "Prepare the test file ut_case10/out/b.csv"
+            },
+            {
+              "id": "s169",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case10/out/c.txt",
+                "text": "3"
+              },
+              "description": "Prepare the test file ut_case10/out/c.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s170"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c6"
+              },
+              "id": "s171"
+            },
+            {
+              "action": "ooa.file_transfer/upload_folder",
+              "args": {
+                "local_folder": "ut_case10/out",
+                "remote_folder": "/c6"
+              },
+              "id": "s172"
+            },
+            {
+              "action": "ooa.file_transfer/delete_files",
+              "args": {
+                "folder": "/c6",
+                "pattern": "*.csv"
+              },
+              "out": {
+                "deleted": "d"
+              },
+              "id": "s173"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$d"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s174"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s175"
+            },
+            {
+              "id": "s176",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s178",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/delete_files: deletes the files that match a pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/delete_files: deletes the files that match a pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.file_transfer/delete_files - deletes the files that match a pattern"
+    },
+    {
+      "id": "s184",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.file_transfer/change_folder - changes the current folder"
+      },
+      "children": [
+        {
+          "id": "s185",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/change_folder (changes the current folder) and checks its result."
+          }
+        },
+        {
+          "id": "s186",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s198",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case11"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s187"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c7"
+              },
+              "id": "s188"
+            },
+            {
+              "action": "ooa.file_transfer/change_folder",
+              "args": {
+                "folder": "/c7"
+              },
+              "out": {
+                "folder": "f"
+              },
+              "id": "s189"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s190"
+            },
+            {
+              "id": "s191",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": "/c7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq \"/c7\", got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/change_folder: changes the current folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/change_folder: changes the current folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.file_transfer/change_folder - changes the current folder"
+    },
+    {
+      "id": "s199",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.file_transfer/create_folder - creates a folder"
+      },
+      "children": [
+        {
+          "id": "s200",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/create_folder (creates a folder) and checks its result."
+          }
+        },
+        {
+          "id": "s201",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s214",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case12"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s202"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c8/sub"
+              },
+              "id": "s203"
+            },
+            {
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/c8",
+                "kind": "folders"
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s204"
+            },
+            {
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$t"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s205"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s206"
+            },
+            {
+              "id": "s207",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s209",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/create_folder: creates a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/create_folder: creates a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.file_transfer/create_folder - creates a folder"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.file_transfer/delete_folder - deletes a folder and what is in it"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/delete_folder (deletes a folder and what is in it) and checks its result."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s231",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case13",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case13"
+            },
+            {
+              "id": "s218",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case13/a.txt",
+                "text": "hello"
+              },
+              "description": "Prepare the test file ut_case13/a.txt"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s219"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c9"
+              },
+              "id": "s220"
+            },
+            {
+              "action": "ooa.file_transfer/upload",
+              "args": {
+                "local_path": "ut_case13/a.txt",
+                "remote_path": "/c9/a.txt"
+              },
+              "id": "s221"
+            },
+            {
+              "action": "ooa.file_transfer/delete_folder",
+              "args": {
+                "folder": "/c9",
+                "recursive": true
+              },
+              "out": {
+                "deleted_files": "n"
+              },
+              "id": "s222"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s223"
+            },
+            {
+              "id": "s224",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s225",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s226",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/delete_folder: deletes a folder and what is in it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s230",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/delete_folder: deletes a folder and what is in it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.file_transfer/delete_folder - deletes a folder and what is in it"
+    },
+    {
+      "id": "s232",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.file_transfer/upload_folder - uploads a folder"
+      },
+      "children": [
+        {
+          "id": "s233",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/upload_folder (uploads a folder) and checks its result."
+          }
+        },
+        {
+          "id": "s234",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s249",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case14",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case14"
+            },
+            {
+              "id": "s235",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case14/out/a.csv",
+                "text": "1"
+              },
+              "description": "Prepare the test file ut_case14/out/a.csv"
+            },
+            {
+              "id": "s236",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case14/out/b.csv",
+                "text": "2"
+              },
+              "description": "Prepare the test file ut_case14/out/b.csv"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s237"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c10"
+              },
+              "id": "s238"
+            },
+            {
+              "action": "ooa.file_transfer/upload_folder",
+              "args": {
+                "local_folder": "ut_case14/out",
+                "remote_folder": "/c10"
+              },
+              "out": {
+                "files": "f"
+              },
+              "id": "s239"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$f"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s240"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s241"
+            },
+            {
+              "id": "s242",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s244",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/upload_folder: uploads a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/upload_folder: uploads a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.file_transfer/upload_folder - uploads a folder"
+    },
+    {
+      "id": "s250",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.file_transfer/download_folder - downloads a folder"
+      },
+      "children": [
+        {
+          "id": "s251",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/download_folder (downloads a folder) and checks its result."
+          }
+        },
+        {
+          "id": "s252",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s280",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case15",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case15"
+            },
+            {
+              "id": "s253",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case15/out/a.csv",
+                "text": "1"
+              },
+              "description": "Prepare the test file ut_case15/out/a.csv"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case15/out/b.csv",
+                "text": "2"
+              },
+              "description": "Prepare the test file ut_case15/out/b.csv"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s255"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c11"
+              },
+              "id": "s256"
+            },
+            {
+              "action": "ooa.file_transfer/upload_folder",
+              "args": {
+                "local_folder": "ut_case15/out",
+                "remote_folder": "/c11"
+              },
+              "id": "s257"
+            },
+            {
+              "action": "ooa.file_transfer/download_folder",
+              "args": {
+                "remote_folder": "/c11",
+                "local_folder": "ut_case15/in"
+              },
+              "out": {
+                "files": "f"
+              },
+              "id": "s258"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$f"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s259"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s260"
+            },
+            {
+              "id": "s261",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s263",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case15/in/a.csv"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case15/in/a.csv there?"
+            },
+            {
+              "id": "s271",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s272",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case15/in/a.csv exists",
+              "else": [
+                {
+                  "id": "s273",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case15/in/a.csv exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s275",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case15/in/b.csv"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case15/in/b.csv there?"
+            },
+            {
+              "id": "s277",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case15/in/b.csv exists",
+              "else": [
+                {
+                  "id": "s279",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case15/in/b.csv exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/download_folder: downloads a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/download_folder: downloads a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.file_transfer/download_folder - downloads a folder"
+    },
+    {
+      "id": "s281",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.file_transfer/sync_folder - a dry run lists what a sync would upload, without uploading"
+      },
+      "children": [
+        {
+          "id": "s282",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/sync_folder (a dry run lists what a sync would upload, without uploading) and checks its result."
+          }
+        },
+        {
+          "id": "s283",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s297",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case16",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case16"
+            },
+            {
+              "id": "s284",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case16/out/a.csv",
+                "text": "1"
+              },
+              "description": "Prepare the test file ut_case16/out/a.csv"
+            },
+            {
+              "id": "s285",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case16/out/b.csv",
+                "text": "2"
+              },
+              "description": "Prepare the test file ut_case16/out/b.csv"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s286"
+            },
+            {
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/c12"
+              },
+              "id": "s287"
+            },
+            {
+              "action": "ooa.file_transfer/sync_folder",
+              "args": {
+                "direction": "upload",
+                "local_folder": "ut_case16/out",
+                "remote_folder": "/c12",
+                "dry_run": true
+              },
+              "out": {
+                "uploaded": "n"
+              },
+              "id": "s288"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s289"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/sync_folder: a dry run lists what a sync would upload, without uploading\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/sync_folder: a dry run lists what a sync would upload, without uploading: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.file_transfer/sync_folder - a dry run lists what a sync would upload, without uploading"
+    },
+    {
+      "id": "s298",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.file_transfer/send_command - sends a raw FTP command and reads the server's answer"
+      },
+      "children": [
+        {
+          "id": "s299",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.file_transfer/send_command (sends a raw FTP command and reads the server's answer) and checks its result."
+          }
+        },
+        {
+          "id": "s300",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s311",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case17",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case17"
+            },
+            {
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "id": "s301"
+            },
+            {
+              "action": "ooa.file_transfer/send_command",
+              "args": {
+                "command": "SYST"
+              },
+              "out": {
+                "ok": "ok"
+              },
+              "id": "s302"
+            },
+            {
+              "action": "ooa.file_transfer/disconnect",
+              "id": "s303"
+            },
+            {
+              "id": "s304",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s306",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s308",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/send_command: sends a raw FTP command and reads the server's answer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s310",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/send_command: sends a raw FTP command and reads the server's answer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.file_transfer/send_command - sends a raw FTP command and reads the server's answer"
+    },
+    {
+      "id": "s312",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.file_transfer/upload_files - the CSV files of a folder"
+      },
+      "children": [
+        {
+          "id": "s313",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload files sends the local files that fit a pattern to a server folder and gives the ones it uploaded."
+          }
+        },
+        {
+          "id": "s314",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s315",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ft_up",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty local folder"
+            },
+            {
+              "id": "s316",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_up/a.csv",
+                "text": "1"
+              },
+              "description": "First CSV"
+            },
+            {
+              "id": "s317",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_up/b.csv",
+                "text": "2"
+              },
+              "description": "Second CSV"
+            },
+            {
+              "id": "s318",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_up/c.txt",
+                "text": "3"
+              },
+              "description": "A text file left out"
+            },
+            {
+              "id": "s319",
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "description": "Sign in to the test FTP server"
+            },
+            {
+              "id": "s320",
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/u1"
+              },
+              "description": "Server folder"
+            },
+            {
+              "id": "s321",
+              "action": "ooa.file_transfer/delete_files",
+              "args": {
+                "folder": "/u1",
+                "pattern": "*"
+              },
+              "description": "Empty it"
+            },
+            {
+              "id": "s322",
+              "action": "ooa.file_transfer/upload_files",
+              "args": {
+                "local_folder": "ft_up",
+                "pattern": "*.csv",
+                "remote_folder": "/u1",
+                "overwrite": true
+              },
+              "out": {
+                "uploaded": "ut_list"
+              },
+              "description": "Upload the CSV files"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count the uploads"
+            },
+            {
+              "id": "s324",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s326",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s327",
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/u1",
+                "kind": "files"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "List the server folder"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$ut_table$"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s331",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s332",
+              "action": "ooa.file_transfer/disconnect",
+              "args": {},
+              "description": "Sign out"
+            },
+            {
+              "id": "s333",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s334",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/upload_files: the CSV files of a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s335",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s336",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/upload_files: the CSV files of a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.file_transfer/upload_files - the CSV files of a folder"
+    },
+    {
+      "id": "s337",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.file_transfer/download_files - the files that fit a pattern"
+      },
+      "children": [
+        {
+          "id": "s338",
+          "action": "core/comment",
+          "args": {
+            "text": "Download files fetches the server files that fit a pattern into a local folder and gives their local paths."
+          }
+        },
+        {
+          "id": "s339",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s340",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ft_dl",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with empty local folders"
+            },
+            {
+              "id": "s341",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_dl/src/report-1.txt",
+                "text": "R1"
+              },
+              "description": "A report to upload"
+            },
+            {
+              "id": "s342",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_dl/src/report-2.txt",
+                "text": "R2"
+              },
+              "description": "Another report"
+            },
+            {
+              "id": "s343",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_dl/src/other.txt",
+                "text": "X"
+              },
+              "description": "A file left out"
+            },
+            {
+              "id": "s344",
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "description": "Sign in to the test FTP server"
+            },
+            {
+              "id": "s345",
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/d1"
+              },
+              "description": "Server folder"
+            },
+            {
+              "id": "s346",
+              "action": "ooa.file_transfer/upload_folder",
+              "args": {
+                "local_folder": "ft_dl/src",
+                "remote_folder": "/d1"
+              },
+              "description": "Upload the files"
+            },
+            {
+              "id": "s347",
+              "action": "ooa.file_transfer/change_folder",
+              "args": {
+                "folder": "/d1"
+              },
+              "description": "Work in /d1"
+            },
+            {
+              "id": "s348",
+              "action": "ooa.file_transfer/download_files",
+              "args": {
+                "folder": ".",
+                "pattern": "report-*.txt",
+                "local_folder": "ft_dl/in",
+                "overwrite": true
+              },
+              "out": {
+                "files": "ut_list"
+              },
+              "description": "Download the reports"
+            },
+            {
+              "id": "s349",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count the downloads"
+            },
+            {
+              "id": "s350",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s351",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s352",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s353",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ft_dl/in/report-2.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read one back"
+            },
+            {
+              "id": "s354",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "R2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s355",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s356",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"R2\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s357",
+              "action": "ooa.file_transfer/change_folder",
+              "args": {
+                "to_parent": true
+              },
+              "out": {
+                "folder": "ut_text"
+              },
+              "description": "Back to the parent folder"
+            },
+            {
+              "id": "s358",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s360",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"/\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s361",
+              "action": "ooa.file_transfer/disconnect",
+              "args": {},
+              "description": "Sign out"
+            },
+            {
+              "id": "s362",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s363",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/download_files: the files that fit a pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s364",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s365",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/download_files: the files that fit a pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.file_transfer/download_files - the files that fit a pattern"
+    },
+    {
+      "id": "s366",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.file_transfer/list - files only, by pattern"
+      },
+      "children": [
+        {
+          "id": "s367",
+          "action": "core/comment",
+          "args": {
+            "text": "List gives a table of a server folder (name, folder or not, size, modified); kind and pattern narrow it."
+          }
+        },
+        {
+          "id": "s368",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s369",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ft_ls",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty local folder"
+            },
+            {
+              "id": "s370",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_ls/x.csv",
+                "text": "1"
+              },
+              "description": "A CSV"
+            },
+            {
+              "id": "s371",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ft_ls/y.txt",
+                "text": "2"
+              },
+              "description": "A text file"
+            },
+            {
+              "id": "s372",
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "description": "Sign in to the test FTP server"
+            },
+            {
+              "id": "s373",
+              "action": "ooa.file_transfer/create_folder",
+              "args": {
+                "folder": "/l1/sub"
+              },
+              "description": "Server folder with a subfolder"
+            },
+            {
+              "id": "s374",
+              "action": "ooa.file_transfer/upload_folder",
+              "args": {
+                "local_folder": "ft_ls",
+                "remote_folder": "/l1",
+                "include_subfolders": false
+              },
+              "description": "Upload the files"
+            },
+            {
+              "id": "s375",
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/l1",
+                "kind": "files",
+                "pattern": "*.csv"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "List the CSV files"
+            },
+            {
+              "id": "s376",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$ut_table$"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s377",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s378",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s379",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s380",
+              "action": "ooa.file_transfer/list",
+              "args": {
+                "folder": "/l1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "List everything"
+            },
+            {
+              "id": "s381",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$ut_table$"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s382",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s384",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 3, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s385",
+              "action": "ooa.file_transfer/disconnect",
+              "args": {},
+              "description": "Sign out"
+            },
+            {
+              "id": "s386",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s387",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/list: files only, by pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s388",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s389",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/list: files only, by pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.file_transfer/list - files only, by pattern"
+    },
+    {
+      "id": "s390",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.file_transfer/disconnect - the session is gone afterwards"
+      },
+      "children": [
+        {
+          "id": "s391",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect signs out and closes the session; a list step after it fails because no session is open."
+          }
+        },
+        {
+          "id": "s392",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s393",
+              "action": "ooa.file_transfer/connect",
+              "args": {
+                "protocol": "ftp",
+                "host": "127.0.0.1",
+                "port": "$ftp_port$",
+                "user": "agent",
+                "password": {
+                  "$credential": "unit_tests/ftp/password"
+                },
+                "passive_mode": true
+              },
+              "description": "Sign in to the test FTP server"
+            },
+            {
+              "id": "s394",
+              "action": "ooa.file_transfer/disconnect",
+              "args": {},
+              "description": "Sign out"
+            },
+            {
+              "id": "s395",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s396",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "ooa.file_transfer/list",
+                  "args": {
+                    "folder": "/"
+                  },
+                  "description": "List after signing out"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s398",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s399",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s400",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s401",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s403",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/disconnect: the session is gone afterwards\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s404",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s405",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/disconnect: the session is gone afterwards: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.file_transfer/disconnect - the session is gone afterwards"
+    },
+    {
+      "id": "s406",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.file_transfer/connect - SFTP sign-in to a host that does not answer"
+      },
+      "children": [
+        {
+          "id": "s407",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect with protocol sftp signs in over SSH; no SSH server listens on port 1 here, so it fails with a clear connection error instead of hanging."
+          }
+        },
+        {
+          "id": "s408",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s409",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s410",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s411",
+                  "action": "ooa.file_transfer/connect",
+                  "args": {
+                    "protocol": "sftp",
+                    "host": "127.0.0.1",
+                    "port": 1,
+                    "user": "agent",
+                    "password": {
+                      "$credential": "unit_tests/ftp/password"
+                    },
+                    "session": "sftp",
+                    "timeout_seconds": 5
+                  },
+                  "description": "SFTP sign-in"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s412",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s413",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s414",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s415",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s416",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s417",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.file_transfer/connect: SFTP sign-in to a host that does not answer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s419",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.file_transfer/connect: SFTP sign-in to a host that does not answer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.file_transfer/connect - SFTP sign-in to a host that does not answer"
+    },
+    {
+      "id": "s420",
+      "action": "core/step",
+      "args": {
+        "title": "23. Summary"
+      },
+      "children": [
+        {
+          "id": "s421",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s422",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s423",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s424",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "23. Summary"
+    }
+  ]
+}
