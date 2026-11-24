@@ -1,0 +1,4516 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_github",
+  "name": "UT GitHub",
+  "description": "Unit tests of every GitHub command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "gh_conn",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_repo",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_branch",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_number",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_issue",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_state",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_pr",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_merged",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_sha",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_sha2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_size",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_release",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_tag",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_status",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_conclusion",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gh_run",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every GitHub command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT GitHub started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.github/connect - use a saved connection for the later steps"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect names a saved connection (API address and token from the vault); the later GitHub steps use it when they give no token of their own. The case saves the connection ut_github in the run folder first. Checks the connection's name and that a step without a token reads the repository."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s31",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "connections.json",
+                "text": "{\"ut_github\": {\"package\": \"ooa.github\", \"values\": {\"base_url\": \"${standin_url}/biz/github\"}, \"credentials\": {\"token\": \"unit_tests/github/token\"}}}"
+              },
+              "description": "Save the connection ut_github (stand-in address, token from the vault)"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.github/connect",
+              "args": {
+                "connection": "ut_github"
+              },
+              "out": {
+                "connection": "gh_conn"
+              },
+              "description": "Connect with ut_github"
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_conn$",
+                  "right": "ut_github"
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_conn",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_conn: expected eq \"ut_github\", got ${gh_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "ooa.github/get_repository",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "token": ""
+              },
+              "out": {
+                "default_branch": "gh_branch"
+              },
+              "description": "Read the repository through the connection"
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_branch$",
+                  "right": "main"
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_branch",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_branch: expected eq \"main\", got ${gh_branch}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/connect: use a saved connection for the later steps\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/connect: use a saved connection for the later steps: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.github/connect - use a saved connection for the later steps"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.github/list_repositories - an organization's repositories"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "List repositories lists an organization's repositories (or a user's, or the token user's own). Checks ut-org has two."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s47",
+              "action": "ooa.github/list_repositories",
+              "args": {
+                "organization": "ut-org",
+                "token": ""
+              },
+              "out": {
+                "table": "gh_table",
+                "count": "gh_count"
+              },
+              "description": "Repositories of ut-org"
+            },
+            {
+              "id": "s48",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_count",
+              "else": [
+                {
+                  "id": "s50",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_count: expected eq 2, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s51",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/list_repositories: an organization's repositories\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/list_repositories: an organization's repositories: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.github/list_repositories - an organization's repositories"
+    },
+    {
+      "id": "s55",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.github/get_repository - details of one repository"
+      },
+      "children": [
+        {
+          "id": "s56",
+          "action": "core/comment",
+          "args": {
+            "text": "Get repository reads a repository's main details. Checks the description and the open issue count."
+          }
+        },
+        {
+          "id": "s57",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s58",
+              "action": "ooa.github/get_repository",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "token": ""
+              },
+              "out": {
+                "repository": "gh_repo"
+              },
+              "description": "Read billing-service"
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_repo.description$",
+                  "right": "Invoices and payments"
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the description",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the description: expected eq \"Invoices and payments\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_repo.full_name$",
+                  "right": "ut-org/billing-service"
+                }
+              },
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the full name",
+              "else": [
+                {
+                  "id": "s64",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the full name: expected eq \"ut-org/billing-service\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_repository: details of one repository\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_repository: details of one repository: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.github/get_repository - details of one repository"
+    },
+    {
+      "id": "s69",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.github/create_issue - issue with labels and an assignee"
+      },
+      "children": [
+        {
+          "id": "s70",
+          "action": "core/comment",
+          "args": {
+            "text": "Create issue opens a new issue with labels and assignees. Checks the number and reads it back."
+          }
+        },
+        {
+          "id": "s71",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s72",
+              "action": "ooa.github/create_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Rates file missing for 2028",
+                "body": "Found by the nightly agent",
+                "labels": [
+                  "bug",
+                  "finance"
+                ],
+                "assignees": [
+                  "ut-dev"
+                ],
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number",
+                "url": "gh_url"
+              },
+              "description": "Open an issue"
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$gh_number$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new issue number",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new issue number: expected gt 3, got ${gh_number}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "ooa.github/get_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "token": ""
+              },
+              "out": {
+                "issue": "gh_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_issue.title$",
+                  "right": "Rates file missing for 2028"
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the title",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the title: expected eq \"Rates file missing for 2028\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/create_issue: issue with labels and an assignee\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/create_issue: issue with labels and an assignee: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.github/create_issue - issue with labels and an assignee"
+    },
+    {
+      "id": "s84",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.github/get_issue - an open issue"
+      },
+      "children": [
+        {
+          "id": "s85",
+          "action": "core/comment",
+          "args": {
+            "text": "Get issue reads an issue by number. Checks its state, author and labels."
+          }
+        },
+        {
+          "id": "s86",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s87",
+              "action": "ooa.github/get_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": 1,
+                "token": ""
+              },
+              "out": {
+                "issue": "gh_issue",
+                "state": "gh_state"
+              },
+              "description": "Read issue 1"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_state$",
+                  "right": "open"
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_state",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_state: expected eq \"open\", got ${gh_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_issue.author$",
+                  "right": "ut-dev"
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the author",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the author: expected eq \"ut-dev\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gh_issue.labels$",
+                  "right": "finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the labels",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the labels: expected contains \"finance\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_issue: an open issue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_issue: an open issue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.github/get_issue - an open issue"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.github/update_issue - retitle and relabel"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Update issue changes only the inputs given: here the title and the labels. Checks the issue afterwards."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s104",
+              "action": "ooa.github/create_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Draft title",
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number"
+              },
+              "description": "Open an issue to change"
+            },
+            {
+              "id": "s105",
+              "action": "ooa.github/update_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "title": "Final title",
+                "labels": [
+                  "docs"
+                ],
+                "token": ""
+              },
+              "description": "Change its title and labels"
+            },
+            {
+              "id": "s106",
+              "action": "ooa.github/get_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "token": ""
+              },
+              "out": {
+                "issue": "gh_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_issue.title$",
+                  "right": "Final title"
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the title",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the title: expected eq \"Final title\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gh_issue.labels$",
+                  "right": "docs"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the labels",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the labels: expected contains \"docs\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/update_issue: retitle and relabel\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s116",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/update_issue: retitle and relabel: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.github/update_issue - retitle and relabel"
+    },
+    {
+      "id": "s117",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.github/close_issue - close as not planned"
+      },
+      "children": [
+        {
+          "id": "s118",
+          "action": "core/comment",
+          "args": {
+            "text": "Close issue closes an issue as completed or not planned. Checks state closed and the reason."
+          }
+        },
+        {
+          "id": "s119",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s120",
+              "action": "ooa.github/create_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Duplicate request",
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number"
+              },
+              "description": "Open an issue to close"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.github/close_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "reason": "not_planned",
+                "token": ""
+              },
+              "description": "Close it as not planned"
+            },
+            {
+              "id": "s122",
+              "action": "ooa.github/get_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "token": ""
+              },
+              "out": {
+                "issue": "gh_issue",
+                "state": "gh_state"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_state$",
+                  "right": "closed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_state",
+              "else": [
+                {
+                  "id": "s125",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_state: expected eq \"closed\", got ${gh_state}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_issue.state_reason$",
+                  "right": "not_planned"
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the reason",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the reason: expected eq \"not_planned\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/close_issue: close as not planned\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/close_issue: close as not planned: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.github/close_issue - close as not planned"
+    },
+    {
+      "id": "s133",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.github/add_issue_comment - comment on an issue"
+      },
+      "children": [
+        {
+          "id": "s134",
+          "action": "core/comment",
+          "args": {
+            "text": "Add comment adds a comment to an issue or pull request conversation. Checks the comment id and that the issue's comment count grew."
+          }
+        },
+        {
+          "id": "s135",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s136",
+              "action": "ooa.github/create_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Needs a comment",
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number"
+              },
+              "description": "Open an issue to comment on"
+            },
+            {
+              "id": "s137",
+              "action": "ooa.github/add_issue_comment",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "text": "Fixed by the nightly agent run.",
+                "token": ""
+              },
+              "out": {
+                "comment_id": "gh_id",
+                "url": "gh_url"
+              },
+              "description": "Comment on it"
+            },
+            {
+              "id": "s138",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$gh_id$",
+                  "right": 50000
+                }
+              },
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the comment id",
+              "else": [
+                {
+                  "id": "s140",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the comment id: expected gt 50000, got ${gh_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "ooa.github/get_issue",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "token": ""
+              },
+              "out": {
+                "issue": "gh_issue"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_issue.comments$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the comment count",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the comment count: expected eq 1"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/add_issue_comment: comment on an issue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/add_issue_comment: comment on an issue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.github/add_issue_comment - comment on an issue"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.github/list_issues - open issues with a label"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "List issues lists issues filtered by state and labels; pull requests are left out. Checks the one open issue labelled finance and bug."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s152",
+              "action": "ooa.github/list_issues",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "state": "open",
+                "labels": "bug,finance",
+                "token": ""
+              },
+              "out": {
+                "table": "gh_table",
+                "count": "gh_count"
+              },
+              "description": "Open issues labelled bug and finance"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$gh_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the issues",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the issues: expected ge 1, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_table.rows[0][0]$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the first issue number",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the first issue number: expected eq 1"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/list_issues: open issues with a label\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/list_issues: open issues with a label: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.github/list_issues - open issues with a label"
+    },
+    {
+      "id": "s163",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.github/list_pull_requests - open pull requests into main"
+      },
+      "children": [
+        {
+          "id": "s164",
+          "action": "core/comment",
+          "args": {
+            "text": "List pull requests lists pull requests filtered by state, target and source branch. Checks the open one from feature/rates-2027 and both when all states are asked for into any branch."
+          }
+        },
+        {
+          "id": "s165",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s166",
+              "action": "ooa.github/list_pull_requests",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "target_branch": "main",
+                "source_branch": "feature/rates-2027",
+                "token": ""
+              },
+              "out": {
+                "table": "gh_table",
+                "count": "gh_count"
+              },
+              "description": "Open pull requests from feature/rates-2027 into main"
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_count",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_count: expected eq 1, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "ooa.github/list_pull_requests",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "state": "all",
+                "target_branch": "release/2.4",
+                "token": ""
+              },
+              "out": {
+                "count": "gh_count"
+              },
+              "description": "Pull requests into release/2.4, all states"
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_count",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_count: expected eq 1, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/list_pull_requests: open pull requests into main\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/list_pull_requests: open pull requests into main: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.github/list_pull_requests - open pull requests into main"
+    },
+    {
+      "id": "s178",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.github/get_pull_request - a merged pull request"
+      },
+      "children": [
+        {
+          "id": "s179",
+          "action": "core/comment",
+          "args": {
+            "text": "Get pull request reads a pull request, including whether it is merged. Checks pull request 4 is merged and its source branch."
+          }
+        },
+        {
+          "id": "s180",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s181",
+              "action": "ooa.github/get_pull_request",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": 4,
+                "token": ""
+              },
+              "out": {
+                "pull_request": "gh_pr",
+                "merged": "gh_merged"
+              },
+              "description": "Read pull request 4"
+            },
+            {
+              "id": "s182",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_merged$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_merged",
+              "else": [
+                {
+                  "id": "s184",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_merged: expected eq true, got ${gh_merged}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s185",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_pr.head$",
+                  "right": "hotfix/2.3.1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the source branch",
+              "else": [
+                {
+                  "id": "s187",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the source branch: expected eq \"hotfix/2.3.1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_pull_request: a merged pull request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_pull_request: a merged pull request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.github/get_pull_request - a merged pull request"
+    },
+    {
+      "id": "s192",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.github/pull_request_is_merged - merged pull request"
+      },
+      "children": [
+        {
+          "id": "s193",
+          "action": "core/comment",
+          "args": {
+            "text": "Pull request is merged is a condition: true for a pull request that has been merged."
+          }
+        },
+        {
+          "id": "s194",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s196",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.github/pull_request_is_merged",
+                  "args": {
+                    "owner": "ut-org",
+                    "repo": "billing-service",
+                    "number": 4,
+                    "token": ""
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s198",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s199",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s200",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/pull_request_is_merged: merged pull request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/pull_request_is_merged: merged pull request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.github/pull_request_is_merged - merged pull request"
+    },
+    {
+      "id": "s205",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.github/pull_request_is_merged - open pull request"
+      },
+      "children": [
+        {
+          "id": "s206",
+          "action": "core/comment",
+          "args": {
+            "text": "The same condition is false for a pull request that is still open."
+          }
+        },
+        {
+          "id": "s207",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s209",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.github/pull_request_is_merged",
+                  "args": {
+                    "owner": "ut-org",
+                    "repo": "billing-service",
+                    "number": 3,
+                    "token": ""
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s210",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s211",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s212",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s213",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq false, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s215",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/pull_request_is_merged: open pull request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s217",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/pull_request_is_merged: open pull request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.github/pull_request_is_merged - open pull request"
+    },
+    {
+      "id": "s218",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.github/list_branches - a repository's branches"
+      },
+      "children": [
+        {
+          "id": "s219",
+          "action": "core/comment",
+          "args": {
+            "text": "List branches lists the branches with their commit and protection. Checks main and release/2.4 are there."
+          }
+        },
+        {
+          "id": "s220",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s221",
+              "action": "ooa.github/list_branches",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "token": ""
+              },
+              "out": {
+                "table": "gh_table",
+                "count": "gh_count"
+              },
+              "description": "Branches of billing-service"
+            },
+            {
+              "id": "s222",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$gh_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s223",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the branches",
+              "else": [
+                {
+                  "id": "s224",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the branches: expected ge 2, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s225",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/list_branches: a repository's branches\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s227",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/list_branches: a repository's branches: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.github/list_branches - a repository's branches"
+    },
+    {
+      "id": "s229",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.github/create_branch - branch from release/2.4"
+      },
+      "children": [
+        {
+          "id": "s230",
+          "action": "core/comment",
+          "args": {
+            "text": "Create branch starts a branch from another branch and gives back its commit. Checks the commit equals release/2.4's."
+          }
+        },
+        {
+          "id": "s231",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s232",
+              "action": "ooa.github/create_branch",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "branch": "ut-run/from-release",
+                "from_branch": "release/2.4",
+                "token": ""
+              },
+              "out": {
+                "sha": "gh_sha"
+              },
+              "description": "Create ut-run/from-release"
+            },
+            {
+              "id": "s233",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_sha$",
+                  "right": "6051acd2998c61b900af37fca3bf4a3bc9c3ed4a"
+                }
+              },
+              "children": [
+                {
+                  "id": "s234",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_sha",
+              "else": [
+                {
+                  "id": "s235",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_sha: expected eq \"6051acd2998c61b900af37fca3bf4a3bc9c3ed4a\", got ${gh_sha}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s236",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s237",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/create_branch: branch from release/2.4\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s239",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/create_branch: branch from release/2.4: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.github/create_branch - branch from release/2.4"
+    },
+    {
+      "id": "s240",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.github/create_pull_request - propose a change as a draft"
+      },
+      "children": [
+        {
+          "id": "s241",
+          "action": "core/comment",
+          "args": {
+            "text": "Create pull request proposes merging one branch into another, here as a draft. Checks the number and that it reads back as a draft."
+          }
+        },
+        {
+          "id": "s242",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s243",
+              "action": "ooa.github/create_branch",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "branch": "ut-run/draft-change",
+                "token": ""
+              },
+              "description": "Create the source branch"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.github/create_pull_request",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Draft: new rates",
+                "source_branch": "ut-run/draft-change",
+                "target_branch": "main",
+                "body": "Work in progress",
+                "draft": true,
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number",
+                "url": "gh_url"
+              },
+              "description": "Open a draft pull request"
+            },
+            {
+              "id": "s245",
+              "action": "ooa.github/get_pull_request",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "token": ""
+              },
+              "out": {
+                "pull_request": "gh_pr"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s246",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_pr.draft$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the draft flag",
+              "else": [
+                {
+                  "id": "s248",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the draft flag: expected eq true"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s249",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gh_url$",
+                  "right": "/pull/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the address",
+              "else": [
+                {
+                  "id": "s251",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the address: expected contains \"/pull/\", got ${gh_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s253",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/create_pull_request: propose a change as a draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s255",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/create_pull_request: propose a change as a draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.github/create_pull_request - propose a change as a draft"
+    },
+    {
+      "id": "s256",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.github/merge_pull_request - squash merge"
+      },
+      "children": [
+        {
+          "id": "s257",
+          "action": "core/comment",
+          "args": {
+            "text": "Merge pull request merges with a merge commit, squash or rebase; expected_head_sha guards against a late push. The case opens a pull request first. Checks merged and the merge commit."
+          }
+        },
+        {
+          "id": "s258",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s259",
+              "action": "ooa.github/create_branch",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "branch": "ut-run/to-merge",
+                "token": ""
+              },
+              "out": {
+                "sha": "gh_sha2"
+              },
+              "description": "Create the source branch"
+            },
+            {
+              "id": "s260",
+              "action": "ooa.github/create_pull_request",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "title": "Merge me",
+                "source_branch": "ut-run/to-merge",
+                "target_branch": "main",
+                "token": ""
+              },
+              "out": {
+                "number": "gh_number"
+              },
+              "description": "Open the pull request"
+            },
+            {
+              "id": "s261",
+              "action": "ooa.github/merge_pull_request",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "number": "$gh_number$",
+                "method": "squash",
+                "commit_title": "Merge me (squashed)",
+                "expected_head_sha": "$gh_sha2$",
+                "token": ""
+              },
+              "out": {
+                "sha": "gh_sha",
+                "merged": "gh_merged"
+              },
+              "description": "Squash-merge it"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_merged$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_merged",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_merged: expected eq true, got ${gh_merged}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$gh_sha$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the merge commit",
+              "else": [
+                {
+                  "id": "s267",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the merge commit: expected notEmpty , got ${gh_sha}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s269",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/merge_pull_request: squash merge\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s271",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/merge_pull_request: squash merge: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.github/merge_pull_request - squash merge"
+    },
+    {
+      "id": "s272",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.github/merge_pull_request - already merged is refused"
+      },
+      "children": [
+        {
+          "id": "s273",
+          "action": "core/comment",
+          "args": {
+            "text": "Merging a pull request that cannot be merged fails with GITHUB.NOT_MERGEABLE."
+          }
+        },
+        {
+          "id": "s274",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s276",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "ooa.github/merge_pull_request",
+                  "args": {
+                    "owner": "ut-org",
+                    "repo": "billing-service",
+                    "number": 4,
+                    "token": ""
+                  },
+                  "out": {
+                    "merged": "gh_merged"
+                  },
+                  "description": "Merge pull request 4 again"
+                }
+              ],
+              "description": "These steps should fail with GITHUB.NOT_MERGEABLE",
+              "catch": [
+                {
+                  "codes": [
+                    "GITHUB.NOT_MERGEABLE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s278",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s280",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error GITHUB.NOT_MERGEABLE",
+              "else": [
+                {
+                  "id": "s281",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error GITHUB.NOT_MERGEABLE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s282",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/merge_pull_request: already merged is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s284",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/merge_pull_request: already merged is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.github/merge_pull_request - already merged is refused"
+    },
+    {
+      "id": "s286",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.github/get_file - read a file as text"
+      },
+      "children": [
+        {
+          "id": "s287",
+          "action": "core/comment",
+          "args": {
+            "text": "Get file contents reads a file from a branch as text with its version id and size. Checks the text."
+          }
+        },
+        {
+          "id": "s288",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s289",
+              "action": "ooa.github/get_file",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "path": "config/rates.json",
+                "token": ""
+              },
+              "out": {
+                "text": "gh_text",
+                "sha": "gh_sha",
+                "size": "gh_size"
+              },
+              "description": "Read config/rates.json"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_text$",
+                  "right": "{\"vat\": 20}\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_text",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_text: expected eq \"\\\"vat\\\": 20\\n\", got ${gh_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_size$",
+                  "right": 12
+                }
+              },
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_size",
+              "else": [
+                {
+                  "id": "s295",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_size: expected eq 12, got ${gh_size}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s296",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s297",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_file: read a file as text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s299",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_file: read a file as text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.github/get_file - read a file as text"
+    },
+    {
+      "id": "s300",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.github/put_file - commit a file to a new branch"
+      },
+      "children": [
+        {
+          "id": "s301",
+          "action": "core/comment",
+          "args": {
+            "text": "Create or update file commits text (or a local file) to a branch; for a changed file its version id is looked up first. Checks the commit and reads the file back."
+          }
+        },
+        {
+          "id": "s302",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s303",
+              "action": "ooa.github/create_branch",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "branch": "ut-run/report",
+                "token": ""
+              },
+              "description": "Create the branch to commit to"
+            },
+            {
+              "id": "s304",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_github_report.csv",
+                "text": "month,total\n2026-10,1200\n"
+              },
+              "description": "Prepare the local file"
+            },
+            {
+              "id": "s305",
+              "action": "ooa.github/put_file",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "path": "reports/2026-10.csv",
+                "message": "Add October report",
+                "local_file": "ut_github_report.csv",
+                "branch": "ut-run/report",
+                "token": ""
+              },
+              "out": {
+                "commit_sha": "gh_sha",
+                "sha": "gh_sha2"
+              },
+              "description": "Commit the local file"
+            },
+            {
+              "id": "s306",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$gh_sha$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the commit",
+              "else": [
+                {
+                  "id": "s308",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the commit: expected notEmpty , got ${gh_sha}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s309",
+              "action": "ooa.github/put_file",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "path": "reports/2026-10.csv",
+                "message": "Fix October total",
+                "text": "month,total\n2026-10,1250\n",
+                "branch": "ut-run/report",
+                "token": ""
+              },
+              "out": {
+                "commit_sha": "gh_sha"
+              },
+              "description": "Change it with text"
+            },
+            {
+              "id": "s310",
+              "action": "ooa.github/get_file",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "path": "reports/2026-10.csv",
+                "ref": "ut-run/report",
+                "save_to": "ut_github_back.csv",
+                "token": ""
+              },
+              "out": {
+                "size": "gh_size"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_github_back.csv"
+              },
+              "out": {
+                "text": "gh_text"
+              },
+              "description": "Read the saved copy"
+            },
+            {
+              "id": "s312",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_text$",
+                  "right": "month,total\n2026-10,1250\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s313",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_text",
+              "else": [
+                {
+                  "id": "s314",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_text: expected eq \"month,total\\n2026-10,1250\\n\", got ${gh_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/put_file: commit a file to a new branch\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/put_file: commit a file to a new branch: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.github/put_file - commit a file to a new branch"
+    },
+    {
+      "id": "s319",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.github/get_latest_release - newest published release"
+      },
+      "children": [
+        {
+          "id": "s320",
+          "action": "core/comment",
+          "args": {
+            "text": "Get latest release reads the newest published release; pre-releases are skipped. Checks v2.4.0."
+          }
+        },
+        {
+          "id": "s321",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s322",
+              "action": "ooa.github/get_latest_release",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "token": ""
+              },
+              "out": {
+                "release": "gh_release",
+                "tag": "gh_tag"
+              },
+              "description": "Latest release"
+            },
+            {
+              "id": "s323",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_tag$",
+                  "right": "v2.4.0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_tag",
+              "else": [
+                {
+                  "id": "s325",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_tag: expected eq \"v2.4.0\", got ${gh_tag}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s326",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$gh_release.assets$",
+                  "right": "billing-2.4.0.zip"
+                }
+              },
+              "children": [
+                {
+                  "id": "s327",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the assets",
+              "else": [
+                {
+                  "id": "s328",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the assets: expected contains \"billing-2.4.0.zip\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s330",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_latest_release: newest published release\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s331",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s332",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_latest_release: newest published release: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.github/get_latest_release - newest published release"
+    },
+    {
+      "id": "s333",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.github/create_release - pre-release from a branch"
+      },
+      "children": [
+        {
+          "id": "s334",
+          "action": "core/comment",
+          "args": {
+            "text": "Create release publishes a release for a tag (made from the target when new), here as a pre-release. Checks the id and that the latest release is still v2.4.0."
+          }
+        },
+        {
+          "id": "s335",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s336",
+              "action": "ooa.github/create_release",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "tag": "ut-2.5.0-beta",
+                "name": "2.5.0 beta",
+                "notes": "Beta for testing",
+                "target": "main",
+                "prerelease": true,
+                "token": ""
+              },
+              "out": {
+                "release_id": "gh_id",
+                "url": "gh_url"
+              },
+              "description": "Publish ut-2.5.0-beta"
+            },
+            {
+              "id": "s337",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$gh_id$",
+                  "right": 7000
+                }
+              },
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the release id",
+              "else": [
+                {
+                  "id": "s339",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the release id: expected gt 7000, got ${gh_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s340",
+              "action": "ooa.github/get_latest_release",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "token": ""
+              },
+              "out": {
+                "tag": "gh_tag"
+              },
+              "description": "Latest release"
+            },
+            {
+              "id": "s341",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_tag$",
+                  "right": "v2.4.0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_tag",
+              "else": [
+                {
+                  "id": "s343",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_tag: expected eq \"v2.4.0\", got ${gh_tag}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/create_release: pre-release from a branch\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s347",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/create_release: pre-release from a branch: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.github/create_release - pre-release from a branch"
+    },
+    {
+      "id": "s348",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.github/run_workflow - start a workflow with inputs"
+      },
+      "children": [
+        {
+          "id": "s349",
+          "action": "core/comment",
+          "args": {
+            "text": "Run workflow starts a workflow that allows manual runs, with inputs. Checks a new queued run of it appears."
+          }
+        },
+        {
+          "id": "s350",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s351",
+              "action": "ooa.github/run_workflow",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "workflow": "deploy.yml",
+                "ref": "main",
+                "inputs": {
+                  "environment": "staging"
+                },
+                "token": ""
+              },
+              "description": "Run deploy.yml on main"
+            },
+            {
+              "id": "s352",
+              "action": "ooa.github/list_workflow_runs",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "workflow": "deploy.yml",
+                "status": "queued",
+                "token": ""
+              },
+              "out": {
+                "count": "gh_count"
+              },
+              "description": "Queued runs of deploy.yml"
+            },
+            {
+              "id": "s353",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$gh_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the queued runs",
+              "else": [
+                {
+                  "id": "s355",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the queued runs: expected ge 1, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/run_workflow: start a workflow with inputs\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/run_workflow: start a workflow with inputs: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.github/run_workflow - start a workflow with inputs"
+    },
+    {
+      "id": "s360",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.github/list_workflow_runs - failed runs of one workflow"
+      },
+      "children": [
+        {
+          "id": "s361",
+          "action": "core/comment",
+          "args": {
+            "text": "List workflow runs lists Actions runs, newest first, for one workflow or all, filtered by branch and status or result. Checks the one failed CI run."
+          }
+        },
+        {
+          "id": "s362",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s363",
+              "action": "ooa.github/list_workflow_runs",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "workflow": "ci.yml",
+                "status": "failure",
+                "token": ""
+              },
+              "out": {
+                "table": "gh_table",
+                "count": "gh_count"
+              },
+              "description": "Failed runs of ci.yml"
+            },
+            {
+              "id": "s364",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s365",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_count",
+              "else": [
+                {
+                  "id": "s366",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_count: expected eq 1, got ${gh_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s367",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_table.rows[0][0]$",
+                  "right": 9003
+                }
+              },
+              "children": [
+                {
+                  "id": "s368",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the run id",
+              "else": [
+                {
+                  "id": "s369",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the run id: expected eq 9003"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s371",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/list_workflow_runs: failed runs of one workflow\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s373",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/list_workflow_runs: failed runs of one workflow: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.github/list_workflow_runs - failed runs of one workflow"
+    },
+    {
+      "id": "s374",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.github/get_workflow_run - status and result of a run"
+      },
+      "children": [
+        {
+          "id": "s375",
+          "action": "core/comment",
+          "args": {
+            "text": "Get workflow run reads one run's status and result. Checks run 9001 completed with success."
+          }
+        },
+        {
+          "id": "s376",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s377",
+              "action": "ooa.github/get_workflow_run",
+              "args": {
+                "owner": "ut-org",
+                "repo": "billing-service",
+                "run_id": 9001,
+                "token": ""
+              },
+              "out": {
+                "status": "gh_status",
+                "conclusion": "gh_conclusion",
+                "run": "gh_run"
+              },
+              "description": "Read run 9001"
+            },
+            {
+              "id": "s378",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_status$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s379",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_status",
+              "else": [
+                {
+                  "id": "s380",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_status: expected eq \"completed\", got ${gh_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s381",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_conclusion$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s382",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gh_conclusion",
+              "else": [
+                {
+                  "id": "s383",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gh_conclusion: expected eq \"success\", got ${gh_conclusion}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s384",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_run.branch$",
+                  "right": "main"
+                }
+              },
+              "children": [
+                {
+                  "id": "s385",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the branch",
+              "else": [
+                {
+                  "id": "s386",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the branch: expected eq \"main\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s387",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s388",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/get_workflow_run: status and result of a run\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s389",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s390",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/get_workflow_run: status and result of a run: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.github/get_workflow_run - status and result of a run"
+    },
+    {
+      "id": "s391",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.github/disconnect - forget the connection"
+      },
+      "children": [
+        {
+          "id": "s392",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps then give their own token and address. Checks a step without a token now fails, and one with its own token works."
+          }
+        },
+        {
+          "id": "s393",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s394",
+              "action": "ooa.github/disconnect",
+              "args": {},
+              "description": "Forget ut_github"
+            },
+            {
+              "id": "s395",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s396",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "ooa.github/get_repository",
+                  "args": {
+                    "base_url": "${standin_url}/biz/github",
+                    "owner": "ut-org",
+                    "repo": "billing-service",
+                    "token": ""
+                  },
+                  "out": {
+                    "default_branch": "gh_branch"
+                  },
+                  "description": "No token now: should fail"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s398",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s399",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s400",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s401",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s402",
+              "action": "ooa.github/get_repository",
+              "args": {
+                "base_url": "${standin_url}/biz/github",
+                "token": {
+                  "$credential": "unit_tests/github/token"
+                },
+                "owner": "ut-org",
+                "repo": "docs-site"
+              },
+              "out": {
+                "repository": "gh_repo"
+              },
+              "description": "With the step's own token and address"
+            },
+            {
+              "id": "s403",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gh_repo.description$",
+                  "right": "Help pages"
+                }
+              },
+              "children": [
+                {
+                  "id": "s404",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the description",
+              "else": [
+                {
+                  "id": "s405",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the description: expected eq \"Help pages\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s406",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s407",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.github/disconnect: forget the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s408",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s409",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.github/disconnect: forget the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.github/disconnect - forget the connection"
+    },
+    {
+      "id": "s410",
+      "action": "core/step",
+      "args": {
+        "title": "27. Summary"
+      },
+      "children": [
+        {
+          "id": "s411",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s412",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s413",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s414",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "27. Summary"
+    }
+  ]
+}

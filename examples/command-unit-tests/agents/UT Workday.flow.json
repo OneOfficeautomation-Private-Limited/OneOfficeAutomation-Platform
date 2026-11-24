@@ -1,0 +1,1749 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_workday",
+  "name": "UT Workday",
+  "description": "Unit tests of every Workday command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wd_token",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_expires",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_json",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_event",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_status",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_done",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_pct",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_closed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wd_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Workday command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Workday started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.workday/authenticate - sign in and keep a session"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Authenticate swaps the API client's refresh token for an access token and keeps host, tenant and token as the Workday session, so the next steps need no address or sign-in. Checks the token's lifetime."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.workday/authenticate",
+              "args": {
+                "host": "${standin_url}/biz/workday",
+                "tenant": "ut_acme",
+                "client_id": "ut-client",
+                "client_secret": {
+                  "$credential": "unit_tests/workday/client_secret"
+                },
+                "refresh_token": {
+                  "$credential": "unit_tests/workday/refresh_token"
+                }
+              },
+              "out": {
+                "access_token": "wd_token",
+                "expires_in": "wd_expires"
+              },
+              "description": "Sign in to the stand-in tenant"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_expires$",
+                  "right": 3600
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_expires",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_expires: expected eq 3600, got ${wd_expires}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$wd_token$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the access token",
+              "else": [
+                {
+                  "id": "s24",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the access token: expected notEmpty , got ${wd_token}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/authenticate: sign in and keep a session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/authenticate: sign in and keep a session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.workday/authenticate - sign in and keep a session"
+    },
+    {
+      "id": "s29",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.workday/search_workers - find a worker in the session"
+      },
+      "children": [
+        {
+          "id": "s30",
+          "action": "core/comment",
+          "args": {
+            "text": "Search workers finds workers whose name or id contains the text; this step has no host, tenant or token of its own, so it uses the session. Checks one worker is found."
+          }
+        },
+        {
+          "id": "s31",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s32",
+              "action": "ooa.workday/search_workers",
+              "args": {
+                "search": "patel"
+              },
+              "out": {
+                "table": "wd_table",
+                "count": "wd_count"
+              },
+              "description": "Search for Patel"
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_count",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_count: expected eq 1, got ${wd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/search_workers: find a worker in the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/search_workers: find a worker in the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.workday/search_workers - find a worker in the session"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.workday/get - read one worker by its REST path"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "Call REST endpoint (GET) reads any Workday REST path and gives back the JSON. Checks the worker's name."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s43",
+              "action": "ooa.workday/get",
+              "args": {
+                "path": "/ccx/api/v1/ut_acme/workers/a0000000000000000000000000000001"
+              },
+              "out": {
+                "json": "wd_json"
+              },
+              "description": "Read worker a000...0001"
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_json.descriptor$",
+                  "right": "Asha Patel"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the worker's name",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the worker's name: expected eq \"Asha Patel\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/get: read one worker by its REST path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/get: read one worker by its REST path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.workday/get - read one worker by its REST path"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.workday/get_report - report as json"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Get report (RaaS) runs a custom report published as a web service and turns its rows into a table; here Workday is asked for JSON. Checks both report rows arrive."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.workday/get_report",
+              "args": {
+                "report_path": "/ccx/service/customreport2/ut_acme/ut_reports/Finance_Workers",
+                "format": "json",
+                "parameters": {
+                  "Cost_Center": "Finance"
+                }
+              },
+              "out": {
+                "table": "wd_table",
+                "count": "wd_count"
+              },
+              "description": "Run the Finance_Workers report"
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_count",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_count: expected eq 2, got ${wd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/get_report: report as json\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/get_report: report as json: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.workday/get_report - report as json"
+    },
+    {
+      "id": "s62",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.workday/get_report - report as csv"
+      },
+      "children": [
+        {
+          "id": "s63",
+          "action": "core/comment",
+          "args": {
+            "text": "Get report (RaaS) runs a custom report published as a web service and turns its rows into a table; here Workday is asked for CSV. Checks both report rows arrive."
+          }
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s65",
+              "action": "ooa.workday/get_report",
+              "args": {
+                "report_path": "/ccx/service/customreport2/ut_acme/ut_reports/Finance_Workers",
+                "format": "csv",
+                "parameters": {
+                  "Cost_Center": "Finance"
+                },
+                "save_to_file": "ut_workday_report.csv"
+              },
+              "out": {
+                "table": "wd_table",
+                "count": "wd_count",
+                "path": "wd_path"
+              },
+              "description": "Run the Finance_Workers report"
+            },
+            {
+              "id": "s66",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_count",
+              "else": [
+                {
+                  "id": "s68",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_count: expected eq 2, got ${wd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$wd_path$",
+                  "right": "ut_workday_report.csv"
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file: expected contains \"ut_workday_report.csv\", got ${wd_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/get_report: report as csv\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/get_report: report as csv: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.workday/get_report - report as csv"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.workday/get_report - report as workday_xml"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Get report (RaaS) runs a custom report published as a web service and turns its rows into a table; here Workday is asked for Workday XML with reference ids. Checks both report rows arrive."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s79",
+              "action": "ooa.workday/get_report",
+              "args": {
+                "report_path": "/ccx/service/customreport2/ut_acme/ut_reports/Finance_Workers",
+                "format": "workday_xml",
+                "parameters": {
+                  "Cost_Center": "Finance"
+                }
+              },
+              "out": {
+                "table": "wd_table",
+                "count": "wd_count"
+              },
+              "description": "Run the Finance_Workers report"
+            },
+            {
+              "id": "s80",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_count",
+              "else": [
+                {
+                  "id": "s82",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_count: expected eq 2, got ${wd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s84",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/get_report: report as workday_xml\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/get_report: report as workday_xml: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.workday/get_report - report as workday_xml"
+    },
+    {
+      "id": "s87",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.workday/launch_integration - start an integration with parameters"
+      },
+      "children": [
+        {
+          "id": "s88",
+          "action": "core/comment",
+          "args": {
+            "text": "Launch integration starts an integration system through the Integrations web service, with launch parameters, and gives back the event id. Checks an event id came back."
+          }
+        },
+        {
+          "id": "s89",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s90",
+              "action": "ooa.workday/launch_integration",
+              "args": {
+                "integration_system_id": "INT_Worker_Load",
+                "parameters": {
+                  "Effective_Date": "2026-11-01",
+                  "Include_Terminated": false
+                }
+              },
+              "out": {
+                "event_id": "wd_event"
+              },
+              "description": "Launch INT_Worker_Load"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$wd_event$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the event id",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the event id: expected notEmpty , got ${wd_event}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/launch_integration: start an integration with parameters\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/launch_integration: start an integration with parameters: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.workday/launch_integration - start an integration with parameters"
+    },
+    {
+      "id": "s98",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.workday/get_integration_event - status of a launched integration"
+      },
+      "children": [
+        {
+          "id": "s99",
+          "action": "core/comment",
+          "args": {
+            "text": "Get integration event reads how an integration run is going. The case launches one, then checks it is Completed, 100 percent and done."
+          }
+        },
+        {
+          "id": "s100",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s101",
+              "action": "ooa.workday/launch_integration",
+              "args": {
+                "integration_system_id": "INT_Worker_Load"
+              },
+              "out": {
+                "event_id": "wd_event"
+              },
+              "description": "Launch an integration to look at"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.workday/get_integration_event",
+              "args": {
+                "event_id": "$wd_event$"
+              },
+              "out": {
+                "status": "wd_status",
+                "done": "wd_done",
+                "percent_complete": "wd_pct"
+              },
+              "description": "Read its status"
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_status$",
+                  "right": "Completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_status",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_status: expected eq \"Completed\", got ${wd_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_done$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_done",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_done: expected eq true, got ${wd_done}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_pct$",
+                  "right": 100
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_pct",
+              "else": [
+                {
+                  "id": "s111",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_pct: expected eq 100, got ${wd_pct}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/get_integration_event: status of a launched integration\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/get_integration_event: status of a launched integration: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.workday/get_integration_event - status of a launched integration"
+    },
+    {
+      "id": "s116",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.workday/launch_integration - unknown integration is refused"
+      },
+      "children": [
+        {
+          "id": "s117",
+          "action": "core/comment",
+          "args": {
+            "text": "When Workday does not know the integration system, the step fails with WORKDAY.SOAP_FAULT and Workday's reason."
+          }
+        },
+        {
+          "id": "s118",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s120",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "ooa.workday/launch_integration",
+                  "args": {
+                    "integration_system_id": "INT_Missing"
+                  },
+                  "out": {
+                    "event_id": "wd_event"
+                  },
+                  "description": "Launch an unknown integration"
+                }
+              ],
+              "description": "These steps should fail with WORKDAY.SOAP_FAULT",
+              "catch": [
+                {
+                  "codes": [
+                    "WORKDAY.SOAP_FAULT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s122",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WORKDAY.SOAP_FAULT",
+              "else": [
+                {
+                  "id": "s125",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WORKDAY.SOAP_FAULT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/launch_integration: unknown integration is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/launch_integration: unknown integration is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.workday/launch_integration - unknown integration is refused"
+    },
+    {
+      "id": "s130",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.workday/launch_eib - load a file through an EIB"
+      },
+      "children": [
+        {
+          "id": "s131",
+          "action": "core/comment",
+          "args": {
+            "text": "Launch EIB with file starts an inbound EIB and attaches the file to load. The case writes a small CSV first. Checks an event id came back."
+          }
+        },
+        {
+          "id": "s132",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s133",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_workday_load.csv",
+                "text": "Employee_ID,Cost_Center\nUT-1001,Finance\n"
+              },
+              "description": "Prepare the file to load"
+            },
+            {
+              "id": "s134",
+              "action": "ooa.workday/launch_eib",
+              "args": {
+                "integration_system_id": "EIB_Cost_Centers",
+                "file": "ut_workday_load.csv",
+                "file_field": "Attachment"
+              },
+              "out": {
+                "event_id": "wd_event"
+              },
+              "description": "Launch EIB_Cost_Centers with the file"
+            },
+            {
+              "id": "s135",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$wd_event$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the event id",
+              "else": [
+                {
+                  "id": "s137",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the event id: expected notEmpty , got ${wd_event}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/launch_eib: load a file through an EIB\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/launch_eib: load a file through an EIB: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.workday/launch_eib - load a file through an EIB"
+    },
+    {
+      "id": "s142",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.workday/end_session - forget the session"
+      },
+      "children": [
+        {
+          "id": "s143",
+          "action": "core/comment",
+          "args": {
+            "text": "End session forgets the Workday session; later steps give their own host, tenant and token. Checks a session was open, then searches with the step's own sign-in."
+          }
+        },
+        {
+          "id": "s144",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s145",
+              "action": "ooa.workday/end_session",
+              "args": {},
+              "out": {
+                "closed": "wd_closed"
+              },
+              "description": "Close the Workday session"
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_closed",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_closed: expected eq true, got ${wd_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "ooa.workday/search_workers",
+              "args": {
+                "host": "${standin_url}/biz/workday",
+                "tenant": "ut_acme",
+                "access_token": {
+                  "$credential": "unit_tests/workday/token"
+                }
+              },
+              "out": {
+                "count": "wd_count"
+              },
+              "description": "Search with the step's own host, tenant and token"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$wd_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check wd_count",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "wd_count: expected eq 3, got ${wd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.workday/end_session: forget the session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s156",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.workday/end_session: forget the session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.workday/end_session - forget the session"
+    },
+    {
+      "id": "s157",
+      "action": "core/step",
+      "args": {
+        "title": "12. Summary"
+      },
+      "children": [
+        {
+          "id": "s158",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s159",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s160",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s161",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "12. Summary"
+    }
+  ]
+}

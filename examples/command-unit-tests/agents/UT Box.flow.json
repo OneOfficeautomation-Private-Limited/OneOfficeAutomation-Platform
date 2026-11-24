@@ -1,0 +1,3740 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_box",
+  "name": "UT Box",
+  "description": "Unit tests of every Box command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "bx_conn",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_id2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_info",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_durl",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "bx_text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Box command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Box started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.box/connect - use a saved connection"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect picks a saved connection (API and upload addresses plus a vault reference for the token) for the later Box steps, which then need neither. The case first saves the connection in the run folder's connections.json, pointing at the stand-in. Checks the connection's name comes back."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s28",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "connections.json",
+                "text": "{\n \"UT Box\": {\n  \"package\": \"ooa.box\",\n  \"values\": {\n   \"base_url\": \"${standin_url}/biz/box\",\n   \"upload_url\": \"${standin_url}/biz/box\"\n  },\n  \"credentials\": {\n   \"access_token\": \"unit_tests/box/token\"\n  }\n }\n}"
+              },
+              "description": "Save the stand-in connection"
+            },
+            {
+              "id": "s29",
+              "action": "ooa.box/connect",
+              "args": {
+                "connection": "UT Box"
+              },
+              "out": {
+                "connection": "bx_conn"
+              },
+              "description": "Use the UT Box connection"
+            },
+            {
+              "id": "s30",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_conn$",
+                  "right": "UT Box"
+                }
+              },
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bx_conn",
+              "else": [
+                {
+                  "id": "s32",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bx_conn: expected eq \"UT Box\", got ${bx_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/connect: use a saved connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/connect: use a saved connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.box/connect - use a saved connection"
+    },
+    {
+      "id": "s37",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.box/list_folder - items of a folder"
+      },
+      "children": [
+        {
+          "id": "s38",
+          "action": "core/comment",
+          "args": {
+            "text": "List folder items gives the files and folders inside a folder. Checks the two files of UT Finance."
+          }
+        },
+        {
+          "id": "s39",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s40",
+              "action": "ooa.box/list_folder",
+              "args": {
+                "folder_id": "5000001",
+                "access_token": ""
+              },
+              "out": {
+                "table": "bx_table",
+                "count": "bx_count"
+              },
+              "description": "List UT Finance"
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bx_count",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bx_count: expected eq 2, got ${bx_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][2]$",
+                  "right": "invoice-2026-11.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the first file",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the first file: expected eq \"invoice-2026-11.pdf\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/list_folder: items of a folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/list_folder: items of a folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.box/list_folder - items of a folder"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.box/create_folder - new folder, then the same name again"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Create folder makes a folder and gives its id; with reuse_existing on, the same name again gives the existing folder's id instead of failing. Checks both ids match."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.box/create_folder",
+              "args": {
+                "parent_folder_id": "5000001",
+                "name": "UT Reports",
+                "access_token": ""
+              },
+              "out": {
+                "folder_id": "bx_id"
+              },
+              "description": "Create UT Reports"
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$bx_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the folder id",
+              "else": [
+                {
+                  "id": "s57",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the folder id: expected notEmpty , got ${bx_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s58",
+              "action": "ooa.box/create_folder",
+              "args": {
+                "parent_folder_id": "5000001",
+                "name": "UT Reports",
+                "reuse_existing": true,
+                "access_token": ""
+              },
+              "out": {
+                "folder_id": "bx_id2"
+              },
+              "description": "Create it again"
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_id2$",
+                  "right": "$bx_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the same folder",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the same folder: expected eq \"bx_id\", got ${bx_id2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/create_folder: new folder, then the same name again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/create_folder: new folder, then the same name again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.box/create_folder - new folder, then the same name again"
+    },
+    {
+      "id": "s66",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.box/create_folder - same name without reuse fails"
+      },
+      "children": [
+        {
+          "id": "s67",
+          "action": "core/comment",
+          "args": {
+            "text": "With reuse_existing off, a folder name already in use fails with BOX.ALREADY_EXISTS."
+          }
+        },
+        {
+          "id": "s68",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s70",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s71",
+                  "action": "ooa.box/create_folder",
+                  "args": {
+                    "parent_folder_id": "0",
+                    "name": "UT Archive",
+                    "reuse_existing": false,
+                    "access_token": ""
+                  },
+                  "out": {
+                    "folder_id": "bx_id"
+                  },
+                  "description": "Create UT Archive again"
+                }
+              ],
+              "description": "These steps should fail with BOX.ALREADY_EXISTS",
+              "catch": [
+                {
+                  "codes": [
+                    "BOX.ALREADY_EXISTS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s72",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error BOX.ALREADY_EXISTS",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error BOX.ALREADY_EXISTS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/create_folder: same name without reuse fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/create_folder: same name without reuse fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.box/create_folder - same name without reuse fails"
+    },
+    {
+      "id": "s80",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.box/get_folder_info - folder details"
+      },
+      "children": [
+        {
+          "id": "s81",
+          "action": "core/comment",
+          "args": {
+            "text": "Get folder info reads a folder's name, item count, parent and owner. Checks them."
+          }
+        },
+        {
+          "id": "s82",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s83",
+              "action": "ooa.box/get_folder_info",
+              "args": {
+                "folder_id": "5000002",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read UT Archive"
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.name$",
+                  "right": "UT Archive"
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"UT Archive\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.item_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the item count",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the item count: expected eq 1"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.parent_name$",
+                  "right": "All Files"
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the parent",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the parent: expected eq \"All Files\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.owner$",
+                  "right": "ut.owner@ut.example"
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the owner",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the owner: expected eq \"ut.owner@ut.example\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/get_folder_info: folder details\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/get_folder_info: folder details: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.box/get_folder_info - folder details"
+    },
+    {
+      "id": "s100",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.box/delete_folder - folder with content"
+      },
+      "children": [
+        {
+          "id": "s101",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete folder moves a folder to the trash; one that still has content goes only with include_contents. Checks the refusal without it, then that the folder is gone."
+          }
+        },
+        {
+          "id": "s102",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s103",
+              "action": "ooa.box/create_folder",
+              "args": {
+                "parent_folder_id": "0",
+                "name": "UT Scratch",
+                "access_token": ""
+              },
+              "out": {
+                "folder_id": "bx_id"
+              },
+              "description": "A folder to delete"
+            },
+            {
+              "id": "s104",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_box_scratch.txt",
+                "text": "scratch"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s105",
+              "action": "ooa.box/upload_file",
+              "args": {
+                "folder_id": "$bx_id$",
+                "local_path": "ut_box_scratch.txt",
+                "access_token": ""
+              },
+              "description": "Put a file in it"
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s107",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "ooa.box/delete_folder",
+                  "args": {
+                    "folder_id": "$bx_id$",
+                    "access_token": ""
+                  },
+                  "description": "Delete without its content"
+                }
+              ],
+              "description": "These steps should fail with BOX*",
+              "catch": [
+                {
+                  "codes": [
+                    "BOX*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s109",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error BOX*",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error BOX*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "ooa.box/delete_folder",
+              "args": {
+                "folder_id": "$bx_id$",
+                "include_contents": true,
+                "access_token": ""
+              },
+              "description": "Delete with its content"
+            },
+            {
+              "id": "s114",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s115",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s116",
+                  "action": "ooa.box/get_folder_info",
+                  "args": {
+                    "folder_id": "$bx_id$",
+                    "access_token": ""
+                  },
+                  "out": {
+                    "info": "bx_info"
+                  },
+                  "description": "Read the deleted folder"
+                }
+              ],
+              "description": "These steps should fail with BOX*",
+              "catch": [
+                {
+                  "codes": [
+                    "BOX*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s117",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s118",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error BOX*",
+              "else": [
+                {
+                  "id": "s120",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error BOX*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/delete_folder: folder with content\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/delete_folder: folder with content: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.box/delete_folder - folder with content"
+    },
+    {
+      "id": "s125",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.box/upload_file - upload, then a new version"
+      },
+      "children": [
+        {
+          "id": "s126",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload file sends a local file to a folder; with replace_existing on, the same name again becomes a new version of that file. Checks the version keeps the id and has the new size."
+          }
+        },
+        {
+          "id": "s127",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s128",
+              "action": "ooa.box/create_folder",
+              "args": {
+                "parent_folder_id": "0",
+                "name": "UT Uploads",
+                "access_token": ""
+              },
+              "out": {
+                "folder_id": "bx_id2"
+              },
+              "description": "A folder for uploads"
+            },
+            {
+              "id": "s129",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_box_up.txt",
+                "text": "first"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s130",
+              "action": "ooa.box/upload_file",
+              "args": {
+                "folder_id": "$bx_id2$",
+                "local_path": "ut_box_up.txt",
+                "file_name": "notes.txt",
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id"
+              },
+              "description": "Upload it as notes.txt"
+            },
+            {
+              "id": "s131",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$bx_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file id",
+              "else": [
+                {
+                  "id": "s133",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file id: expected notEmpty , got ${bx_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s134",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_box_up.txt",
+                "text": "second version"
+              },
+              "description": "Change the file"
+            },
+            {
+              "id": "s135",
+              "action": "ooa.box/upload_file",
+              "args": {
+                "folder_id": "$bx_id2$",
+                "local_path": "ut_box_up.txt",
+                "file_name": "notes.txt",
+                "replace_existing": true,
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id2"
+              },
+              "description": "Upload it again as a new version"
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_id2$",
+                  "right": "$bx_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the same file",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the same file: expected eq \"bx_id\", got ${bx_id2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "$bx_id$",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read its size"
+            },
+            {
+              "id": "s140",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.size$",
+                  "right": 14
+                }
+              },
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new size",
+              "else": [
+                {
+                  "id": "s142",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new size: expected eq 14"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/upload_file: upload, then a new version\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/upload_file: upload, then a new version: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.box/upload_file - upload, then a new version"
+    },
+    {
+      "id": "s147",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.box/download_file - save a file"
+      },
+      "children": [
+        {
+          "id": "s148",
+          "action": "core/comment",
+          "args": {
+            "text": "Download file saves a Box file on this machine. Checks the saved text."
+          }
+        },
+        {
+          "id": "s149",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s150",
+              "action": "ooa.box/download_file",
+              "args": {
+                "file_id": "6000001",
+                "save_as": "ut_box_downloads/invoice.pdf",
+                "access_token": ""
+              },
+              "out": {
+                "path": "bx_path"
+              },
+              "description": "Download the November invoice"
+            },
+            {
+              "id": "s151",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$bx_path$"
+              },
+              "out": {
+                "text": "bx_text"
+              },
+              "description": "Read the saved file"
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_text$",
+                  "right": "PDF invoice November"
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bx_text",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bx_text: expected eq \"PDF invoice November\", got ${bx_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/download_file: save a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/download_file: save a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.box/download_file - save a file"
+    },
+    {
+      "id": "s159",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.box/copy_file - copy under a new name"
+      },
+      "children": [
+        {
+          "id": "s160",
+          "action": "core/comment",
+          "args": {
+            "text": "Copy file copies a file into a folder, optionally under a new name. Checks the copy's name and folder."
+          }
+        },
+        {
+          "id": "s161",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s162",
+              "action": "ooa.box/copy_file",
+              "args": {
+                "file_id": "6000001",
+                "target_folder_id": "5000002",
+                "new_name": "invoice-copy.pdf",
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id"
+              },
+              "description": "Copy the invoice to UT Archive"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "$bx_id$",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s164",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.name$",
+                  "right": "invoice-copy.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s166",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"invoice-copy.pdf\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.parent_id$",
+                  "right": "5000002"
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the folder",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the folder: expected eq \"5000002\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/copy_file: copy under a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/copy_file: copy under a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.box/copy_file - copy under a new name"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.box/move_file - move to another folder"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Move file moves a file to another folder. Checks the file's new folder."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s177",
+              "action": "ooa.box/create_folder",
+              "args": {
+                "parent_folder_id": "0",
+                "name": "UT Moved",
+                "access_token": ""
+              },
+              "out": {
+                "folder_id": "bx_id2"
+              },
+              "description": "A target folder"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.box/copy_file",
+              "args": {
+                "file_id": "6000001",
+                "target_folder_id": "5000002",
+                "new_name": "to-move.pdf",
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id"
+              },
+              "description": "A file to move"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.box/move_file",
+              "args": {
+                "file_id": "$bx_id$",
+                "target_folder_id": "$bx_id2$",
+                "access_token": ""
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "$bx_id$",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read its folder"
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.parent_name$",
+                  "right": "UT Moved"
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the folder",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the folder: expected eq \"UT Moved\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/move_file: move to another folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/move_file: move to another folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.box/move_file - move to another folder"
+    },
+    {
+      "id": "s188",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.box/rename_file - new name"
+      },
+      "children": [
+        {
+          "id": "s189",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename file gives a file a new name in the same folder. Checks the new name."
+          }
+        },
+        {
+          "id": "s190",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s191",
+              "action": "ooa.box/copy_file",
+              "args": {
+                "file_id": "6000001",
+                "target_folder_id": "5000002",
+                "new_name": "old-name.pdf",
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id"
+              },
+              "description": "A file to rename"
+            },
+            {
+              "id": "s192",
+              "action": "ooa.box/rename_file",
+              "args": {
+                "file_id": "$bx_id$",
+                "new_name": "new-name.pdf",
+                "access_token": ""
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s193",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "$bx_id$",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read its name"
+            },
+            {
+              "id": "s194",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.name$",
+                  "right": "new-name.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s196",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"new-name.pdf\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s198",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/rename_file: new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s199",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s200",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/rename_file: new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.box/rename_file - new name"
+    },
+    {
+      "id": "s201",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.box/delete_file - delete for good"
+      },
+      "children": [
+        {
+          "id": "s202",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete file moves a file to the trash, and with permanently also empties it from the trash. Checks the file can no longer be read."
+          }
+        },
+        {
+          "id": "s203",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s204",
+              "action": "ooa.box/copy_file",
+              "args": {
+                "file_id": "6000001",
+                "target_folder_id": "5000002",
+                "new_name": "delete-me.pdf",
+                "access_token": ""
+              },
+              "out": {
+                "file_id": "bx_id"
+              },
+              "description": "A file to delete"
+            },
+            {
+              "id": "s205",
+              "action": "ooa.box/delete_file",
+              "args": {
+                "file_id": "$bx_id$",
+                "permanently": true,
+                "access_token": ""
+              },
+              "description": "Delete it for good"
+            },
+            {
+              "id": "s206",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s207",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "ooa.box/get_file_info",
+                  "args": {
+                    "file_id": "$bx_id$",
+                    "access_token": ""
+                  },
+                  "out": {
+                    "info": "bx_info"
+                  },
+                  "description": "Read the deleted file"
+                }
+              ],
+              "description": "These steps should fail with BOX*",
+              "catch": [
+                {
+                  "codes": [
+                    "BOX*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s209",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s210",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error BOX*",
+              "else": [
+                {
+                  "id": "s212",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error BOX*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/delete_file: delete for good\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/delete_file: delete for good: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.box/delete_file - delete for good"
+    },
+    {
+      "id": "s217",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.box/get_file_info - file details"
+      },
+      "children": [
+        {
+          "id": "s218",
+          "action": "core/comment",
+          "args": {
+            "text": "Get file info reads a file's name, size, folder, owner and checksum. Checks them."
+          }
+        },
+        {
+          "id": "s219",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s220",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "6000002",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read budget.xlsx"
+            },
+            {
+              "id": "s221",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.name$",
+                  "right": "budget.xlsx"
+                }
+              },
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s223",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"budget.xlsx\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s224",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.size$",
+                  "right": 12
+                }
+              },
+              "children": [
+                {
+                  "id": "s225",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the size",
+              "else": [
+                {
+                  "id": "s226",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the size: expected eq 12"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s227",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.parent_name$",
+                  "right": "UT Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the folder",
+              "else": [
+                {
+                  "id": "s229",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the folder: expected eq \"UT Finance\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$bx_info.sha1$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the checksum",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the checksum: expected notEmpty "
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/get_file_info: file details\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/get_file_info: file details: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.box/get_file_info - file details"
+    },
+    {
+      "id": "s237",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.box/search - pdf invoices in one folder"
+      },
+      "children": [
+        {
+          "id": "s238",
+          "action": "core/comment",
+          "args": {
+            "text": "Search finds files and folders by name; it can keep to file types and one folder. Checks two invoices overall and one inside UT Archive."
+          }
+        },
+        {
+          "id": "s239",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s240",
+              "action": "ooa.box/search",
+              "args": {
+                "query": "invoice-2026",
+                "item_type": "file",
+                "file_extensions": "pdf",
+                "access_token": ""
+              },
+              "out": {
+                "count": "bx_count"
+              },
+              "description": "Search invoice pdf files"
+            },
+            {
+              "id": "s241",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bx_count",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bx_count: expected eq 2, got ${bx_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "ooa.box/search",
+              "args": {
+                "query": "invoice-2026",
+                "in_folder_id": "5000002",
+                "access_token": ""
+              },
+              "out": {
+                "table": "bx_table",
+                "count": "bx_count"
+              },
+              "description": "Only inside UT Archive"
+            },
+            {
+              "id": "s245",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check bx_count",
+              "else": [
+                {
+                  "id": "s247",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "bx_count: expected eq 1, got ${bx_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s248",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][2]$",
+                  "right": "invoice-2026-10.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s249",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file",
+              "else": [
+                {
+                  "id": "s250",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file: expected eq \"invoice-2026-10.pdf\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/search: pdf invoices in one folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/search: pdf invoices in one folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.box/search - pdf invoices in one folder"
+    },
+    {
+      "id": "s255",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.box/create_shared_link - company link with download"
+      },
+      "children": [
+        {
+          "id": "s256",
+          "action": "core/comment",
+          "args": {
+            "text": "Create shared link turns on a file's shared link and gives the link and its download address. Checks both, and that file info shows the link."
+          }
+        },
+        {
+          "id": "s257",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s258",
+              "action": "ooa.box/create_shared_link",
+              "args": {
+                "item_type": "file",
+                "item_id": "6000001",
+                "access": "company",
+                "allow_download": true,
+                "expires_at": "2026-12-31T00:00:00",
+                "access_token": ""
+              },
+              "out": {
+                "url": "bx_url",
+                "download_url": "bx_durl"
+              },
+              "description": "Share the invoice"
+            },
+            {
+              "id": "s259",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$bx_url$",
+                  "right": "6000001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s260",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the link",
+              "else": [
+                {
+                  "id": "s261",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the link: expected contains \"6000001\", got ${bx_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$bx_durl$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the download address",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the download address: expected notEmpty , got ${bx_durl}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "ooa.box/get_file_info",
+              "args": {
+                "file_id": "6000001",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read the link back"
+            },
+            {
+              "id": "s266",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_info.shared_link$",
+                  "right": "$bx_url$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the shared link",
+              "else": [
+                {
+                  "id": "s268",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the shared link: expected eq \"bx_url\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s269",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/create_shared_link: company link with download\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s272",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/create_shared_link: company link with download: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.box/create_shared_link - company link with download"
+    },
+    {
+      "id": "s273",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.box/remove_shared_link - turn the link off"
+      },
+      "children": [
+        {
+          "id": "s274",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove shared link turns off an item's shared link. Checks the folder has no link afterwards."
+          }
+        },
+        {
+          "id": "s275",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s276",
+              "action": "ooa.box/create_shared_link",
+              "args": {
+                "item_type": "folder",
+                "item_id": "5000002",
+                "access": "collaborators",
+                "access_token": ""
+              },
+              "out": {
+                "url": "bx_url"
+              },
+              "description": "Share UT Archive"
+            },
+            {
+              "id": "s277",
+              "action": "ooa.box/remove_shared_link",
+              "args": {
+                "item_type": "folder",
+                "item_id": "5000002",
+                "access_token": ""
+              },
+              "description": "Turn the link off"
+            },
+            {
+              "id": "s278",
+              "action": "ooa.box/get_folder_info",
+              "args": {
+                "folder_id": "5000002",
+                "access_token": ""
+              },
+              "out": {
+                "info": "bx_info"
+              },
+              "description": "Read the folder"
+            },
+            {
+              "id": "s279",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "empty",
+                  "left": "$bx_info.shared_link$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s280",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check no shared link",
+              "else": [
+                {
+                  "id": "s281",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "no shared link: expected empty "
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s282",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/remove_shared_link: turn the link off\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s284",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/remove_shared_link: turn the link off: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.box/remove_shared_link - turn the link off"
+    },
+    {
+      "id": "s286",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.box/add_collaborator - invite a person as viewer"
+      },
+      "children": [
+        {
+          "id": "s287",
+          "action": "core/comment",
+          "args": {
+            "text": "Invite collaborator gives a person or group access with a role. Checks the new collaboration is listed."
+          }
+        },
+        {
+          "id": "s288",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s289",
+              "action": "ooa.box/add_collaborator",
+              "args": {
+                "item_type": "folder",
+                "item_id": "5000002",
+                "email": "bruno.silva@ut.example",
+                "role": "viewer",
+                "notify": false,
+                "access_token": ""
+              },
+              "out": {
+                "collaboration_id": "bx_id"
+              },
+              "description": "Invite Bruno as viewer"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$bx_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the collaboration id",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the collaboration id: expected notEmpty , got ${bx_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "ooa.box/list_collaborators",
+              "args": {
+                "item_type": "folder",
+                "item_id": "5000002",
+                "access_token": ""
+              },
+              "out": {
+                "table": "bx_table"
+              },
+              "description": "List who has access"
+            },
+            {
+              "id": "s294",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][2]$",
+                  "right": "bruno.silva@ut.example"
+                }
+              },
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the login",
+              "else": [
+                {
+                  "id": "s296",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the login: expected eq \"bruno.silva@ut.example\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s297",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][4]$",
+                  "right": "viewer"
+                }
+              },
+              "children": [
+                {
+                  "id": "s298",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the role",
+              "else": [
+                {
+                  "id": "s299",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the role: expected eq \"viewer\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/add_collaborator: invite a person as viewer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s303",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/add_collaborator: invite a person as viewer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.box/add_collaborator - invite a person as viewer"
+    },
+    {
+      "id": "s304",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.box/list_collaborators - who has access"
+      },
+      "children": [
+        {
+          "id": "s305",
+          "action": "core/comment",
+          "args": {
+            "text": "List collaborators lists who was invited to an item and their role. Checks the editor of UT Finance."
+          }
+        },
+        {
+          "id": "s306",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s307",
+              "action": "ooa.box/list_collaborators",
+              "args": {
+                "item_type": "folder",
+                "item_id": "5000001",
+                "access_token": ""
+              },
+              "out": {
+                "table": "bx_table"
+              },
+              "description": "List UT Finance collaborators"
+            },
+            {
+              "id": "s308",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][0]$",
+                  "right": "7000001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the collaboration id",
+              "else": [
+                {
+                  "id": "s310",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the collaboration id: expected eq \"7000001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s311",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$bx_table.rows[0][4]$",
+                  "right": "editor"
+                }
+              },
+              "children": [
+                {
+                  "id": "s312",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the role",
+              "else": [
+                {
+                  "id": "s313",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the role: expected eq \"editor\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/list_collaborators: who has access\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s317",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/list_collaborators: who has access: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.box/list_collaborators - who has access"
+    },
+    {
+      "id": "s318",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.box/remove_collaborator - take access away"
+      },
+      "children": [
+        {
+          "id": "s319",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove collaborator takes away access given by an invitation. Checks the file has no collaborators left."
+          }
+        },
+        {
+          "id": "s320",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s321",
+              "action": "ooa.box/add_collaborator",
+              "args": {
+                "item_type": "file",
+                "item_id": "6000002",
+                "group_id": "9200",
+                "role": "editor",
+                "access_token": ""
+              },
+              "out": {
+                "collaboration_id": "bx_id"
+              },
+              "description": "Invite a group as editor"
+            },
+            {
+              "id": "s322",
+              "action": "ooa.box/remove_collaborator",
+              "args": {
+                "collaboration_id": "$bx_id$",
+                "access_token": ""
+              },
+              "description": "Remove it"
+            },
+            {
+              "id": "s323",
+              "action": "ooa.box/list_collaborators",
+              "args": {
+                "item_type": "file",
+                "item_id": "6000002",
+                "access_token": ""
+              },
+              "out": {
+                "table": "bx_table"
+              },
+              "description": "List what is left"
+            },
+            {
+              "id": "s324",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "empty",
+                  "left": "$bx_table.rows$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check no collaborators",
+              "else": [
+                {
+                  "id": "s326",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "no collaborators: expected empty "
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s327",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/remove_collaborator: take access away\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/remove_collaborator: take access away: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.box/remove_collaborator - take access away"
+    },
+    {
+      "id": "s331",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.box/disconnect - forget the connection"
+      },
+      "children": [
+        {
+          "id": "s332",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps give their own address and token. Checks a step with its own address and token still works."
+          }
+        },
+        {
+          "id": "s333",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s334",
+              "action": "ooa.box/disconnect",
+              "args": {},
+              "description": "Forget the UT Box connection"
+            },
+            {
+              "id": "s335",
+              "action": "ooa.box/list_folder",
+              "args": {
+                "folder_id": "5000001",
+                "base_url": "${standin_url}/biz/box",
+                "access_token": {
+                  "$credential": "unit_tests/box/token"
+                }
+              },
+              "out": {
+                "count": "bx_count"
+              },
+              "description": "List with the step's own address and token"
+            },
+            {
+              "id": "s336",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$bx_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the number of items",
+              "else": [
+                {
+                  "id": "s338",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the number of items: expected ge 2, got ${bx_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s339",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s340",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s341",
+                  "action": "ooa.box/list_folder",
+                  "args": {
+                    "folder_id": "5000001",
+                    "base_url": "${standin_url}/biz/box",
+                    "access_token": ""
+                  },
+                  "out": {
+                    "count": "bx_count"
+                  },
+                  "description": "No connection and no token"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s342",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s343",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s344",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s345",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s346",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s347",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.box/disconnect: forget the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s348",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s349",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.box/disconnect: forget the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.box/disconnect - forget the connection"
+    },
+    {
+      "id": "s350",
+      "action": "core/step",
+      "args": {
+        "title": "21. Summary"
+      },
+      "children": [
+        {
+          "id": "s351",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s352",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s353",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s354",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "21. Summary"
+    }
+  ]
+}

@@ -1,0 +1,2955 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_servicenow",
+  "name": "UT ServiceNow",
+  "description": "Unit tests of every ServiceNow command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sn_token",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_refresh",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_expires",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_rec",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_number",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_att",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_latest",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_closed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sn_spare",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every ServiceNow command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT ServiceNow started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s59",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.servicenow/authenticate - user and password through the OAuth registry"
+      },
+      "children": [
+        {
+          "id": "s60",
+          "action": "core/comment",
+          "args": {
+            "text": "Authenticate gets an OAuth access token for a user (password grant) and keeps it, with the instance address, as the ServiceNow session for the next steps. Checks the token lifetime and refresh token."
+          }
+        },
+        {
+          "id": "s61",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s62",
+              "action": "ooa.servicenow/authenticate",
+              "args": {
+                "instance_url": "${standin_url}/biz/servicenow",
+                "grant_type": "password",
+                "client_id": "ut-oauth-client",
+                "client_secret": {
+                  "$credential": "unit_tests/servicenow/client_secret"
+                },
+                "user": "ut.agent",
+                "password": {
+                  "$credential": "unit_tests/servicenow/password"
+                }
+              },
+              "out": {
+                "access_token": "sn_token",
+                "refresh_token": "sn_refresh",
+                "expires_in": "sn_expires"
+              },
+              "description": "Sign in to the stand-in instance"
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_expires$",
+                  "right": 1799
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_expires",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_expires: expected eq 1799, got ${sn_expires}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sn_refresh$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the refresh token",
+              "else": [
+                {
+                  "id": "s68",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the refresh token: expected notEmpty , got ${sn_refresh}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/authenticate: user and password through the OAuth registry\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/authenticate: user and password through the OAuth registry: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.servicenow/authenticate - user and password through the OAuth registry"
+    },
+    {
+      "id": "s73",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.servicenow/query - encoded query plus a filter, newest first"
+      },
+      "children": [
+        {
+          "id": "s74",
+          "action": "core/comment",
+          "args": {
+            "text": "Query records returns the records an encoded query finds; filter adds field = value conditions and order_by sorts. The step has no address or sign-in: the session gives them. Checks two incidents."
+          }
+        },
+        {
+          "id": "s75",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s76",
+              "action": "ooa.servicenow/query",
+              "args": {
+                "table": "incident",
+                "query": "numberSTARTSWITHINC01",
+                "filter": {
+                  "assignment_group": "Service Desk"
+                },
+                "fields": [
+                  "number",
+                  "short_description",
+                  "caller_id"
+                ],
+                "order_by": "-number"
+              },
+              "out": {
+                "table": "sn_table",
+                "count": "sn_count"
+              },
+              "description": "Service Desk incidents"
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 2, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/query: encoded query plus a filter, newest first\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/query: encoded query plus a filter, newest first: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.servicenow/query - encoded query plus a filter, newest first"
+    },
+    {
+      "id": "s84",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.servicenow/query - paging with offset and max_records"
+      },
+      "children": [
+        {
+          "id": "s85",
+          "action": "core/comment",
+          "args": {
+            "text": "max_records and offset read a part of the matching records. Checks one record comes back when the first of the three is skipped and one is asked for."
+          }
+        },
+        {
+          "id": "s86",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s87",
+              "action": "ooa.servicenow/query",
+              "args": {
+                "table": "incident",
+                "query": "numberSTARTSWITHINC01^ORDERBYnumber",
+                "offset": 1,
+                "max_records": 1,
+                "display_value": "all",
+                "api_version": "v2"
+              },
+              "out": {
+                "count": "sn_count"
+              },
+              "description": "Second incident only"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 1, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/query: paging with offset and max_records\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/query: paging with offset and max_records: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.servicenow/query - paging with offset and max_records"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.servicenow/get_record - display values"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Get record reads one record by sys_id; with display values the caller is a name, not an id. Checks the caller's name."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s98",
+              "action": "ooa.servicenow/get_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "5a000000000000000000000000000001"
+              },
+              "out": {
+                "record": "sn_rec"
+              },
+              "description": "Read the printer incident"
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.caller_id$",
+                  "right": "Asha Patel"
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the caller",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the caller: expected eq \"Asha Patel\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/get_record: display values\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/get_record: display values: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.servicenow/get_record - display values"
+    },
+    {
+      "id": "s106",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.servicenow/get_record - stored and display values together"
+      },
+      "children": [
+        {
+          "id": "s107",
+          "action": "core/comment",
+          "args": {
+            "text": "With display_value all, each field gives its stored value and a dv_ field with the display value. Checks both for the caller."
+          }
+        },
+        {
+          "id": "s108",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s109",
+              "action": "ooa.servicenow/get_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "5a000000000000000000000000000001",
+                "display_value": "all",
+                "fields": [
+                  "number",
+                  "caller_id"
+                ],
+                "api_version": "v1"
+              },
+              "out": {
+                "record": "sn_rec"
+              },
+              "description": "Read the printer incident with both values"
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.caller_id$",
+                  "right": "6b000000000000000000000000000001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the caller's sys_id",
+              "else": [
+                {
+                  "id": "s112",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the caller's sys_id: expected eq \"6b000000000000000000000000000001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.dv_caller_id$",
+                  "right": "Asha Patel"
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the caller's name",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the caller's name: expected eq \"Asha Patel\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/get_record: stored and display values together\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/get_record: stored and display values together: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.servicenow/get_record - stored and display values together"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.servicenow/create_record - an incident with a caller given by name"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "Create record makes a record and returns its sys_id and number; with input_display_value the caller is given by name and the instance looks it up. Checks the number and the caller."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "input_display_value": true,
+                "fields": {
+                  "short_description": "UT keyboard missing keys",
+                  "caller_id": "Asha Patel",
+                  "assignment_group": "UT Created"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id",
+                "number": "sn_number",
+                "record": "sn_rec"
+              },
+              "description": "Create an incident"
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$sn_number$",
+                  "right": "INC0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the number",
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the number: expected contains \"INC0\", got ${sn_number}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s127",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.caller_id$",
+                  "right": "6b000000000000000000000000000001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the caller found by name",
+              "else": [
+                {
+                  "id": "s129",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the caller found by name: expected eq \"6b000000000000000000000000000001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/create_record: an incident with a caller given by name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/create_record: an incident with a caller given by name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.servicenow/create_record - an incident with a caller given by name"
+    },
+    {
+      "id": "s134",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.servicenow/update_record - raise the priority"
+      },
+      "children": [
+        {
+          "id": "s135",
+          "action": "core/comment",
+          "args": {
+            "text": "Update record changes fields and gives back the record as it is now. Checks the new priority."
+          }
+        },
+        {
+          "id": "s136",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s137",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT monitor flickers",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s138",
+              "action": "ooa.servicenow/update_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "fields": {
+                  "priority": "1"
+                }
+              },
+              "out": {
+                "record": "sn_rec"
+              },
+              "description": "Make it priority 1"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.priority$",
+                  "right": "1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the priority",
+              "else": [
+                {
+                  "id": "s141",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the priority: expected eq \"1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/update_record: raise the priority\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/update_record: raise the priority: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.servicenow/update_record - raise the priority"
+    },
+    {
+      "id": "s146",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.servicenow/add_comment - a visible comment"
+      },
+      "children": [
+        {
+          "id": "s147",
+          "action": "core/comment",
+          "args": {
+            "text": "Add comment or work note adds a comment the caller can see. Checks the comment is on the record."
+          }
+        },
+        {
+          "id": "s148",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s149",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT laptop slow",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s150",
+              "action": "ooa.servicenow/add_comment",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "text": "We are replacing the disk today."
+              },
+              "description": "Comment for the caller"
+            },
+            {
+              "id": "s151",
+              "action": "ooa.servicenow/get_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "fields": [
+                  "comments"
+                ]
+              },
+              "out": {
+                "record": "sn_rec"
+              },
+              "description": "Read the comments"
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.comments$",
+                  "right": "We are replacing the disk today."
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the comment",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the comment: expected eq \"We are replacing the disk today.\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/add_comment: a visible comment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/add_comment: a visible comment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.servicenow/add_comment - a visible comment"
+    },
+    {
+      "id": "s159",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.servicenow/add_comment - an internal work note"
+      },
+      "children": [
+        {
+          "id": "s160",
+          "action": "core/comment",
+          "args": {
+            "text": "With internal on, the text is a work note only agents see. Checks the work note is on the record."
+          }
+        },
+        {
+          "id": "s161",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s162",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT badge reader broken",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.servicenow/add_comment",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "text": "Vendor ticket V-778 raised.",
+                "internal": true
+              },
+              "description": "Work note for the team"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.servicenow/get_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "fields": [
+                  "work_notes"
+                ]
+              },
+              "out": {
+                "record": "sn_rec"
+              },
+              "description": "Read the work notes"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_rec.work_notes$",
+                  "right": "Vendor ticket V-778 raised."
+                }
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the work note",
+              "else": [
+                {
+                  "id": "s167",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the work note: expected eq \"Vendor ticket V-778 raised.\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/add_comment: an internal work note\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/add_comment: an internal work note: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.servicenow/add_comment - an internal work note"
+    },
+    {
+      "id": "s172",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.servicenow/attach_file - attach a text file"
+      },
+      "children": [
+        {
+          "id": "s173",
+          "action": "core/comment",
+          "args": {
+            "text": "Attach file uploads a local file to a record and returns the attachment's sys_id. Checks the record then has one attachment."
+          }
+        },
+        {
+          "id": "s174",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s175",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT scanner error",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s176",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_sn_scan.txt",
+                "text": "error 0x42 on page 3"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s177",
+              "action": "ooa.servicenow/attach_file",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "path": "ut_sn_scan.txt",
+                "file_name": "scanner-error.txt",
+                "content_type": "text/plain"
+              },
+              "out": {
+                "attachment_id": "sn_att"
+              },
+              "description": "Attach it"
+            },
+            {
+              "id": "s178",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$sn_att$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the attachment id",
+              "else": [
+                {
+                  "id": "s180",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the attachment id: expected notEmpty , got ${sn_att}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s181",
+              "action": "ooa.servicenow/list_attachments",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$"
+              },
+              "out": {
+                "count": "sn_count"
+              },
+              "description": "List the record's attachments"
+            },
+            {
+              "id": "s182",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s184",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 1, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/attach_file: attach a text file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/attach_file: attach a text file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.servicenow/attach_file - attach a text file"
+    },
+    {
+      "id": "s189",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.servicenow/list_attachments - one attachment by its id"
+      },
+      "children": [
+        {
+          "id": "s190",
+          "action": "core/comment",
+          "args": {
+            "text": "List attachments can find one attachment by its sys_id. Checks it is found."
+          }
+        },
+        {
+          "id": "s191",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s192",
+              "action": "ooa.servicenow/list_attachments",
+              "args": {
+                "attachment_id": "7c000000000000000000000000000001"
+              },
+              "out": {
+                "table": "sn_table",
+                "count": "sn_count"
+              },
+              "description": "Find the printer log"
+            },
+            {
+              "id": "s193",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s194",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s195",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 1, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/list_attachments: one attachment by its id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s199",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/list_attachments: one attachment by its id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.servicenow/list_attachments - one attachment by its id"
+    },
+    {
+      "id": "s200",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.servicenow/list_attachments - by encoded query, and save them"
+      },
+      "children": [
+        {
+          "id": "s201",
+          "action": "core/comment",
+          "args": {
+            "text": "List attachments can search the attachment table with an encoded query and save every file found in the same step. Checks one file is found and saved with its text."
+          }
+        },
+        {
+          "id": "s202",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s203",
+              "action": "ooa.servicenow/list_attachments",
+              "args": {
+                "attachment_query": "file_name=printer-log.txt",
+                "limit": 10,
+                "download": true,
+                "download_folder": "ut_sn_saved"
+              },
+              "out": {
+                "count": "sn_count",
+                "files": "sn_files"
+              },
+              "description": "Find and save printer-log.txt"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 1, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_sn_saved/printer-log.txt"
+              },
+              "out": {
+                "text": "sn_text"
+              },
+              "description": "Read the saved file"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_text$",
+                  "right": "paper jam in tray2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_text",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_text: expected eq \"paper jam in tray2\", got ${sn_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/list_attachments: by encoded query, and save them\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/list_attachments: by encoded query, and save them: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.servicenow/list_attachments - by encoded query, and save them"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.servicenow/download_attachment - save an attachment"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "Download attachment saves an attachment under its own name in a folder. Checks the file's text."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "ooa.servicenow/download_attachment",
+              "args": {
+                "attachment_id": "7c000000000000000000000000000001",
+                "folder": "ut_sn_downloads"
+              },
+              "out": {
+                "path": "sn_path"
+              },
+              "description": "Save the printer log"
+            },
+            {
+              "id": "s219",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$sn_path$"
+              },
+              "out": {
+                "text": "sn_text"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s220",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_text$",
+                  "right": "paper jam in tray2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s221",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_text",
+              "else": [
+                {
+                  "id": "s222",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_text: expected eq \"paper jam in tray2\", got ${sn_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s224",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/download_attachment: save an attachment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s225",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s226",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/download_attachment: save an attachment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.servicenow/download_attachment - save an attachment"
+    },
+    {
+      "id": "s227",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.servicenow/delete_attachment - attach, then delete"
+      },
+      "children": [
+        {
+          "id": "s228",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete attachment removes an attachment by its sys_id. Checks the record has none afterwards."
+          }
+        },
+        {
+          "id": "s229",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s230",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT camera blurry",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s231",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_sn_photo.txt",
+                "text": "photo placeholder"
+              },
+              "description": "Prepare a file"
+            },
+            {
+              "id": "s232",
+              "action": "ooa.servicenow/attach_file",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$",
+                "path": "ut_sn_photo.txt"
+              },
+              "out": {
+                "attachment_id": "sn_att"
+              },
+              "description": "Attach it"
+            },
+            {
+              "id": "s233",
+              "action": "ooa.servicenow/delete_attachment",
+              "args": {
+                "attachment_id": "$sn_att$"
+              },
+              "description": "Delete the attachment"
+            },
+            {
+              "id": "s234",
+              "action": "ooa.servicenow/list_attachments",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$"
+              },
+              "out": {
+                "count": "sn_count"
+              },
+              "description": "List the record's attachments"
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 0, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s238",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/delete_attachment: attach, then delete\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s240",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/delete_attachment: attach, then delete: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.servicenow/delete_attachment - attach, then delete"
+    },
+    {
+      "id": "s242",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.servicenow/delete_record - delete, then it cannot be read"
+      },
+      "children": [
+        {
+          "id": "s243",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete record removes a record. Checks reading it afterwards fails."
+          }
+        },
+        {
+          "id": "s244",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s245",
+              "action": "ooa.servicenow/create_record",
+              "args": {
+                "table": "incident",
+                "fields": {
+                  "short_description": "UT duplicate ticket",
+                  "assignment_group": "UT Created",
+                  "priority": "4"
+                }
+              },
+              "out": {
+                "sys_id": "sn_id"
+              },
+              "description": "Create an incident for this case"
+            },
+            {
+              "id": "s246",
+              "action": "ooa.servicenow/delete_record",
+              "args": {
+                "table": "incident",
+                "sys_id": "$sn_id$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s247",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s248",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s249",
+                  "action": "ooa.servicenow/get_record",
+                  "args": {
+                    "table": "incident",
+                    "sys_id": "$sn_id$"
+                  },
+                  "out": {
+                    "record": "sn_rec"
+                  },
+                  "description": "Try to read it"
+                }
+              ],
+              "description": "These steps should fail with SERVICENOW.*",
+              "catch": [
+                {
+                  "codes": [
+                    "SERVICENOW.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s250",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s251",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SERVICENOW.*",
+              "else": [
+                {
+                  "id": "s253",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SERVICENOW.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s254",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s255",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/delete_record: delete, then it cannot be read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s257",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/delete_record: delete, then it cannot be read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.servicenow/delete_record - delete, then it cannot be read"
+    },
+    {
+      "id": "s258",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.servicenow/list_changed_records - changed since a time"
+      },
+      "children": [
+        {
+          "id": "s259",
+          "action": "core/comment",
+          "args": {
+            "text": "List changed records returns records updated after a point in time, oldest first, and the newest change time to poll from next. Checks two records and the latest time."
+          }
+        },
+        {
+          "id": "s260",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s261",
+              "action": "ooa.servicenow/list_changed_records",
+              "args": {
+                "table": "incident",
+                "since": "2026-11-05 00:00:00",
+                "query": "numberSTARTSWITHINC01",
+                "fields": [
+                  "number",
+                  "short_description"
+                ]
+              },
+              "out": {
+                "table": "sn_table",
+                "count": "sn_count",
+                "latest": "sn_latest"
+              },
+              "description": "Incidents changed since 5 November"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 2, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_latest$",
+                  "right": "2026-11-12 08:15:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_latest",
+              "else": [
+                {
+                  "id": "s267",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_latest: expected eq \"2026-11-12 08:15:00\", got ${sn_latest}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s269",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/list_changed_records: changed since a time\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s271",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/list_changed_records: changed since a time: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.servicenow/list_changed_records - changed since a time"
+    },
+    {
+      "id": "s272",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.servicenow/end_session - forget the session, then sign in on the step"
+      },
+      "children": [
+        {
+          "id": "s273",
+          "action": "core/comment",
+          "args": {
+            "text": "End session forgets the ServiceNow session; later steps give their own address and sign-in (here user and password). Checks a session was open, then queries with basic sign-in."
+          }
+        },
+        {
+          "id": "s274",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s275",
+              "action": "ooa.servicenow/end_session",
+              "args": {},
+              "out": {
+                "closed": "sn_closed"
+              },
+              "description": "Close the ServiceNow session"
+            },
+            {
+              "id": "s276",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_closed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_closed",
+              "else": [
+                {
+                  "id": "s278",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_closed: expected eq true, got ${sn_closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "ooa.servicenow/query",
+              "args": {
+                "instance_url": "${standin_url}/biz/servicenow",
+                "user": "ut.agent",
+                "password": {
+                  "$credential": "unit_tests/servicenow/password"
+                },
+                "table": "incident",
+                "query": "number=INC0100002"
+              },
+              "out": {
+                "count": "sn_count"
+              },
+              "description": "Query with the step's own sign-in"
+            },
+            {
+              "id": "s280",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sn_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sn_count",
+              "else": [
+                {
+                  "id": "s282",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sn_count: expected eq 1, got ${sn_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s284",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/end_session: forget the session, then sign in on the step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s286",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/end_session: forget the session, then sign in on the step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.servicenow/end_session - forget the session, then sign in on the step"
+    },
+    {
+      "id": "s287",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.servicenow/revoke_authentication - a revoked token no longer works"
+      },
+      "children": [
+        {
+          "id": "s288",
+          "action": "core/comment",
+          "args": {
+            "text": "Revoke authentication makes a token unusable. The case signs in for a spare token, revokes it and checks a query with it is refused."
+          }
+        },
+        {
+          "id": "s289",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s290",
+              "action": "ooa.servicenow/authenticate",
+              "args": {
+                "instance_url": "${standin_url}/biz/servicenow",
+                "grant_type": "client_credentials",
+                "client_id": "ut-oauth-client",
+                "client_secret": {
+                  "$credential": "unit_tests/servicenow/client_secret"
+                },
+                "session": "sn_spare"
+              },
+              "out": {
+                "access_token": "sn_spare"
+              },
+              "description": "Get a spare token"
+            },
+            {
+              "id": "s291",
+              "action": "ooa.servicenow/revoke_authentication",
+              "args": {
+                "instance_url": "${standin_url}/biz/servicenow",
+                "client_id": "ut-oauth-client",
+                "client_secret": {
+                  "$credential": "unit_tests/servicenow/client_secret"
+                },
+                "token": "$sn_spare$"
+              },
+              "description": "Revoke the spare token"
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s293",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "instance_url": "${standin_url}/biz/servicenow",
+                    "access_token": "$sn_spare$",
+                    "table": "incident"
+                  },
+                  "out": {
+                    "count": "sn_count"
+                  },
+                  "description": "Query with the revoked token"
+                }
+              ],
+              "description": "These steps should fail with SERVICENOW.*",
+              "catch": [
+                {
+                  "codes": [
+                    "SERVICENOW.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s295",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s296",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s297",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SERVICENOW.*",
+              "else": [
+                {
+                  "id": "s298",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SERVICENOW.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s299",
+              "action": "ooa.servicenow/end_session",
+              "args": {
+                "session": "sn_spare"
+              },
+              "description": "Close the spare session"
+            },
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.servicenow/revoke_authentication: a revoked token no longer works\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s303",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.servicenow/revoke_authentication: a revoked token no longer works: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.servicenow/revoke_authentication - a revoked token no longer works"
+    },
+    {
+      "id": "s304",
+      "action": "core/step",
+      "args": {
+        "title": "19. Summary"
+      },
+      "children": [
+        {
+          "id": "s305",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s306",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s307",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s308",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "19. Summary"
+    }
+  ]
+}

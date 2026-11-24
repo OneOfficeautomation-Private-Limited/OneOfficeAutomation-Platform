@@ -1,0 +1,4480 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_zendesk",
+  "name": "UT Zendesk",
+  "description": "Unit tests of every Zendesk command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "zd_conn",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_user",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_user_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_org",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_org_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_ticket",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_ticket_id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_status",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_tags",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_token",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_att",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "zd_exists",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Zendesk command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Zendesk started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s56",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.zendesk/connect - sign in with a saved connection"
+      },
+      "children": [
+        {
+          "id": "s57",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect picks a saved connection (site, agent email and API token from the vault); the later Zendesk steps leave site and sign-in empty and use it. The case saves the connection in the run folder first. Checks the connection's name comes back."
+          }
+        },
+        {
+          "id": "s58",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s59",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "connections.json",
+                "text": "{\"UT Zendesk stand-in\": {\"package\": \"ooa.zendesk\", \"description\": \"Unit tests: the local stand-in\", \"values\": {\"site\": \"${standin_url}\", \"email\": \"sam.agent@ut.example\"}, \"credentials\": {\"api_token\": \"unit_tests/zendesk/api_token\"}}}"
+              },
+              "description": "Save the connection to the stand-in"
+            },
+            {
+              "id": "s60",
+              "action": "ooa.zendesk/connect",
+              "args": {
+                "connection": "UT Zendesk stand-in"
+              },
+              "out": {
+                "connection": "zd_conn"
+              },
+              "description": "Use the saved connection"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_conn$",
+                  "right": "UT Zendesk stand-in"
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_conn",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_conn: expected eq \"UT Zendesk stand-in\", got ${zd_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/connect: sign in with a saved connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/connect: sign in with a saved connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.zendesk/connect - sign in with a saved connection"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.zendesk/list_groups - agent groups"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "List groups gives the groups tickets can be assigned to. Checks the two made-up groups."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s71",
+              "action": "ooa.zendesk/list_groups",
+              "args": {
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "List the groups"
+            },
+            {
+              "id": "s72",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s74",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 2, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_groups: agent groups\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_groups: agent groups: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.zendesk/list_groups - agent groups"
+    },
+    {
+      "id": "s79",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.zendesk/list_ticket_fields - only drop-down fields"
+      },
+      "children": [
+        {
+          "id": "s80",
+          "action": "core/comment",
+          "args": {
+            "text": "List ticket fields gives field ids for custom_fields; field_type keeps one kind. Checks the one drop-down."
+          }
+        },
+        {
+          "id": "s81",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s82",
+              "action": "ooa.zendesk/list_ticket_fields",
+              "args": {
+                "field_type": "tagger",
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "List drop-down ticket fields"
+            },
+            {
+              "id": "s83",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s85",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_ticket_fields: only drop-down fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_ticket_fields: only drop-down fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.zendesk/list_ticket_fields - only drop-down fields"
+    },
+    {
+      "id": "s90",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.zendesk/create_user - new end user"
+      },
+      "children": [
+        {
+          "id": "s91",
+          "action": "core/comment",
+          "args": {
+            "text": "Create user adds an end user with a phone number and a custom user field. Checks an id came back."
+          }
+        },
+        {
+          "id": "s92",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s93",
+              "action": "ooa.zendesk/create_user",
+              "args": {
+                "name": "Lee Unit",
+                "role": "end-user",
+                "phone": "+1 555 0100",
+                "organization_id": 7001,
+                "user_fields": {
+                  "customer_tier": "gold"
+                },
+                "site": ""
+              },
+              "out": {
+                "user_id": "zd_user_id"
+              },
+              "description": "Create Lee Unit"
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$zd_user_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new user id",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new user id: expected notEmpty , got ${zd_user_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/create_user: new end user\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/create_user: new end user: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.zendesk/create_user - new end user"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.zendesk/create_user - update the user with the same email"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "With update_if_exists on, Create user changes the user who already has this email instead of failing. Checks the existing user's id (9002) comes back."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s104",
+              "action": "ooa.zendesk/create_user",
+              "args": {
+                "name": "Pat Customer",
+                "user_email": "pat.customer@ut.example",
+                "update_if_exists": true,
+                "site": ""
+              },
+              "out": {
+                "user_id": "zd_user_id"
+              },
+              "description": "Create or update Pat Customer"
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_user_id$",
+                  "right": 9002
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_user_id",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_user_id: expected eq 9002, got ${zd_user_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/create_user: update the user with the same email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/create_user: update the user with the same email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.zendesk/create_user - update the user with the same email"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.zendesk/get_user - read a user"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user reads a user's details. Checks the name, role and custom field of Pat Customer."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s115",
+              "action": "ooa.zendesk/get_user",
+              "args": {
+                "user_id": 9002,
+                "site": ""
+              },
+              "out": {
+                "user": "zd_user"
+              },
+              "description": "Read user 9002"
+            },
+            {
+              "id": "s116",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_user.name$",
+                  "right": "Pat Customer"
+                }
+              },
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s118",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"Pat Customer\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s119",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_user.external_id$",
+                  "right": "CRM-42"
+                }
+              },
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the external id",
+              "else": [
+                {
+                  "id": "s121",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the external id: expected eq \"CRM-42\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/get_user: read a user\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/get_user: read a user: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.zendesk/get_user - read a user"
+    },
+    {
+      "id": "s126",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.zendesk/update_user - change phone and tier"
+      },
+      "children": [
+        {
+          "id": "s127",
+          "action": "core/comment",
+          "args": {
+            "text": "Update user changes only the inputs given. The case creates a user, changes it, and reads it back."
+          }
+        },
+        {
+          "id": "s128",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s129",
+              "action": "ooa.zendesk/create_user",
+              "args": {
+                "name": "Max Unit",
+                "site": ""
+              },
+              "out": {
+                "user_id": "zd_user_id"
+              },
+              "description": "Create a user to change"
+            },
+            {
+              "id": "s130",
+              "action": "ooa.zendesk/update_user",
+              "args": {
+                "user_id": "$zd_user_id$",
+                "phone": "+1 555 0199",
+                "user_fields": {
+                  "customer_tier": "platinum"
+                },
+                "site": ""
+              },
+              "description": "Change phone and tier"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.zendesk/get_user",
+              "args": {
+                "user_id": "$zd_user_id$",
+                "site": ""
+              },
+              "out": {
+                "user": "zd_user"
+              },
+              "description": "Read the user back"
+            },
+            {
+              "id": "s132",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_user.phone$",
+                  "right": "+1 555 0199"
+                }
+              },
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the phone",
+              "else": [
+                {
+                  "id": "s134",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the phone: expected eq \"+1 555 0199\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s135",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_user.user_fields.customer_tier$",
+                  "right": "platinum"
+                }
+              },
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the tier",
+              "else": [
+                {
+                  "id": "s137",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the tier: expected eq \"platinum\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/update_user: change phone and tier\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/update_user: change phone and tier: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.zendesk/update_user - change phone and tier"
+    },
+    {
+      "id": "s142",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.zendesk/find_users - agents only"
+      },
+      "children": [
+        {
+          "id": "s143",
+          "action": "core/comment",
+          "args": {
+            "text": "Find users searches users; role keeps one role. Checks the one made-up agent is found."
+          }
+        },
+        {
+          "id": "s144",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s145",
+              "action": "ooa.zendesk/find_users",
+              "args": {
+                "role": "agent",
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "Find agents"
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/find_users: agents only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/find_users: agents only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.zendesk/find_users - agents only"
+    },
+    {
+      "id": "s153",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.zendesk/find_users - by email"
+      },
+      "children": [
+        {
+          "id": "s154",
+          "action": "core/comment",
+          "args": {
+            "text": "Find users with an email search term finds that one person."
+          }
+        },
+        {
+          "id": "s155",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s156",
+              "action": "ooa.zendesk/find_users",
+              "args": {
+                "query": "email:pat.customer@ut.example",
+                "site": ""
+              },
+              "out": {
+                "count": "zd_count"
+              },
+              "description": "Find pat.customer@ut.example"
+            },
+            {
+              "id": "s157",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s159",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/find_users: by email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/find_users: by email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.zendesk/find_users - by email"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.zendesk/create_organization - customer organization"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "Create organization adds a customer organization with an email domain and custom field. Checks an id came back."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s167",
+              "action": "ooa.zendesk/create_organization",
+              "args": {
+                "name": "Contoso Unit Test",
+                "domain_names": [
+                  "contoso.ut.example"
+                ],
+                "external_id": "ACC-2",
+                "organization_fields": {
+                  "account_tier": "enterprise"
+                },
+                "site": ""
+              },
+              "out": {
+                "organization_id": "zd_org_id"
+              },
+              "description": "Create Contoso Unit Test"
+            },
+            {
+              "id": "s168",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$zd_org_id$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new organization id",
+              "else": [
+                {
+                  "id": "s170",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new organization id: expected notEmpty , got ${zd_org_id}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/create_organization: customer organization\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/create_organization: customer organization: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.zendesk/create_organization - customer organization"
+    },
+    {
+      "id": "s175",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.zendesk/update_organization - rename and add notes"
+      },
+      "children": [
+        {
+          "id": "s176",
+          "action": "core/comment",
+          "args": {
+            "text": "Update organization changes the inputs given and keeps the rest. The case creates one, renames it and reads it back."
+          }
+        },
+        {
+          "id": "s177",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s178",
+              "action": "ooa.zendesk/create_organization",
+              "args": {
+                "name": "Fabrikam Unit Test",
+                "site": ""
+              },
+              "out": {
+                "organization_id": "zd_org_id"
+              },
+              "description": "Create an organization to change"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.zendesk/update_organization",
+              "args": {
+                "organization_id": "$zd_org_id$",
+                "name": "Fabrikam Unit Test Ltd",
+                "notes": "Key account",
+                "site": ""
+              },
+              "description": "Rename it and add notes"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.zendesk/get_organization",
+              "args": {
+                "organization_id": "$zd_org_id$",
+                "site": ""
+              },
+              "out": {
+                "organization": "zd_org"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_org.name$",
+                  "right": "Fabrikam Unit Test Ltd"
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new name",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new name: expected eq \"Fabrikam Unit Test Ltd\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_org.notes$",
+                  "right": "Key account"
+                }
+              },
+              "children": [
+                {
+                  "id": "s185",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the notes",
+              "else": [
+                {
+                  "id": "s186",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the notes: expected eq \"Key account\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/update_organization: rename and add notes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s190",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/update_organization: rename and add notes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.zendesk/update_organization - rename and add notes"
+    },
+    {
+      "id": "s191",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.zendesk/get_organization - read an organization"
+      },
+      "children": [
+        {
+          "id": "s192",
+          "action": "core/comment",
+          "args": {
+            "text": "Get organization reads an organization's details. Checks the made-up organization's name and external id."
+          }
+        },
+        {
+          "id": "s193",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s194",
+              "action": "ooa.zendesk/get_organization",
+              "args": {
+                "organization_id": 7001,
+                "site": ""
+              },
+              "out": {
+                "organization": "zd_org"
+              },
+              "description": "Read organization 7001"
+            },
+            {
+              "id": "s195",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_org.name$",
+                  "right": "Northwind Unit Test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the name",
+              "else": [
+                {
+                  "id": "s197",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the name: expected eq \"Northwind Unit Test\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s198",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_org.external_id$",
+                  "right": "ACC-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s199",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the external id",
+              "else": [
+                {
+                  "id": "s200",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the external id: expected eq \"ACC-1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s202",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/get_organization: read an organization\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/get_organization: read an organization: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.zendesk/get_organization - read an organization"
+    },
+    {
+      "id": "s205",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.zendesk/list_organizations - all organizations"
+      },
+      "children": [
+        {
+          "id": "s206",
+          "action": "core/comment",
+          "args": {
+            "text": "List organizations reads every customer organization. Checks there is at least the made-up one."
+          }
+        },
+        {
+          "id": "s207",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s208",
+              "action": "ooa.zendesk/list_organizations",
+              "args": {
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "List organizations"
+            },
+            {
+              "id": "s209",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$zd_count$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s210",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the number of organizations",
+              "else": [
+                {
+                  "id": "s211",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the number of organizations: expected gt 0, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_organizations: all organizations\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_organizations: all organizations: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.zendesk/list_organizations - all organizations"
+    },
+    {
+      "id": "s216",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.zendesk/upload_attachment - upload a receipt"
+      },
+      "children": [
+        {
+          "id": "s217",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload attachment sends a local file and gives a token to attach it to a ticket or comment. Checks the token and the attachment id."
+          }
+        },
+        {
+          "id": "s218",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s219",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_zendesk_receipt.txt",
+                "text": "Receipt SO-88123: 42.00 EUR"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s220",
+              "action": "ooa.zendesk/upload_attachment",
+              "args": {
+                "path": "ut_zendesk_receipt.txt",
+                "site": ""
+              },
+              "out": {
+                "token": "zd_token",
+                "attachment_id": "zd_att"
+              },
+              "description": "Upload the receipt"
+            },
+            {
+              "id": "s221",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$zd_token$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s222",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the upload token",
+              "else": [
+                {
+                  "id": "s223",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the upload token: expected notEmpty , got ${zd_token}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s224",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$zd_att$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s225",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the attachment id",
+              "else": [
+                {
+                  "id": "s226",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the attachment id: expected notEmpty , got ${zd_att}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/upload_attachment: upload a receipt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s230",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/upload_attachment: upload a receipt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.zendesk/upload_attachment - upload a receipt"
+    },
+    {
+      "id": "s231",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.zendesk/create_ticket - ticket assigned by email and group name"
+      },
+      "children": [
+        {
+          "id": "s232",
+          "action": "core/comment",
+          "args": {
+            "text": "Create ticket opens a ticket with a first comment, a new requester, an agent given by email, a group given by name, a custom field given by its title and an attached file. Reads it back to check."
+          }
+        },
+        {
+          "id": "s233",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s234",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_zendesk_receipt.txt",
+                "text": "Receipt SO-1"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s235",
+              "action": "ooa.zendesk/upload_attachment",
+              "args": {
+                "path": "ut_zendesk_receipt.txt",
+                "site": ""
+              },
+              "out": {
+                "token": "zd_token"
+              },
+              "description": "Upload the receipt"
+            },
+            {
+              "id": "s236",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Refund for order SO-1",
+                "description": "Customer asks for a refund.",
+                "requester_email": "new.customer@ut.example",
+                "requester_name": "New Customer",
+                "priority": "high",
+                "type": "incident",
+                "assignee": "sam.agent@ut.example",
+                "group": "Billing",
+                "tags": [
+                  "ut-created"
+                ],
+                "custom_fields": {
+                  "Order number": "SO-1"
+                },
+                "upload_tokens": [
+                  "$zd_token$"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id",
+                "url": "zd_url"
+              },
+              "description": "Open the ticket"
+            },
+            {
+              "id": "s237",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$zd_url$",
+                  "right": "/agent/tickets/"
+                }
+              },
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the ticket address",
+              "else": [
+                {
+                  "id": "s239",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the ticket address: expected contains \"/agent/tickets/\", got ${zd_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s240",
+              "action": "ooa.zendesk/get_ticket",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "site": ""
+              },
+              "out": {
+                "ticket": "zd_ticket"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s241",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_ticket.assignee_id$",
+                  "right": 9001
+                }
+              },
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the assignee",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the assignee: expected eq 9001"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_ticket.group_id$",
+                  "right": 6001
+                }
+              },
+              "children": [
+                {
+                  "id": "s245",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the group",
+              "else": [
+                {
+                  "id": "s246",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the group: expected eq 6001"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s247",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_ticket.custom_fields.5001$",
+                  "right": "SO-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the order number field",
+              "else": [
+                {
+                  "id": "s249",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the order number field: expected eq \"SO-1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/create_ticket: ticket assigned by email and group name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/create_ticket: ticket assigned by email and group name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.zendesk/create_ticket - ticket assigned by email and group name"
+    },
+    {
+      "id": "s254",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.zendesk/get_ticket - read a ticket"
+      },
+      "children": [
+        {
+          "id": "s255",
+          "action": "core/comment",
+          "args": {
+            "text": "Get ticket reads a ticket's fields. Checks the subject and status of the made-up ticket 1001."
+          }
+        },
+        {
+          "id": "s256",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s257",
+              "action": "ooa.zendesk/get_ticket",
+              "args": {
+                "ticket_id": 1001,
+                "site": ""
+              },
+              "out": {
+                "ticket": "zd_ticket",
+                "status": "zd_status"
+              },
+              "description": "Read ticket 1001"
+            },
+            {
+              "id": "s258",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_status$",
+                  "right": "open"
+                }
+              },
+              "children": [
+                {
+                  "id": "s259",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_status",
+              "else": [
+                {
+                  "id": "s260",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_status: expected eq \"open\", got ${zd_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s261",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_ticket.subject$",
+                  "right": "Refund not received"
+                }
+              },
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the subject",
+              "else": [
+                {
+                  "id": "s263",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the subject: expected eq \"Refund not received\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/get_ticket: read a ticket\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/get_ticket: read a ticket: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.zendesk/get_ticket - read a ticket"
+    },
+    {
+      "id": "s268",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.zendesk/update_ticket - set pending with a lower priority"
+      },
+      "children": [
+        {
+          "id": "s269",
+          "action": "core/comment",
+          "args": {
+            "text": "Update ticket changes only the inputs given. The case opens a ticket, updates it and reads the status back."
+          }
+        },
+        {
+          "id": "s270",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s271",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Update me",
+                "description": "First text",
+                "assignee": "9001",
+                "tags": [
+                  "ut-created"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id"
+              },
+              "description": "Open a ticket to change"
+            },
+            {
+              "id": "s272",
+              "action": "ooa.zendesk/update_ticket",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "status": "pending",
+                "priority": "low",
+                "site": ""
+              },
+              "description": "Set pending and low"
+            },
+            {
+              "id": "s273",
+              "action": "ooa.zendesk/get_ticket",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "site": ""
+              },
+              "out": {
+                "ticket": "zd_ticket",
+                "status": "zd_status"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s274",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_status$",
+                  "right": "pending"
+                }
+              },
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_status",
+              "else": [
+                {
+                  "id": "s276",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_status: expected eq \"pending\", got ${zd_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s277",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_ticket.priority$",
+                  "right": "low"
+                }
+              },
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the priority",
+              "else": [
+                {
+                  "id": "s279",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the priority: expected eq \"low\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s281",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/update_ticket: set pending with a lower priority\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s283",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/update_ticket: set pending with a lower priority: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.zendesk/update_ticket - set pending with a lower priority"
+    },
+    {
+      "id": "s284",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.zendesk/add_comment - internal note that solves the ticket"
+      },
+      "children": [
+        {
+          "id": "s285",
+          "action": "core/comment",
+          "args": {
+            "text": "Add comment adds a reply or (public off) an internal note and can change the status. Checks the new status."
+          }
+        },
+        {
+          "id": "s286",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s287",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Comment on me",
+                "description": "First text",
+                "assignee": "9001",
+                "tags": [
+                  "ut-created"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id"
+              },
+              "description": "Open a ticket"
+            },
+            {
+              "id": "s288",
+              "action": "ooa.zendesk/add_comment",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "text": "Refund issued today.",
+                "public": false,
+                "new_status": "solved",
+                "site": ""
+              },
+              "description": "Add an internal note and solve"
+            },
+            {
+              "id": "s289",
+              "action": "ooa.zendesk/get_ticket",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "site": ""
+              },
+              "out": {
+                "status": "zd_status"
+              },
+              "description": "Read the status"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_status$",
+                  "right": "solved"
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_status",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_status: expected eq \"solved\", got ${zd_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/add_comment: internal note that solves the ticket\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/add_comment: internal note that solves the ticket: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.zendesk/add_comment - internal note that solves the ticket"
+    },
+    {
+      "id": "s297",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.zendesk/list_comments - the conversation of a ticket"
+      },
+      "children": [
+        {
+          "id": "s298",
+          "action": "core/comment",
+          "args": {
+            "text": "List comments reads a ticket's comments, oldest first. The case adds a reply and checks both comments are there."
+          }
+        },
+        {
+          "id": "s299",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s300",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Talk to me",
+                "description": "Question",
+                "assignee": "9001",
+                "tags": [
+                  "ut-created"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id"
+              },
+              "description": "Open a ticket"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.zendesk/add_comment",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "text": "<p>Answer</p>",
+                "html": true,
+                "site": ""
+              },
+              "description": "Reply"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.zendesk/list_comments",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "Read the comments"
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 2, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_comments: the conversation of a ticket\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_comments: the conversation of a ticket: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.zendesk/list_comments - the conversation of a ticket"
+    },
+    {
+      "id": "s310",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.zendesk/add_tags - add vip and keep the rest"
+      },
+      "children": [
+        {
+          "id": "s311",
+          "action": "core/comment",
+          "args": {
+            "text": "Add tags adds tags and keeps the ones the ticket has. Checks both the old and the new tag are on it."
+          }
+        },
+        {
+          "id": "s312",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s313",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Tag me",
+                "description": "Text",
+                "assignee": "9001",
+                "tags": [
+                  "ut-created"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id"
+              },
+              "description": "Open a ticket"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.zendesk/add_tags",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "tags": [
+                  "vip"
+                ],
+                "site": ""
+              },
+              "out": {
+                "tags": "zd_tags"
+              },
+              "description": "Add vip"
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$zd_tags$",
+                  "right": "vip"
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the new tag",
+              "else": [
+                {
+                  "id": "s317",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the new tag: expected contains \"vip\", got ${zd_tags}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$zd_tags$",
+                  "right": "ut-created"
+                }
+              },
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the old tag",
+              "else": [
+                {
+                  "id": "s320",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the old tag: expected contains \"ut-created\", got ${zd_tags}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s321",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/add_tags: add vip and keep the rest\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s323",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/add_tags: add vip and keep the rest: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.zendesk/add_tags - add vip and keep the rest"
+    },
+    {
+      "id": "s325",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.zendesk/list_tickets - tickets of one requester"
+      },
+      "children": [
+        {
+          "id": "s326",
+          "action": "core/comment",
+          "args": {
+            "text": "List tickets can keep the tickets one user asked for. Checks Pat Customer's one ticket."
+          }
+        },
+        {
+          "id": "s327",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s328",
+              "action": "ooa.zendesk/list_tickets",
+              "args": {
+                "requester_id": 9002,
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "Tickets requested by user 9002"
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s331",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s333",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_tickets: tickets of one requester\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s335",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_tickets: tickets of one requester: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.zendesk/list_tickets - tickets of one requester"
+    },
+    {
+      "id": "s336",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.zendesk/list_tickets - by requester email and status"
+      },
+      "children": [
+        {
+          "id": "s337",
+          "action": "core/comment",
+          "args": {
+            "text": "List tickets with requester_email searches by email; status keeps open tickets. Checks the one ticket."
+          }
+        },
+        {
+          "id": "s338",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s339",
+              "action": "ooa.zendesk/list_tickets",
+              "args": {
+                "requester_email": "pat.customer@ut.example",
+                "status": "open",
+                "site": ""
+              },
+              "out": {
+                "count": "zd_count"
+              },
+              "description": "Open tickets of pat.customer@ut.example"
+            },
+            {
+              "id": "s340",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s341",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s342",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_tickets: by requester email and status\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_tickets: by requester email and status: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.zendesk/list_tickets - by requester email and status"
+    },
+    {
+      "id": "s347",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.zendesk/list_tickets - tickets of an organization with priority"
+      },
+      "children": [
+        {
+          "id": "s348",
+          "action": "core/comment",
+          "args": {
+            "text": "List tickets of one organization, only urgent ones. Checks the one urgent ticket of organization 7001."
+          }
+        },
+        {
+          "id": "s349",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s350",
+              "action": "ooa.zendesk/list_tickets",
+              "args": {
+                "organization_id": 7001,
+                "priority": "urgent",
+                "site": ""
+              },
+              "out": {
+                "count": "zd_count"
+              },
+              "description": "Urgent tickets of organization 7001"
+            },
+            {
+              "id": "s351",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s352",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s353",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s354",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s355",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_tickets: tickets of an organization with priority\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s357",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_tickets: tickets of an organization with priority: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.zendesk/list_tickets - tickets of an organization with priority"
+    },
+    {
+      "id": "s358",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.zendesk/search_tickets - tickets tagged refund"
+      },
+      "children": [
+        {
+          "id": "s359",
+          "action": "core/comment",
+          "args": {
+            "text": "Search tickets finds tickets with search terms (type:ticket is added). Checks the one refund ticket."
+          }
+        },
+        {
+          "id": "s360",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s361",
+              "action": "ooa.zendesk/search_tickets",
+              "args": {
+                "query": "tags:refund status<solved",
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "Search tags:refund"
+            },
+            {
+              "id": "s362",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s363",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s364",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s365",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s366",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/search_tickets: tickets tagged refund\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s368",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/search_tickets: tickets tagged refund: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.zendesk/search_tickets - tickets tagged refund"
+    },
+    {
+      "id": "s369",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.zendesk/download_attachment - save an uploaded file"
+      },
+      "children": [
+        {
+          "id": "s370",
+          "action": "core/comment",
+          "args": {
+            "text": "Download attachment saves a ticket's attachment under its own name. The case uploads a file, downloads it into a folder and checks its text."
+          }
+        },
+        {
+          "id": "s371",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s372",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_zendesk_note.txt",
+                "text": "Hello from the unit test"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s373",
+              "action": "ooa.zendesk/upload_attachment",
+              "args": {
+                "path": "ut_zendesk_note.txt",
+                "file_name": "note-copy.txt",
+                "site": ""
+              },
+              "out": {
+                "attachment_id": "zd_att"
+              },
+              "description": "Upload it"
+            },
+            {
+              "id": "s374",
+              "action": "ooa.zendesk/download_attachment",
+              "args": {
+                "attachment_id": "$zd_att$",
+                "folder": "ut_zendesk_downloads",
+                "overwrite": true,
+                "site": ""
+              },
+              "out": {
+                "path": "zd_path"
+              },
+              "description": "Download it"
+            },
+            {
+              "id": "s375",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$zd_path$",
+                  "right": "note-copy.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s376",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file name",
+              "else": [
+                {
+                  "id": "s377",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file name: expected contains \"note-copy.txt\", got ${zd_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s378",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$zd_path$"
+              },
+              "out": {
+                "text": "zd_text"
+              },
+              "description": "Read the saved file"
+            },
+            {
+              "id": "s379",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_text$",
+                  "right": "Hello from the unit test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s380",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_text",
+              "else": [
+                {
+                  "id": "s381",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_text: expected eq \"Hello from the unit test\", got ${zd_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s382",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s383",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/download_attachment: save an uploaded file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s384",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s385",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/download_attachment: save an uploaded file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.zendesk/download_attachment - save an uploaded file"
+    },
+    {
+      "id": "s386",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.zendesk/list_views - active views"
+      },
+      "children": [
+        {
+          "id": "s387",
+          "action": "core/comment",
+          "args": {
+            "text": "List views gives the active ticket views. Checks the made-up view."
+          }
+        },
+        {
+          "id": "s388",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s389",
+              "action": "ooa.zendesk/list_views",
+              "args": {
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "List views"
+            },
+            {
+              "id": "s390",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s391",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s392",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s393",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s394",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_views: active views\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s395",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s396",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_views: active views: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.zendesk/list_views - active views"
+    },
+    {
+      "id": "s397",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.zendesk/list_view_tickets - unassigned urgent queue"
+      },
+      "children": [
+        {
+          "id": "s398",
+          "action": "core/comment",
+          "args": {
+            "text": "List tickets in view gives the tickets a view shows. Checks the one unassigned urgent ticket."
+          }
+        },
+        {
+          "id": "s399",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s400",
+              "action": "ooa.zendesk/list_view_tickets",
+              "args": {
+                "view_id": 8001,
+                "site": ""
+              },
+              "out": {
+                "table": "zd_table",
+                "count": "zd_count"
+              },
+              "description": "Tickets in view 8001"
+            },
+            {
+              "id": "s401",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s402",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s403",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 1, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s404",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s405",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/list_view_tickets: unassigned urgent queue\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s406",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s407",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/list_view_tickets: unassigned urgent queue: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.zendesk/list_view_tickets - unassigned urgent queue"
+    },
+    {
+      "id": "s408",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.zendesk/delete_ticket - delete, then reading fails"
+      },
+      "children": [
+        {
+          "id": "s409",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete ticket removes a ticket. The case opens one, deletes it, and checks reading it fails with a ZENDESK error."
+          }
+        },
+        {
+          "id": "s410",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s411",
+              "action": "ooa.zendesk/create_ticket",
+              "args": {
+                "subject": "Delete me",
+                "description": "Text",
+                "assignee": "9001",
+                "tags": [
+                  "ut-created"
+                ],
+                "site": ""
+              },
+              "out": {
+                "ticket_id": "zd_ticket_id"
+              },
+              "description": "Open a ticket to delete"
+            },
+            {
+              "id": "s412",
+              "action": "ooa.zendesk/delete_ticket",
+              "args": {
+                "ticket_id": "$zd_ticket_id$",
+                "site": ""
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s413",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s414",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s415",
+                  "action": "ooa.zendesk/get_ticket",
+                  "args": {
+                    "ticket_id": "$zd_ticket_id$",
+                    "site": ""
+                  },
+                  "out": {
+                    "status": "zd_status"
+                  },
+                  "description": "Read the deleted ticket"
+                }
+              ],
+              "description": "These steps should fail with ZENDESK.*",
+              "catch": [
+                {
+                  "codes": [
+                    "ZENDESK.*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s416",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s417",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error ZENDESK.*",
+              "else": [
+                {
+                  "id": "s419",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error ZENDESK.*: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s421",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/delete_ticket: delete, then reading fails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s423",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/delete_ticket: delete, then reading fails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.zendesk/delete_ticket - delete, then reading fails"
+    },
+    {
+      "id": "s424",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.zendesk/disconnect - forget the connection"
+      },
+      "children": [
+        {
+          "id": "s425",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps give their own site and sign-in. Checks a step with its own site, email and API token still works, and one without them fails."
+          }
+        },
+        {
+          "id": "s426",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s427",
+              "action": "ooa.zendesk/disconnect",
+              "args": {},
+              "description": "Forget the connection"
+            },
+            {
+              "id": "s428",
+              "action": "ooa.zendesk/list_groups",
+              "args": {
+                "site": "${standin_url}",
+                "email": "sam.agent@ut.example",
+                "api_token": {
+                  "$credential": "unit_tests/zendesk/api_token"
+                }
+              },
+              "out": {
+                "count": "zd_count"
+              },
+              "description": "List groups with the step's own sign-in"
+            },
+            {
+              "id": "s429",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$zd_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s430",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check zd_count",
+              "else": [
+                {
+                  "id": "s431",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "zd_count: expected eq 2, got ${zd_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s432",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s433",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s434",
+                  "action": "ooa.zendesk/list_groups",
+                  "args": {
+                    "site": ""
+                  },
+                  "out": {
+                    "count": "zd_count"
+                  },
+                  "description": "List groups with no site and no sign-in"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s435",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s436",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s438",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s439",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s440",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.zendesk/disconnect: forget the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s441",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s442",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.zendesk/disconnect: forget the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.zendesk/disconnect - forget the connection"
+    },
+    {
+      "id": "s443",
+      "action": "core/step",
+      "args": {
+        "title": "30. Summary"
+      },
+      "children": [
+        {
+          "id": "s444",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s445",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s446",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s447",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "30. Summary"
+    }
+  ]
+}

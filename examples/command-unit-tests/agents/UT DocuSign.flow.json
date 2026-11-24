@@ -1,0 +1,3923 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_docusign",
+  "name": "UT DocuSign",
+  "description": "Unit tests of every DocuSign command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ds_conn",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_env",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_status",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_envelope",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_table",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_count",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_template",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_roles",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_url",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_exists",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_fields",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ds_values",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every DocuSign command against the local stand-in (made-up records, made-up token from the vault): each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT DocuSign started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.docusign/connect - sign in with a saved connection"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect picks a saved connection (REST address, account id and access token from the vault); the later DocuSign steps leave them empty and use it. The case saves the connection in the run folder first. Checks the connection's name comes back."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "connections.json",
+                "text": "{\"UT DocuSign stand-in\": {\"package\": \"ooa.docusign\", \"description\": \"Unit tests: the local stand-in\", \"values\": {\"base_url\": \"${standin_url}/biz/docusign/restapi\", \"account_id\": \"ut-account\"}, \"credentials\": {\"access_token\": \"unit_tests/docusign/token\"}}}"
+              },
+              "description": "Save the connection to the stand-in"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.docusign/connect",
+              "args": {
+                "connection": "UT DocuSign stand-in"
+              },
+              "out": {
+                "connection": "ds_conn"
+              },
+              "description": "Use the saved connection"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_conn$",
+                  "right": "UT DocuSign stand-in"
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_conn",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_conn: expected eq \"UT DocuSign stand-in\", got ${ds_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/connect: sign in with a saved connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/connect: sign in with a saved connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.docusign/connect - sign in with a saved connection"
+    },
+    {
+      "id": "s45",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.docusign/list_templates - templates matching NDA"
+      },
+      "children": [
+        {
+          "id": "s46",
+          "action": "core/comment",
+          "args": {
+            "text": "List templates gives the templates you can use; search_text keeps matching ones. Checks the one NDA template."
+          }
+        },
+        {
+          "id": "s47",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s48",
+              "action": "ooa.docusign/list_templates",
+              "args": {
+                "search_text": "NDA",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "table": "ds_table",
+                "count": "ds_count"
+              },
+              "description": "Find NDA templates"
+            },
+            {
+              "id": "s49",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_count$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_count",
+              "else": [
+                {
+                  "id": "s51",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_count: expected eq 1, got ${ds_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s52",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/list_templates: templates matching NDA\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/list_templates: templates matching NDA: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.docusign/list_templates - templates matching NDA"
+    },
+    {
+      "id": "s56",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.docusign/get_template - roles of a template"
+      },
+      "children": [
+        {
+          "id": "s57",
+          "action": "core/comment",
+          "args": {
+            "text": "Get template reads a template's name, roles and documents. Checks the name and the Client role."
+          }
+        },
+        {
+          "id": "s58",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s59",
+              "action": "ooa.docusign/get_template",
+              "args": {
+                "template_id": "11111111-2222-3333-4444-555555555555",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "template": "ds_template",
+                "roles": "ds_roles"
+              },
+              "description": "Read the NDA template"
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_template.name$",
+                  "right": "UT Mutual NDA"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the template name",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the template name: expected eq \"UT Mutual NDA\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ds_roles$",
+                  "right": "Client"
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the roles",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the roles: expected contains \"Client\", got ${ds_roles}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/get_template: roles of a template\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/get_template: roles of a template: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.docusign/get_template - roles of a template"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.docusign/create_envelope - draft from a local file"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Create envelope sends local files to signers, or keeps them as a draft when send_now is off. Checks the draft's id and status."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s74",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ds_env$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the envelope id",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the envelope id: expected notEmpty , got ${ds_env}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "created"
+                }
+              },
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s80",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"created\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/create_envelope: draft from a local file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s84",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/create_envelope: draft from a local file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.docusign/create_envelope - draft from a local file"
+    },
+    {
+      "id": "s85",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.docusign/send_envelope - send a draft"
+      },
+      "children": [
+        {
+          "id": "s86",
+          "action": "core/comment",
+          "args": {
+            "text": "Send draft envelope sends an envelope saved as a draft. The case makes a draft, sends it and reads the status."
+          }
+        },
+        {
+          "id": "s87",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s88",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s89",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s90",
+              "action": "ooa.docusign/send_envelope",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Send the draft"
+            },
+            {
+              "id": "s91",
+              "action": "ooa.docusign/get_envelope_status",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "status": "ds_status"
+              },
+              "description": "Read the status"
+            },
+            {
+              "id": "s92",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "sent"
+                }
+              },
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s94",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"sent\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s96",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/send_envelope: send a draft\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s98",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/send_envelope: send a draft: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.docusign/send_envelope - send a draft"
+    },
+    {
+      "id": "s99",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.docusign/get_envelope_status - a completed envelope"
+      },
+      "children": [
+        {
+          "id": "s100",
+          "action": "core/comment",
+          "args": {
+            "text": "Get envelope status says where an envelope is. Checks the made-up completed envelope and its subject."
+          }
+        },
+        {
+          "id": "s101",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s102",
+              "action": "ooa.docusign/get_envelope_status",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "status": "ds_status",
+                "envelope": "ds_envelope"
+              },
+              "description": "Read the completed envelope"
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"completed\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_envelope.subject$",
+                  "right": "UT signed contract"
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the subject",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the subject: expected eq \"UT signed contract\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/get_envelope_status: a completed envelope\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/get_envelope_status: a completed envelope: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.docusign/get_envelope_status - a completed envelope"
+    },
+    {
+      "id": "s113",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.docusign/get_envelope_status - unknown envelope"
+      },
+      "children": [
+        {
+          "id": "s114",
+          "action": "core/comment",
+          "args": {
+            "text": "An envelope id DocuSign does not know fails with DOCUSIGN.NOT_FOUND."
+          }
+        },
+        {
+          "id": "s115",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s117",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "ooa.docusign/get_envelope_status",
+                  "args": {
+                    "envelope_id": "99999999-9999-9999-9999-999999999999",
+                    "account_id": "",
+                    "access_token": ""
+                  },
+                  "out": {
+                    "status": "ds_status"
+                  },
+                  "description": "Read an unknown envelope"
+                }
+              ],
+              "description": "These steps should fail with DOCUSIGN.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "DOCUSIGN.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s119",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s120",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DOCUSIGN.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s122",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DOCUSIGN.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/get_envelope_status: unknown envelope\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/get_envelope_status: unknown envelope: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.docusign/get_envelope_status - unknown envelope"
+    },
+    {
+      "id": "s127",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.docusign/list_recipients - signer and copy"
+      },
+      "children": [
+        {
+          "id": "s128",
+          "action": "core/comment",
+          "args": {
+            "text": "List recipients gives everyone on an envelope with their progress. Checks the signer and the copy recipient."
+          }
+        },
+        {
+          "id": "s129",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s130",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s132",
+              "action": "ooa.docusign/list_recipients",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "table": "ds_table",
+                "count": "ds_count"
+              },
+              "description": "List the recipients"
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_count$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_count",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_count: expected eq 2, got ${ds_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/list_recipients: signer and copy\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s139",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/list_recipients: signer and copy: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.docusign/list_recipients - signer and copy"
+    },
+    {
+      "id": "s140",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.docusign/add_recipients - a second signer"
+      },
+      "children": [
+        {
+          "id": "s141",
+          "action": "core/comment",
+          "args": {
+            "text": "Add recipients adds signers or copy recipients to an envelope. Checks one was added and the envelope now has three."
+          }
+        },
+        {
+          "id": "s142",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s143",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s144",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s145",
+              "action": "ooa.docusign/add_recipients",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "recipients": [
+                  {
+                    "name": "Bo Chan",
+                    "email": "bo.chan@ut.example",
+                    "type": "signer",
+                    "routing_order": 2
+                  }
+                ],
+                "resend": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "count": "ds_n"
+              },
+              "description": "Add Bo Chan as second signer"
+            },
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_n",
+              "else": [
+                {
+                  "id": "s148",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_n: expected eq 1, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s149",
+              "action": "ooa.docusign/list_recipients",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "count": "ds_count"
+              },
+              "description": "List the recipients"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_count$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_count",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_count: expected eq 3, got ${ds_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s154",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/add_recipients: a second signer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s156",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/add_recipients: a second signer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.docusign/add_recipients - a second signer"
+    },
+    {
+      "id": "s157",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.docusign/update_recipient - correct a signer's email"
+      },
+      "children": [
+        {
+          "id": "s158",
+          "action": "core/comment",
+          "args": {
+            "text": "Update recipient corrects a recipient's name or email. Checks the signer's new address in List recipients."
+          }
+        },
+        {
+          "id": "s159",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s160",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s161",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s162",
+              "action": "ooa.docusign/update_recipient",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "recipient_id": "1",
+                "new_email": "ann.lee@corrected.ut.example",
+                "resend": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Correct signer 1's email"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.docusign/list_recipients",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "table": "ds_table"
+              },
+              "description": "List the recipients"
+            },
+            {
+              "id": "s164",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_table.rows[0][3]$",
+                  "right": "ann.lee@corrected.ut.example"
+                }
+              },
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the signer's email",
+              "else": [
+                {
+                  "id": "s166",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the signer's email: expected eq \"ann.lee@corrected.ut.example\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/update_recipient: correct a signer's email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/update_recipient: correct a signer's email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.docusign/update_recipient - correct a signer's email"
+    },
+    {
+      "id": "s171",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.docusign/create_signing_url - embedded signing link"
+      },
+      "children": [
+        {
+          "id": "s172",
+          "action": "core/comment",
+          "args": {
+            "text": "Get embedded signing link gives a short-lived link for a signer added with a client user id. Checks the link."
+          }
+        },
+        {
+          "id": "s173",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s174",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s175",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s176",
+              "action": "ooa.docusign/create_signing_url",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "name": "Ann Lee",
+                "email": "ann.lee@ut.example",
+                "client_user_id": "ut-ann",
+                "return_url": "https://portal.ut.example/done",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "url": "ds_url"
+              },
+              "description": "Signing link for Ann Lee"
+            },
+            {
+              "id": "s177",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ds_url$",
+                  "right": "Signing"
+                }
+              },
+              "children": [
+                {
+                  "id": "s178",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the signing link",
+              "else": [
+                {
+                  "id": "s179",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the signing link: expected contains \"Signing\", got ${ds_url}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/create_signing_url: embedded signing link\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/create_signing_url: embedded signing link: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.docusign/create_signing_url - embedded signing link"
+    },
+    {
+      "id": "s184",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.docusign/list_documents - documents of an envelope"
+      },
+      "children": [
+        {
+          "id": "s185",
+          "action": "core/comment",
+          "args": {
+            "text": "List envelope documents gives the documents inside an envelope. Checks the one contract document."
+          }
+        },
+        {
+          "id": "s186",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s187",
+              "action": "ooa.docusign/list_documents",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "table": "ds_table"
+              },
+              "description": "List the documents"
+            },
+            {
+              "id": "s188",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_n",
+                "value": {
+                  "expr": "len($ds_table.rows$)"
+                }
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s189",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s190",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_n",
+              "else": [
+                {
+                  "id": "s191",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_n: expected eq 1, got ${ds_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s192",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_table.rows[0][1]$",
+                  "right": "contract.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the document name",
+              "else": [
+                {
+                  "id": "s194",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the document name: expected eq \"contract.pdf\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s196",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/list_documents: documents of an envelope\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/list_documents: documents of an envelope: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.docusign/list_documents - documents of an envelope"
+    },
+    {
+      "id": "s199",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.docusign/download_document - one signed document"
+      },
+      "children": [
+        {
+          "id": "s200",
+          "action": "core/comment",
+          "args": {
+            "text": "Download document saves one document of an envelope. Checks the file is there."
+          }
+        },
+        {
+          "id": "s201",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s202",
+              "action": "ooa.docusign/download_document",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "document_id": "1",
+                "save_as": "ut_docusign/contract.pdf",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "path": "ds_path"
+              },
+              "description": "Save document 1"
+            },
+            {
+              "id": "s203",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "$ds_path$"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ds_exists",
+                    "value": true
+                  },
+                  "description": "The file is there"
+                }
+              ],
+              "description": "Is the file there?"
+            },
+            {
+              "id": "s206",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_exists",
+              "else": [
+                {
+                  "id": "s208",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_exists: expected eq true, got ${ds_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/download_document: one signed document\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/download_document: one signed document: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.docusign/download_document - one signed document"
+    },
+    {
+      "id": "s213",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.docusign/download_combined_pdf - all documents in one PDF"
+      },
+      "children": [
+        {
+          "id": "s214",
+          "action": "core/comment",
+          "args": {
+            "text": "Download combined PDF saves all documents as one PDF with the signing certificate. Checks the file is there."
+          }
+        },
+        {
+          "id": "s215",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s216",
+              "action": "ooa.docusign/download_combined_pdf",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "save_as": "ut_docusign/",
+                "include_certificate": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "path": "ds_path"
+              },
+              "description": "Save the combined PDF"
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s218",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "$ds_path$"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ds_exists",
+                    "value": true
+                  },
+                  "description": "The file is there"
+                }
+              ],
+              "description": "Is the file there?"
+            },
+            {
+              "id": "s220",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s221",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_exists",
+              "else": [
+                {
+                  "id": "s222",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_exists: expected eq true, got ${ds_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s223",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ds_path$",
+                  "right": ".pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the file name",
+              "else": [
+                {
+                  "id": "s225",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the file name: expected contains \".pdf\", got ${ds_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/download_combined_pdf: all documents in one PDF\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/download_combined_pdf: all documents in one PDF: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.docusign/download_combined_pdf - all documents in one PDF"
+    },
+    {
+      "id": "s230",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.docusign/download_zip - signed documents as a ZIP"
+      },
+      "children": [
+        {
+          "id": "s231",
+          "action": "core/comment",
+          "args": {
+            "text": "Download signed ZIP saves all documents and the certificate in one ZIP file. Checks the file is there."
+          }
+        },
+        {
+          "id": "s232",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s233",
+              "action": "ooa.docusign/download_zip",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "save_as": "ut_docusign/signed.zip",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "path": "ds_path"
+              },
+              "description": "Save the ZIP"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ds_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "$ds_path$"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ds_exists",
+                    "value": true
+                  },
+                  "description": "The file is there"
+                }
+              ],
+              "description": "Is the file there?"
+            },
+            {
+              "id": "s237",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_exists",
+              "else": [
+                {
+                  "id": "s239",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_exists: expected eq true, got ${ds_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s241",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/download_zip: signed documents as a ZIP\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s243",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/download_zip: signed documents as a ZIP: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.docusign/download_zip - signed documents as a ZIP"
+    },
+    {
+      "id": "s244",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.docusign/set_custom_fields - add an order number"
+      },
+      "children": [
+        {
+          "id": "s245",
+          "action": "core/comment",
+          "args": {
+            "text": "Set envelope custom fields adds new fields and changes existing ones. Checks the new field is read back."
+          }
+        },
+        {
+          "id": "s246",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s247",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s248",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": false,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.docusign/set_custom_fields",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "fields": {
+                  "OrderNumber": "SO-5531"
+                },
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Add OrderNumber"
+            },
+            {
+              "id": "s250",
+              "action": "ooa.docusign/set_custom_fields",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "fields": {
+                  "OrderNumber": "SO-5532"
+                },
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Change OrderNumber"
+            },
+            {
+              "id": "s251",
+              "action": "ooa.docusign/get_custom_fields",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "fields": "ds_fields"
+              },
+              "description": "Read the fields"
+            },
+            {
+              "id": "s252",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_fields.OrderNumber$",
+                  "right": "SO-5532"
+                }
+              },
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the order number",
+              "else": [
+                {
+                  "id": "s254",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the order number: expected eq \"SO-5532\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s255",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s256",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/set_custom_fields: add an order number\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s257",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s258",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/set_custom_fields: add an order number: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.docusign/set_custom_fields - add an order number"
+    },
+    {
+      "id": "s259",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.docusign/get_custom_fields - contract number"
+      },
+      "children": [
+        {
+          "id": "s260",
+          "action": "core/comment",
+          "args": {
+            "text": "Get envelope custom fields reads the custom fields of an envelope. Checks the made-up contract number."
+          }
+        },
+        {
+          "id": "s261",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s262",
+              "action": "ooa.docusign/get_custom_fields",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "fields": "ds_fields"
+              },
+              "description": "Read the fields"
+            },
+            {
+              "id": "s263",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_fields.ContractNumber$",
+                  "right": "C-1042"
+                }
+              },
+              "children": [
+                {
+                  "id": "s264",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the contract number",
+              "else": [
+                {
+                  "id": "s265",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the contract number: expected eq \"C-1042\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s266",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s267",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/get_custom_fields: contract number\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s269",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/get_custom_fields: contract number: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.docusign/get_custom_fields - contract number"
+    },
+    {
+      "id": "s270",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.docusign/get_form_data - values typed by the signer"
+      },
+      "children": [
+        {
+          "id": "s271",
+          "action": "core/comment",
+          "args": {
+            "text": "Get filled-in form data reads what recipients typed into the fields. Checks the company name."
+          }
+        },
+        {
+          "id": "s272",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s273",
+              "action": "ooa.docusign/get_form_data",
+              "args": {
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "values": "ds_values"
+              },
+              "description": "Read the form data"
+            },
+            {
+              "id": "s274",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_values.Company$",
+                  "right": "Northwind"
+                }
+              },
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the company",
+              "else": [
+                {
+                  "id": "s276",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the company: expected eq \"Northwind\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/get_form_data: values typed by the signer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s280",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/get_form_data: values typed by the signer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.docusign/get_form_data - values typed by the signer"
+    },
+    {
+      "id": "s281",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.docusign/create_envelope_from_template - NDA with a pre-filled field"
+      },
+      "children": [
+        {
+          "id": "s282",
+          "action": "core/comment",
+          "args": {
+            "text": "Envelope from template fills each template role with a person and pre-fills text fields. Checks it was sent and the field value is in the form data."
+          }
+        },
+        {
+          "id": "s283",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s284",
+              "action": "ooa.docusign/create_envelope_from_template",
+              "args": {
+                "template_id": "11111111-2222-3333-4444-555555555555",
+                "roles": [
+                  {
+                    "role": "Client",
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example"
+                  }
+                ],
+                "field_values": {
+                  "ContractNumber": "C-2001"
+                },
+                "email_subject": "UT NDA for Ann",
+                "send_now": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Send the NDA to Ann Lee"
+            },
+            {
+              "id": "s285",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "sent"
+                }
+              },
+              "children": [
+                {
+                  "id": "s286",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s287",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"sent\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s288",
+              "action": "ooa.docusign/get_form_data",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "values": "ds_values"
+              },
+              "description": "Read the form data"
+            },
+            {
+              "id": "s289",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_values.ContractNumber$",
+                  "right": "C-2001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the pre-filled field",
+              "else": [
+                {
+                  "id": "s291",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the pre-filled field: expected eq \"C-2001\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/create_envelope_from_template: NDA with a pre-filled field\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/create_envelope_from_template: NDA with a pre-filled field: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.docusign/create_envelope_from_template - NDA with a pre-filled field"
+    },
+    {
+      "id": "s296",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.docusign/resend_envelope - remind the signers"
+      },
+      "children": [
+        {
+          "id": "s297",
+          "action": "core/comment",
+          "args": {
+            "text": "Resend envelope sends the signing email again to recipients who have not finished. Checks the envelope is still out for signature."
+          }
+        },
+        {
+          "id": "s298",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s299",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s300",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.docusign/resend_envelope",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Send the reminder"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.docusign/get_envelope_status",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "status": "ds_status"
+              },
+              "description": "Read the status"
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "sent"
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"sent\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/resend_envelope: remind the signers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/resend_envelope: remind the signers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.docusign/resend_envelope - remind the signers"
+    },
+    {
+      "id": "s310",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.docusign/list_envelopes - sent envelopes about UT"
+      },
+      "children": [
+        {
+          "id": "s311",
+          "action": "core/comment",
+          "args": {
+            "text": "List envelopes gives envelopes changed since a date, here only sent ones whose subject has UT. Checks the envelope sent in this case is among them."
+          }
+        },
+        {
+          "id": "s312",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s313",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s315",
+              "action": "ooa.docusign/list_envelopes",
+              "args": {
+                "changed_since": "2026-01-01",
+                "status": [
+                  "sent"
+                ],
+                "search_text": "UT contract",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "table": "ds_table",
+                "count": "ds_count"
+              },
+              "description": "List sent envelopes"
+            },
+            {
+              "id": "s316",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ds_count$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the number of envelopes",
+              "else": [
+                {
+                  "id": "s318",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the number of envelopes: expected gt 0, got ${ds_count}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s320",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/list_envelopes: sent envelopes about UT\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s322",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/list_envelopes: sent envelopes about UT: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.docusign/list_envelopes - sent envelopes about UT"
+    },
+    {
+      "id": "s323",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.docusign/void_envelope - cancel an envelope"
+      },
+      "children": [
+        {
+          "id": "s324",
+          "action": "core/comment",
+          "args": {
+            "text": "Void envelope cancels an envelope still out for signature, with a reason. Checks the status and the reason."
+          }
+        },
+        {
+          "id": "s325",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s326",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_docusign_contract.txt",
+                "text": "Contract C-77 /sig/"
+              },
+              "description": "Prepare the document"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.docusign/create_envelope",
+              "args": {
+                "email_subject": "UT contract C-77",
+                "email_message": "Please sign.",
+                "documents": [
+                  "ut_docusign_contract.txt"
+                ],
+                "signers": [
+                  {
+                    "name": "Ann Lee",
+                    "email": "ann.lee@ut.example",
+                    "client_user_id": "ut-ann"
+                  }
+                ],
+                "copy_to": [
+                  {
+                    "name": "Legal Team",
+                    "email": "legal@ut.example"
+                  }
+                ],
+                "sign_here_text": "/sig/",
+                "send_now": true,
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "envelope_id": "ds_env",
+                "status": "ds_status"
+              },
+              "description": "Create the envelope"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.docusign/void_envelope",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "reason": "Wrong price",
+                "account_id": "",
+                "access_token": ""
+              },
+              "description": "Void it"
+            },
+            {
+              "id": "s329",
+              "action": "ooa.docusign/get_envelope_status",
+              "args": {
+                "envelope_id": "$ds_env$",
+                "account_id": "",
+                "access_token": ""
+              },
+              "out": {
+                "status": "ds_status",
+                "envelope": "ds_envelope"
+              },
+              "description": "Read the status"
+            },
+            {
+              "id": "s330",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "voided"
+                }
+              },
+              "children": [
+                {
+                  "id": "s331",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s332",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"voided\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_envelope.voided_reason$",
+                  "right": "Wrong price"
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the reason",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the reason: expected eq \"Wrong price\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/void_envelope: cancel an envelope\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/void_envelope: cancel an envelope: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.docusign/void_envelope - cancel an envelope"
+    },
+    {
+      "id": "s340",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.docusign/disconnect - forget the connection"
+      },
+      "children": [
+        {
+          "id": "s341",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect forgets the connection Connect chose; later steps give their own address, account and token. Checks a step with its own values still works."
+          }
+        },
+        {
+          "id": "s342",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s343",
+              "action": "ooa.docusign/disconnect",
+              "args": {},
+              "description": "Forget the connection"
+            },
+            {
+              "id": "s344",
+              "action": "ooa.docusign/get_envelope_status",
+              "args": {
+                "base_url": "${standin_url}/biz/docusign/restapi",
+                "account_id": "ut-account",
+                "access_token": {
+                  "$credential": "unit_tests/docusign/token"
+                },
+                "envelope_id": "aaaaaaaa-bbbb-cccc-dddd-000000000001"
+              },
+              "out": {
+                "status": "ds_status"
+              },
+              "description": "Read the completed envelope with the step's own sign-in"
+            },
+            {
+              "id": "s345",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ds_status$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ds_status",
+              "else": [
+                {
+                  "id": "s347",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ds_status: expected eq \"completed\", got ${ds_status}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s348",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s349",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.docusign/disconnect: forget the connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s350",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s351",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.docusign/disconnect: forget the connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.docusign/disconnect - forget the connection"
+    },
+    {
+      "id": "s352",
+      "action": "core/step",
+      "args": {
+        "title": "24. Summary"
+      },
+      "children": [
+        {
+          "id": "s353",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s354",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s355",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s356",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "24. Summary"
+    }
+  ]
+}
