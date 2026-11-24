@@ -1,0 +1,3088 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_google_drive",
+  "name": "UT Google Workspace Drive",
+  "description": "Unit tests of the Google Workspace Drive commands against the local Google stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "fid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Boolean",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Google Workspace Drive commands against the local Google stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Google Workspace Drive started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Google stand-in; My Drive starts as seeded."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgoogle/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.google/drive_upload - into a folder by path"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload to Drive puts a local file into a folder given by path and gives its id."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s28",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/up.txt",
+                "text": "12345"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s29",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/up.txt",
+                "folder_id": "/UT/Archive",
+                "description": "unit test"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it to /UT/Archive"
+            },
+            {
+              "id": "s30",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.size"
+                }
+              },
+              "description": "Take size for the check"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check size",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "size: expected eq 5, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.parents"
+                }
+              },
+              "description": "Take parent folder for the check"
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": [
+                    "fld-archive"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check parent folder",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "parent folder: expected eq [\"fld-archive\"], got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_upload: into a folder by path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_upload: into a folder by path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.google/drive_upload - into a folder by path"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.google/drive_list - the UT folder"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "List Drive files lists the files in a folder, here those whose name contains readme."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s46",
+              "action": "ooa.google/drive_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "folder_id": "fld-ut",
+                "name_contains": "readme"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List UT"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Take id for the check"
+            },
+            {
+              "id": "s51",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "file-readme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check id",
+              "else": [
+                {
+                  "id": "s53",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "id: expected eq \"file-readme\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_list: the UT folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_list: the UT folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.google/drive_list - the UT folder"
+    },
+    {
+      "id": "s58",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.google/drive_download - readme.txt by path"
+      },
+      "children": [
+        {
+          "id": "s59",
+          "action": "core/comment",
+          "args": {
+            "text": "Download from Drive saves a file, picked by its path, into a local folder."
+          }
+        },
+        {
+          "id": "s60",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s61",
+              "action": "ooa.google/drive_download",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "file_id": "/UT/readme.txt",
+                "local_path": "google/dl/",
+                "overwrite": true
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Download /UT/readme.txt"
+            },
+            {
+              "id": "s62",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "Unit test file"
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"Unit test file\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_download: readme.txt by path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_download: readme.txt by path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.google/drive_download - readme.txt by path"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.google/drive_download_export - the document as text"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Export Google file saves a Google Doc in another format, here plain text."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "ooa.google/drive_download_export",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "file_id": "doc-letter",
+                "format": "txt",
+                "local_path": "google/letter.txt"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Export UT Letter"
+            },
+            {
+              "id": "s74",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s2$",
+                  "right": "Dear {{name}}"
+                }
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exported text",
+              "else": [
+                {
+                  "id": "s77",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exported text: expected contains \"Dear name\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_download_export: the document as text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_download_export: the document as text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.google/drive_download_export - the document as text"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.google/drive_create_folder - inside UT"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Create Drive folder makes a folder and gives its id and link."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.google/drive_create_folder",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "name": "Reports",
+                "parent_id": "fld-ut"
+              },
+              "out": {
+                "folder_id": "s"
+              },
+              "description": "Make UT/Reports"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.google/drive_find_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "name_equals": "Reports",
+                "item_type": "folder",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Find it"
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_create_folder: inside UT\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_create_folder: inside UT: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.google/drive_create_folder - inside UT"
+    },
+    {
+      "id": "s94",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.google/drive_copy_file - by path into Archive"
+      },
+      "children": [
+        {
+          "id": "s95",
+          "action": "core/comment",
+          "args": {
+            "text": "Copy Drive file copies a file, picked by path, into another folder under a new name."
+          }
+        },
+        {
+          "id": "s96",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s97",
+              "action": "ooa.google/drive_copy_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_path": "UT/Templates/letter.txt",
+                "destination_path": "UT/Archive",
+                "name": "letter copy.txt"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Copy the letter"
+            },
+            {
+              "id": "s98",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.name"
+                }
+              },
+              "description": "Take name for the check"
+            },
+            {
+              "id": "s100",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "letter copy.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check name",
+              "else": [
+                {
+                  "id": "s102",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "name: expected eq \"letter copy.txt\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_copy_file: by path into Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_copy_file: by path into Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.google/drive_copy_file - by path into Archive"
+    },
+    {
+      "id": "s107",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.google/drive_copy_folder - Templates with its files"
+      },
+      "children": [
+        {
+          "id": "s108",
+          "action": "core/comment",
+          "args": {
+            "text": "Copy Drive folder copies a folder and every file in it, and counts the files."
+          }
+        },
+        {
+          "id": "s109",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s110",
+              "action": "ooa.google/drive_copy_folder",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "folder_path": "UT/Templates",
+                "destination_path": "UT/Archive",
+                "name": "Templates copy"
+              },
+              "out": {
+                "folder_id": "s",
+                "file_count": "n"
+              },
+              "description": "Copy Templates into Archive"
+            },
+            {
+              "id": "s111",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s113",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s114",
+              "action": "ooa.google/drive_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "folder_id": "$s$"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "List the copy"
+            },
+            {
+              "id": "s115",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s116",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s117",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_copy_folder: Templates with its files\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_copy_folder: Templates with its files: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.google/drive_copy_folder - Templates with its files"
+    },
+    {
+      "id": "s122",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.google/drive_move_item - into Archive"
+      },
+      "children": [
+        {
+          "id": "s123",
+          "action": "core/comment",
+          "args": {
+            "text": "Move Drive item moves a file to another folder."
+          }
+        },
+        {
+          "id": "s124",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s125",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/move-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare move-me.txt"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/move-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s127",
+              "action": "ooa.google/drive_move_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "folder_id": "fld-archive"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s128",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.parents"
+                }
+              },
+              "description": "Take parents for the check"
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": [
+                    "fld-archive"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check parents",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "parents: expected eq [\"fld-archive\"], got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_move_item: into Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_move_item: into Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.google/drive_move_item - into Archive"
+    },
+    {
+      "id": "s137",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.google/drive_rename_item - a new name"
+      },
+      "children": [
+        {
+          "id": "s138",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename Drive item gives a file a new name."
+          }
+        },
+        {
+          "id": "s139",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s140",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/rename-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare rename-me.txt"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/rename-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s142",
+              "action": "ooa.google/drive_rename_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "new_name": "renamed.txt"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s143",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.name"
+                }
+              },
+              "description": "Take name for the check"
+            },
+            {
+              "id": "s145",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "renamed.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check name",
+              "else": [
+                {
+                  "id": "s147",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "name: expected eq \"renamed.txt\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s148",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s149",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_rename_item: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s150",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s151",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_rename_item: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.google/drive_rename_item - a new name"
+    },
+    {
+      "id": "s152",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.google/drive_delete_item - to the trash"
+      },
+      "children": [
+        {
+          "id": "s153",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete Drive item trashes a file; it is then trashed in its info."
+          }
+        },
+        {
+          "id": "s154",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s155",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/trash-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare trash-me.txt"
+            },
+            {
+              "id": "s156",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/trash-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s157",
+              "action": "ooa.google/drive_delete_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "description": "Trash it"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.trashed"
+                }
+              },
+              "description": "Take trashed for the check"
+            },
+            {
+              "id": "s160",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check trashed",
+              "else": [
+                {
+                  "id": "s162",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "trashed: expected eq true, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s164",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_delete_item: to the trash\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_delete_item: to the trash: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.google/drive_delete_item - to the trash"
+    },
+    {
+      "id": "s167",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.google/drive_find_items - files in UT"
+      },
+      "children": [
+        {
+          "id": "s168",
+          "action": "core/comment",
+          "args": {
+            "text": "Find Drive items finds by folder path and type; folders are left out."
+          }
+        },
+        {
+          "id": "s169",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s170",
+              "action": "ooa.google/drive_find_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "folder_path": "UT",
+                "item_type": "file",
+                "name_contains": "readme"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Files directly in UT"
+            },
+            {
+              "id": "s171",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s173",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][3]"
+                }
+              },
+              "description": "Take is_folder for the check"
+            },
+            {
+              "id": "s175",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s176",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check is_folder",
+              "else": [
+                {
+                  "id": "s177",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "is_folder: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_find_items: files in UT\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s180",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_find_items: files in UT: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.google/drive_find_items - files in UT"
+    },
+    {
+      "id": "s182",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.google/drive_get_file_info - readme.txt"
+      },
+      "children": [
+        {
+          "id": "s183",
+          "action": "core/comment",
+          "args": {
+            "text": "Get Drive item info reads a file's name, type, size, owners and parents."
+          }
+        },
+        {
+          "id": "s184",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s185",
+              "action": "ooa.google/drive_get_file_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "file-readme"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read readme.txt"
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.mime_type"
+                }
+              },
+              "description": "Take type for the check"
+            },
+            {
+              "id": "s187",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "text/plain"
+                }
+              },
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check type",
+              "else": [
+                {
+                  "id": "s189",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "type: expected eq \"text/plain\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.owners"
+                }
+              },
+              "description": "Take owners for the check"
+            },
+            {
+              "id": "s191",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": [
+                    "una.tester@ut-google.test"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s192",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check owners",
+              "else": [
+                {
+                  "id": "s193",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "owners: expected eq [\"una.tester@ut-google.test\"], got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s195",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_get_file_info: readme.txt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s197",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_get_file_info: readme.txt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.google/drive_get_file_info - readme.txt"
+    },
+    {
+      "id": "s198",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.google/drive_list_permissions - readme.txt"
+      },
+      "children": [
+        {
+          "id": "s199",
+          "action": "core/comment",
+          "args": {
+            "text": "List Drive permissions lists the owner, Ann and the domain."
+          }
+        },
+        {
+          "id": "s200",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s201",
+              "action": "ooa.google/drive_list_permissions",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "file-readme"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Permissions of readme"
+            },
+            {
+              "id": "s202",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s204",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 3, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s205",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[1][3]"
+                }
+              },
+              "description": "Take email of the second for the check"
+            },
+            {
+              "id": "s206",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ann.lee@ut-google.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check email of the second",
+              "else": [
+                {
+                  "id": "s208",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "email of the second: expected eq \"ann.lee@ut-google.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_list_permissions: readme.txt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_list_permissions: readme.txt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.google/drive_list_permissions - readme.txt"
+    },
+    {
+      "id": "s213",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.google/drive_create_permission - a writer"
+      },
+      "children": [
+        {
+          "id": "s214",
+          "action": "core/comment",
+          "args": {
+            "text": "Share Drive item gives a person access with a role and gives the permission id."
+          }
+        },
+        {
+          "id": "s215",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s216",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/share-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare share-me.txt"
+            },
+            {
+              "id": "s217",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/share-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s218",
+              "action": "ooa.google/drive_create_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test",
+                "role": "writer",
+                "notify": false
+              },
+              "out": {
+                "permission_id": "s2"
+              },
+              "description": "Share with Bob as writer"
+            },
+            {
+              "id": "s219",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s220",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check permission id",
+              "else": [
+                {
+                  "id": "s221",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "permission id: expected notEmpty , got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s222",
+              "action": "ooa.google/drive_check_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test",
+                "access": "write"
+              },
+              "out": {
+                "has_access": "b"
+              },
+              "description": "Can Bob write?"
+            },
+            {
+              "id": "s223",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s225",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_create_permission: a writer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_create_permission: a writer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.google/drive_create_permission - a writer"
+    },
+    {
+      "id": "s230",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.google/drive_update_permission - reader to writer"
+      },
+      "children": [
+        {
+          "id": "s231",
+          "action": "core/comment",
+          "args": {
+            "text": "Change Drive permission changes a permission's role."
+          }
+        },
+        {
+          "id": "s232",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s233",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/role-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare role-me.txt"
+            },
+            {
+              "id": "s234",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/role-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s235",
+              "action": "ooa.google/drive_create_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test",
+                "notify": false
+              },
+              "out": {
+                "permission_id": "s2"
+              },
+              "description": "Share with Bob as reader"
+            },
+            {
+              "id": "s236",
+              "action": "ooa.google/drive_update_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "permission_id": "$s2$",
+                "role": "writer"
+              },
+              "description": "Make him a writer"
+            },
+            {
+              "id": "s237",
+              "action": "ooa.google/drive_check_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test"
+              },
+              "out": {
+                "role": "s2"
+              },
+              "description": "Bob's role"
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "writer"
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"writer\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_update_permission: reader to writer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_update_permission: reader to writer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.google/drive_update_permission - reader to writer"
+    },
+    {
+      "id": "s245",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.google/drive_delete_permission - take access away"
+      },
+      "children": [
+        {
+          "id": "s246",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove Drive permission removes a permission and says so."
+          }
+        },
+        {
+          "id": "s247",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s248",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "google/unshare-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare unshare-me.txt"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.google/drive_upload",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "local_path": "google/unshare-me.txt",
+                "folder_id": "fld-ut"
+              },
+              "out": {
+                "file_id": "s"
+              },
+              "description": "Upload it into UT"
+            },
+            {
+              "id": "s250",
+              "action": "ooa.google/drive_create_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test",
+                "notify": false
+              },
+              "out": {
+                "permission_id": "s2"
+              },
+              "description": "Share with Bob"
+            },
+            {
+              "id": "s251",
+              "action": "ooa.google/drive_delete_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "permission_id": "$s2$"
+              },
+              "out": {
+                "deleted": "b"
+              },
+              "description": "Remove it"
+            },
+            {
+              "id": "s252",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s254",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s255",
+              "action": "ooa.google/drive_check_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "$s$",
+                "email": "bob.ray@ut-google.test"
+              },
+              "out": {
+                "has_access": "b"
+              },
+              "description": "Can Bob read?"
+            },
+            {
+              "id": "s256",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s257",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s258",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_delete_permission: take access away\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s262",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_delete_permission: take access away: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.google/drive_delete_permission - take access away"
+    },
+    {
+      "id": "s263",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.google/drive_check_permission - through the domain"
+      },
+      "children": [
+        {
+          "id": "s264",
+          "action": "core/comment",
+          "args": {
+            "text": "Check Drive permission counts a domain permission for a person of that domain."
+          }
+        },
+        {
+          "id": "s265",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s266",
+              "action": "ooa.google/drive_check_permission",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "item_id": "file-readme",
+                "email": "carol@ut-google.test",
+                "access": "comment"
+              },
+              "out": {
+                "has_access": "b",
+                "role": "s"
+              },
+              "description": "Can Carol comment?"
+            },
+            {
+              "id": "s267",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s268",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s269",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s270",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "commenter"
+                }
+              },
+              "children": [
+                {
+                  "id": "s271",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s272",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"commenter\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/drive_check_permission: through the domain\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/drive_check_permission: through the domain: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.google/drive_check_permission - through the domain"
+    },
+    {
+      "id": "s277",
+      "action": "core/step",
+      "args": {
+        "title": "18. Summary"
+      },
+      "children": [
+        {
+          "id": "s278",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s279",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s280",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s281",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "18. Summary"
+    }
+  ]
+}
