@@ -1,0 +1,5479 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_m365_mail",
+  "name": "UT Microsoft 365 Outlook mail and calendar",
+  "description": "Unit tests of the Microsoft 365 Outlook mail and calendar commands, and the Connect session, against the local Graph stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "mid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "nid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "subjects",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "eid",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "cnt",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Microsoft 365 Outlook mail and calendar commands, and the Connect session, against the local Graph stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Microsoft 365 Outlook mail and calendar started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s209",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s210",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Graph stand-in; its made-up mailbox una.tester@ut-m365.test and calendar start as seeded."
+          }
+        },
+        {
+          "id": "s211",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgraph/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s212",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.microsoft365/connect - sign in once, later steps without a token"
+      },
+      "children": [
+        {
+          "id": "s213",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect keeps the access token and the Graph address; Find emails after it gives neither and still reads the inbox."
+          }
+        },
+        {
+          "id": "s214",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s215",
+              "action": "ooa.microsoft365/connect",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0"
+              },
+              "description": "Sign in to Microsoft 365 once"
+            },
+            {
+              "id": "s216",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {},
+              "out": {
+                "count": "n"
+              },
+              "description": "Find emails with no token or address of its own"
+            },
+            {
+              "id": "s217",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check emails found through the session",
+              "else": [
+                {
+                  "id": "s219",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "emails found through the session: expected gt 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s220",
+              "action": "ooa.microsoft365/disconnect",
+              "args": {},
+              "out": {
+                "closed": "b"
+              },
+              "description": "Forget the sign-in again"
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/connect: sign in once, later steps without a token\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s223",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/connect: sign in once, later steps without a token: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.microsoft365/connect - sign in once, later steps without a token"
+    },
+    {
+      "id": "s225",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.microsoft365/disconnect - forget the sign-in"
+      },
+      "children": [
+        {
+          "id": "s226",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the Microsoft 365 session that Connect opened and says so."
+          }
+        },
+        {
+          "id": "s227",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s228",
+              "action": "ooa.microsoft365/connect",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0"
+              },
+              "description": "Sign in"
+            },
+            {
+              "id": "s229",
+              "action": "ooa.microsoft365/disconnect",
+              "args": {},
+              "out": {
+                "closed": "b"
+              },
+              "description": "Sign out"
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/disconnect: forget the sign-in\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/disconnect: forget the sign-in: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.microsoft365/disconnect - forget the sign-in"
+    },
+    {
+      "id": "s237",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.microsoft365/send_mail - to yourself with an attachment"
+      },
+      "children": [
+        {
+          "id": "s238",
+          "action": "core/comment",
+          "args": {
+            "text": "Send email posts through Graph; a mail to the test mailbox arrives in its inbox with the file."
+          }
+        },
+        {
+          "id": "s239",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s240",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/note.txt",
+                "text": "hello attachment"
+              },
+              "description": "Prepare the attachment"
+            },
+            {
+              "id": "s241",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT hello",
+                "body": "Hello from the unit test",
+                "attachments": [
+                  "m365/note.txt"
+                ],
+                "importance": "high"
+              },
+              "description": "Send the email"
+            },
+            {
+              "id": "s242",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject_contains": "UT hello"
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "Look for it in the inbox"
+            },
+            {
+              "id": "s243",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s244",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s245",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][5]"
+                }
+              },
+              "description": "Take has_attachments of the arrived email for the check"
+            },
+            {
+              "id": "s247",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check has_attachments of the arrived email",
+              "else": [
+                {
+                  "id": "s249",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "has_attachments of the arrived email: expected eq true, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/send_mail: to yourself with an attachment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/send_mail: to yourself with an attachment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.microsoft365/send_mail - to yourself with an attachment"
+    },
+    {
+      "id": "s254",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.microsoft365/list_mail - unread emails from one sender"
+      },
+      "children": [
+        {
+          "id": "s255",
+          "action": "core/comment",
+          "args": {
+            "text": "Find emails lists the inbox newest first; unread_only and from_contains keep the two unread Acme invoices."
+          }
+        },
+        {
+          "id": "s256",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s257",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "unread_only": true,
+                "from_contains": "acme"
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "Find unread emails from Acme"
+            },
+            {
+              "id": "s258",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s259",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s260",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][2]"
+                }
+              },
+              "description": "Take newest subject for the check"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Invoice 8 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check newest subject",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "newest subject: expected eq \"Invoice 8 from Acme\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s266",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_mail: unread emails from one sender\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s268",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_mail: unread emails from one sender: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.microsoft365/list_mail - unread emails from one sender"
+    },
+    {
+      "id": "s269",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.microsoft365/get_mail - read one email without marking it"
+      },
+      "children": [
+        {
+          "id": "s270",
+          "action": "core/comment",
+          "args": {
+            "text": "Read email gives the email's details: subject, sender, text and the file attachment names (inline logo left out)."
+          }
+        },
+        {
+          "id": "s271",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s272",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Invoice 7"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s274",
+              "action": "ooa.microsoft365/get_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "mark_read": false
+              },
+              "out": {
+                "email": "e"
+              },
+              "description": "Read the email"
+            },
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.subject"
+                }
+              },
+              "description": "Take subject for the check"
+            },
+            {
+              "id": "s276",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Invoice 7 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check subject",
+              "else": [
+                {
+                  "id": "s278",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "subject: expected eq \"Invoice 7 from Acme\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.from"
+                }
+              },
+              "description": "Take sender for the check"
+            },
+            {
+              "id": "s280",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ap@acme.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sender",
+              "else": [
+                {
+                  "id": "s282",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sender: expected eq \"ap@acme.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.attachments"
+                }
+              },
+              "description": "Take attachment names for the check"
+            },
+            {
+              "id": "s284",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "inv-7.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attachment names",
+              "else": [
+                {
+                  "id": "s286",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attachment names: expected contains \"inv-7.pdf\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s287",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.unread"
+                }
+              },
+              "description": "Take still unread for the check"
+            },
+            {
+              "id": "s288",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check still unread",
+              "else": [
+                {
+                  "id": "s290",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "still unread: expected eq true, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s291",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_mail: read one email without marking it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s293",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_mail: read one email without marking it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.microsoft365/get_mail - read one email without marking it"
+    },
+    {
+      "id": "s295",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.microsoft365/mark_mail - mark an email read"
+      },
+      "children": [
+        {
+          "id": "s296",
+          "action": "core/comment",
+          "args": {
+            "text": "Change status sets the read flag; Find emails then shows the email as read."
+          }
+        },
+        {
+          "id": "s297",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s298",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT mark me",
+                "body": "x",
+                "save_to_sent_items": false
+              },
+              "description": "Send an email to mark"
+            },
+            {
+              "id": "s299",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "UT mark me"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT mark me'"
+            },
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.microsoft365/mark_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "status": "read"
+              },
+              "description": "Mark it read"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject_contains": "UT mark me"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find it again"
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][4]"
+                }
+              },
+              "description": "Take unread column for the check"
+            },
+            {
+              "id": "s304",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check unread column",
+              "else": [
+                {
+                  "id": "s306",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "unread column: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s308",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/mark_mail: mark an email read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s310",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/mark_mail: mark an email read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.microsoft365/mark_mail - mark an email read"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.microsoft365/move_mail - to the Archive folder"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "Move email moves an email by folder name and gives its new id; it is then in Archive."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s314",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT move me",
+                "body": "x",
+                "save_to_sent_items": false
+              },
+              "description": "Send an email to move"
+            },
+            {
+              "id": "s315",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "UT move me"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT move me'"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s317",
+              "action": "ooa.microsoft365/move_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "to_folder": "archive"
+              },
+              "out": {
+                "new_id": "s"
+              },
+              "description": "Move it to Archive"
+            },
+            {
+              "id": "s318",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new id",
+              "else": [
+                {
+                  "id": "s320",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s321",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "archive",
+                "subject_contains": "UT move me"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in Archive"
+            },
+            {
+              "id": "s322",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s323",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s324",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s325",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s326",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/move_mail: to the Archive folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s327",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s328",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/move_mail: to the Archive folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.microsoft365/move_mail - to the Archive folder"
+    },
+    {
+      "id": "s329",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.microsoft365/mail_folder_exists - a folder path and a missing folder"
+      },
+      "children": [
+        {
+          "id": "s330",
+          "action": "core/comment",
+          "args": {
+            "text": "Folder exists finds Inbox/Invoices by path with its id, and says false for a folder that is not there."
+          }
+        },
+        {
+          "id": "s331",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s332",
+              "action": "ooa.microsoft365/mail_folder_exists",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "name": "Inbox/Invoices"
+              },
+              "out": {
+                "exists": "b",
+                "folder_id": "s"
+              },
+              "description": "Look for Inbox/Invoices"
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "fld-invoices"
+                }
+              },
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s338",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"fld-invoices\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s339",
+              "action": "ooa.microsoft365/mail_folder_exists",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "name": "Nope"
+              },
+              "out": {
+                "exists": "b"
+              },
+              "description": "Look for a folder that is not there"
+            },
+            {
+              "id": "s340",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s341",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s342",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/mail_folder_exists: a folder path and a missing folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/mail_folder_exists: a folder path and a missing folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.microsoft365/mail_folder_exists - a folder path and a missing folder"
+    },
+    {
+      "id": "s347",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.microsoft365/move_all_mail - newsletters to Archive"
+      },
+      "children": [
+        {
+          "id": "s348",
+          "action": "core/comment",
+          "args": {
+            "text": "Move all emails moves every email matching the filters and counts them."
+          }
+        },
+        {
+          "id": "s349",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s350",
+              "action": "ooa.microsoft365/move_all_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to_folder": "archive",
+                "from_contains": "news@"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Move the newsletter emails"
+            },
+            {
+              "id": "s351",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s352",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s353",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s354",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s355",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/move_all_mail: newsletters to Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s357",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/move_all_mail: newsletters to Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.microsoft365/move_all_mail - newsletters to Archive"
+    },
+    {
+      "id": "s358",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.microsoft365/delete_mail - to Deleted Items"
+      },
+      "children": [
+        {
+          "id": "s359",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete email moves the email to Deleted Items (not permanent)."
+          }
+        },
+        {
+          "id": "s360",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s361",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT delete me",
+                "body": "x",
+                "save_to_sent_items": false
+              },
+              "description": "Send an email to delete"
+            },
+            {
+              "id": "s362",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "UT delete me"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT delete me'"
+            },
+            {
+              "id": "s363",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s364",
+              "action": "ooa.microsoft365/delete_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "deleteditems",
+                "subject_contains": "UT delete me"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in Deleted Items"
+            },
+            {
+              "id": "s366",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s368",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_mail: to Deleted Items\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_mail: to Deleted Items: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.microsoft365/delete_mail - to Deleted Items"
+    },
+    {
+      "id": "s373",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.microsoft365/delete_all_mail - every matching email"
+      },
+      "children": [
+        {
+          "id": "s374",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete all emails removes each email matching the subject filter and counts them."
+          }
+        },
+        {
+          "id": "s375",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s376",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT bulk 1",
+                "body": "x",
+                "save_to_sent_items": false
+              },
+              "description": "Send bulk email 1"
+            },
+            {
+              "id": "s377",
+              "action": "ooa.microsoft365/send_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "una.tester@ut-m365.test",
+                "subject": "UT bulk 2",
+                "body": "x",
+                "save_to_sent_items": false
+              },
+              "description": "Send bulk email 2"
+            },
+            {
+              "id": "s378",
+              "action": "ooa.microsoft365/delete_all_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject_contains": "UT bulk",
+                "permanent": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Delete the bulk emails"
+            },
+            {
+              "id": "s379",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s380",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s381",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s382",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s383",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_all_mail: every matching email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s384",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s385",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_all_mail: every matching email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.microsoft365/delete_all_mail - every matching email"
+    },
+    {
+      "id": "s386",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.microsoft365/forward_mail - with a note"
+      },
+      "children": [
+        {
+          "id": "s387",
+          "action": "core/comment",
+          "args": {
+            "text": "Forward email sends the invoice on to a colleague with a note; a copy lands in Sent Items."
+          }
+        },
+        {
+          "id": "s388",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s389",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Invoice 7"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s390",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s391",
+              "action": "ooa.microsoft365/forward_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "to": "ann.lee@ut-m365.test",
+                "comment": "Please check"
+              },
+              "description": "Forward it"
+            },
+            {
+              "id": "s392",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "sentitems",
+                "subject_contains": "FW: Invoice 7"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in Sent Items"
+            },
+            {
+              "id": "s393",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s394",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s395",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s396",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s397",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/forward_mail: with a note\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s398",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s399",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/forward_mail: with a note: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.microsoft365/forward_mail - with a note"
+    },
+    {
+      "id": "s400",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.microsoft365/reply_mail - to the sender"
+      },
+      "children": [
+        {
+          "id": "s401",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply to email answers the sender; the reply is in Sent Items with RE: before the subject."
+          }
+        },
+        {
+          "id": "s402",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s403",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Team lunch"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Team lunch'"
+            },
+            {
+              "id": "s404",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s405",
+              "action": "ooa.microsoft365/reply_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "comment": "Yes, Friday works"
+              },
+              "description": "Reply"
+            },
+            {
+              "id": "s406",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "sentitems",
+                "subject_contains": "RE: Team lunch"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in Sent Items"
+            },
+            {
+              "id": "s407",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s408",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s409",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s410",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s411",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/reply_mail: to the sender\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s412",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s413",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/reply_mail: to the sender: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.microsoft365/reply_mail - to the sender"
+    },
+    {
+      "id": "s414",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.microsoft365/reply_all_mail - everyone but the sender"
+      },
+      "children": [
+        {
+          "id": "s415",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply all answers every recipient; with exclude_sender the sender is left out."
+          }
+        },
+        {
+          "id": "s416",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s417",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Team lunch"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Team lunch'"
+            },
+            {
+              "id": "s418",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s419",
+              "action": "ooa.microsoft365/reply_all_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "comment": "Count me in",
+                "exclude_sender": true
+              },
+              "description": "Reply to all"
+            },
+            {
+              "id": "s420",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "sentitems",
+                "subject_contains": "RE: Team lunch"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in Sent Items"
+            },
+            {
+              "id": "s421",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check replies in Sent Items",
+              "else": [
+                {
+                  "id": "s423",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "replies in Sent Items: expected gt 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s424",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s425",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/reply_all_mail: everyone but the sender\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s426",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s427",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/reply_all_mail: everyone but the sender: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.microsoft365/reply_all_mail - everyone but the sender"
+    },
+    {
+      "id": "s428",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.microsoft365/save_mail_attachments - file attachments only"
+      },
+      "children": [
+        {
+          "id": "s429",
+          "action": "core/comment",
+          "args": {
+            "text": "Save attachments writes the email's files into a folder; without inline images only the PDF."
+          }
+        },
+        {
+          "id": "s430",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s431",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Invoice 7"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s432",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s433",
+              "action": "ooa.microsoft365/save_mail_attachments",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "target_folder": "m365/att1",
+                "include_inline": false,
+                "overwrite": true
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Save the attachments"
+            },
+            {
+              "id": "s434",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($files$)"
+                }
+              },
+              "description": "Take files saved for the check"
+            },
+            {
+              "id": "s435",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s436",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files saved",
+              "else": [
+                {
+                  "id": "s437",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files saved: expected eq 1, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s438",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "Take saved file for the check"
+            },
+            {
+              "id": "s439",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "inv-7.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s440",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved file",
+              "else": [
+                {
+                  "id": "s441",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved file: expected contains \"inv-7.pdf\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s442",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s443",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/save_mail_attachments: file attachments only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s444",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s445",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/save_mail_attachments: file attachments only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.microsoft365/save_mail_attachments - file attachments only"
+    },
+    {
+      "id": "s446",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.microsoft365/save_all_mail_attachments - PDFs of every invoice"
+      },
+      "children": [
+        {
+          "id": "s447",
+          "action": "core/comment",
+          "args": {
+            "text": "Save all attachments saves the matching files of every email that matches."
+          }
+        },
+        {
+          "id": "s448",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s449",
+              "action": "ooa.microsoft365/save_all_mail_attachments",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "target_folder": "m365/att2",
+                "subject_contains": "Invoice",
+                "name_pattern": "*.pdf",
+                "overwrite": true
+              },
+              "out": {
+                "files": "files",
+                "email_count": "n"
+              },
+              "description": "Save the invoice PDFs"
+            },
+            {
+              "id": "s450",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s451",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s452",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s453",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($files$)"
+                }
+              },
+              "description": "Take files saved for the check"
+            },
+            {
+              "id": "s454",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s455",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files saved",
+              "else": [
+                {
+                  "id": "s456",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files saved: expected eq 2, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s457",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s458",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/save_all_mail_attachments: PDFs of every invoice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s459",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s460",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/save_all_mail_attachments: PDFs of every invoice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.microsoft365/save_all_mail_attachments - PDFs of every invoice"
+    },
+    {
+      "id": "s461",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.microsoft365/save_mail_as_eml - a whole email as .eml"
+      },
+      "children": [
+        {
+          "id": "s462",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email as EML writes the email's MIME text to a file."
+          }
+        },
+        {
+          "id": "s463",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s464",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Invoice 7"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s465",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s466",
+              "action": "ooa.microsoft365/save_mail_as_eml",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "local_path": "m365/invoice7.eml"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Save as EML"
+            },
+            {
+              "id": "s467",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s468",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "Invoice 7 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s469",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the .eml text",
+              "else": [
+                {
+                  "id": "s470",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the .eml text: expected contains \"Invoice 7 from Acme\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s471",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s472",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/save_mail_as_eml: a whole email as .eml\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s473",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s474",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/save_mail_as_eml: a whole email as .eml: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.microsoft365/save_mail_as_eml - a whole email as .eml"
+    },
+    {
+      "id": "s475",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.microsoft365/save_mail_as_msg - a whole email as Outlook .msg"
+      },
+      "children": [
+        {
+          "id": "s476",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email as MSG builds an Outlook .msg file with the attachments in it."
+          }
+        },
+        {
+          "id": "s477",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s478",
+              "action": "ooa.microsoft365/list_mail",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "inbox",
+                "subject_contains": "Invoice 7"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s479",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s480",
+              "action": "ooa.microsoft365/save_mail_as_msg",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "id": "$mid$",
+                "local_path": "m365/invoice7.msg"
+              },
+              "out": {
+                "path": "s",
+                "attachments": "n"
+              },
+              "description": "Save as MSG"
+            },
+            {
+              "id": "s481",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s482",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s483",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s484",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "invoice7.msg"
+                }
+              },
+              "children": [
+                {
+                  "id": "s485",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved path",
+              "else": [
+                {
+                  "id": "s486",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved path: expected contains \"invoice7.msg\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s487",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s488",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/save_mail_as_msg: a whole email as Outlook .msg\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s489",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s490",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/save_mail_as_msg: a whole email as Outlook .msg: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.microsoft365/save_mail_as_msg - a whole email as Outlook .msg"
+    },
+    {
+      "id": "s491",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.microsoft365/emails - each unread email"
+      },
+      "children": [
+        {
+          "id": "s492",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each email loop goes through the unread emails from Acme one a turn."
+          }
+        },
+        {
+          "id": "s493",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s494",
+              "action": "core/set",
+              "args": {
+                "variable": "cnt",
+                "value": 0
+              }
+            },
+            {
+              "id": "s495",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/emails",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0",
+                  "unread_only": true,
+                  "from_contains": "acme"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s496",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "cnt",
+                    "value": {
+                      "expr": "$cnt$ + 1"
+                    }
+                  },
+                  "description": "Count it"
+                }
+              ],
+              "description": "Each unread email"
+            },
+            {
+              "id": "s497",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cnt$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s498",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cnt",
+              "else": [
+                {
+                  "id": "s499",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cnt: expected eq 2, got ${cnt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s500",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s501",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/emails: each unread email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s502",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s503",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/emails: each unread email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.microsoft365/emails - each unread email"
+    },
+    {
+      "id": "s504",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.microsoft365/create_event - a Teams meeting with an attendee"
+      },
+      "children": [
+        {
+          "id": "s505",
+          "action": "core/comment",
+          "args": {
+            "text": "Create calendar event gives the event id and, for an online meeting, the Teams join link."
+          }
+        },
+        {
+          "id": "s506",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s507",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT planning",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "attendees": "ann.lee@ut-m365.test",
+                "online_meeting": true,
+                "location": "Room 1"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT planning'"
+            },
+            {
+              "id": "s508",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT planning 2",
+                "start": "2026-12-02T10:00:00",
+                "end": "2026-12-02T11:00:00",
+                "online_meeting": true
+              },
+              "out": {
+                "online_meeting_url": "s"
+              },
+              "description": "Create it again to read the link"
+            },
+            {
+              "id": "s509",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$eid$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s510",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check event id",
+              "else": [
+                {
+                  "id": "s511",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "event id: expected notEmpty , got ${eid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s512",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "teams.test/join"
+                }
+              },
+              "children": [
+                {
+                  "id": "s513",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check join link",
+              "else": [
+                {
+                  "id": "s514",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "join link: expected contains \"teams.test/join\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s515",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s516",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_event: a Teams meeting with an attendee\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s517",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s518",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_event: a Teams meeting with an attendee: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.microsoft365/create_event - a Teams meeting with an attendee"
+    },
+    {
+      "id": "s519",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.microsoft365/list_events - events of a period"
+      },
+      "children": [
+        {
+          "id": "s520",
+          "action": "core/comment",
+          "args": {
+            "text": "Get calendar events lists the events between two dates; the seeded review is found by its title."
+          }
+        },
+        {
+          "id": "s521",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s522",
+              "action": "ooa.microsoft365/list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "start": "2026-11-01T00:00:00",
+                "end": "2026-11-30T00:00:00",
+                "subject_contains": "Month-end"
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "List November events"
+            },
+            {
+              "id": "s523",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s524",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s525",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s526",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][4]"
+                }
+              },
+              "description": "Take location for the check"
+            },
+            {
+              "id": "s527",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Room 4"
+                }
+              },
+              "children": [
+                {
+                  "id": "s528",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check location",
+              "else": [
+                {
+                  "id": "s529",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "location: expected eq \"Room 4\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s530",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s531",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_events: events of a period\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s532",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s533",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_events: events of a period: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.microsoft365/list_events - events of a period"
+    },
+    {
+      "id": "s534",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.microsoft365/update_event - a new title"
+      },
+      "children": [
+        {
+          "id": "s535",
+          "action": "core/comment",
+          "args": {
+            "text": "Update calendar event changes the title; the period's list then shows it."
+          }
+        },
+        {
+          "id": "s536",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s537",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT to rename",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT to rename'"
+            },
+            {
+              "id": "s538",
+              "action": "ooa.microsoft365/update_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "subject": "UT renamed"
+              },
+              "out": {
+                "web_link": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s539",
+              "action": "ooa.microsoft365/list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "start": "2026-12-01T00:00:00",
+                "end": "2026-12-02T00:00:00",
+                "subject_contains": "UT renamed"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "List it"
+            },
+            {
+              "id": "s540",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s541",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s542",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s543",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s544",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/update_event: a new title\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s545",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s546",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/update_event: a new title: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.microsoft365/update_event - a new title"
+    },
+    {
+      "id": "s547",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.microsoft365/add_attendees - one more person"
+      },
+      "children": [
+        {
+          "id": "s548",
+          "action": "core/comment",
+          "args": {
+            "text": "Add event attendees invites another person without inviting anyone twice."
+          }
+        },
+        {
+          "id": "s549",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s550",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT add people",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "attendees": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT add people'"
+            },
+            {
+              "id": "s551",
+              "action": "ooa.microsoft365/add_attendees",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "attendees": [
+                  "ann.lee@ut-m365.test",
+                  "bob.ray@ut-m365.test"
+                ]
+              },
+              "out": {
+                "attendees": "l"
+              },
+              "description": "Invite Bob, and Ann again"
+            },
+            {
+              "id": "s552",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($l$)"
+                }
+              },
+              "description": "Take attendees after the change for the check"
+            },
+            {
+              "id": "s553",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s554",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attendees after the change",
+              "else": [
+                {
+                  "id": "s555",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attendees after the change: expected eq 2, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s556",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s557",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/add_attendees: one more person\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s558",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s559",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/add_attendees: one more person: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.microsoft365/add_attendees - one more person"
+    },
+    {
+      "id": "s560",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.microsoft365/remove_attendees - take a person off"
+      },
+      "children": [
+        {
+          "id": "s561",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove event attendees takes the person off the list."
+          }
+        },
+        {
+          "id": "s562",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s563",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT remove people",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "attendees": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT remove people'"
+            },
+            {
+              "id": "s564",
+              "action": "ooa.microsoft365/remove_attendees",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "attendees": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "attendees": "l"
+              },
+              "description": "Take Ann off"
+            },
+            {
+              "id": "s565",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($l$)"
+                }
+              },
+              "description": "Take attendees after the change for the check"
+            },
+            {
+              "id": "s566",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s567",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attendees after the change",
+              "else": [
+                {
+                  "id": "s568",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attendees after the change: expected eq 0, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s569",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s570",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/remove_attendees: take a person off\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s571",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s572",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/remove_attendees: take a person off: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.microsoft365/remove_attendees - take a person off"
+    },
+    {
+      "id": "s573",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.microsoft365/clear_event_details - blank the location"
+      },
+      "children": [
+        {
+          "id": "s574",
+          "action": "core/comment",
+          "args": {
+            "text": "Clear event details empties the ticked details, here the location."
+          }
+        },
+        {
+          "id": "s575",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s576",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT clear",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00",
+                "location": "Room 9"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT clear'"
+            },
+            {
+              "id": "s577",
+              "action": "ooa.microsoft365/clear_event_details",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "clear_location": true
+              },
+              "out": {
+                "web_link": "s"
+              },
+              "description": "Clear the location"
+            },
+            {
+              "id": "s578",
+              "action": "ooa.microsoft365/list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "start": "2026-12-01T00:00:00",
+                "end": "2026-12-02T00:00:00",
+                "subject_contains": "UT clear"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "List it"
+            },
+            {
+              "id": "s579",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][4]"
+                }
+              },
+              "description": "Take location for the check"
+            },
+            {
+              "id": "s580",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s581",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check location",
+              "else": [
+                {
+                  "id": "s582",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "location: expected eq \"\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s583",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s584",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/clear_event_details: blank the location\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s585",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s586",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/clear_event_details: blank the location: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.microsoft365/clear_event_details - blank the location"
+    },
+    {
+      "id": "s587",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.microsoft365/cancel_event - with a note"
+      },
+      "children": [
+        {
+          "id": "s588",
+          "action": "core/comment",
+          "args": {
+            "text": "Cancel calendar event sends the cancellation; the step answers without an error."
+          }
+        },
+        {
+          "id": "s589",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s590",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT cancel",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT cancel'"
+            },
+            {
+              "id": "s591",
+              "action": "ooa.microsoft365/cancel_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "message": "Sorry, cancelled"
+              },
+              "description": "Cancel it"
+            },
+            {
+              "id": "s592",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": true
+              },
+              "description": "The cancellation went through"
+            },
+            {
+              "id": "s593",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s594",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s595",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s596",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s597",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/cancel_event: with a note\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s598",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s599",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/cancel_event: with a note: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.microsoft365/cancel_event - with a note"
+    },
+    {
+      "id": "s600",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.microsoft365/delete_event - remove it"
+      },
+      "children": [
+        {
+          "id": "s601",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete calendar event takes the event out of the calendar."
+          }
+        },
+        {
+          "id": "s602",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s603",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT delete event",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT delete event'"
+            },
+            {
+              "id": "s604",
+              "action": "ooa.microsoft365/delete_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s605",
+              "action": "ooa.microsoft365/list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "start": "2026-12-01T00:00:00",
+                "end": "2026-12-02T00:00:00",
+                "subject_contains": "UT delete event"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "List it"
+            },
+            {
+              "id": "s606",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s607",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s608",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s609",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s610",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_event: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s611",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s612",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_event: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.microsoft365/delete_event - remove it"
+    },
+    {
+      "id": "s613",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.microsoft365/respond_to_event - accept an invitation"
+      },
+      "children": [
+        {
+          "id": "s614",
+          "action": "core/comment",
+          "args": {
+            "text": "Respond to invitation accepts the seeded review meeting with a note."
+          }
+        },
+        {
+          "id": "s615",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s616",
+              "action": "ooa.microsoft365/list_events",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "start": "2026-11-01T00:00:00",
+                "end": "2026-11-30T00:00:00",
+                "subject_contains": "Month-end"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the review"
+            },
+            {
+              "id": "s617",
+              "action": "core/set",
+              "args": {
+                "variable": "eid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              }
+            },
+            {
+              "id": "s618",
+              "action": "ooa.microsoft365/respond_to_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "response": "accept",
+                "comment": "See you there"
+              },
+              "description": "Accept it"
+            },
+            {
+              "id": "s619",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": true
+              },
+              "description": "The answer went through"
+            },
+            {
+              "id": "s620",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s621",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s622",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s623",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s624",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/respond_to_event: accept an invitation\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s625",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s626",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/respond_to_event: accept an invitation: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.microsoft365/respond_to_event - accept an invitation"
+    },
+    {
+      "id": "s627",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.microsoft365/add_event_attachment - a local file"
+      },
+      "children": [
+        {
+          "id": "s628",
+          "action": "core/comment",
+          "args": {
+            "text": "Add event attachment attaches a small file to an event and gives its id."
+          }
+        },
+        {
+          "id": "s629",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s630",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/agenda.txt",
+                "text": "1. Budget"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s631",
+              "action": "ooa.microsoft365/create_event",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "subject": "UT with agenda",
+                "start": "2026-12-01T10:00:00",
+                "end": "2026-12-01T11:00:00"
+              },
+              "out": {
+                "event_id": "eid"
+              },
+              "description": "Create the test event 'UT with agenda'"
+            },
+            {
+              "id": "s632",
+              "action": "ooa.microsoft365/add_event_attachment",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "event_id": "$eid$",
+                "file": "m365/agenda.txt"
+              },
+              "out": {
+                "attachment_id": "s"
+              },
+              "description": "Attach the agenda"
+            },
+            {
+              "id": "s633",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s634",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attachment id",
+              "else": [
+                {
+                  "id": "s635",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attachment id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s636",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s637",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/add_event_attachment: a local file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s638",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s639",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/add_event_attachment: a local file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.microsoft365/add_event_attachment - a local file"
+    },
+    {
+      "id": "s640",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.microsoft365/find_meeting_times - free slots"
+      },
+      "children": [
+        {
+          "id": "s641",
+          "action": "core/comment",
+          "args": {
+            "text": "Find free meeting times suggests slots when the attendees are free."
+          }
+        },
+        {
+          "id": "s642",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s643",
+              "action": "ooa.microsoft365/find_meeting_times",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "attendees": [
+                  "ann.lee@ut-m365.test"
+                ],
+                "start": "2026-12-03T09:00:00",
+                "end": "2026-12-03T17:00:00",
+                "duration_minutes": 60,
+                "max_results": 2
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "Find an hour"
+            },
+            {
+              "id": "s644",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s645",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s646",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s647",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Take first slot start for the check"
+            },
+            {
+              "id": "s648",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "2026-12-03T09:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s649",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check first slot start",
+              "else": [
+                {
+                  "id": "s650",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "first slot start: expected contains \"2026-12-03T09:00\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s651",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s652",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/find_meeting_times: free slots\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s653",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s654",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/find_meeting_times: free slots: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.microsoft365/find_meeting_times - free slots"
+    },
+    {
+      "id": "s655",
+      "action": "core/step",
+      "args": {
+        "title": "31. ooa.microsoft365/calendar_events - each event of a period"
+      },
+      "children": [
+        {
+          "id": "s656",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each calendar event loop goes through the period's events one a turn."
+          }
+        },
+        {
+          "id": "s657",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s658",
+              "action": "core/set",
+              "args": {
+                "variable": "s",
+                "value": ""
+              }
+            },
+            {
+              "id": "s659",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/calendar_events",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0",
+                  "start": "2026-11-01T00:00:00",
+                  "end": "2026-11-30T00:00:00"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s660",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s",
+                    "value": {
+                      "expr": "$s$ + $e.subject + ';'"
+                    }
+                  },
+                  "description": "Collect the title"
+                }
+              ],
+              "description": "Each November event"
+            },
+            {
+              "id": "s661",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "Month-end review;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s662",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s663",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"Month-end review;\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s664",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s665",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/calendar_events: each event of a period\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s666",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s667",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/calendar_events: each event of a period: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "31. ooa.microsoft365/calendar_events - each event of a period"
+    },
+    {
+      "id": "s668",
+      "action": "core/step",
+      "args": {
+        "title": "32. Summary"
+      },
+      "children": [
+        {
+          "id": "s669",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s670",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s671",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s672",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "32. Summary"
+    }
+  ]
+}

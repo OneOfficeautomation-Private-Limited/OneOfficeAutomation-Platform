@@ -1,0 +1,3619 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_m365_teams",
+  "name": "UT Microsoft 365 Teams and Planner",
+  "description": "Unit tests of the Microsoft 365 Teams, chat and Planner commands against the local Graph stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "cnt",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Microsoft 365 Teams, chat and Planner commands against the local Graph stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Microsoft 365 Teams and Planner started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s60",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s61",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Graph stand-in; the team UT Finance, its channels, a chat and a plan start as seeded."
+          }
+        },
+        {
+          "id": "s62",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgraph/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s63",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.microsoft365/list_teams - the user's teams"
+      },
+      "children": [
+        {
+          "id": "s64",
+          "action": "core/comment",
+          "args": {
+            "text": "List teams lists the teams the signed-in user belongs to."
+          }
+        },
+        {
+          "id": "s65",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "ooa.microsoft365/list_teams",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List my teams"
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s69",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take team name for the check"
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "UT Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check team name",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "team name: expected eq \"UT Finance\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_teams: the user's teams\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_teams: the user's teams: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.microsoft365/list_teams - the user's teams"
+    },
+    {
+      "id": "s78",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.microsoft365/get_team_by_name - UT Finance"
+      },
+      "children": [
+        {
+          "id": "s79",
+          "action": "core/comment",
+          "args": {
+            "text": "Get team by name finds a team's id from its name, not minding case."
+          }
+        },
+        {
+          "id": "s80",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s81",
+              "action": "ooa.microsoft365/get_team_by_name",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "name": "ut finance"
+              },
+              "out": {
+                "team_id": "s"
+              },
+              "description": "Find ut finance"
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "5061-team-ut-finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"5061-team-ut-finance\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_team_by_name: UT Finance\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_team_by_name: UT Finance: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.microsoft365/get_team_by_name - UT Finance"
+    },
+    {
+      "id": "s89",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.microsoft365/get_team_details - name and visibility"
+      },
+      "children": [
+        {
+          "id": "s90",
+          "action": "core/comment",
+          "args": {
+            "text": "Get team details reads a team's name, visibility and archive state."
+          }
+        },
+        {
+          "id": "s91",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s92",
+              "action": "ooa.microsoft365/get_team_details",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance"
+              },
+              "out": {
+                "team": "e"
+              },
+              "description": "Read the team"
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.visibility"
+                }
+              },
+              "description": "Take visibility for the check"
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "private"
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check visibility",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "visibility: expected eq \"private\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.archived"
+                }
+              },
+              "description": "Take archived for the check"
+            },
+            {
+              "id": "s98",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check archived",
+              "else": [
+                {
+                  "id": "s100",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "archived: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_team_details: name and visibility\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_team_details: name and visibility: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.microsoft365/get_team_details - name and visibility"
+    },
+    {
+      "id": "s105",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.microsoft365/list_channels - the team's channels"
+      },
+      "children": [
+        {
+          "id": "s106",
+          "action": "core/comment",
+          "args": {
+            "text": "List channels lists a team's channels."
+          }
+        },
+        {
+          "id": "s107",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s108",
+              "action": "ooa.microsoft365/list_channels",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance"
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "List the channels"
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s111",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[1][1]"
+                }
+              },
+              "description": "Take second channel for the check"
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Invoices"
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check second channel",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "second channel: expected eq \"Invoices\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_channels: the team's channels\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_channels: the team's channels: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.microsoft365/list_channels - the team's channels"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.microsoft365/get_channel_by_name - by team name"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "Get channel by name finds a channel's id, the team given by name too."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.microsoft365/get_channel_by_name",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_name": "UT Finance",
+                "name": "general"
+              },
+              "out": {
+                "channel_id": "s"
+              },
+              "description": "Find General in UT Finance"
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "19:general@thread.tacv2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"19:general@thread.tacv2\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_channel_by_name: by team name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_channel_by_name: by team name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.microsoft365/get_channel_by_name - by team name"
+    },
+    {
+      "id": "s131",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.microsoft365/get_channel_details - General"
+      },
+      "children": [
+        {
+          "id": "s132",
+          "action": "core/comment",
+          "args": {
+            "text": "Get channel details reads a channel's name, type and email address."
+          }
+        },
+        {
+          "id": "s133",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s134",
+              "action": "ooa.microsoft365/get_channel_details",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "channel_id": "19:general@thread.tacv2"
+              },
+              "out": {
+                "channel": "e"
+              },
+              "description": "Read General"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.membership_type"
+                }
+              },
+              "description": "Take membership type for the check"
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "standard"
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check membership type",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "membership type: expected eq \"standard\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.email"
+                }
+              },
+              "description": "Take email for the check"
+            },
+            {
+              "id": "s140",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "general@ut-m365.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check email",
+              "else": [
+                {
+                  "id": "s142",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "email: expected eq \"general@ut-m365.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_channel_details: General\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_channel_details: General: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.microsoft365/get_channel_details - General"
+    },
+    {
+      "id": "s147",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.microsoft365/create_channel - a standard channel"
+      },
+      "children": [
+        {
+          "id": "s148",
+          "action": "core/comment",
+          "args": {
+            "text": "Create channel adds a channel; List channels then shows three."
+          }
+        },
+        {
+          "id": "s149",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s150",
+              "action": "ooa.microsoft365/create_channel",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "name": "UT Reports",
+                "description": "Reports"
+              },
+              "out": {
+                "channel_id": "s"
+              },
+              "description": "Add UT Reports"
+            },
+            {
+              "id": "s151",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check channel id",
+              "else": [
+                {
+                  "id": "s153",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "channel id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s154",
+              "action": "ooa.microsoft365/get_channel_by_name",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "name": "UT Reports"
+              },
+              "out": {
+                "channel_id": "s2"
+              },
+              "description": "Find it by name"
+            },
+            {
+              "id": "s155",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s156",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s157",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"s\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_channel: a standard channel\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_channel: a standard channel: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.microsoft365/create_channel - a standard channel"
+    },
+    {
+      "id": "s162",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.microsoft365/get_channel_messages - posts, newest first"
+      },
+      "children": [
+        {
+          "id": "s163",
+          "action": "core/comment",
+          "args": {
+            "text": "Get channel messages reads a channel's posts with their text taken out of the HTML."
+          }
+        },
+        {
+          "id": "s164",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s165",
+              "action": "ooa.microsoft365/get_channel_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "channel_id": "19:general@thread.tacv2"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Read General"
+            },
+            {
+              "id": "s166",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s168",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[1][4]"
+                }
+              },
+              "description": "Take text of the oldest post for the check"
+            },
+            {
+              "id": "s170",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Hello & welcome"
+                }
+              },
+              "children": [
+                {
+                  "id": "s171",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text of the oldest post",
+              "else": [
+                {
+                  "id": "s172",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text of the oldest post: expected eq \"Hello & welcome\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_channel_messages: posts, newest first\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_channel_messages: posts, newest first: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.microsoft365/get_channel_messages - posts, newest first"
+    },
+    {
+      "id": "s177",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.microsoft365/teams_message - by team and channel name"
+      },
+      "children": [
+        {
+          "id": "s178",
+          "action": "core/comment",
+          "args": {
+            "text": "Post Teams message posts to a channel chosen by names, with a subject; it is then the newest post."
+          }
+        },
+        {
+          "id": "s179",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s180",
+              "action": "ooa.microsoft365/teams_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_name": "UT Finance",
+                "channel_name": "Invoices",
+                "message": "Run finished",
+                "subject": "UT run"
+              },
+              "out": {
+                "message_id": "s"
+              },
+              "description": "Post to Invoices"
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "ooa.microsoft365/get_channel_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "channel_id": "19:invoices@thread.tacv2"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Read Invoices"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][3]"
+                }
+              },
+              "description": "Take subject of the newest post for the check"
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "UT run"
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check subject of the newest post",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "subject of the newest post: expected eq \"UT run\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/teams_message: by team and channel name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/teams_message: by team and channel name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.microsoft365/teams_message - by team and channel name"
+    },
+    {
+      "id": "s193",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.microsoft365/reply_to_message - in a thread"
+      },
+      "children": [
+        {
+          "id": "s194",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply in channel posts a reply in the thread of a post and gives the reply's id."
+          }
+        },
+        {
+          "id": "s195",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s196",
+              "action": "ooa.microsoft365/reply_to_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "team_id": "5061-team-ut-finance",
+                "channel_id": "19:general@thread.tacv2",
+                "message_id": "1700000000001",
+                "message": "Thanks"
+              },
+              "out": {
+                "reply_id": "s"
+              },
+              "description": "Reply to the welcome post"
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check reply id",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "reply id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/reply_to_message: in a thread\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s202",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s203",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/reply_to_message: in a thread: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.microsoft365/reply_to_message - in a thread"
+    },
+    {
+      "id": "s204",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.microsoft365/create_chat - with Ann, reused"
+      },
+      "children": [
+        {
+          "id": "s205",
+          "action": "core/comment",
+          "args": {
+            "text": "Create chat finds the existing one-on-one chat with Ann instead of making a second one."
+          }
+        },
+        {
+          "id": "s206",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s207",
+              "action": "ooa.microsoft365/create_chat",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "chat_id": "s"
+              },
+              "description": "Chat with Ann"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "19:chat-ann@unq.gbl.spaces"
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"19:chat-ann@unq.gbl.spaces\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_chat: with Ann, reused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_chat: with Ann, reused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.microsoft365/create_chat - with Ann, reused"
+    },
+    {
+      "id": "s215",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.microsoft365/send_chat_message - straight to a person"
+      },
+      "children": [
+        {
+          "id": "s216",
+          "action": "core/comment",
+          "args": {
+            "text": "Send chat message to a person uses their one-on-one chat and gives the message and chat ids."
+          }
+        },
+        {
+          "id": "s217",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "ooa.microsoft365/send_chat_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "to": "ann.lee@ut-m365.test",
+                "message": "Report is ready",
+                "importance": "high"
+              },
+              "out": {
+                "chat_id": "s",
+                "message_id": "s2"
+              },
+              "description": "Message Ann"
+            },
+            {
+              "id": "s219",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "19:chat-ann@unq.gbl.spaces"
+                }
+              },
+              "children": [
+                {
+                  "id": "s220",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s221",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"19:chat-ann@unq.gbl.spaces\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s222",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s223",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s224",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected notEmpty , got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s225",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/send_chat_message: straight to a person\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s227",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/send_chat_message: straight to a person: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.microsoft365/send_chat_message - straight to a person"
+    },
+    {
+      "id": "s229",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.microsoft365/get_user - Ann's profile"
+      },
+      "children": [
+        {
+          "id": "s230",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user reads a person's directory profile."
+          }
+        },
+        {
+          "id": "s231",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s232",
+              "action": "ooa.microsoft365/get_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read Ann"
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.job_title"
+                }
+              },
+              "description": "Take job title for the check"
+            },
+            {
+              "id": "s234",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Analyst"
+                }
+              },
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check job title",
+              "else": [
+                {
+                  "id": "s236",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "job title: expected eq \"Analyst\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s237",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.id"
+                }
+              },
+              "description": "Take id for the check"
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "1c2d3e4f-5061-7283-94a5-b6c7d8e9f0a1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check id",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "id: expected eq \"1c2d3e4f-5061-7283-94a5-b6c7d8e9f0a1\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_user: Ann's profile\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_user: Ann's profile: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.microsoft365/get_user - Ann's profile"
+    },
+    {
+      "id": "s245",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.microsoft365/teams - each team"
+      },
+      "children": [
+        {
+          "id": "s246",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each team loop goes through the user's teams."
+          }
+        },
+        {
+          "id": "s247",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s248",
+              "action": "core/set",
+              "args": {
+                "variable": "s",
+                "value": ""
+              }
+            },
+            {
+              "id": "s249",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/teams",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s250",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s",
+                    "value": {
+                      "expr": "$s$ + $e.name"
+                    }
+                  },
+                  "description": "Collect the name"
+                }
+              ],
+              "description": "Each team"
+            },
+            {
+              "id": "s251",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "UT Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s253",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"UT Finance\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s254",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s255",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/teams: each team\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s257",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/teams: each team: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.microsoft365/teams - each team"
+    },
+    {
+      "id": "s258",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.microsoft365/channels - each channel"
+      },
+      "children": [
+        {
+          "id": "s259",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each channel loop goes through a team's channels."
+          }
+        },
+        {
+          "id": "s260",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "cnt",
+                "value": 0
+              }
+            },
+            {
+              "id": "s262",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/channels",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0",
+                  "team_id": "5061-team-ut-finance"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "cnt",
+                    "value": {
+                      "expr": "$cnt$ + 1"
+                    }
+                  }
+                }
+              ],
+              "description": "Each channel"
+            },
+            {
+              "id": "s264",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$cnt$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check channels",
+              "else": [
+                {
+                  "id": "s266",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "channels: expected ge 2, got ${cnt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s267",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/channels: each channel\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s269",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/channels: each channel: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.microsoft365/channels - each channel"
+    },
+    {
+      "id": "s271",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.microsoft365/channel_messages - each post since a date"
+      },
+      "children": [
+        {
+          "id": "s272",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each message in a channel loop goes through the posts created since a date."
+          }
+        },
+        {
+          "id": "s273",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "cnt",
+                "value": 0
+              }
+            },
+            {
+              "id": "s275",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/channel_messages",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0",
+                  "team_id": "5061-team-ut-finance",
+                  "channel_id": "19:general@thread.tacv2",
+                  "since": "2026-11-19T00:00:00"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "cnt",
+                    "value": {
+                      "expr": "$cnt$ + 1"
+                    }
+                  }
+                }
+              ],
+              "description": "Each post since 19 Nov"
+            },
+            {
+              "id": "s277",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cnt$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cnt",
+              "else": [
+                {
+                  "id": "s279",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cnt: expected eq 1, got ${cnt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s281",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/channel_messages: each post since a date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s283",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/channel_messages: each post since a date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.microsoft365/channel_messages - each post since a date"
+    },
+    {
+      "id": "s284",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.microsoft365/chats - each chat"
+      },
+      "children": [
+        {
+          "id": "s285",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each chat loop goes through the user's chats."
+          }
+        },
+        {
+          "id": "s286",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s287",
+              "action": "core/set",
+              "args": {
+                "variable": "s",
+                "value": ""
+              }
+            },
+            {
+              "id": "s288",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/chats",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s",
+                    "value": {
+                      "expr": "$s$ + $e.chat_type"
+                    }
+                  },
+                  "description": "Collect the chat type"
+                }
+              ],
+              "description": "Each chat"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "oneOnOne"
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check chat types",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "chat types: expected contains \"oneOnOne\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/chats: each chat\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/chats: each chat: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.microsoft365/chats - each chat"
+    },
+    {
+      "id": "s297",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.microsoft365/chat_messages - each message, system events left out"
+      },
+      "children": [
+        {
+          "id": "s298",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each chat message loop gives the chat's messages but not its system events."
+          }
+        },
+        {
+          "id": "s299",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s300",
+              "action": "core/set",
+              "args": {
+                "variable": "s",
+                "value": ""
+              }
+            },
+            {
+              "id": "s301",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.microsoft365/chat_messages",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/m365/token"
+                  },
+                  "base_url": "${standin_url}/msgraph/v1.0",
+                  "chat_id": "19:chat-ann@unq.gbl.spaces"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s",
+                    "value": {
+                      "expr": "$s$ + $e.text + ';'"
+                    }
+                  },
+                  "description": "Collect the text"
+                }
+              ],
+              "description": "Each message"
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "See you at 3;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message texts",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message texts: expected contains \"See you at 3;\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/chat_messages: each message, system events left out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/chat_messages: each message, system events left out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.microsoft365/chat_messages - each message, system events left out"
+    },
+    {
+      "id": "s310",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.microsoft365/list_plans - the team's plans"
+      },
+      "children": [
+        {
+          "id": "s311",
+          "action": "core/comment",
+          "args": {
+            "text": "List plans lists the Planner plans of a group (a team's id is its group id)."
+          }
+        },
+        {
+          "id": "s312",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s313",
+              "action": "ooa.microsoft365/list_plans",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group_id": "5061-team-ut-finance"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List the plans"
+            },
+            {
+              "id": "s314",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s315",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s316",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s317",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take plan title for the check"
+            },
+            {
+              "id": "s318",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Month end"
+                }
+              },
+              "children": [
+                {
+                  "id": "s319",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check plan title",
+              "else": [
+                {
+                  "id": "s320",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "plan title: expected eq \"Month end\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s321",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_plans: the team's plans\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s323",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_plans: the team's plans: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.microsoft365/list_plans - the team's plans"
+    },
+    {
+      "id": "s325",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.microsoft365/list_tasks - assigned to Ann"
+      },
+      "children": [
+        {
+          "id": "s326",
+          "action": "core/comment",
+          "args": {
+            "text": "List tasks lists a plan's tasks, here only those assigned to Ann."
+          }
+        },
+        {
+          "id": "s327",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s328",
+              "action": "ooa.microsoft365/list_tasks",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "plan_id": "plan-ut-1",
+                "assigned_to": "1c2d3e4f-5061-7283-94a5-b6c7d8e9f0a1"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Ann's tasks"
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s331",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take task title for the check"
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Close ledger"
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check task title",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "task title: expected eq \"Close ledger\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_tasks: assigned to Ann\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_tasks: assigned to Ann: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.microsoft365/list_tasks - assigned to Ann"
+    },
+    {
+      "id": "s340",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.microsoft365/create_task - with a due date"
+      },
+      "children": [
+        {
+          "id": "s341",
+          "action": "core/comment",
+          "args": {
+            "text": "Create task adds a task to the plan; List tasks then finds it."
+          }
+        },
+        {
+          "id": "s342",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s343",
+              "action": "ooa.microsoft365/create_task",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "plan_id": "plan-ut-1",
+                "bucket_id": "bucket-todo",
+                "title": "UT reconcile",
+                "due_date": "2026-12-05T17:00:00",
+                "assigned_to": [
+                  "1c2d3e4f-5061-7283-94a5-b6c7d8e9f0a1"
+                ]
+              },
+              "out": {
+                "task_id": "s"
+              },
+              "description": "Add a task"
+            },
+            {
+              "id": "s344",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s345",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check task id",
+              "else": [
+                {
+                  "id": "s346",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "task id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s347",
+              "action": "ooa.microsoft365/list_tasks",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "plan_id": "plan-ut-1"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Tasks of the plan"
+            },
+            {
+              "id": "s348",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s349",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s350",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s351",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s352",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_task: with a due date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s353",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s354",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_task: with a due date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.microsoft365/create_task - with a due date"
+    },
+    {
+      "id": "s355",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.microsoft365/update_task - half done"
+      },
+      "children": [
+        {
+          "id": "s356",
+          "action": "core/comment",
+          "args": {
+            "text": "Update task reads the task's version (ETag) and changes its progress."
+          }
+        },
+        {
+          "id": "s357",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s358",
+              "action": "ooa.microsoft365/create_task",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "plan_id": "plan-ut-1",
+                "bucket_id": "bucket-ut-progress",
+                "title": "UT progress"
+              },
+              "out": {
+                "task_id": "s"
+              },
+              "description": "Add a task to change"
+            },
+            {
+              "id": "s359",
+              "action": "ooa.microsoft365/update_task",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "task_id": "$s$",
+                "percent_complete": 50,
+                "title": "UT progress, half"
+              },
+              "description": "Set it to 50 percent"
+            },
+            {
+              "id": "s360",
+              "action": "ooa.microsoft365/list_tasks",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "plan_id": "plan-ut-1",
+                "bucket_id": "bucket-ut-progress"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Read the task back by its bucket"
+            },
+            {
+              "id": "s361",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][3]"
+                }
+              },
+              "description": "Take percent complete for the check"
+            },
+            {
+              "id": "s362",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 50
+                }
+              },
+              "children": [
+                {
+                  "id": "s363",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check percent complete",
+              "else": [
+                {
+                  "id": "s364",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "percent complete: expected eq 50, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s365",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s366",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/update_task: half done\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s368",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/update_task: half done: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.microsoft365/update_task - half done"
+    },
+    {
+      "id": "s369",
+      "action": "core/step",
+      "args": {
+        "title": "23. Summary"
+      },
+      "children": [
+        {
+          "id": "s370",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s371",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s372",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s373",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "23. Summary"
+    }
+  ]
+}

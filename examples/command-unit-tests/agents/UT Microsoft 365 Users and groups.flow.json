@@ -1,0 +1,2135 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_m365_entra",
+  "name": "UT Microsoft 365 Users and groups",
+  "description": "Unit tests of the Microsoft 365 Entra ID user and group commands against the local Graph stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Microsoft 365 Entra ID user and group commands against the local Graph stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Microsoft 365 Users and groups started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Graph stand-in; its users and groups start as seeded."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgraph/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s7",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.microsoft365/entra_find_users - Finance, enabled only"
+      },
+      "children": [
+        {
+          "id": "s8",
+          "action": "core/comment",
+          "args": {
+            "text": "Find users filters by department and leaves out disabled accounts."
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s10",
+              "action": "ooa.microsoft365/entra_find_users",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "department": "Finance",
+                "enabled_only": true
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Enabled Finance users"
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][2]"
+                }
+              },
+              "description": "Take sign-in name for the check"
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ann.lee@ut-m365.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sign-in name",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sign-in name: expected eq \"ann.lee@ut-m365.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_find_users: Finance, enabled only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s21",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_find_users: Finance, enabled only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.microsoft365/entra_find_users - Finance, enabled only"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.microsoft365/entra_get_user - Ann with her manager"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user reads one user with the manager and whether the account is enabled."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.microsoft365/entra_get_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "user": "e",
+                "enabled": "b"
+              },
+              "description": "Read Ann"
+            },
+            {
+              "id": "s26",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s28",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.manager"
+                }
+              },
+              "description": "Take manager for the check"
+            },
+            {
+              "id": "s30",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "una.tester@ut-m365.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s31",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check manager",
+              "else": [
+                {
+                  "id": "s32",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "manager: expected eq \"una.tester@ut-m365.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s34",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_get_user: Ann with her manager\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_get_user: Ann with her manager: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.microsoft365/entra_get_user - Ann with her manager"
+    },
+    {
+      "id": "s37",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.microsoft365/entra_create_user - with a first password"
+      },
+      "children": [
+        {
+          "id": "s38",
+          "action": "core/comment",
+          "args": {
+            "text": "Create user makes a user with a vault password and gives the new id."
+          }
+        },
+        {
+          "id": "s39",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s40",
+              "action": "ooa.microsoft365/entra_create_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "display_name": "UT Newcomer",
+                "user_principal_name": "ut.newcomer@ut-m365.test",
+                "password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "department": "QA"
+              },
+              "out": {
+                "user_id": "s"
+              },
+              "description": "Create the test user UT Newcomer"
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check user id",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "user id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "ooa.microsoft365/entra_get_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ut.newcomer@ut-m365.test"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read the new user"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.department"
+                }
+              },
+              "description": "Take department for the check"
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "QA"
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check department",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "department: expected eq \"QA\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_create_user: with a first password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_create_user: with a first password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.microsoft365/entra_create_user - with a first password"
+    },
+    {
+      "id": "s53",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.microsoft365/entra_update_user - disable the account"
+      },
+      "children": [
+        {
+          "id": "s54",
+          "action": "core/comment",
+          "args": {
+            "text": "Update user disables an account and changes its job title."
+          }
+        },
+        {
+          "id": "s55",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s56",
+              "action": "ooa.microsoft365/entra_create_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "display_name": "UT Leaver",
+                "user_principal_name": "ut.leaver@ut-m365.test",
+                "password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "department": "QA"
+              },
+              "out": {
+                "user_id": "s"
+              },
+              "description": "Create the test user UT Leaver"
+            },
+            {
+              "id": "s57",
+              "action": "ooa.microsoft365/entra_update_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "$s$",
+                "account": "disable",
+                "job_title": "Former"
+              },
+              "description": "Disable it"
+            },
+            {
+              "id": "s58",
+              "action": "ooa.microsoft365/entra_get_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "$s$"
+              },
+              "out": {
+                "enabled": "b",
+                "user": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.job_title"
+                }
+              },
+              "description": "Take job title for the check"
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Former"
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check job title",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "job title: expected eq \"Former\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_update_user: disable the account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_update_user: disable the account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.microsoft365/entra_update_user - disable the account"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.microsoft365/entra_delete_user - remove the user"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete user removes the user; reading it afterwards fails."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "ooa.microsoft365/entra_create_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "display_name": "UT Gone",
+                "user_principal_name": "ut.gone@ut-m365.test",
+                "password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "department": "QA"
+              },
+              "out": {
+                "user_id": "s"
+              },
+              "description": "Create the test user UT Gone"
+            },
+            {
+              "id": "s74",
+              "action": "ooa.microsoft365/entra_delete_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "$s$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s76",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "ooa.microsoft365/entra_get_user",
+                  "args": {
+                    "access_token": {
+                      "$credential": "unit_tests/m365/token"
+                    },
+                    "base_url": "${standin_url}/msgraph/v1.0",
+                    "user": "$s$"
+                  },
+                  "description": "Read the deleted user"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s78",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s81",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_delete_user: remove the user\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_delete_user: remove the user: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.microsoft365/entra_delete_user - remove the user"
+    },
+    {
+      "id": "s86",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.microsoft365/entra_user_groups - direct and nested"
+      },
+      "children": [
+        {
+          "id": "s87",
+          "action": "core/comment",
+          "args": {
+            "text": "Groups of a user lists Ann's direct group, and with nested also the group it sits in."
+          }
+        },
+        {
+          "id": "s88",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.microsoft365/entra_user_groups",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "names": "l"
+              },
+              "description": "Ann's direct groups"
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "UT Finance"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"UT Finance\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s93",
+              "action": "ooa.microsoft365/entra_user_groups",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "ann.lee@ut-m365.test",
+                "nested": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Ann's groups, nested"
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_user_groups: direct and nested\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_user_groups: direct and nested: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.microsoft365/entra_user_groups - direct and nested"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.microsoft365/entra_group_members - UT Everyone, nested"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Group members lists a group's members, with nested also the members of groups inside it."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s104",
+              "action": "ooa.microsoft365/entra_group_members",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Everyone"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Members of UT Everyone"
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "ooa.microsoft365/entra_group_members",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Everyone",
+                "nested": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Nested members"
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s111",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 4, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_group_members: UT Everyone, nested\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_group_members: UT Everyone, nested: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.microsoft365/entra_group_members - UT Everyone, nested"
+    },
+    {
+      "id": "s116",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.microsoft365/entra_add_group_member - add, then add again"
+      },
+      "children": [
+        {
+          "id": "s117",
+          "action": "core/comment",
+          "args": {
+            "text": "Add to group adds a member; a second time it says it was a member already."
+          }
+        },
+        {
+          "id": "s118",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "ooa.microsoft365/entra_create_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "display_name": "UT Joiner",
+                "user_principal_name": "ut.joiner@ut-m365.test",
+                "password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "department": "QA"
+              },
+              "out": {
+                "user_id": "s"
+              },
+              "description": "Create the test user UT Joiner"
+            },
+            {
+              "id": "s120",
+              "action": "ooa.microsoft365/entra_add_group_member",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Finance",
+                "member": "$s$"
+              },
+              "out": {
+                "added": "b"
+              },
+              "description": "Add to UT Finance"
+            },
+            {
+              "id": "s121",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s123",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "ooa.microsoft365/entra_add_group_member",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Finance",
+                "member": "$s$"
+              },
+              "out": {
+                "added": "b"
+              },
+              "description": "Add again"
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_add_group_member: add, then add again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s130",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_add_group_member: add, then add again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.microsoft365/entra_add_group_member - add, then add again"
+    },
+    {
+      "id": "s132",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.microsoft365/entra_remove_group_member - remove, then remove again"
+      },
+      "children": [
+        {
+          "id": "s133",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove from group removes a member; a second time it says it was not a member."
+          }
+        },
+        {
+          "id": "s134",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s135",
+              "action": "ooa.microsoft365/entra_create_user",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "display_name": "UT Mover",
+                "user_principal_name": "ut.mover@ut-m365.test",
+                "password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "department": "QA"
+              },
+              "out": {
+                "user_id": "s"
+              },
+              "description": "Create the test user UT Mover"
+            },
+            {
+              "id": "s136",
+              "action": "ooa.microsoft365/entra_add_group_member",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Finance",
+                "member": "$s$"
+              },
+              "description": "Add to UT Finance"
+            },
+            {
+              "id": "s137",
+              "action": "ooa.microsoft365/entra_remove_group_member",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Finance",
+                "member": "$s$"
+              },
+              "out": {
+                "removed": "b"
+              },
+              "description": "Remove"
+            },
+            {
+              "id": "s138",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s140",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "ooa.microsoft365/entra_remove_group_member",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "group": "UT Finance",
+                "member": "$s$"
+              },
+              "out": {
+                "removed": "b"
+              },
+              "description": "Remove again"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_remove_group_member: remove, then remove again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_remove_group_member: remove, then remove again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.microsoft365/entra_remove_group_member - remove, then remove again"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.microsoft365/entra_find_groups - security groups starting UT"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Find groups lists groups by the start of the name, security groups only."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s152",
+              "action": "ooa.microsoft365/entra_find_groups",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "starts_with": "UT",
+                "security_only": true
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Security groups UT*"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take group name for the check"
+            },
+            {
+              "id": "s157",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "UT Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check group name",
+              "else": [
+                {
+                  "id": "s159",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "group name: expected eq \"UT Finance\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_find_groups: security groups starting UT\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_find_groups: security groups starting UT: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.microsoft365/entra_find_groups - security groups starting UT"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.microsoft365/entra_sign_out_everywhere - end Bob's sessions"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "Sign out everywhere ends a user's sign-in sessions; the step answers without an error."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s167",
+              "action": "ooa.microsoft365/entra_sign_out_everywhere",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "user": "bob.ray@ut-m365.test"
+              },
+              "description": "Sign Bob out"
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": true
+              },
+              "description": "The sign-out went through"
+            },
+            {
+              "id": "s169",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s171",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/entra_sign_out_everywhere: end Bob's sessions\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/entra_sign_out_everywhere: end Bob's sessions: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.microsoft365/entra_sign_out_everywhere - end Bob's sessions"
+    },
+    {
+      "id": "s176",
+      "action": "core/step",
+      "args": {
+        "title": "12. Summary"
+      },
+      "children": [
+        {
+          "id": "s177",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s178",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s179",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s180",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "12. Summary"
+    }
+  ]
+}

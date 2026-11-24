@@ -1,0 +1,6252 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_active_directory",
+  "name": "UT Active Directory",
+  "description": "Unit tests of every Active Directory command against a local in-memory LDAP directory (standin/msg_ldap, port in input ldap_url).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ldap_url",
+      "type": "String",
+      "direction": "input",
+      "default": "ldap://127.0.0.1:8895",
+      "description": "Address of the local in-memory LDAP directory (standin/msg_ldap)."
+    },
+    {
+      "name": "ldap_reset",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8896/reset",
+      "description": "Address that puts the test directory back as seeded."
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Active Directory command against a local in-memory LDAP directory (standin/msg_ldap, port in input ldap_url)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Active Directory started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh test directory"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local in-memory LDAP directory; it starts as seeded."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "$ldap_reset$",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the directory back as seeded"
+        }
+      ],
+      "description": "Prepare: fresh test directory"
+    },
+    {
+      "id": "s7",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.active_directory/connect - and a wrong password"
+      },
+      "children": [
+        {
+          "id": "s8",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect signs in to the directory; with a wrong password it fails with AD.AUTH_FAILED."
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s10",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s11",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ann.lee"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read Ann through the session"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.sAMAccountName"
+                }
+              },
+              "description": "Take sign-in name for the check"
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ann.lee"
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sign-in name",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sign-in name: expected eq \"ann.lee\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "ooa.active_directory/connect",
+                  "args": {
+                    "url": "$ldap_url$",
+                    "bind_user": "CN=admin,DC=ut,DC=test",
+                    "password": {
+                      "$credential": "unit_tests/ldap/wrong_password"
+                    },
+                    "base_dn": "DC=ut,DC=test",
+                    "session": "wrong"
+                  },
+                  "description": "Sign in with a wrong password"
+                }
+              ],
+              "description": "These steps should fail with AD.AUTH_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "AD.AUTH_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s19",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AD.AUTH_FAILED",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AD.AUTH_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/connect: and a wrong password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/connect: and a wrong password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.active_directory/connect - and a wrong password"
+    },
+    {
+      "id": "s27",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.active_directory/disconnect - then steps need a session"
+      },
+      "children": [
+        {
+          "id": "s28",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the directory session; a later step without one fails."
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s30",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s31",
+              "action": "ooa.active_directory/disconnect",
+              "args": {},
+              "description": "Sign out"
+            },
+            {
+              "id": "s32",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s33",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "ooa.active_directory/get_user",
+                  "args": {
+                    "username": "ann.lee"
+                  },
+                  "description": "Read Ann without a session"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/disconnect: then steps need a session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/disconnect: then steps need a session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.active_directory/disconnect - then steps need a session"
+    },
+    {
+      "id": "s43",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.active_directory/build_dn - a user in a nested OU"
+      },
+      "children": [
+        {
+          "id": "s44",
+          "action": "core/comment",
+          "args": {
+            "text": "Build DN turns a path and a domain into a distinguished name, nothing read from a directory."
+          }
+        },
+        {
+          "id": "s45",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s46",
+              "action": "ooa.active_directory/build_dn",
+              "args": {
+                "path": "Staff/Robots",
+                "domain": "ut.test",
+                "name": "Jane Doe"
+              },
+              "out": {
+                "dn": "s",
+                "parent_dn": "s2"
+              },
+              "description": "Build the DN"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "CN=Jane Doe"
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dn",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dn: expected contains \"CN=Jane Doe\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s2$",
+                  "right": "DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check parent dn",
+              "else": [
+                {
+                  "id": "s52",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "parent dn: expected contains \"DC=ut,DC=test\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/build_dn: a user in a nested OU\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/build_dn: a user in a nested OU: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.active_directory/build_dn - a user in a nested OU"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.active_directory/get_user - one attribute"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Get user reads a user; asked for one attribute it gives that value on its own."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s60",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s61",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ann.lee",
+                "attributes": [
+                  "department"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read Ann's department"
+            },
+            {
+              "id": "s62",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s64",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Finance\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s65",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/get_user: one attribute\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/get_user: one attribute: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.active_directory/get_user - one attribute"
+    },
+    {
+      "id": "s69",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.active_directory/create_user - in Staff"
+      },
+      "children": [
+        {
+          "id": "s70",
+          "action": "core/comment",
+          "args": {
+            "text": "Create user makes a user in an OU and gives its distinguished name."
+          }
+        },
+        {
+          "id": "s71",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s72",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s73",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.create",
+                "first_name": "Test",
+                "last_name": "ut.create"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.create"
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "OU=Staff"
+                }
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check dn",
+              "else": [
+                {
+                  "id": "s76",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "dn: expected contains \"OU=Staff\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/create_user: in Staff\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/create_user: in Staff: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.active_directory/create_user - in Staff"
+    },
+    {
+      "id": "s81",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.active_directory/delete_user - remove it"
+      },
+      "children": [
+        {
+          "id": "s82",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete user removes the user; reading it afterwards fails with AD.USER_NOT_FOUND."
+          }
+        },
+        {
+          "id": "s83",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s84",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s85",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.delete",
+                "first_name": "Test",
+                "last_name": "ut.delete"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.delete"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.active_directory/delete_user",
+              "args": {
+                "username": "ut.delete"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s88",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "ooa.active_directory/get_user",
+                  "args": {
+                    "username": "ut.delete"
+                  },
+                  "description": "Read it"
+                }
+              ],
+              "description": "These steps should fail with AD.USER_NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "AD.USER_NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s90",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error AD.USER_NOT_FOUND",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error AD.USER_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/delete_user: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/delete_user: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.active_directory/delete_user - remove it"
+    },
+    {
+      "id": "s98",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.active_directory/disable_user - the account"
+      },
+      "children": [
+        {
+          "id": "s99",
+          "action": "core/comment",
+          "args": {
+            "text": "Disable user turns the account off; Get user then says it is not enabled."
+          }
+        },
+        {
+          "id": "s100",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s101",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.disable",
+                "first_name": "Test",
+                "last_name": "ut.disable"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.disable"
+            },
+            {
+              "id": "s103",
+              "action": "ooa.active_directory/disable_user",
+              "args": {
+                "username": "ut.disable"
+              },
+              "description": "Disable it"
+            },
+            {
+              "id": "s104",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.disable"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.enabled"
+                }
+              },
+              "description": "Take enabled for the check"
+            },
+            {
+              "id": "s106",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s107",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check enabled",
+              "else": [
+                {
+                  "id": "s108",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "enabled: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/disable_user: the account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/disable_user: the account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.active_directory/disable_user - the account"
+    },
+    {
+      "id": "s113",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.active_directory/enable_user - Bob's account"
+      },
+      "children": [
+        {
+          "id": "s114",
+          "action": "core/comment",
+          "args": {
+            "text": "Enable user turns a disabled account on."
+          }
+        },
+        {
+          "id": "s115",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s116",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s117",
+              "action": "ooa.active_directory/enable_user",
+              "args": {
+                "username": "bob.ray"
+              },
+              "description": "Enable Bob"
+            },
+            {
+              "id": "s118",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "bob.ray"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read Bob"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.enabled"
+                }
+              },
+              "description": "Take enabled for the check"
+            },
+            {
+              "id": "s120",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check enabled",
+              "else": [
+                {
+                  "id": "s122",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "enabled: expected eq true, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/enable_user: Bob's account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/enable_user: Bob's account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.active_directory/enable_user - Bob's account"
+    },
+    {
+      "id": "s127",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.active_directory/unlock_user - a locked account"
+      },
+      "children": [
+        {
+          "id": "s128",
+          "action": "core/comment",
+          "args": {
+            "text": "Unlock user clears the lockout; Get user then says it is not locked."
+          }
+        },
+        {
+          "id": "s129",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s130",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.locked",
+                "first_name": "Test",
+                "last_name": "ut.locked"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.locked"
+            },
+            {
+              "id": "s132",
+              "action": "ooa.active_directory/set_attribute",
+              "args": {
+                "username": "ut.locked",
+                "attribute": "lockoutTime",
+                "value": "133000000000000000"
+              },
+              "description": "Lock it for the test"
+            },
+            {
+              "id": "s133",
+              "action": "ooa.active_directory/unlock_user",
+              "args": {
+                "username": "ut.locked"
+              },
+              "description": "Unlock it"
+            },
+            {
+              "id": "s134",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.locked"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s135",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.locked"
+                }
+              },
+              "description": "Take locked for the check"
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check locked",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "locked: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/unlock_user: a locked account\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/unlock_user: a locked account: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.active_directory/unlock_user - a locked account"
+    },
+    {
+      "id": "s143",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.active_directory/update_user_details - title and office"
+      },
+      "children": [
+        {
+          "id": "s144",
+          "action": "core/comment",
+          "args": {
+            "text": "Update user details changes some attributes and names them."
+          }
+        },
+        {
+          "id": "s145",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s146",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s147",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.details",
+                "first_name": "Test",
+                "last_name": "ut.details"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.details"
+            },
+            {
+              "id": "s148",
+              "action": "ooa.active_directory/update_user_details",
+              "args": {
+                "username": "ut.details",
+                "title": "Analyst",
+                "office": "Pune"
+              },
+              "out": {
+                "changed": "l"
+              },
+              "description": "Set title and office"
+            },
+            {
+              "id": "s149",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($l$)"
+                }
+              },
+              "description": "Take attributes changed for the check"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attributes changed",
+              "else": [
+                {
+                  "id": "s152",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attributes changed: expected eq 2, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s153",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.details",
+                "attributes": [
+                  "title"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read the title"
+            },
+            {
+              "id": "s154",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Analyst"
+                }
+              },
+              "children": [
+                {
+                  "id": "s155",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Analyst\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/update_user_details: title and office\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/update_user_details: title and office: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.active_directory/update_user_details - title and office"
+    },
+    {
+      "id": "s161",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.active_directory/update_account_options - password never expires"
+      },
+      "children": [
+        {
+          "id": "s162",
+          "action": "core/comment",
+          "args": {
+            "text": "Update account options sets account flags and gives the new userAccountControl."
+          }
+        },
+        {
+          "id": "s163",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s164",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.options",
+                "first_name": "Test",
+                "last_name": "ut.options"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.options"
+            },
+            {
+              "id": "s166",
+              "action": "ooa.active_directory/update_account_options",
+              "args": {
+                "username": "ut.options",
+                "enabled": true,
+                "password_never_expires": true
+              },
+              "out": {
+                "user_account_control": "n"
+              },
+              "description": "Password never expires, enabled"
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 66048
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 66048, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/update_account_options: password never expires\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/update_account_options: password never expires: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.active_directory/update_account_options - password never expires"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.active_directory/set_attribute - add a phone number"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Set attribute changes one attribute; Get user reads it back."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s177",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s178",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.attr",
+                "first_name": "Test",
+                "last_name": "ut.attr"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.attr"
+            },
+            {
+              "id": "s179",
+              "action": "ooa.active_directory/set_attribute",
+              "args": {
+                "username": "ut.attr",
+                "attribute": "telephoneNumber",
+                "value": "+91 20 0000 0000"
+              },
+              "description": "Set telephoneNumber"
+            },
+            {
+              "id": "s180",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.attr",
+                "attributes": [
+                  "telephoneNumber"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "+91 20 0000 0000"
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"+91 20 0000 0000\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/set_attribute: add a phone number\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/set_attribute: add a phone number: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.active_directory/set_attribute - add a phone number"
+    },
+    {
+      "id": "s188",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.active_directory/set_password - a new password"
+      },
+      "children": [
+        {
+          "id": "s189",
+          "action": "core/comment",
+          "args": {
+            "text": "Set password writes a new password (a real domain needs ldaps://; the test directory takes it on ldap://)."
+          }
+        },
+        {
+          "id": "s190",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s191",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s192",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.pw1",
+                "first_name": "Test",
+                "last_name": "ut.pw1"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.pw1"
+            },
+            {
+              "id": "s193",
+              "action": "ooa.active_directory/set_password",
+              "args": {
+                "username": "ut.pw1",
+                "new_password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "must_change": true
+              },
+              "description": "Set the password"
+            },
+            {
+              "id": "s194",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.pw1",
+                "attributes": [
+                  "pwdLastSet"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read pwdLastSet"
+            },
+            {
+              "id": "s195",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s197",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"0\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s198",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s199",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/set_password: a new password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s200",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s201",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/set_password: a new password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.active_directory/set_password - a new password"
+    },
+    {
+      "id": "s202",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.active_directory/reset_password - and unlock"
+      },
+      "children": [
+        {
+          "id": "s203",
+          "action": "core/comment",
+          "args": {
+            "text": "Reset password sets a password as an administrator and can unlock the account."
+          }
+        },
+        {
+          "id": "s204",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s205",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s206",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.pw2",
+                "first_name": "Test",
+                "last_name": "ut.pw2"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.pw2"
+            },
+            {
+              "id": "s207",
+              "action": "ooa.active_directory/reset_password",
+              "args": {
+                "username": "ut.pw2",
+                "new_password": {
+                  "$credential": "unit_tests/ldap/user_password"
+                },
+                "must_change": false,
+                "unlock": true
+              },
+              "description": "Reset the password"
+            },
+            {
+              "id": "s208",
+              "action": "ooa.active_directory/get_user",
+              "args": {
+                "username": "ut.pw2"
+              },
+              "out": {
+                "user": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.locked"
+                }
+              },
+              "description": "Take locked for the check"
+            },
+            {
+              "id": "s210",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check locked",
+              "else": [
+                {
+                  "id": "s212",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "locked: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/reset_password: and unlock\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/reset_password: and unlock: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.active_directory/reset_password - and unlock"
+    },
+    {
+      "id": "s217",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.active_directory/move_user - to Archive"
+      },
+      "children": [
+        {
+          "id": "s218",
+          "action": "core/comment",
+          "args": {
+            "text": "Move user moves the user to another OU and gives the new distinguished name."
+          }
+        },
+        {
+          "id": "s219",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s220",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s221",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.move",
+                "first_name": "Test",
+                "last_name": "ut.move"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.move"
+            },
+            {
+              "id": "s222",
+              "action": "ooa.active_directory/move_user",
+              "args": {
+                "username": "ut.move",
+                "target_ou_dn": "OU=Archive,DC=ut,DC=test"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s223",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "OU=Archive"
+                }
+              },
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new dn",
+              "else": [
+                {
+                  "id": "s225",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new dn: expected contains \"OU=Archive\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s227",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/move_user: to Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s229",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/move_user: to Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.active_directory/move_user - to Archive"
+    },
+    {
+      "id": "s230",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.active_directory/rename_user - a new name"
+      },
+      "children": [
+        {
+          "id": "s231",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename user renames the user's directory object."
+          }
+        },
+        {
+          "id": "s232",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s233",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s234",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.rename",
+                "first_name": "Test",
+                "last_name": "ut.rename"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.rename"
+            },
+            {
+              "id": "s235",
+              "action": "ooa.active_directory/rename_user",
+              "args": {
+                "username": "ut.rename",
+                "new_name": "UT Renamed"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s236",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "CN=UT Renamed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s237",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new dn",
+              "else": [
+                {
+                  "id": "s238",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new dn: expected contains \"CN=UT Renamed\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/rename_user: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s242",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/rename_user: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.active_directory/rename_user - a new name"
+    },
+    {
+      "id": "s243",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.active_directory/create_group - a security group"
+      },
+      "children": [
+        {
+          "id": "s244",
+          "action": "core/comment",
+          "args": {
+            "text": "Create group makes a group and gives its distinguished name."
+          }
+        },
+        {
+          "id": "s245",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s246",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s247",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Group",
+                "group_description": "Unit tests"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create UT Group"
+            },
+            {
+              "id": "s248",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "CN=UT Group,OU=Staff,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s249",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s250",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"CN=UT Group,OU=Staff,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s252",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/create_group: a security group\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s254",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/create_group: a security group: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.active_directory/create_group - a security group"
+    },
+    {
+      "id": "s255",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.active_directory/add_to_group - two users"
+      },
+      "children": [
+        {
+          "id": "s256",
+          "action": "core/comment",
+          "args": {
+            "text": "Add to group adds users to a group and counts those added."
+          }
+        },
+        {
+          "id": "s257",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s258",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s259",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.member1",
+                "first_name": "Test",
+                "last_name": "ut.member1"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.member1"
+            },
+            {
+              "id": "s260",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Add"
+              },
+              "out": {
+                "dn": "s2"
+              },
+              "description": "Create UT Add"
+            },
+            {
+              "id": "s261",
+              "action": "ooa.active_directory/add_to_group",
+              "args": {
+                "username": "ut.member1",
+                "more_usernames": [
+                  "bob.ray"
+                ],
+                "group_dn": "$s2$"
+              },
+              "out": {
+                "changed": "n"
+              },
+              "description": "Add two users"
+            },
+            {
+              "id": "s262",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s264",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s266",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/add_to_group: two users\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s268",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/add_to_group: two users: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.active_directory/add_to_group - two users"
+    },
+    {
+      "id": "s269",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.active_directory/remove_from_group - Ann from Finance"
+      },
+      "children": [
+        {
+          "id": "s270",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove from group takes a user out and counts those removed."
+          }
+        },
+        {
+          "id": "s271",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s272",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s273",
+              "action": "ooa.active_directory/remove_from_group",
+              "args": {
+                "username": "ann.lee",
+                "group_dn": "CN=Finance,OU=Staff,DC=ut,DC=test"
+              },
+              "out": {
+                "changed": "n"
+              },
+              "description": "Remove Ann"
+            },
+            {
+              "id": "s274",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s276",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s277",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/remove_from_group: Ann from Finance\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s279",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s280",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/remove_from_group: Ann from Finance: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.active_directory/remove_from_group - Ann from Finance"
+    },
+    {
+      "id": "s281",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.active_directory/get_group_members - names only"
+      },
+      "children": [
+        {
+          "id": "s282",
+          "action": "core/comment",
+          "args": {
+            "text": "Group members lists a group's members, here as names."
+          }
+        },
+        {
+          "id": "s283",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s284",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s285",
+              "action": "ooa.active_directory/create_user",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "username": "ut.member2",
+                "first_name": "Test",
+                "last_name": "ut.member2"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create the test user ut.member2"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Members"
+              },
+              "out": {
+                "dn": "s2"
+              },
+              "description": "Create UT Members"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.active_directory/add_to_group",
+              "args": {
+                "username": "ut.member2",
+                "group_dn": "$s2$"
+              },
+              "description": "Add the user"
+            },
+            {
+              "id": "s288",
+              "action": "ooa.active_directory/get_group_members",
+              "args": {
+                "group": "UT Members",
+                "return_as": "names"
+              },
+              "out": {
+                "list": "l",
+                "count": "n"
+              },
+              "description": "Members as names"
+            },
+            {
+              "id": "s289",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s291",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/get_group_members: names only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/get_group_members: names only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.active_directory/get_group_members - names only"
+    },
+    {
+      "id": "s296",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.active_directory/get_group_property - description"
+      },
+      "children": [
+        {
+          "id": "s297",
+          "action": "core/comment",
+          "args": {
+            "text": "Get group property reads one attribute of a group."
+          }
+        },
+        {
+          "id": "s298",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s299",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s300",
+              "action": "ooa.active_directory/get_group_property",
+              "args": {
+                "group": "Finance",
+                "attributes": [
+                  "description"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Finance's description"
+            },
+            {
+              "id": "s301",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Finance team"
+                }
+              },
+              "children": [
+                {
+                  "id": "s302",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s303",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Finance team\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/get_group_property: description\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s307",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/get_group_property: description: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.active_directory/get_group_property - description"
+    },
+    {
+      "id": "s308",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.active_directory/set_group_property - description"
+      },
+      "children": [
+        {
+          "id": "s309",
+          "action": "core/comment",
+          "args": {
+            "text": "Set group property changes one attribute of a group."
+          }
+        },
+        {
+          "id": "s310",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s311",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s312",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Prop"
+              },
+              "description": "Create UT Prop"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.active_directory/set_group_property",
+              "args": {
+                "group": "UT Prop",
+                "attribute": "description",
+                "value": "Changed"
+              },
+              "description": "Set the description"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.active_directory/get_group_property",
+              "args": {
+                "group": "UT Prop",
+                "attributes": [
+                  "description"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Changed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s317",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Changed\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/set_group_property: description\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/set_group_property: description: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.active_directory/set_group_property - description"
+    },
+    {
+      "id": "s322",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.active_directory/move_group - to Archive"
+      },
+      "children": [
+        {
+          "id": "s323",
+          "action": "core/comment",
+          "args": {
+            "text": "Move group moves a group to another OU."
+          }
+        },
+        {
+          "id": "s324",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s325",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s326",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Move"
+              },
+              "description": "Create UT Move"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.active_directory/move_group",
+              "args": {
+                "group": "UT Move",
+                "target_ou_dn": "OU=Archive,DC=ut,DC=test"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s328",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "CN=UT Move,OU=Archive,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s330",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"CN=UT Move,OU=Archive,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s331",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/move_group: to Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/move_group: to Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.active_directory/move_group - to Archive"
+    },
+    {
+      "id": "s335",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.active_directory/rename_group - a new name"
+      },
+      "children": [
+        {
+          "id": "s336",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename group renames a group."
+          }
+        },
+        {
+          "id": "s337",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s338",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s339",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Old"
+              },
+              "description": "Create UT Old"
+            },
+            {
+              "id": "s340",
+              "action": "ooa.active_directory/rename_group",
+              "args": {
+                "group": "UT Old",
+                "new_name": "UT New"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s341",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "CN=UT New,OU=Staff,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s343",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"CN=UT New,OU=Staff,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/rename_group: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s347",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/rename_group: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.active_directory/rename_group - a new name"
+    },
+    {
+      "id": "s348",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.active_directory/delete_group - remove it"
+      },
+      "children": [
+        {
+          "id": "s349",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete group removes a group; reading it afterwards fails."
+          }
+        },
+        {
+          "id": "s350",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s351",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s352",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT Gone"
+              },
+              "description": "Create UT Gone"
+            },
+            {
+              "id": "s353",
+              "action": "ooa.active_directory/delete_group",
+              "args": {
+                "group": "UT Gone"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s354",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s355",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "ooa.active_directory/get_group_property",
+                  "args": {
+                    "group": "UT Gone"
+                  },
+                  "description": "Read it"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s357",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s358",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s360",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s361",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s362",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/delete_group: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s363",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s364",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/delete_group: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.active_directory/delete_group - remove it"
+    },
+    {
+      "id": "s365",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.active_directory/create_computer - in Staff"
+      },
+      "children": [
+        {
+          "id": "s366",
+          "action": "core/comment",
+          "args": {
+            "text": "Create computer makes a computer account and gives its distinguished name."
+          }
+        },
+        {
+          "id": "s367",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s368",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s369",
+              "action": "ooa.active_directory/create_computer",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT-PC1",
+                "computer_description": "Test PC"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create UT-PC1"
+            },
+            {
+              "id": "s370",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "CN=UT-PC1,OU=Staff,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s372",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"CN=UT-PC1,OU=Staff,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s373",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s374",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/create_computer: in Staff\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s375",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s376",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/create_computer: in Staff: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.active_directory/create_computer - in Staff"
+    },
+    {
+      "id": "s377",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.active_directory/get_computer_property - description"
+      },
+      "children": [
+        {
+          "id": "s378",
+          "action": "core/comment",
+          "args": {
+            "text": "Get computer property reads one attribute of a computer."
+          }
+        },
+        {
+          "id": "s379",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s380",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s381",
+              "action": "ooa.active_directory/get_computer_property",
+              "args": {
+                "computer": "PC-SEED",
+                "attributes": [
+                  "description"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "PC-SEED's description"
+            },
+            {
+              "id": "s382",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Seeded computer"
+                }
+              },
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s384",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Seeded computer\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s385",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s386",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/get_computer_property: description\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s387",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s388",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/get_computer_property: description: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.active_directory/get_computer_property - description"
+    },
+    {
+      "id": "s389",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.active_directory/set_computer_property - location"
+      },
+      "children": [
+        {
+          "id": "s390",
+          "action": "core/comment",
+          "args": {
+            "text": "Set computer property changes one attribute of a computer."
+          }
+        },
+        {
+          "id": "s391",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s392",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s393",
+              "action": "ooa.active_directory/create_computer",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT-PC2"
+              },
+              "description": "Create UT-PC2"
+            },
+            {
+              "id": "s394",
+              "action": "ooa.active_directory/set_computer_property",
+              "args": {
+                "computer": "UT-PC2",
+                "attribute": "location",
+                "value": "Pune"
+              },
+              "description": "Set location"
+            },
+            {
+              "id": "s395",
+              "action": "ooa.active_directory/get_computer_property",
+              "args": {
+                "computer": "UT-PC2",
+                "attributes": [
+                  "location"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s396",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Pune"
+                }
+              },
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s398",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Pune\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s399",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s400",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/set_computer_property: location\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s401",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s402",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/set_computer_property: location: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.active_directory/set_computer_property - location"
+    },
+    {
+      "id": "s403",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.active_directory/move_computer - to Archive"
+      },
+      "children": [
+        {
+          "id": "s404",
+          "action": "core/comment",
+          "args": {
+            "text": "Move computer moves a computer to another OU."
+          }
+        },
+        {
+          "id": "s405",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s406",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s407",
+              "action": "ooa.active_directory/create_computer",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT-PC3"
+              },
+              "description": "Create UT-PC3"
+            },
+            {
+              "id": "s408",
+              "action": "ooa.active_directory/move_computer",
+              "args": {
+                "computer": "UT-PC3",
+                "target_ou_dn": "OU=Archive,DC=ut,DC=test"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s409",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "CN=UT-PC3,OU=Archive,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s410",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s411",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"CN=UT-PC3,OU=Archive,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s412",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s413",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/move_computer: to Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s414",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s415",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/move_computer: to Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.active_directory/move_computer - to Archive"
+    },
+    {
+      "id": "s416",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.active_directory/rename_computer - a new name"
+      },
+      "children": [
+        {
+          "id": "s417",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename computer renames a computer."
+          }
+        },
+        {
+          "id": "s418",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s419",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s420",
+              "action": "ooa.active_directory/create_computer",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT-PC4"
+              },
+              "description": "Create UT-PC4"
+            },
+            {
+              "id": "s421",
+              "action": "ooa.active_directory/rename_computer",
+              "args": {
+                "computer": "UT-PC4",
+                "new_name": "UT-PC5"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s422",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "CN=UT-PC5"
+                }
+              },
+              "children": [
+                {
+                  "id": "s423",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new dn",
+              "else": [
+                {
+                  "id": "s424",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new dn: expected contains \"CN=UT-PC5\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s425",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s426",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/rename_computer: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s427",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s428",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/rename_computer: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.active_directory/rename_computer - a new name"
+    },
+    {
+      "id": "s429",
+      "action": "core/step",
+      "args": {
+        "title": "31. ooa.active_directory/delete_computer - remove it"
+      },
+      "children": [
+        {
+          "id": "s430",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete computer removes a computer account."
+          }
+        },
+        {
+          "id": "s431",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s432",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s433",
+              "action": "ooa.active_directory/create_computer",
+              "args": {
+                "container_dn": "OU=Staff,DC=ut,DC=test",
+                "name": "UT-PC6"
+              },
+              "description": "Create UT-PC6"
+            },
+            {
+              "id": "s434",
+              "action": "ooa.active_directory/delete_computer",
+              "args": {
+                "computer": "UT-PC6"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s435",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s436",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "ooa.active_directory/get_computer_property",
+                  "args": {
+                    "computer": "UT-PC6"
+                  },
+                  "description": "Read it"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s438",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s439",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s440",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s441",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s442",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s443",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/delete_computer: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s444",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s445",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/delete_computer: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "31. ooa.active_directory/delete_computer - remove it"
+    },
+    {
+      "id": "s446",
+      "action": "core/step",
+      "args": {
+        "title": "32. ooa.active_directory/create_ou - under the domain"
+      },
+      "children": [
+        {
+          "id": "s447",
+          "action": "core/comment",
+          "args": {
+            "text": "Create OU makes an organizational unit and gives its distinguished name."
+          }
+        },
+        {
+          "id": "s448",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s449",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s450",
+              "action": "ooa.active_directory/create_ou",
+              "args": {
+                "parent_dn": "DC=ut,DC=test",
+                "name": "Robots",
+                "ou_description": "Agents"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create Robots"
+            },
+            {
+              "id": "s451",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "OU=Robots,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s452",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s453",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"OU=Robots,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s454",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s455",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/create_ou: under the domain\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s456",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s457",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/create_ou: under the domain: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "32. ooa.active_directory/create_ou - under the domain"
+    },
+    {
+      "id": "s458",
+      "action": "core/step",
+      "args": {
+        "title": "33. ooa.active_directory/get_ou_property - description"
+      },
+      "children": [
+        {
+          "id": "s459",
+          "action": "core/comment",
+          "args": {
+            "text": "Get OU property reads one attribute of an OU."
+          }
+        },
+        {
+          "id": "s460",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s461",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s462",
+              "action": "ooa.active_directory/get_ou_property",
+              "args": {
+                "ou": "Staff",
+                "attributes": [
+                  "description"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Staff's description"
+            },
+            {
+              "id": "s463",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "People"
+                }
+              },
+              "children": [
+                {
+                  "id": "s464",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s465",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"People\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s466",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s467",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/get_ou_property: description\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s468",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s469",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/get_ou_property: description: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "33. ooa.active_directory/get_ou_property - description"
+    },
+    {
+      "id": "s470",
+      "action": "core/step",
+      "args": {
+        "title": "34. ooa.active_directory/set_ou_property - description"
+      },
+      "children": [
+        {
+          "id": "s471",
+          "action": "core/comment",
+          "args": {
+            "text": "Set OU property changes one attribute of an OU."
+          }
+        },
+        {
+          "id": "s472",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s473",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s474",
+              "action": "ooa.active_directory/create_ou",
+              "args": {
+                "parent_dn": "DC=ut,DC=test",
+                "name": "UT Props"
+              },
+              "description": "Create UT Props"
+            },
+            {
+              "id": "s475",
+              "action": "ooa.active_directory/set_ou_property",
+              "args": {
+                "ou": "UT Props",
+                "attribute": "description",
+                "value": "Changed"
+              },
+              "description": "Set the description"
+            },
+            {
+              "id": "s476",
+              "action": "ooa.active_directory/get_ou_property",
+              "args": {
+                "ou": "UT Props",
+                "attributes": [
+                  "description"
+                ]
+              },
+              "out": {
+                "value": "x"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s477",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "Changed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s478",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s479",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"Changed\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s480",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s481",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/set_ou_property: description\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s482",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s483",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/set_ou_property: description: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "34. ooa.active_directory/set_ou_property - description"
+    },
+    {
+      "id": "s484",
+      "action": "core/step",
+      "args": {
+        "title": "35. ooa.active_directory/move_ou - under Archive"
+      },
+      "children": [
+        {
+          "id": "s485",
+          "action": "core/comment",
+          "args": {
+            "text": "Move OU moves an OU under another one."
+          }
+        },
+        {
+          "id": "s486",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s487",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s488",
+              "action": "ooa.active_directory/create_ou",
+              "args": {
+                "parent_dn": "DC=ut,DC=test",
+                "name": "UT Moving"
+              },
+              "description": "Create UT Moving"
+            },
+            {
+              "id": "s489",
+              "action": "ooa.active_directory/move_ou",
+              "args": {
+                "ou": "UT Moving",
+                "target_parent_dn": "OU=Archive,DC=ut,DC=test"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s490",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "OU=UT Moving,OU=Archive,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s491",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s492",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"OU=UT Moving,OU=Archive,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s493",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s494",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/move_ou: under Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s495",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s496",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/move_ou: under Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "35. ooa.active_directory/move_ou - under Archive"
+    },
+    {
+      "id": "s497",
+      "action": "core/step",
+      "args": {
+        "title": "36. ooa.active_directory/rename_ou - a new name"
+      },
+      "children": [
+        {
+          "id": "s498",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename OU renames an OU."
+          }
+        },
+        {
+          "id": "s499",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s500",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s501",
+              "action": "ooa.active_directory/create_ou",
+              "args": {
+                "parent_dn": "DC=ut,DC=test",
+                "name": "UT Before"
+              },
+              "description": "Create UT Before"
+            },
+            {
+              "id": "s502",
+              "action": "ooa.active_directory/rename_ou",
+              "args": {
+                "ou": "UT Before",
+                "new_name": "UT After"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s503",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "OU=UT After,DC=ut,DC=test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s504",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s505",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"OU=UT After,DC=ut,DC=test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s506",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s507",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/rename_ou: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s508",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s509",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/rename_ou: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "36. ooa.active_directory/rename_ou - a new name"
+    },
+    {
+      "id": "s510",
+      "action": "core/step",
+      "args": {
+        "title": "37. ooa.active_directory/delete_ou - with what is in it"
+      },
+      "children": [
+        {
+          "id": "s511",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete OU removes an OU and, recursive, the objects inside it."
+          }
+        },
+        {
+          "id": "s512",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s513",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s514",
+              "action": "ooa.active_directory/create_ou",
+              "args": {
+                "parent_dn": "DC=ut,DC=test",
+                "name": "UT Doomed"
+              },
+              "out": {
+                "dn": "s"
+              },
+              "description": "Create UT Doomed"
+            },
+            {
+              "id": "s515",
+              "action": "ooa.active_directory/create_group",
+              "args": {
+                "container_dn": "$s$",
+                "name": "UT Inside"
+              },
+              "description": "Put a group in it"
+            },
+            {
+              "id": "s516",
+              "action": "ooa.active_directory/delete_ou",
+              "args": {
+                "ou": "UT Doomed",
+                "recursive": true
+              },
+              "description": "Delete it all"
+            },
+            {
+              "id": "s517",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s518",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s519",
+                  "action": "ooa.active_directory/get_ou_property",
+                  "args": {
+                    "ou": "UT Doomed"
+                  },
+                  "description": "Read it"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s520",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s521",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s522",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s523",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s524",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s525",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/delete_ou: with what is in it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s526",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s527",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/delete_ou: with what is in it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "37. ooa.active_directory/delete_ou - with what is in it"
+    },
+    {
+      "id": "s528",
+      "action": "core/step",
+      "args": {
+        "title": "38. ooa.active_directory/search - Finance users"
+      },
+      "children": [
+        {
+          "id": "s529",
+          "action": "core/comment",
+          "args": {
+            "text": "Search runs an LDAP filter over the directory and gives a table of entries."
+          }
+        },
+        {
+          "id": "s530",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s531",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s532",
+              "action": "ooa.active_directory/search",
+              "args": {
+                "filter": "(&(objectClass=user)(department=Finance))",
+                "attributes": [
+                  "sAMAccountName"
+                ]
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Users in Finance"
+            },
+            {
+              "id": "s533",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s534",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s535",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s536",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s537",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/search: Finance users\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s538",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s539",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/search: Finance users: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "38. ooa.active_directory/search - Finance users"
+    },
+    {
+      "id": "s540",
+      "action": "core/step",
+      "args": {
+        "title": "39. ooa.active_directory/run_query - OUs one level down, as names"
+      },
+      "children": [
+        {
+          "id": "s541",
+          "action": "core/comment",
+          "args": {
+            "text": "Run query searches from a starting point with a scope and can give the names only."
+          }
+        },
+        {
+          "id": "s542",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s543",
+              "action": "ooa.active_directory/connect",
+              "args": {
+                "url": "$ldap_url$",
+                "bind_user": "CN=admin,DC=ut,DC=test",
+                "password": {
+                  "$credential": "unit_tests/ldap/password"
+                },
+                "base_dn": "DC=ut,DC=test"
+              },
+              "description": "Sign in to the test directory"
+            },
+            {
+              "id": "s544",
+              "action": "ooa.active_directory/run_query",
+              "args": {
+                "filter": "(objectClass=organizationalUnit)",
+                "base_dn": "DC=ut,DC=test",
+                "scope": "one_level",
+                "return_as": "names"
+              },
+              "out": {
+                "list": "l",
+                "count": "n"
+              },
+              "description": "OUs under the domain"
+            },
+            {
+              "id": "s545",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s546",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OUs found",
+              "else": [
+                {
+                  "id": "s547",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OUs found: expected ge 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s548",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$l$",
+                  "right": "Staff"
+                }
+              },
+              "children": [
+                {
+                  "id": "s549",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check names",
+              "else": [
+                {
+                  "id": "s550",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "names: expected contains \"Staff\", got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s551",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s552",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.active_directory/run_query: OUs one level down, as names\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s553",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s554",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.active_directory/run_query: OUs one level down, as names: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "39. ooa.active_directory/run_query - OUs one level down, as names"
+    },
+    {
+      "id": "s555",
+      "action": "core/step",
+      "args": {
+        "title": "40. Summary"
+      },
+      "children": [
+        {
+          "id": "s556",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s557",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s558",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s559",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "40. Summary"
+    }
+  ]
+}

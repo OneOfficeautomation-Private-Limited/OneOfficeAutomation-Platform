@@ -1,0 +1,5140 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_m365_files",
+  "name": "UT Microsoft 365 OneDrive and SharePoint",
+  "description": "Unit tests of the Microsoft 365 OneDrive, SharePoint file and SharePoint list commands against the local Graph and SharePoint stand-ins.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Microsoft 365 OneDrive, SharePoint file and SharePoint list commands against the local Graph and SharePoint stand-ins."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Microsoft 365 OneDrive and SharePoint started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Graph and SharePoint stand-ins; the drive and the Finance site start as seeded."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgraph/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s7",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.microsoft365/upload_file - a small file into a new folder"
+      },
+      "children": [
+        {
+          "id": "s8",
+          "action": "core/comment",
+          "args": {
+            "text": "Upload file puts a local file at a drive path and gives its id, link and size."
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s10",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/up.txt",
+                "text": "12345"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s11",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/up.txt",
+                "remote_path": "UT/uploads/up.txt",
+                "if_exists": "replace"
+              },
+              "out": {
+                "item_id": "s",
+                "size": "n"
+              },
+              "description": "Upload it"
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check item id",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "item id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/upload_file: a small file into a new folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s21",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/upload_file: a small file into a new folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.microsoft365/upload_file - a small file into a new folder"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.microsoft365/download_file - readme.txt"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Download file saves a drive file locally."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.microsoft365/download_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "remote_path": "UT/readme.txt",
+                "local_path": "m365/dl/readme.txt"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Download UT/readme.txt"
+            },
+            {
+              "id": "s26",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s27",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "Unit test file, version 2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s29",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"Unit test file, version 2\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/download_file: readme.txt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/download_file: readme.txt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.microsoft365/download_file - readme.txt"
+    },
+    {
+      "id": "s34",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.microsoft365/list_files - the UT folder"
+      },
+      "children": [
+        {
+          "id": "s35",
+          "action": "core/comment",
+          "args": {
+            "text": "List files lists the files and folders of a drive folder."
+          }
+        },
+        {
+          "id": "s36",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s37",
+              "action": "ooa.microsoft365/list_files",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "folder": "UT"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "List UT"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check items in UT",
+              "else": [
+                {
+                  "id": "s40",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "items in UT: expected ge 4, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take first item for the check"
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Archive"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check first item",
+              "else": [
+                {
+                  "id": "s44",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "first item: expected eq \"Archive\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][2]"
+                }
+              },
+              "description": "Take its type for the check"
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "folder"
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check its type",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "its type: expected eq \"folder\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_files: the UT folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_files: the UT folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.microsoft365/list_files - the UT folder"
+    },
+    {
+      "id": "s53",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.microsoft365/create_folder - rename when taken"
+      },
+      "children": [
+        {
+          "id": "s54",
+          "action": "core/comment",
+          "args": {
+            "text": "Create folder makes a folder; asked again with rename, the second gets a number."
+          }
+        },
+        {
+          "id": "s55",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s56",
+              "action": "ooa.microsoft365/create_folder",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "parent_folder": "UT",
+                "name": "New",
+                "if_exists": "rename"
+              },
+              "description": "Make UT/New"
+            },
+            {
+              "id": "s57",
+              "action": "ooa.microsoft365/create_folder",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "parent_folder": "UT",
+                "name": "New",
+                "if_exists": "rename"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Make UT/New again"
+            },
+            {
+              "id": "s58",
+              "action": "ooa.microsoft365/get_item_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "id:$s$"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read the second folder"
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.name"
+                }
+              },
+              "description": "Take name of the second folder for the check"
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "New 1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check name of the second folder",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "name of the second folder: expected eq \"New 1\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_folder: rename when taken\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_folder: rename when taken: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.microsoft365/create_folder - rename when taken"
+    },
+    {
+      "id": "s67",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.microsoft365/get_item_info - readme.txt"
+      },
+      "children": [
+        {
+          "id": "s68",
+          "action": "core/comment",
+          "args": {
+            "text": "Get file info reads a file's name, type, size and parent path."
+          }
+        },
+        {
+          "id": "s69",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.microsoft365/get_item_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/readme.txt"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read UT/readme.txt"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.type"
+                }
+              },
+              "description": "Take type for the check"
+            },
+            {
+              "id": "s72",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "file"
+                }
+              },
+              "children": [
+                {
+                  "id": "s73",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check type",
+              "else": [
+                {
+                  "id": "s74",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "type: expected eq \"file\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.size"
+                }
+              },
+              "description": "Take size for the check"
+            },
+            {
+              "id": "s76",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 25
+                }
+              },
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check size",
+              "else": [
+                {
+                  "id": "s78",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "size: expected eq 25, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.parent_path"
+                }
+              },
+              "description": "Take parent path for the check"
+            },
+            {
+              "id": "s80",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "/drive/root:/UT"
+                }
+              },
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check parent path",
+              "else": [
+                {
+                  "id": "s82",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "parent path: expected eq \"/drive/root:/UT\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s84",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_item_info: readme.txt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_item_info: readme.txt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.microsoft365/get_item_info - readme.txt"
+    },
+    {
+      "id": "s87",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.microsoft365/copy_item - into Archive under a new name"
+      },
+      "children": [
+        {
+          "id": "s88",
+          "action": "core/comment",
+          "args": {
+            "text": "Copy file or folder copies and waits for the copy; it gives the new id."
+          }
+        },
+        {
+          "id": "s89",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s90",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/copy-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare copy-me.txt"
+            },
+            {
+              "id": "s91",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/copy-me.txt",
+                "remote_path": "UT/work/copy-me.txt",
+                "if_exists": "replace"
+              },
+              "description": "Upload it to UT/work"
+            },
+            {
+              "id": "s92",
+              "action": "ooa.microsoft365/copy_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/copy-me.txt",
+                "to_folder": "UT/Archive",
+                "new_name": "copied.txt",
+                "if_exists": "replace"
+              },
+              "out": {
+                "status": "s",
+                "item_id": "s2"
+              },
+              "description": "Copy it"
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "completed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"completed\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "ooa.microsoft365/get_item_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/Archive/copied.txt"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read the copy"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.id"
+                }
+              },
+              "description": "Take id of the copy for the check"
+            },
+            {
+              "id": "s98",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "$s2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check id of the copy",
+              "else": [
+                {
+                  "id": "s100",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "id of the copy: expected eq \"s2\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s102",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/copy_item: into Archive under a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s104",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/copy_item: into Archive under a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.microsoft365/copy_item - into Archive under a new name"
+    },
+    {
+      "id": "s105",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.microsoft365/move_item - into Archive"
+      },
+      "children": [
+        {
+          "id": "s106",
+          "action": "core/comment",
+          "args": {
+            "text": "Move file or folder moves an item to another folder."
+          }
+        },
+        {
+          "id": "s107",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s108",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/move-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare move-me.txt"
+            },
+            {
+              "id": "s109",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/move-me.txt",
+                "remote_path": "UT/work/move-me.txt",
+                "if_exists": "replace"
+              },
+              "description": "Upload it to UT/work"
+            },
+            {
+              "id": "s110",
+              "action": "ooa.microsoft365/move_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/move-me.txt",
+                "to_folder": "UT/Archive",
+                "if_exists": "replace"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s111",
+              "action": "ooa.microsoft365/get_item_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/Archive/move-me.txt"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it in its new place"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.id"
+                }
+              },
+              "description": "Take same item for the check"
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check same item",
+              "else": [
+                {
+                  "id": "s115",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "same item: expected eq \"s\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/move_item: into Archive\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/move_item: into Archive: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.microsoft365/move_item - into Archive"
+    },
+    {
+      "id": "s120",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.microsoft365/rename_item - a new name"
+      },
+      "children": [
+        {
+          "id": "s121",
+          "action": "core/comment",
+          "args": {
+            "text": "Rename file or folder renames an item in its folder."
+          }
+        },
+        {
+          "id": "s122",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/rename-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare rename-me.txt"
+            },
+            {
+              "id": "s124",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/rename-me.txt",
+                "remote_path": "UT/work/rename-me.txt",
+                "if_exists": "replace"
+              },
+              "description": "Upload it to UT/work"
+            },
+            {
+              "id": "s125",
+              "action": "ooa.microsoft365/rename_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/rename-me.txt",
+                "new_name": "renamed.txt",
+                "if_exists": "replace"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.microsoft365/get_item_info",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/renamed.txt"
+              },
+              "out": {
+                "info": "e"
+              },
+              "description": "Read it by the new name"
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.name"
+                }
+              },
+              "description": "Take new name for the check"
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "renamed.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new name",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new name: expected eq \"renamed.txt\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/rename_item: a new name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/rename_item: a new name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.microsoft365/rename_item - a new name"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.microsoft365/delete_item - to the recycle bin"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete file or folder removes the item; it is not found afterwards."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/delete-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare delete-me.txt"
+            },
+            {
+              "id": "s139",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/delete-me.txt",
+                "remote_path": "UT/work/delete-me.txt",
+                "if_exists": "replace"
+              },
+              "description": "Upload it to UT/work"
+            },
+            {
+              "id": "s140",
+              "action": "ooa.microsoft365/delete_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/delete-me.txt"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.microsoft365/find_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "text": "delete-me",
+                "exact_name": false
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Search for it"
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_item: to the recycle bin\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_item: to the recycle bin: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.microsoft365/delete_item - to the recycle bin"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.microsoft365/find_items - files named readme"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Find files searches the drive by name; item_type file keeps only files."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s152",
+              "action": "ooa.microsoft365/find_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "text": "readme",
+                "item_type": "file"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Search 'readme'"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][1]"
+                }
+              },
+              "description": "Take name found for the check"
+            },
+            {
+              "id": "s157",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "readme.txt"
+                }
+              },
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check name found",
+              "else": [
+                {
+                  "id": "s159",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "name found: expected eq \"readme.txt\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s161",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/find_items: files named readme\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s163",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/find_items: files named readme: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.microsoft365/find_items - files named readme"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.microsoft365/list_permissions - readme.txt"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "List permissions lists who can open the file: the owner and Ann."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s167",
+              "action": "ooa.microsoft365/list_permissions",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/readme.txt"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Permissions of readme"
+            },
+            {
+              "id": "s168",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s170",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[1][2]"
+                }
+              },
+              "description": "Take granted to for the check"
+            },
+            {
+              "id": "s172",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "ann.lee@ut-m365.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check granted to",
+              "else": [
+                {
+                  "id": "s174",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "granted to: expected eq \"ann.lee@ut-m365.test\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_permissions: readme.txt\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_permissions: readme.txt: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.microsoft365/list_permissions - readme.txt"
+    },
+    {
+      "id": "s179",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.microsoft365/check_permissions - Ann reads readme"
+      },
+      "children": [
+        {
+          "id": "s180",
+          "action": "core/comment",
+          "args": {
+            "text": "Check permission says whether a person has direct access, with the roles."
+          }
+        },
+        {
+          "id": "s181",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s182",
+              "action": "ooa.microsoft365/check_permissions",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/readme.txt",
+                "email": "ann.lee@ut-m365.test"
+              },
+              "out": {
+                "has_access": "b",
+                "roles": "l"
+              },
+              "description": "Check Ann"
+            },
+            {
+              "id": "s183",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s184",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s185",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "read"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"read\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/check_permissions: Ann reads readme\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/check_permissions: Ann reads readme: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.microsoft365/check_permissions - Ann reads readme"
+    },
+    {
+      "id": "s193",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.microsoft365/share_item - edit rights for Bob"
+      },
+      "children": [
+        {
+          "id": "s194",
+          "action": "core/comment",
+          "args": {
+            "text": "Share file or folder invites people with a role and gives the new permission ids."
+          }
+        },
+        {
+          "id": "s195",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s196",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/share-me.txt",
+                "text": "unit test content"
+              },
+              "description": "Prepare share-me.txt"
+            },
+            {
+              "id": "s197",
+              "action": "ooa.microsoft365/upload_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "local_path": "m365/share-me.txt",
+                "remote_path": "UT/work/share-me.txt",
+                "if_exists": "replace"
+              },
+              "description": "Upload it to UT/work"
+            },
+            {
+              "id": "s198",
+              "action": "ooa.microsoft365/share_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/share-me.txt",
+                "recipients": "bob.ray@ut-m365.test",
+                "role": "write",
+                "send_invitation": false
+              },
+              "out": {
+                "permission_ids": "l"
+              },
+              "description": "Share with Bob"
+            },
+            {
+              "id": "s199",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($l$)"
+                }
+              },
+              "description": "Take new permissions for the check"
+            },
+            {
+              "id": "s200",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s201",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check new permissions",
+              "else": [
+                {
+                  "id": "s202",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "new permissions: expected eq 1, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s203",
+              "action": "ooa.microsoft365/check_permissions",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/work/share-me.txt",
+                "email": "bob.ray@ut-m365.test"
+              },
+              "out": {
+                "roles": "l"
+              },
+              "description": "Check Bob"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "write"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"write\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/share_item: edit rights for Bob\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s210",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/share_item: edit rights for Bob: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.microsoft365/share_item - edit rights for Bob"
+    },
+    {
+      "id": "s211",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.microsoft365/create_sharing_link - view link for the organisation"
+      },
+      "children": [
+        {
+          "id": "s212",
+          "action": "core/comment",
+          "args": {
+            "text": "Create sharing link makes a view link and gives it with its permission id."
+          }
+        },
+        {
+          "id": "s213",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s214",
+              "action": "ooa.microsoft365/create_sharing_link",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/readme.txt",
+                "type": "view",
+                "scope": "organization"
+              },
+              "out": {
+                "link": "s",
+                "permission_id": "s2"
+              },
+              "description": "Make a link to readme"
+            },
+            {
+              "id": "s215",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "sharepoint.test"
+                }
+              },
+              "children": [
+                {
+                  "id": "s216",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check link",
+              "else": [
+                {
+                  "id": "s217",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "link: expected contains \"sharepoint.test\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s218",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check permission id",
+              "else": [
+                {
+                  "id": "s220",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "permission id: expected notEmpty , got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s221",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_sharing_link: view link for the organisation\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s223",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_sharing_link: view link for the organisation: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.microsoft365/create_sharing_link - view link for the organisation"
+    },
+    {
+      "id": "s225",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.microsoft365/export_to_pdf - the Word report"
+      },
+      "children": [
+        {
+          "id": "s226",
+          "action": "core/comment",
+          "args": {
+            "text": "Export to PDF converts a drive file and saves the PDF locally."
+          }
+        },
+        {
+          "id": "s227",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s228",
+              "action": "ooa.microsoft365/export_to_pdf",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/report.docx",
+                "local_path": "m365/report.pdf"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Export report.docx"
+            },
+            {
+              "id": "s229",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read the PDF"
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s2$",
+                  "right": "%PDF"
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check PDF header",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "PDF header: expected contains \"%PDF\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/export_to_pdf: the Word report\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s235",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/export_to_pdf: the Word report: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.microsoft365/export_to_pdf - the Word report"
+    },
+    {
+      "id": "s237",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.microsoft365/restore_version - the previous version"
+      },
+      "children": [
+        {
+          "id": "s238",
+          "action": "core/comment",
+          "args": {
+            "text": "Restore version makes the version before the current one current again."
+          }
+        },
+        {
+          "id": "s239",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s240",
+              "action": "ooa.microsoft365/restore_version",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item": "UT/readme.txt"
+              },
+              "out": {
+                "restored_version": "s"
+              },
+              "description": "Restore readme.txt"
+            },
+            {
+              "id": "s241",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "1.0"
+                }
+              },
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"1.0\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "ooa.microsoft365/download_file",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "remote_path": "UT/readme.txt",
+                "local_path": "m365/dl/restored.txt"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Download it"
+            },
+            {
+              "id": "s245",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s2"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s246",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s2$",
+                  "right": "Unit test file, version 1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s2",
+              "else": [
+                {
+                  "id": "s248",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s2: expected eq \"Unit test file, version 1\", got ${s2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s249",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/restore_version: the previous version\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/restore_version: the previous version: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.microsoft365/restore_version - the previous version"
+    },
+    {
+      "id": "s253",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.microsoft365/list_lists - the Finance site"
+      },
+      "children": [
+        {
+          "id": "s254",
+          "action": "core/comment",
+          "args": {
+            "text": "List SharePoint lists lists the site's lists."
+          }
+        },
+        {
+          "id": "s255",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s256",
+              "action": "ooa.microsoft365/list_lists",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Lists of Finance"
+            },
+            {
+              "id": "s257",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lists",
+              "else": [
+                {
+                  "id": "s259",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lists: expected ge 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][2]"
+                }
+              },
+              "description": "Take display name for the check"
+            },
+            {
+              "id": "s261",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Purchase requests"
+                }
+              },
+              "children": [
+                {
+                  "id": "s262",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check display name",
+              "else": [
+                {
+                  "id": "s263",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "display name: expected eq \"Purchase requests\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s265",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_lists: the Finance site\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s267",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_lists: the Finance site: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.microsoft365/list_lists - the Finance site"
+    },
+    {
+      "id": "s268",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.microsoft365/get_list_items - open items with display names"
+      },
+      "children": [
+        {
+          "id": "s269",
+          "action": "core/comment",
+          "args": {
+            "text": "Get SharePoint list items filters by field values; use_display_names names the columns as people see them."
+          }
+        },
+        {
+          "id": "s270",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s271",
+              "action": "ooa.microsoft365/get_list_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "match": {
+                  "Status": "Open"
+                },
+                "use_display_names": true,
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "description": "Open purchase requests"
+            },
+            {
+              "id": "s272",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s273",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s274",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s275",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.columns"
+                }
+              },
+              "description": "Take column names for the check"
+            },
+            {
+              "id": "s276",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "Amount"
+                }
+              },
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check column names",
+              "else": [
+                {
+                  "id": "s278",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "column names: expected contains \"Amount\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/get_list_items: open items with display names\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/get_list_items: open items with display names: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.microsoft365/get_list_items - open items with display names"
+    },
+    {
+      "id": "s283",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.microsoft365/create_list_item - a new request"
+      },
+      "children": [
+        {
+          "id": "s284",
+          "action": "core/comment",
+          "args": {
+            "text": "Create SharePoint list item adds an item and gives its id."
+          }
+        },
+        {
+          "id": "s285",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s286",
+              "action": "ooa.microsoft365/create_list_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "fields": {
+                  "Title": "Desk",
+                  "Status": "Open"
+                },
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Add Desk"
+            },
+            {
+              "id": "s287",
+              "action": "ooa.microsoft365/get_list_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "filter": "fields/Title eq 'Desk'",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Find Desk"
+            },
+            {
+              "id": "s288",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s290",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s291",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s292",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_list_item: a new request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s293",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s294",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_list_item: a new request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.microsoft365/create_list_item - a new request"
+    },
+    {
+      "id": "s295",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.microsoft365/update_list_item - close a request"
+      },
+      "children": [
+        {
+          "id": "s296",
+          "action": "core/comment",
+          "args": {
+            "text": "Update SharePoint list item changes one field; others keep their values."
+          }
+        },
+        {
+          "id": "s297",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s298",
+              "action": "ooa.microsoft365/create_list_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "fields": {
+                  "Title": "Lamp",
+                  "Status": "Open"
+                },
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Add Lamp"
+            },
+            {
+              "id": "s299",
+              "action": "ooa.microsoft365/update_list_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item_id": "$s$",
+                "fields": {
+                  "Status": "Closed"
+                },
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "description": "Close it"
+            },
+            {
+              "id": "s300",
+              "action": "ooa.microsoft365/get_list_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "filter": "fields/Title eq 'Lamp'",
+                "columns": [
+                  "Title",
+                  "Status"
+                ],
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Read Lamp"
+            },
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][2]"
+                }
+              },
+              "description": "Take status for the check"
+            },
+            {
+              "id": "s302",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Closed"
+                }
+              },
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check status",
+              "else": [
+                {
+                  "id": "s304",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "status: expected eq \"Closed\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s305",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s306",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/update_list_item: close a request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s307",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s308",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/update_list_item: close a request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.microsoft365/update_list_item - close a request"
+    },
+    {
+      "id": "s309",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.microsoft365/delete_list_item - remove a request"
+      },
+      "children": [
+        {
+          "id": "s310",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete SharePoint list item removes the item."
+          }
+        },
+        {
+          "id": "s311",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s312",
+              "action": "ooa.microsoft365/create_list_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "fields": {
+                  "Title": "Bin"
+                },
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "item_id": "s"
+              },
+              "description": "Add Bin"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.microsoft365/delete_list_item",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "item_id": "$s$",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s314",
+              "action": "ooa.microsoft365/get_list_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "filter": "fields/Title eq 'Bin'",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look for Bin"
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s317",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s318",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_list_item: remove a request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_list_item: remove a request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.microsoft365/delete_list_item - remove a request"
+    },
+    {
+      "id": "s322",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.microsoft365/create_list - a task list"
+      },
+      "children": [
+        {
+          "id": "s323",
+          "action": "core/comment",
+          "args": {
+            "text": "Create SharePoint list makes a list from a template and gives its id."
+          }
+        },
+        {
+          "id": "s324",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s325",
+              "action": "ooa.microsoft365/create_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "name": "UT Tasks",
+                "template": "tasks",
+                "description": "Unit test"
+              },
+              "out": {
+                "list_id": "s"
+              },
+              "description": "Make UT Tasks"
+            },
+            {
+              "id": "s326",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s327",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check list id",
+              "else": [
+                {
+                  "id": "s328",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "list id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s330",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/create_list: a task list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s331",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s332",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/create_list: a task list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.microsoft365/create_list - a task list"
+    },
+    {
+      "id": "s333",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.microsoft365/update_list - rename it"
+      },
+      "children": [
+        {
+          "id": "s334",
+          "action": "core/comment",
+          "args": {
+            "text": "Update SharePoint list renames a list."
+          }
+        },
+        {
+          "id": "s335",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s336",
+              "action": "ooa.microsoft365/create_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "name": "UT Rename"
+              },
+              "description": "Make UT Rename"
+            },
+            {
+              "id": "s337",
+              "action": "ooa.microsoft365/update_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "UT Rename",
+                "new_name": "UT Renamed"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s338",
+              "action": "ooa.microsoft365/get_list_items",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "UT Renamed"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Read the renamed list"
+            },
+            {
+              "id": "s339",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s340",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s341",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s342",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/update_list: rename it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s344",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/update_list: rename it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.microsoft365/update_list - rename it"
+    },
+    {
+      "id": "s346",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.microsoft365/delete_list - remove it"
+      },
+      "children": [
+        {
+          "id": "s347",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete SharePoint list removes a list; reading it afterwards fails."
+          }
+        },
+        {
+          "id": "s348",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s349",
+              "action": "ooa.microsoft365/create_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "name": "UT Gone"
+              },
+              "description": "Make UT Gone"
+            },
+            {
+              "id": "s350",
+              "action": "ooa.microsoft365/delete_list",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "UT Gone"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s351",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s352",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s353",
+                  "action": "ooa.microsoft365/get_list_items",
+                  "args": {
+                    "access_token": {
+                      "$credential": "unit_tests/m365/token"
+                    },
+                    "base_url": "${standin_url}/msgraph/v1.0",
+                    "site": "ut.sharepoint.test:/sites/Finance",
+                    "list": "UT Gone"
+                  },
+                  "description": "Read the deleted list"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s354",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s355",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s356",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s357",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s359",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_list: remove it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s361",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_list: remove it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.microsoft365/delete_list - remove it"
+    },
+    {
+      "id": "s362",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.microsoft365/add_list_column - a choice column"
+      },
+      "children": [
+        {
+          "id": "s363",
+          "action": "core/comment",
+          "args": {
+            "text": "Add SharePoint list column adds a choice column and gives its id."
+          }
+        },
+        {
+          "id": "s364",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s365",
+              "action": "ooa.microsoft365/add_list_column",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/m365/token"
+                },
+                "base_url": "${standin_url}/msgraph/v1.0",
+                "column_name": "Priority",
+                "type": "choice",
+                "choices": [
+                  "High",
+                  "Low"
+                ],
+                "site": "ut.sharepoint.test:/sites/Finance",
+                "list": "Purchase requests"
+              },
+              "out": {
+                "column_id": "s"
+              },
+              "description": "Add Priority"
+            },
+            {
+              "id": "s366",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check column id",
+              "else": [
+                {
+                  "id": "s368",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "column id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/add_list_column: a choice column\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/add_list_column: a choice column: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.microsoft365/add_list_column - a choice column"
+    },
+    {
+      "id": "s373",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.microsoft365/sharepoint_connect - the Finance site"
+      },
+      "children": [
+        {
+          "id": "s374",
+          "action": "core/comment",
+          "args": {
+            "text": "Sign in to SharePoint site opens a site session and gives the site's title; later list steps use it."
+          }
+        },
+        {
+          "id": "s375",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s376",
+              "action": "ooa.microsoft365/sharepoint_connect",
+              "args": {
+                "site_url": "${standin_url}/msgsp/sites/Finance",
+                "access_token": {
+                  "$credential": "unit_tests/sharepoint/token"
+                }
+              },
+              "out": {
+                "title": "s"
+              },
+              "description": "Sign in"
+            },
+            {
+              "id": "s377",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "Finance"
+                }
+              },
+              "children": [
+                {
+                  "id": "s378",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s379",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"Finance\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s380",
+              "action": "ooa.microsoft365/list_lists",
+              "args": {
+                "session": "sharepoint"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Lists through the session"
+            },
+            {
+              "id": "s381",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s382",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check lists",
+              "else": [
+                {
+                  "id": "s383",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "lists: expected ge 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s384",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s385",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/sharepoint_connect: the Finance site\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s386",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s387",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/sharepoint_connect: the Finance site: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.microsoft365/sharepoint_connect - the Finance site"
+    },
+    {
+      "id": "s388",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.microsoft365/list_attachments - the laptop request"
+      },
+      "children": [
+        {
+          "id": "s389",
+          "action": "core/comment",
+          "args": {
+            "text": "Get SharePoint item attachments lists the files attached to an item."
+          }
+        },
+        {
+          "id": "s390",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s391",
+              "action": "ooa.microsoft365/sharepoint_connect",
+              "args": {
+                "site_url": "${standin_url}/msgsp/sites/Finance",
+                "access_token": {
+                  "$credential": "unit_tests/sharepoint/token"
+                },
+                "session": "sharepoint"
+              },
+              "description": "Sign in to the Finance site"
+            },
+            {
+              "id": "s392",
+              "action": "ooa.microsoft365/list_attachments",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "1"
+              },
+              "out": {
+                "names": "l"
+              },
+              "description": "Attachments of item 1"
+            },
+            {
+              "id": "s393",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "quote.pdf"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s394",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s395",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"quote.pdf\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s396",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s397",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/list_attachments: the laptop request\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s398",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s399",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/list_attachments: the laptop request: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.microsoft365/list_attachments - the laptop request"
+    },
+    {
+      "id": "s400",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.microsoft365/add_attachment - a picture"
+      },
+      "children": [
+        {
+          "id": "s401",
+          "action": "core/comment",
+          "args": {
+            "text": "Add SharePoint item attachment attaches a local file to an item."
+          }
+        },
+        {
+          "id": "s402",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s403",
+              "action": "ooa.microsoft365/sharepoint_connect",
+              "args": {
+                "site_url": "${standin_url}/msgsp/sites/Finance",
+                "access_token": {
+                  "$credential": "unit_tests/sharepoint/token"
+                },
+                "session": "sharepoint"
+              },
+              "description": "Sign in to the Finance site"
+            },
+            {
+              "id": "s404",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/photo.txt",
+                "text": "photo"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s405",
+              "action": "ooa.microsoft365/add_attachment",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "2",
+                "file": "m365/photo.txt",
+                "file_name": "photo.txt"
+              },
+              "description": "Attach it to item 2"
+            },
+            {
+              "id": "s406",
+              "action": "ooa.microsoft365/list_attachments",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "2"
+              },
+              "out": {
+                "names": "l"
+              },
+              "description": "Attachments of item 2"
+            },
+            {
+              "id": "s407",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "photo.txt"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s408",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s409",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"photo.txt\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s410",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s411",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/add_attachment: a picture\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s412",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s413",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/add_attachment: a picture: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.microsoft365/add_attachment - a picture"
+    },
+    {
+      "id": "s414",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.microsoft365/download_attachments - the quote"
+      },
+      "children": [
+        {
+          "id": "s415",
+          "action": "core/comment",
+          "args": {
+            "text": "Download SharePoint item attachments saves the files attached to an item."
+          }
+        },
+        {
+          "id": "s416",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s417",
+              "action": "ooa.microsoft365/sharepoint_connect",
+              "args": {
+                "site_url": "${standin_url}/msgsp/sites/Finance",
+                "access_token": {
+                  "$credential": "unit_tests/sharepoint/token"
+                },
+                "session": "sharepoint"
+              },
+              "description": "Sign in to the Finance site"
+            },
+            {
+              "id": "s418",
+              "action": "ooa.microsoft365/download_attachments",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "1",
+                "folder": "m365/sp",
+                "overwrite": true
+              },
+              "out": {
+                "files": "l"
+              },
+              "description": "Save item 1's files"
+            },
+            {
+              "id": "s419",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$l[0]"
+                }
+              },
+              "description": "Take saved file for the check"
+            },
+            {
+              "id": "s420",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "quote.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s421",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved file",
+              "else": [
+                {
+                  "id": "s422",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved file: expected contains \"quote.pdf\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s423",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s424",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/download_attachments: the quote\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s425",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s426",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/download_attachments: the quote: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.microsoft365/download_attachments - the quote"
+    },
+    {
+      "id": "s427",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.microsoft365/delete_attachment - remove a file"
+      },
+      "children": [
+        {
+          "id": "s428",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete SharePoint item attachment removes an attached file."
+          }
+        },
+        {
+          "id": "s429",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s430",
+              "action": "ooa.microsoft365/sharepoint_connect",
+              "args": {
+                "site_url": "${standin_url}/msgsp/sites/Finance",
+                "access_token": {
+                  "$credential": "unit_tests/sharepoint/token"
+                },
+                "session": "sharepoint"
+              },
+              "description": "Sign in to the Finance site"
+            },
+            {
+              "id": "s431",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "m365/old.txt",
+                "text": "old"
+              },
+              "description": "Prepare the file"
+            },
+            {
+              "id": "s432",
+              "action": "ooa.microsoft365/add_attachment",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "3",
+                "file": "m365/old.txt"
+              },
+              "description": "Attach it to item 3"
+            },
+            {
+              "id": "s433",
+              "action": "ooa.microsoft365/delete_attachment",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "3",
+                "file_name": "old.txt"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s434",
+              "action": "ooa.microsoft365/list_attachments",
+              "args": {
+                "list": "Purchase requests",
+                "item_id": "3"
+              },
+              "out": {
+                "names": "l"
+              },
+              "description": "Attachments of item 3"
+            },
+            {
+              "id": "s435",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($l$)"
+                }
+              },
+              "description": "Take attachments left for the check"
+            },
+            {
+              "id": "s436",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s437",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attachments left",
+              "else": [
+                {
+                  "id": "s438",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attachments left: expected eq 0, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s439",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s440",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.microsoft365/delete_attachment: remove a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s441",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s442",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.microsoft365/delete_attachment: remove a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.microsoft365/delete_attachment - remove a file"
+    },
+    {
+      "id": "s443",
+      "action": "core/step",
+      "args": {
+        "title": "31. Summary"
+      },
+      "children": [
+        {
+          "id": "s444",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s445",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s446",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s447",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "31. Summary"
+    }
+  ]
+}

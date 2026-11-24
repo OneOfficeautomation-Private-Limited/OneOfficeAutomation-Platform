@@ -1,0 +1,3377 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_google_gmail",
+  "name": "UT Google Workspace Gmail",
+  "description": "Unit tests of the Google Workspace Gmail commands against the local Google stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "unread",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "mid",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "cnt",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Google Workspace Gmail commands against the local Google stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Google Workspace Gmail started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s183",
+      "action": "core/step",
+      "args": {
+        "title": "Prepare: fresh stand-in records"
+      },
+      "children": [
+        {
+          "id": "s184",
+          "action": "core/comment",
+          "args": {
+            "text": "Every case below talks to the local Google stand-in; the Gmail mailbox starts as seeded."
+          }
+        },
+        {
+          "id": "s185",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin_url}/msgoogle/reset",
+            "method": "POST"
+          },
+          "out": {
+            "status": "ut_v"
+          },
+          "description": "Put the stand-in's made-up records back as they were seeded"
+        }
+      ],
+      "description": "Prepare: fresh stand-in records"
+    },
+    {
+      "id": "s186",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.google/gmail_send - to yourself"
+      },
+      "children": [
+        {
+          "id": "s187",
+          "action": "core/comment",
+          "args": {
+            "text": "Send email sends through Gmail and gives the message id; a mail to the test mailbox arrives in INBOX."
+          }
+        },
+        {
+          "id": "s188",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s189",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail hello",
+                "body": "Hello",
+                "html": false
+              },
+              "out": {
+                "message_id": "s"
+              },
+              "description": "Send it"
+            },
+            {
+              "id": "s190",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s192",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s193",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail hello",
+                "label": "INBOX"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look for it in INBOX"
+            },
+            {
+              "id": "s194",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s196",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s198",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_send: to yourself\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s199",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s200",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_send: to yourself: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.google/gmail_send - to yourself"
+    },
+    {
+      "id": "s201",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.google/gmail_list_messages - unread from Acme"
+      },
+      "children": [
+        {
+          "id": "s202",
+          "action": "core/comment",
+          "args": {
+            "text": "Find emails turns the filters into a Gmail search; the two unread Acme invoices come back, newest first."
+          }
+        },
+        {
+          "id": "s203",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s204",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "status": "unread",
+                "from_contains": "acme"
+              },
+              "out": {
+                "count": "n",
+                "table": "t"
+              },
+              "description": "Unread from Acme"
+            },
+            {
+              "id": "s205",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s206",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s207",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$t.rows[0][4]"
+                }
+              },
+              "description": "Take newest subject for the check"
+            },
+            {
+              "id": "s209",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Invoice 8 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s210",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check newest subject",
+              "else": [
+                {
+                  "id": "s211",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "newest subject: expected eq \"Invoice 8 from Acme\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_list_messages: unread from Acme\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s215",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_list_messages: unread from Acme: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.google/gmail_list_messages - unread from Acme"
+    },
+    {
+      "id": "s216",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.google/gmail_get_message - an invoice"
+      },
+      "children": [
+        {
+          "id": "s217",
+          "action": "core/comment",
+          "args": {
+            "text": "Read email gives headers, text and attachment names of one message."
+          }
+        },
+        {
+          "id": "s218",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s219",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Invoice 7",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s220",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s221",
+              "action": "ooa.google/gmail_get_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$"
+              },
+              "out": {
+                "email": "e"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.subject"
+                }
+              },
+              "description": "Take subject for the check"
+            },
+            {
+              "id": "s223",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": "Invoice 7 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check subject",
+              "else": [
+                {
+                  "id": "s225",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "subject: expected eq \"Invoice 7 from Acme\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.attachments"
+                }
+              },
+              "description": "Take attachment names for the check"
+            },
+            {
+              "id": "s227",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": [
+                    "inv-7.pdf"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check attachment names",
+              "else": [
+                {
+                  "id": "s229",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "attachment names: expected eq [\"inv-7.pdf\"], got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s230",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$e.text"
+                }
+              },
+              "description": "Take text for the check"
+            },
+            {
+              "id": "s231",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "invoice 7"
+                }
+              },
+              "children": [
+                {
+                  "id": "s232",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check text",
+              "else": [
+                {
+                  "id": "s233",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "text: expected contains \"invoice 7\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s235",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_get_message: an invoice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s237",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_get_message: an invoice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.google/gmail_get_message - an invoice"
+    },
+    {
+      "id": "s238",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.google/gmail_mark_message - mark read"
+      },
+      "children": [
+        {
+          "id": "s239",
+          "action": "core/comment",
+          "args": {
+            "text": "Change email status takes the UNREAD label off; the message is then not found among unread ones."
+          }
+        },
+        {
+          "id": "s240",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s241",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail mark",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail mark' to the test mailbox"
+            },
+            {
+              "id": "s242",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail mark",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT gmail mark'"
+            },
+            {
+              "id": "s243",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.google/gmail_mark_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "status": "read"
+              },
+              "description": "Mark it read"
+            },
+            {
+              "id": "s245",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail mark",
+                "status": "unread"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Unread with that subject"
+            },
+            {
+              "id": "s246",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s247",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s248",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s249",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_mark_message: mark read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_mark_message: mark read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.google/gmail_mark_message - mark read"
+    },
+    {
+      "id": "s253",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.google/gmail_move_message - to Processed"
+      },
+      "children": [
+        {
+          "id": "s254",
+          "action": "core/comment",
+          "args": {
+            "text": "Move email adds the Processed label and takes INBOX off."
+          }
+        },
+        {
+          "id": "s255",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s256",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail move",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail move' to the test mailbox"
+            },
+            {
+              "id": "s257",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail move",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT gmail move'"
+            },
+            {
+              "id": "s258",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s259",
+              "action": "ooa.google/gmail_move_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "add_labels": "Processed"
+              },
+              "out": {
+                "labels": "l"
+              },
+              "description": "Move it"
+            },
+            {
+              "id": "s260",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$l$",
+                  "right": "Label_2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check labels afterwards",
+              "else": [
+                {
+                  "id": "s262",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "labels afterwards: expected contains \"Label_2\", got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s263",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "contains($l$, 'INBOX')"
+                }
+              },
+              "description": "Take INBOX still there for the check"
+            },
+            {
+              "id": "s264",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check INBOX still there",
+              "else": [
+                {
+                  "id": "s266",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "INBOX still there: expected eq false, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s267",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_move_message: to Processed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s269",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_move_message: to Processed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.google/gmail_move_message - to Processed"
+    },
+    {
+      "id": "s271",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.google/gmail_move_all - every match to Processed"
+      },
+      "children": [
+        {
+          "id": "s272",
+          "action": "core/comment",
+          "args": {
+            "text": "Move all emails relabels every matching INBOX message and counts them."
+          }
+        },
+        {
+          "id": "s273",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s274",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail moveall 1",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail moveall 1' to the test mailbox"
+            },
+            {
+              "id": "s275",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail moveall 2",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail moveall 2' to the test mailbox"
+            },
+            {
+              "id": "s276",
+              "action": "ooa.google/gmail_move_all",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "add_labels": "Processed",
+                "subject_contains": "UT gmail moveall",
+                "label": "INBOX"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Move them"
+            },
+            {
+              "id": "s277",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s278",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s279",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s281",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_move_all: every match to Processed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s283",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_move_all: every match to Processed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.google/gmail_move_all - every match to Processed"
+    },
+    {
+      "id": "s284",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.google/gmail_label_exists - by name, not minding case"
+      },
+      "children": [
+        {
+          "id": "s285",
+          "action": "core/comment",
+          "args": {
+            "text": "Check label exists finds a label by name and gives its id."
+          }
+        },
+        {
+          "id": "s286",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s287",
+              "action": "ooa.google/gmail_label_exists",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "label": "invoices"
+              },
+              "out": {
+                "exists": "b",
+                "label_id": "s"
+              },
+              "description": "Look for invoices"
+            },
+            {
+              "id": "s288",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s289",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s290",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq true, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s291",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "Label_1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s292",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s293",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"Label_1\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s295",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_label_exists: by name, not minding case\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s297",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_label_exists: by name, not minding case: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.google/gmail_label_exists - by name, not minding case"
+    },
+    {
+      "id": "s298",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.google/gmail_label_exists - as a condition"
+      },
+      "children": [
+        {
+          "id": "s299",
+          "action": "core/comment",
+          "args": {
+            "text": "Gmail label exists is also a condition: true for the Processed label."
+          }
+        },
+        {
+          "id": "s300",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s302",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.google/gmail_label_exists",
+                  "args": {
+                    "access_token": {
+                      "$credential": "unit_tests/google/token"
+                    },
+                    "base_url": "${standin_url}/msgoogle",
+                    "label": "Processed"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s304",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s306",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s308",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_label_exists: as a condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s310",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_label_exists: as a condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.google/gmail_label_exists - as a condition"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.google/gmail_label_exists - a label that is not there"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "The same condition is false for a label that does not exist."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s315",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.google/gmail_label_exists",
+                  "args": {
+                    "access_token": {
+                      "$credential": "unit_tests/google/token"
+                    },
+                    "base_url": "${standin_url}/msgoogle",
+                    "label": "No such label"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s316",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s317",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s318",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s319",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq false, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s320",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s321",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_label_exists: a label that is not there\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s322",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s323",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_label_exists: a label that is not there: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.google/gmail_label_exists - a label that is not there"
+    },
+    {
+      "id": "s324",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.google/gmail_delete_message - to the Bin"
+      },
+      "children": [
+        {
+          "id": "s325",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete email moves a message to the trash; it is then not found in INBOX."
+          }
+        },
+        {
+          "id": "s326",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s327",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail delete",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail delete' to the test mailbox"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail delete",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'UT gmail delete'"
+            },
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s330",
+              "action": "ooa.google/gmail_delete_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$"
+              },
+              "description": "Delete it"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail delete",
+                "label": "INBOX"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look in INBOX"
+            },
+            {
+              "id": "s332",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s334",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_delete_message: to the Bin\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_delete_message: to the Bin: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.google/gmail_delete_message - to the Bin"
+    },
+    {
+      "id": "s339",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.google/gmail_delete_all - every match, permanently"
+      },
+      "children": [
+        {
+          "id": "s340",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete all emails deletes every matching message and counts them."
+          }
+        },
+        {
+          "id": "s341",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s342",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail delall 1",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail delall 1' to the test mailbox"
+            },
+            {
+              "id": "s343",
+              "action": "ooa.google/gmail_send",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "to": "una.tester@ut-google.test",
+                "subject": "UT gmail delall 2",
+                "body": "unit test"
+              },
+              "description": "Send 'UT gmail delall 2' to the test mailbox"
+            },
+            {
+              "id": "s344",
+              "action": "ooa.google/gmail_delete_all",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT gmail delall",
+                "label": "INBOX",
+                "permanent": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Delete them"
+            },
+            {
+              "id": "s345",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s347",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s348",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s349",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_delete_all: every match, permanently\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s350",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s351",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_delete_all: every match, permanently: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.google/gmail_delete_all - every match, permanently"
+    },
+    {
+      "id": "s352",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.google/gmail_forward_message - with a note"
+      },
+      "children": [
+        {
+          "id": "s353",
+          "action": "core/comment",
+          "args": {
+            "text": "Forward email sends the invoice on with a note and its attachment; it arrives as Fwd:."
+          }
+        },
+        {
+          "id": "s354",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s355",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Invoice 7",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s357",
+              "action": "ooa.google/gmail_forward_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "to": "una.tester@ut-google.test",
+                "note": "FYI"
+              },
+              "out": {
+                "message_id": "s"
+              },
+              "description": "Forward it to the test mailbox"
+            },
+            {
+              "id": "s358",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s360",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s361",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Fwd: Invoice 7",
+                "label": "INBOX",
+                "has_attachments_only": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look for the forward"
+            },
+            {
+              "id": "s362",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s363",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s364",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s365",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s366",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_forward_message: with a note\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s368",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_forward_message: with a note: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.google/gmail_forward_message - with a note"
+    },
+    {
+      "id": "s369",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.google/gmail_reply_message - in the same thread"
+      },
+      "children": [
+        {
+          "id": "s370",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply to email answers the sender in the conversation and gives the thread id."
+          }
+        },
+        {
+          "id": "s371",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s372",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Team lunch",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Team lunch'"
+            },
+            {
+              "id": "s373",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s374",
+              "action": "ooa.google/gmail_reply_message",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "body": "Yes"
+              },
+              "out": {
+                "message_id": "s",
+                "thread_id": "mid"
+              },
+              "description": "Reply"
+            },
+            {
+              "id": "s375",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$s$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s376",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s377",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected notEmpty , got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s378",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$mid$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s379",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check thread id",
+              "else": [
+                {
+                  "id": "s380",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "thread id: expected notEmpty , got ${mid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s381",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s382",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_reply_message: in the same thread\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s383",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s384",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_reply_message: in the same thread: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.google/gmail_reply_message - in the same thread"
+    },
+    {
+      "id": "s385",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.google/gmail_reply_all - everyone but the sender, new subject"
+      },
+      "children": [
+        {
+          "id": "s386",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply all answers every recipient; here without the sender and with a new subject."
+          }
+        },
+        {
+          "id": "s387",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s388",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Team lunch",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Team lunch'"
+            },
+            {
+              "id": "s389",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s390",
+              "action": "ooa.google/gmail_reply_all",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "body": "Count me in",
+                "exclude_sender": true,
+                "subject": "UT lunch plan"
+              },
+              "out": {
+                "message_id": "s"
+              },
+              "description": "Reply to all"
+            },
+            {
+              "id": "s391",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "UT lunch plan"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Look for the reply"
+            },
+            {
+              "id": "s392",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s393",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check replies found",
+              "else": [
+                {
+                  "id": "s394",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "replies found: expected ge 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s395",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s396",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_reply_all: everyone but the sender, new subject\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s398",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_reply_all: everyone but the sender, new subject: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.google/gmail_reply_all - everyone but the sender, new subject"
+    },
+    {
+      "id": "s399",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.google/gmail_save_attachments - PDFs of an invoice"
+      },
+      "children": [
+        {
+          "id": "s400",
+          "action": "core/comment",
+          "args": {
+            "text": "Save attachments writes the message's matching attachments into a folder."
+          }
+        },
+        {
+          "id": "s401",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s402",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Invoice 7",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s403",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s404",
+              "action": "ooa.google/gmail_save_attachments",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "target_folder": "google/att1",
+                "name_pattern": "*.pdf",
+                "overwrite": true
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Save them"
+            },
+            {
+              "id": "s405",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($files$)"
+                }
+              },
+              "description": "Take files saved for the check"
+            },
+            {
+              "id": "s406",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s407",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files saved",
+              "else": [
+                {
+                  "id": "s408",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files saved: expected eq 1, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s409",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "Take saved file for the check"
+            },
+            {
+              "id": "s410",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_v$",
+                  "right": "inv-7.pdf"
+                }
+              },
+              "children": [
+                {
+                  "id": "s411",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check saved file",
+              "else": [
+                {
+                  "id": "s412",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "saved file: expected contains \"inv-7.pdf\", got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s413",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s414",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_save_attachments: PDFs of an invoice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s415",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s416",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_save_attachments: PDFs of an invoice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.google/gmail_save_attachments - PDFs of an invoice"
+    },
+    {
+      "id": "s417",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.google/gmail_save_all_attachments - every invoice"
+      },
+      "children": [
+        {
+          "id": "s418",
+          "action": "core/comment",
+          "args": {
+            "text": "Save all attachments saves the files of every message with the Invoices label."
+          }
+        },
+        {
+          "id": "s419",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s420",
+              "action": "ooa.google/gmail_save_all_attachments",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "target_folder": "google/att2",
+                "label": "Invoices",
+                "overwrite": true
+              },
+              "out": {
+                "files": "files",
+                "message_count": "n"
+              },
+              "description": "Save them"
+            },
+            {
+              "id": "s421",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s423",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s424",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_v",
+                "value": {
+                  "expr": "len($files$)"
+                }
+              },
+              "description": "Take files saved for the check"
+            },
+            {
+              "id": "s425",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_v$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s426",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files saved",
+              "else": [
+                {
+                  "id": "s427",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files saved: expected eq 2, got ${ut_v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s428",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s429",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_save_all_attachments: every invoice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s430",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s431",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_save_all_attachments: every invoice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.google/gmail_save_all_attachments - every invoice"
+    },
+    {
+      "id": "s432",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.google/gmail_save_message_as_eml - the whole message"
+      },
+      "children": [
+        {
+          "id": "s433",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email as EML writes the message's raw MIME to an .eml file."
+          }
+        },
+        {
+          "id": "s434",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s435",
+              "action": "ooa.google/gmail_list_messages",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "subject_contains": "Invoice 7",
+                "label": "INBOX"
+              },
+              "out": {
+                "table": "t"
+              },
+              "description": "Find the email 'Invoice 7'"
+            },
+            {
+              "id": "s436",
+              "action": "core/set",
+              "args": {
+                "variable": "mid",
+                "value": {
+                  "expr": "$t.rows[0][0]"
+                }
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s437",
+              "action": "ooa.google/gmail_save_message_as_eml",
+              "args": {
+                "access_token": {
+                  "$credential": "unit_tests/google/token"
+                },
+                "base_url": "${standin_url}/msgoogle",
+                "message_id": "$mid$",
+                "local_path": "google/invoice7.eml"
+              },
+              "out": {
+                "path": "s"
+              },
+              "description": "Save it"
+            },
+            {
+              "id": "s438",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$s$"
+              },
+              "out": {
+                "text": "s"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s439",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$s$",
+                  "right": "Invoice 7 from Acme"
+                }
+              },
+              "children": [
+                {
+                  "id": "s440",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the .eml text",
+              "else": [
+                {
+                  "id": "s441",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the .eml text: expected contains \"Invoice 7 from Acme\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s442",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s443",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_save_message_as_eml: the whole message\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s444",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s445",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_save_message_as_eml: the whole message: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.google/gmail_save_message_as_eml - the whole message"
+    },
+    {
+      "id": "s446",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.google/gmail_messages - each unread Acme email"
+      },
+      "children": [
+        {
+          "id": "s447",
+          "action": "core/comment",
+          "args": {
+            "text": "The Each email in Gmail loop goes through the matching messages one a turn."
+          }
+        },
+        {
+          "id": "s448",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s449",
+              "action": "core/set",
+              "args": {
+                "variable": "cnt",
+                "value": 0
+              }
+            },
+            {
+              "id": "s450",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.google/gmail_messages",
+                "iterator_args": {
+                  "access_token": {
+                    "$credential": "unit_tests/google/token"
+                  },
+                  "base_url": "${standin_url}/msgoogle",
+                  "status": "unread",
+                  "from_contains": "acme"
+                },
+                "as": "e"
+              },
+              "children": [
+                {
+                  "id": "s451",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "cnt",
+                    "value": {
+                      "expr": "$cnt$ + 1"
+                    }
+                  },
+                  "description": "Count it"
+                }
+              ],
+              "description": "Each unread Acme email"
+            },
+            {
+              "id": "s452",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$cnt$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s453",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cnt",
+              "else": [
+                {
+                  "id": "s454",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cnt: expected eq 2, got ${cnt}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s455",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s456",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.google/gmail_messages: each unread Acme email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s457",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s458",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.google/gmail_messages: each unread Acme email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.google/gmail_messages - each unread Acme email"
+    },
+    {
+      "id": "s459",
+      "action": "core/step",
+      "args": {
+        "title": "19. Summary"
+      },
+      "children": [
+        {
+          "id": "s460",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s461",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s462",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s463",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "19. Summary"
+    }
+  ]
+}
