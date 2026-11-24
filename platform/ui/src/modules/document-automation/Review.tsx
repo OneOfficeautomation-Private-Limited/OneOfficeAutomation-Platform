@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, Field, Icon, IconButton, Select } from "../../components";
+import { Button, Dialog, Field, Icon, IconButton, Select, TextInput } from "../../components";
 import type { DocFlowApi, DocType, Place, ReviewTask, ReviewValues, TableRow } from "./api";
 import { HINTS } from "./help";
 import { AddToTestSet } from "./review/AddToTestSet";
 import { EInvoicePanel } from "./review/EInvoicePanel";
 import { PageView, type PageBox } from "./review/PageView";
 import { TableField } from "./review/TableField";
+
+/** Common reasons to reject a document; any other is typed. */
+const REJECT_REASONS = ["Not a document we process", "Duplicate of one already received", "Unreadable or incomplete", "Wrong supplier or customer", "Sent to us by mistake"];
+const OWN_REASON = "Other reason…";
 import { Chip, Hint, Loading, reportError } from "./ui";
 
 /**
@@ -37,14 +41,18 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
   const [types, setTypes] = useState<DocType[] | null>(null);
   const [newType, setNewType] = useState("");
   const back = task?.processId ? "#/process/" + encodeURIComponent(task.processId) : "#/inbox";
-  const finish = async (decision: "approve" | "reject") => {
+  // Reject asks why: a reason from the list, or one typed (kept with the document)
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState(REJECT_REASONS[0]);
+  const [ownReason, setOwnReason] = useState("");
+  const finish = async (decision: "approve" | "reject", note = "") => {
     if (!task || saving) return;
     setSaving(true);
     try {
       // tables go back only when the reviewer changed them, so an unchanged table is not counted as a correction
       const changed = task.tables.filter((t) => JSON.stringify(rows[t.id]) !== JSON.stringify(t.rows));
       const out: ReviewValues = { ...values, ...Object.fromEntries(changed.map((t) => [t.id, rows[t.id]])) };
-      const r = await api.completeReview(task.documentId, out, decision);
+      const r = await api.completeReview(task.documentId, out, decision, note);
       location.hash = r.next ? "#/review/" + encodeURIComponent(r.next) : back;   // Approve and next: the next one waiting
     } catch (e) { reportError(e); } finally { setSaving(false); }
   };
@@ -198,7 +206,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
             })}
           </div>
           <div className="df-head-row" style={{ padding: "12px 20px", borderTop: "1px solid var(--ui-border)", background: "var(--ui-soft)" }}>
-            <Button kind="danger" disabled={saving} onClick={() => finish("reject")}>Reject</Button><Hint about="Reject" text={HINTS.reviewReject} />
+            <Button kind="danger" disabled={saving} onClick={() => setRejecting(true)}>Reject</Button><Hint about="Reject" text={HINTS.reviewReject} />
             <Button kind="plain" disabled={saving} onClick={openTypes}>Change document type</Button><Hint about="Change document type" text={HINTS.changeType} />
             <span className="df-grow" />
             <Button kind="run" disabled={saving} onClick={() => finish("approve")}>Approve and next <span style={{ fontWeight: 400, opacity: .85, fontSize: 12 }}>Ctrl+Enter</span></Button>
@@ -209,7 +217,18 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
         footer={<><Button onClick={() => setTypes(null)}>Cancel</Button><Button kind="primary" disabled={!newType || saving} onClick={reclassify}>Read again</Button></>}>
         <p style={{ margin: 0 }}>DocFlow reads {task.name} again as the type you choose. The current reading is marked as replaced.</p>
         <Field label="Document type">{(id) => <Select id={id} value={newType} onChange={(e) => setNewType(e.target.value)}
-          options={[{ value: "", label: "Choose a type" }, ...(types ?? []).filter((t) => t.name !== task.docType).map((t) => ({ value: t.id, label: t.name }))]} />}</Field>
+          options={[{ value: "", label: "Choose a type" }, ...(types ?? []).filter((t) => t.name !== task.docType && t.id !== "other").map((t) => ({ value: t.id, label: t.name })),
+            ...((types ?? []).some((t) => t.id === "other") ? [{ value: "other", label: "None of these: keep it as an Other document" }] : [])]} />}</Field>
+        <p className="df-small" style={{ margin: 0 }}>Not listed? Make the type on the Document types page (Teach from samples reads this kind of document for you), then come back.</p>
+      </Dialog>
+      <Dialog open={rejecting} onClose={() => setRejecting(false)} title={`Reject ${task.name}?`} width={480}
+        footer={<><Button onClick={() => setRejecting(false)}>Cancel</Button>
+          <Button kind="danger" disabled={saving || (reason === OWN_REASON && !ownReason.trim())}
+            onClick={() => { setRejecting(false); void finish("reject", reason === OWN_REASON ? ownReason : reason); }}>Reject</Button></>}>
+        <Field label="Why">{(id) => <Select id={id} value={reason} onChange={(e) => setReason(e.target.value)}
+          options={[...REJECT_REASONS, OWN_REASON].map((r) => ({ value: r, label: r }))} />}</Field>
+        {reason === OWN_REASON && <Field label="Reason">{(id) => <TextInput id={id} value={ownReason} onChange={(e) => setOwnReason(e.target.value)} />}</Field>}
+        <p className="df-small" style={{ margin: 0 }}>The reason is kept with the document and sent with its results.</p>
       </Dialog>
     </div>
   );

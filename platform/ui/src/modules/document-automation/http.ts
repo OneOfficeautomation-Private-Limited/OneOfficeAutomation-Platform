@@ -35,7 +35,7 @@ interface DfRule { id: string; type: RuleType; name: string; enabled: boolean; a
 interface DfDelivery { id: string; type: DeliveryType; name: string; enabled: boolean; on: string[]; params: Record<string, unknown> }
 interface DfFlow {
   id: string; name: string; description: string; folder?: string; docTypes: string[]; status: "draft" | "live"; isInbox: boolean; version: number;
-  classify: { mode: "single" | "auto"; split: boolean; minScore?: number }; engine: { option: string; ocrProvider: string; extractionProvider: string };
+  classify: { mode: "single" | "auto"; split: boolean; minScore?: number; whenNoType?: "review" | "other" | "reject"; checkType?: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string };
   review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number> }; rules: DfRule[];
   deliveries: DfDelivery[];
   intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[] }; updatedAt: string;
@@ -174,7 +174,7 @@ const targetOf = (d: DfDelivery) => String((d.type === "start_bot" ? d.params.bo
 const paramsOf = (d: Delivery, old?: DfDelivery): Record<string, unknown> => {
   const keep = { ...(old?.params ?? {}) };
   if (d.type === "start_bot") return { ...keep, bot: d.target, pool: d.pool ?? "" };
-  if (d.type === "webhook") return { ...keep, url: d.target };
+  if (d.type === "webhook") return { ...keep, url: d.target, method: d.method ?? "POST", headers: d.headers ?? {} };
   return { ...keep, path: d.target };
 };
 const checkOf = (r: DfRule): Check => ({
@@ -287,8 +287,8 @@ export class HttpDocFlowApi implements DocFlowApi {
     });
   }
 
-  async documents(processId: string): Promise<DocumentRow[]> {
-    const rows = await this.call<DfDocRow[]>("GET", `/df/flows/${encodeURIComponent(processId)}/documents?limit=200&fields=true`);
+  async documents(processId: string, limit = 200): Promise<DocumentRow[]> {
+    const rows = await this.call<DfDocRow[]>("GET", `/df/flows/${encodeURIComponent(processId)}/documents?limit=${limit}&fields=true`);
     return rows.map((r) => {
       const f = r.fields ?? {};
       const flags = flagsOf(r.flags);
@@ -302,6 +302,7 @@ export class HttpDocFlowApi implements DocFlowApi {
         note: flags[0]?.message ?? (r.status === "invalid" ? "Rejected" + (r.validated_by ? " by " + r.validated_by : "") : r.status === "validated" && r.validated_by ? "Approved by " + r.validated_by : ""),
         engine: st === "processing" ? "Reading…" : (r.engines ?? []).map((e) => ENGINE_NAMES[e] ?? e).join(", then ") || "—",
         confidence: pct(r.confidence),
+        values: Object.fromEntries(Object.entries(f).filter(([, v]) => v === null || typeof v !== "object").map(([k, v]) => [k, text(v)])),
       };
     });
   }
@@ -468,9 +469,9 @@ export class HttpDocFlowApi implements DocFlowApi {
     };
   }
 
-  async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }> {
+  async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject", note = ""): Promise<{ next?: string }> {
     const r = await this.call<{ nextDocumentId?: string | null }>("POST", `/df/documents/${encodeURIComponent(documentId)}/review`,
-      { fields, action: decision === "approve" ? "submit" : "invalid" });
+      { fields, action: decision === "approve" ? "submit" : "invalid", ...(note.trim() ? { note: note.trim() } : {}) });
     return { next: r?.nextDocumentId ?? undefined };
   }
 
@@ -552,12 +553,14 @@ export class HttpDocFlowApi implements DocFlowApi {
       checks: f.rules.map(checkOf),
       settings: {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
+        whenNoType: f.classify.whenNoType ?? "review", checkType: !!f.classify.checkType,
         extraction: f.engine.extractionProvider, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
         email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
         einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
       },
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
-        ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}) })),
+        ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}),
+        ...(d.type === "webhook" ? { method: (String(d.params.method ?? "POST").toUpperCase() as Delivery["method"]), headers: (d.params.headers ?? {}) as Record<string, string> } : {}) })),
     };
     const seen = new Set<string>();
     const fields = (f.isInbox ? types : mine).flatMap((t) => t.fields).filter((x) => x.type !== "table" && !seen.has(x.name) && seen.add(x.name))
@@ -573,7 +576,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
       ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
       intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [] },
-      classify: { ...cur.classify, mode: s.classifyMode, split: s.split },
+      classify: { ...cur.classify, mode: s.classifyMode, split: s.split, whenNoType: s.whenNoType ?? "review", checkType: !!s.checkType },
       engine: { ...cur.engine, extractionProvider: s.extraction },
       review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds },
       rules: d.checks.map((c) => {
@@ -671,10 +674,11 @@ export class HttpDocFlowApi implements DocFlowApi {
     return (await this.call<{ rows: RefRow[] }>("GET", `/df/reftables/${encodeURIComponent(id)}?limit=${limit}`)).rows;
   }
 
-  async uploadRefTable(file: File, name: string, replaceId?: string): Promise<{ id: string }> {
+  async uploadRefTable(file: File, name: string, replaceId?: string, headerRow = 1): Promise<{ id: string }> {
     const form = new FormData();
     form.append("file", file, file.name);
     form.append("name", name);
+    form.append("headerRow", String(headerRow));
     if (replaceId) form.append("id", replaceId);
     return this.call<{ id: string }>("POST", "/df/reftables", form);
   }

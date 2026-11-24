@@ -134,24 +134,30 @@ function UploadDialog({ api, replacing, existing = [], onClose, onDone }: { api:
     if (!file) return;
     setBusy(true);
     const title = name.trim() || file.name.replace(/\.[^.]+$/, "");
-    try { onDone((await api.uploadRefTable(file, keepBoth && clash ? freeName(title) : title, replacing?.id)).id); } catch (e) { reportError(e); } finally { setBusy(false); }
+    try { onDone((await api.uploadRefTable(file, keepBoth && clash ? freeName(title) : title, replacing?.id, headerRow)).id); } catch (e) { reportError(e); } finally { setBusy(false); }
   };
   // another table has this name: uploading replaces it, unless both are kept (the new one gets "(2)")
   const clash = !replacing && existing.some((t) => t.name.trim().toLowerCase() === name.trim().toLowerCase());
   const [keepBoth, setKeepBoth] = useState(false);
+  const [headerRow, setHeaderRow] = useState(1);
   const freeName = (n: string) => { let k = 2; while (existing.some((t) => t.name.toLowerCase() === `${n} (${k})`.toLowerCase())) k++; return `${n} (${k})`; };
   return (
     <Dialog open onClose={onClose} title={replacing ? `Replace ${replacing.name}` : "Upload a table"} width={520}
       footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!file || busy} onClick={upload}>{busy ? "Uploading…" : "Upload"}</Button></>}>
       <div className="df-files">
         <div>
-          <input ref={picker} type="file" hidden accept=".csv,.xlsx,.xls" aria-label="Choose a file"
+          <input ref={picker} type="file" hidden accept=".csv,.tsv,.txt,.xlsx,.xlsm,.ods,.json" aria-label="Choose a file"
             onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && !name) setName(f.name.replace(/\.[^.]+$/, "")); }} />
           {file ? <b>{file.name}</b> : <span className="df-muted">No file yet</span>}<span className="df-grow" />
           <button type="button" className="df-link" onClick={() => picker.current?.click()}>{file ? "Choose another" : "+ Choose a file"}</button>
         </div>
       </div>
-      <p className="df-small" style={{ margin: 0 }}>CSV or Excel. The first row holds the column names.</p>
+      <div className="df-grid df-g2">
+        <p className="df-small" style={{ margin: 0, alignSelf: "center" }}>CSV, TSV or text, Excel, OpenDocument (.ods) or JSON (a list of rows).</p>
+        <Field label="Column names are in row" hint="0: the file has none; the columns are named col1, col2...">
+          {(id) => <TextInput id={id} inputMode="numeric" value={String(headerRow)} onChange={(e) => setHeaderRow(Math.max(0, Number(e.target.value) || 0))} />}
+        </Field>
+      </div>
       <Field label="Table name" hint={replacing ? "This table is replaced; you may rename it." : clash ? "A table with this name exists." : undefined}>
         {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}
       </Field>

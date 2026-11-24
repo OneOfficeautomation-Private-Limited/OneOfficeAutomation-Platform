@@ -9,20 +9,28 @@ const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watche
 
 /** One process: what it is, its numbers, adding documents to it, and every document with full details. */
 export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: string }) {
-  const [data, reload] = useLoad(() => Promise.all([api.processes(), api.documents(processId)]), [api, processId]);
+  // the newest documents, 200 at a time ("Show more" loads more)
+  const [limit, setLimit] = useState(200);
+  const [data, reload] = useLoad(() => Promise.all([api.processes(), api.documents(processId, limit)]), [api, processId, limit]);
+  // columns of values read: the invoice ones by default; any field the documents have can be shown instead
+  const [columns, setColumns] = useState<string[] | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | DocStatus>("all");
   const [source, setSource] = useState<"all" | Source>("all");
-  const [readBy, setReadBy] = useState<"all" | "pdf" | "tesseract" | "paddle" | "cloud">("all");
-  const [conf, setConf] = useState<"all" | "high" | "under85" | "under70">("all");
+  const [readBy, setReadBy] = useState("all");
+  const [conf, setConf] = useState("all");
   if (!data) return <Loading />;
   const [processes, docs] = data;
   const p = processes.find((x) => x.id === processId);
   if (!p) return <div className="df-page"><a className="df-back" href="#/inbox"><Icon name="chevronLeft" size={14} />Inbox</a><p>This process does not exist (any more).</p></div>;
 
-  const engineOk = (e: string) => readBy === "all" || (readBy === "pdf" ? e.startsWith("PDF") : readBy === "paddle" ? e.includes("PaddleOCR")
-    : readBy === "tesseract" ? e.startsWith("Tesseract") : /cloud|azure|google|aws/i.test(e));
-  const confOk = (c: number | null) => conf === "all" || (c != null && (conf === "high" ? c >= 85 : conf === "under85" ? c < 85 : c < 70));
+  // "Read by": the engines that really read these documents (each step of "Tesseract, then PaddleOCR")
+  const engines = [...new Set(docs.filter((d) => d.status !== "processing").flatMap((d) => d.engine.split(", then ")).filter((e) => e && e !== "—"))].sort();
+  const engineOk = (e: string) => readBy === "all" || e.split(", then ").includes(readBy);
+  const confOk = (c: number | null) => conf === "all" || (c != null && (conf.startsWith("under") ? c < Number(conf.slice(5)) : c >= Number(conf.slice(4))));
+  const fieldKeys = [...new Set(docs.flatMap((d) => Object.keys(d.values ?? {})))];
+  const invoiceLike = docs.some((d) => d.supplier !== "—" || d.invoice !== "—");
+  const shown = columns ?? (invoiceLike ? [] : fieldKeys.slice(0, 3));
   const rows = docs.filter((d) => matches(q, d.name, d.supplier, d.invoice) && (status === "all" || d.status === status)
     && (source === "all" || d.source === source) && engineOk(d.engine) && confOk(d.confidence));
   const count = (s: DocStatus) => docs.filter((d) => d.status === s).length;
@@ -63,20 +71,26 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
             { value: "done", label: `Done (${count("done")})` }, { value: "failed", label: `Failed (${count("failed")})` }, { value: "split", label: `Split (${count("split")})` }]} />
           <FilterSelect label="Came in from" value={source} onChange={setSource}
             options={[{ value: "all", label: "Any way" }, ...(Object.keys(SOURCE_LABEL) as Source[]).map((s) => ({ value: s, label: SOURCE_LABEL[s] }))]} />
-          <FilterSelect label="Read by" value={readBy} onChange={setReadBy} options={[{ value: "all", label: "Any engine" }, { value: "pdf", label: "PDF text layer" },
-            { value: "tesseract", label: "Tesseract" }, { value: "paddle", label: "Retried with PaddleOCR" }, { value: "cloud", label: "Cloud engine" }]} />
-          <FilterSelect label="Confidence" value={conf} onChange={setConf} options={[{ value: "all", label: "Any" }, { value: "high", label: "85% and above" },
-            { value: "under85", label: "Under 85%" }, { value: "under70", label: "Under 70%" }]} />
+          <FilterSelect label="Read by" value={readBy} onChange={setReadBy} options={[{ value: "all", label: "Any engine" }, ...engines.map((e) => ({ value: e, label: e }))]} />
+          <FilterSelect label="Confidence" value={conf} onChange={setConf} options={[{ value: "all", label: "Any" },
+            ...[95, 90, 85, 70].map((v) => ({ value: "over" + v, label: `${v}% and above` })), ...[95, 90, 85, 70, 50].map((v) => ({ value: "under" + v, label: `Under ${v}%` }))]} />
+          {fieldKeys.length > 0 && <details className="df-columns"><summary className="df-small">Columns</summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: 8 }}>
+              {fieldKeys.map((k) => <label key={k} style={{ display: "flex", gap: 6 }}><input type="checkbox" checked={shown.includes(k)}
+                onChange={(e) => setColumns(e.target.checked ? [...shown, k] : shown.filter((x) => x !== k))} />{k}</label>)}
+            </div></details>}
         </FilterBar>
         <div className="df-table-wrap">
           <table className="df-table" style={{ minWidth: 1000 }}>
-            <thead><tr><th>Document</th><th>Supplier · invoice no.</th><th className="df-right">Total</th><th>Came in</th><th>Status</th><th>Read by</th><th>Confidence</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th>Document</th>{!columns && invoiceLike && <><th>Supplier · invoice no.</th><th className="df-right">Total</th></>}
+              {shown.map((k) => <th key={k}>{k}</th>)}<th>Came in</th><th>Status</th><th>Read by</th><th>Confidence</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {rows.map((d) => (
                 <tr key={d.id}>
                   <td><a href={d.status === "review" ? "#/review/" + d.id : "#/process/" + p.id}>{d.name}</a><div className="df-small">{d.pages}</div></td>
-                  <td>{d.supplier}<div className="df-small">{d.invoice}</div></td>
-                  <td className="df-right df-num" style={{ whiteSpace: "nowrap" }}>{d.total}</td>
+                  {!columns && invoiceLike && <><td>{d.supplier}<div className="df-small">{d.invoice}</div></td>
+                  <td className="df-right df-num" style={{ whiteSpace: "nowrap" }}>{d.total}</td></>}
+                  {shown.map((k) => <td key={k} dir="auto">{d.values?.[k] || "—"}</td>)}
                   <td style={{ whiteSpace: "nowrap" }}><span className="df-num">{d.time}</span><div className="df-small">{d.sourceLabel}</div></td>
                   <td><StatusChip status={d.status} />{d.note && <div className="df-small" style={{ marginTop: 3 }}>{d.note}</div>}</td>
                   <td className="df-muted">{d.engine}</td>
@@ -90,6 +104,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
             </tbody>
           </table>
           {!rows.length && <div className="df-empty">No document matches these filters. <button type="button" className="df-link" onClick={clear}>Clear filters</button></div>}
+          {docs.length >= limit && <div className="df-empty"><button type="button" className="df-link" onClick={() => setLimit(limit + 500)}>Show older documents</button></div>}
         </div>
       </section>
     </div>

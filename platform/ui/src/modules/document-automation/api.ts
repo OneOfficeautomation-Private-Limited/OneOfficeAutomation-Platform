@@ -37,6 +37,8 @@ export interface Language { code: string; name: string; engines: string[]; insta
 export interface DocumentRow {
   id: string; processId: string; name: string; pages: string; supplier: string; invoice: string; total: string;
   time: string; source: Source; sourceLabel: string; status: DocStatus; note: string; engine: string; confidence: number | null;
+  /** Every value read, as text, by field name (the process page shows the columns a person chooses). */
+  values?: Record<string, string>;
 }
 
 /** A box on a page: 0–1 of the page's width and height, from its top-left corner. */
@@ -103,7 +105,9 @@ export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "tax" | "threshold" 
 export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
-export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string }
+/** method and headers: a web address delivery's HTTP method (POST by default) and its own headers (an API key header...). */
+export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string;
+  method?: "POST" | "PUT" | "PATCH"; headers?: Record<string, string> }
 /**
  * A process's email inbox, read by the Command Center: IMAP (kind "email") or Microsoft 365 (kind "outlook"), as email
  * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.
@@ -121,6 +125,10 @@ export interface MsSignInStart { id: string; userCode: string; verificationUri: 
 export type MsSignInState = { status: "pending" } | { status: "signed_in"; account: string } | { status: "failed"; message: string };
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
+  /** A document that fits no type: a person chooses (review), kept as an Other document, or rejected. */
+  whenNoType?: "review" | "other" | "reject";
+  /** Every-file-is-this-type processes: check each document looks like it (its recognition words). */
+  checkType?: boolean;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
   /** Read e-invoice data (XML, QR codes) before OCR; on by default. */
   einvoiceFirst: boolean;
@@ -344,7 +352,8 @@ export interface DocFlowApi {
   processes(): Promise<ProcessSummary[]>;
   /** Every process with its set-up and activity, in one go (the Overview table). */
   processTable(): Promise<ProcessRow[]>;
-  documents(processId: string): Promise<DocumentRow[]>;
+  /** The newest documents of a process, at most limit (200 by default). */
+  documents(processId: string, limit?: number): Promise<DocumentRow[]>;
   addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
   createProcess(p: NewProcess): Promise<{ id: string }>;
   /** The platform folders a new process can go in (where the person may edit). */
@@ -375,7 +384,8 @@ export interface DocFlowApi {
   tryMailRule(account: string, conditions: MailConditions, rule?: string): Promise<MailTry>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
-  completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
+  /** note: the reviewer's reason (why it was rejected), kept with the document. */
+  completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject", note?: string): Promise<{ next?: string }>;
   /** Reads the document again as another type; it may then need review again. */
   changeDocType(documentId: string, docTypeId: string): Promise<{ documentId: string; needsReview: boolean }>;
   /** Where Export downloads a process's results (done and approved documents). */
@@ -399,7 +409,7 @@ export interface DocFlowApi {
   refTableRows(id: string, limit?: number): Promise<RefRow[]>;
   /** Adds a table from a CSV or Excel file; a table with the same name is replaced. */
   /** replaceId: the table to replace (its name may change); without it a table with the same name is replaced. */
-  uploadRefTable(file: File, name: string, replaceId?: string): Promise<{ id: string }>;
+  uploadRefTable(file: File, name: string, replaceId?: string, headerRow?: number): Promise<{ id: string }>;
   deleteRefTable(id: string): Promise<void>;
   /** Reads the file as the document type with engine A (and B), side by side. Nothing is kept. */
   runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun>;
@@ -687,7 +697,7 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
-  async documents(processId: string) { return copy(this.documentsData.filter((d) => d.processId === processId)); }
+  async documents(processId: string, limit = 200) { return copy(this.documentsData.filter((d) => d.processId === processId).slice(0, limit)); }
   async addDocuments(files: File[], processId: string | "auto") {
     const target = processId === "auto" ? "smart-inbox" : processId;
     files.forEach((f, i) => this.documentsData.unshift(doc({ id: "new_" + Date.now() + "_" + i, processId: target, name: f.name, status: "processing",
@@ -777,7 +787,7 @@ export class SampleApi implements DocFlowApi {
     return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name, docTypeId: "supplier-invoice", ...place,
       ...(approved ? { status: "done" as const, reviewedBy: "you", documentReasons: [] } : {}) };
   }
-  async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject") {
+  async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject", _note?: string) {
     this.reviews.push({ documentId, fields, decision });
     const d = this.documentsData.find((x) => x.id === documentId);
     if (d) { d.status = decision === "approve" ? "done" : "failed"; d.note = decision === "approve" ? "Approved by you" : "Rejected by you"; }

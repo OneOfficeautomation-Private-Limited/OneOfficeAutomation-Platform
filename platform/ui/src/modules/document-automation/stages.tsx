@@ -125,6 +125,8 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
             <div className="df-grid df-g2">
               {text("host", "Mail server", "imap.example.com")}
               {text("port", "Port", "993")}
+              <Field label="Connection">{(id) => <Select id={id} value={email?.ssl === false ? "plain" : "ssl"} onChange={(e) => setEmail({ ssl: e.target.value === "ssl" })}
+                options={[{ value: "ssl", label: "Encrypted (SSL/TLS, usually port 993)" }, { value: "plain", label: "Not encrypted, or STARTTLS (usually port 143)" }]} />}</Field>
               {text("username", "User name", "invoices@example.com")}
               {secret("password_ref", "Password", "mail/invoices/password")}
               {text("mail_folder", "Folder", "INBOX")}
@@ -158,6 +160,15 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={s.split} onChange={(e) => set({ split: e.target.checked })} />Split batches: one scan with several documents becomes several documents
       </label>
+      {s.classifyMode === "single" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={!!s.checkType} onChange={(e) => set({ checkType: e.target.checked })} />
+        Check each file really is this type (its recognition words are on it); one that is not is handled as below
+      </label>}
+      <Field label="When a document fits none of the types" hint="Other document: its text, labelled values and tables are kept and delivered like any other.">
+        {(id) => <Select id={id} value={s.whenNoType ?? "review"} onChange={(e) => set({ whenNoType: e.target.value as ProcessSettings["whenNoType"] })}
+          options={[{ value: "review", label: "Send to review: a person chooses the type" }, { value: "other", label: "Keep it as an Other document" },
+            { value: "reject", label: "Reject it, with the reason" }]} />}
+      </Field>
     </div>
   );
 }
@@ -281,6 +292,14 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
         : <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
             {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
           </Field>}
+      {d.type === "webhook" && <div className="df-grid" style={{ gridTemplateColumns: "1fr 3fr", gap: 12 }}>
+        <Field label="Method">{(id) => <Select id={id} value={d.method ?? "POST"} onChange={(e) => setD({ ...d, method: e.target.value as Delivery["method"] })}
+          options={["POST", "PUT", "PATCH"].map((m) => ({ value: m, label: m }))} />}</Field>
+        <Field label="Headers (optional)" hint="One per line, Name: value, such as X-Api-Key: ... (sent with every delivery).">
+          {(id) => <textarea id={id} className="ui-input" rows={2} value={Object.entries(d.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n")}
+            onChange={(e) => setD({ ...d, headers: Object.fromEntries(e.target.value.split("\n").map((l) => l.split(/:(.*)/s)).filter(([k, v]) => k?.trim() && v !== undefined).map(([k, v]) => [k.trim(), v.trim()])) })} />}
+        </Field>
+      </div>}
       {d.type === "start_bot" && (
         <Field label="Runner pool (optional)" hint="Empty: your default runner.">
           {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}

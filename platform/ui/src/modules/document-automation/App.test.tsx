@@ -212,7 +212,7 @@ describe("Document Automation", () => {
     start(); await go("#/process/ap-invoices");
     const region = await table("Documents in AP invoices");
     expect(within(region).getByText("8 of 8 documents")).toBeTruthy();
-    fireEvent.change(within(region).getByLabelText("Read by"), { target: { value: "paddle" } });
+    fireEvent.change(within(region).getByLabelText("Read by"), { target: { value: "PaddleOCR" } });   // the engines that read them, from the documents
     expect(within(region).getByText("2 of 8 documents")).toBeTruthy();
     fireEvent.change(within(region).getByLabelText("Confidence"), { target: { value: "under85" } });
     expect(within(region).getByRole("link", { name: "scan_0457.jpg" }).getAttribute("href")).toBe("#/review/scan_0457");
