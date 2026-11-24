@@ -158,6 +158,27 @@ INVOICE_LINES = ["UT Supplies Ltd", "Invoice number: INV-UT-1", "Invoice date: 2
                  "Currency: EUR", "Net: 100.00", "Tax: 20.50", "Total: 120.50"]
 
 
+ITEMS_DEFAULT = "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items"
+
+
+def items_input(ua):
+    """The input items_dir: the folder with the sample items (agents/items of this repository)."""
+    ua.f.var("items_dir", "String", "input", ITEMS_DEFAULT,
+             "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its "
+             "work folder.")
+
+
+def copy_item(f, rel_path, target, desc=None):
+    """Copies a sample item into the run's work folder (items must be inside the workspace to be used)."""
+    f.act("ooa.file/copy", desc=desc or "Copy the sample item " + rel_path.split("/")[-1] + " into the work folder",
+          source="${items_dir}/" + rel_path, target=target, overwrite=True)
+
+
+def ai_key(ua):
+    """The made-up API key of the stand-in model, from the vault."""
+    credential_var(ua, "ai_key", "unit_tests/ai/api_key")
+
+
 def declare(ua, name, type_="Any", default=None):
     ua.f.var(name, type_, "local", default)
 

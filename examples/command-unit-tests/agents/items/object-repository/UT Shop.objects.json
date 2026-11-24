@@ -1,0 +1,192 @@
+{
+  "kind": "ObjectRepository",
+  "name": "UT Shop",
+  "description": "Object repository sample: the sign-in screen of the stand-in's UT Shop page.",
+  "applications": [
+    {
+      "name": "UT Shop web",
+      "description": "The stand-in page /plat-app/login.",
+      "screens": [
+        {
+          "name": "Login",
+          "elements": [
+            {
+              "name": "User name",
+              "description": "Found by tag and id.",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "properties",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "tag",
+                    "value": "input",
+                    "match": "equals",
+                    "use": true
+                  },
+                  {
+                    "name": "id",
+                    "value": "username",
+                    "match": "equals",
+                    "use": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Password",
+              "description": "Found by tag and name.",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "properties",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "tag",
+                    "value": "input",
+                    "match": "equals",
+                    "use": true
+                  },
+                  {
+                    "name": "name",
+                    "value": "pass",
+                    "match": "equals",
+                    "use": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Country",
+              "description": "A drop-down, found by id.",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "properties",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "tag",
+                    "value": "select",
+                    "match": "equals",
+                    "use": true
+                  },
+                  {
+                    "name": "id",
+                    "value": "country",
+                    "match": "equals",
+                    "use": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Sign in",
+              "description": "Found by a CSS selector.",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "css",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "css",
+                    "value": "button#signin",
+                    "match": "equals",
+                    "use": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Message",
+              "description": "Found by an XPath.",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "xpath",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "xpath",
+                    "value": "//p[@data-test='message']",
+                    "match": "equals",
+                    "use": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Heading",
+              "description": "Found by its text (contains).",
+              "object": {
+                "technology": "web",
+                "page": {
+                  "url": "/plat-app/login",
+                  "title": "UT Shop",
+                  "url_match": "contains",
+                  "title_match": "contains"
+                },
+                "frames": [],
+                "search_by": "properties",
+                "index": 0,
+                "ignore_case": false,
+                "properties": [
+                  {
+                    "name": "tag",
+                    "value": "h1",
+                    "match": "equals",
+                    "use": true
+                  },
+                  {
+                    "name": "text",
+                    "value": "UT",
+                    "match": "contains",
+                    "use": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

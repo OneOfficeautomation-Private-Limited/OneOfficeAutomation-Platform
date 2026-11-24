@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/document/v1.json",
+  "id": "UT_Invoice",
+  "name": "UT Invoice",
+  "description": "Document type sample: the fields of a supplier invoice.",
+  "accept": [
+    "pdf",
+    "txt"
+  ],
+  "provider": "openai_compatible",
+  "model": "ut-model",
+  "fields": [
+    {
+      "name": "supplier",
+      "description": "The supplier's name",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "invoice_number",
+      "description": "The invoice number",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "invoice_date",
+      "description": "The invoice date",
+      "type": "DateTime",
+      "required": true
+    },
+    {
+      "name": "po_number",
+      "description": "The purchase order number",
+      "type": "String",
+      "required": false
+    },
+    {
+      "name": "currency",
+      "description": "The currency code",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "total",
+      "description": "The amount to pay",
+      "type": "Number",
+      "required": true
+    }
+  ]
+}

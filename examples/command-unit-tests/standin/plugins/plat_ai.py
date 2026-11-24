@@ -11,7 +11,7 @@ with answers fixed by markers in the prompt so every run repeats exactly.
 import json
 import re
 
-core = None   # set by standin.py
+# `core` (the stand-in module: LOCK, STATE) is set by standin.py before this file runs.
 
 
 def _reply(h, model, msg, finish="stop"):

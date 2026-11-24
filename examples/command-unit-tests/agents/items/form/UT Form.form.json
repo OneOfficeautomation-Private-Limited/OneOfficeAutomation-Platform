@@ -1,0 +1,117 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/form/v1.json",
+  "id": "UT_Form",
+  "name": "UT Form",
+  "description": "Form sample with every kind of field: an expense claim.",
+  "fields": [
+    {
+      "id": "title",
+      "type": "heading",
+      "label": "Expense claim"
+    },
+    {
+      "id": "intro",
+      "type": "paragraph",
+      "label": "About",
+      "text": "Fill in the claim; fields with * are required."
+    },
+    {
+      "id": "full_name",
+      "type": "text",
+      "label": "Full name",
+      "required": true,
+      "placeholder": "First and last name",
+      "help": "As on your ID card",
+      "tooltip": "Your full name"
+    },
+    {
+      "id": "email",
+      "type": "email",
+      "label": "Email address",
+      "required": true
+    },
+    {
+      "id": "amount",
+      "type": "number",
+      "label": "Amount",
+      "required": true,
+      "min": 1,
+      "max": 5000,
+      "default": 100
+    },
+    {
+      "id": "spent_on",
+      "type": "date",
+      "label": "Date spent"
+    },
+    {
+      "id": "category",
+      "type": "dropdown",
+      "label": "Category",
+      "required": true,
+      "options": [
+        "Travel",
+        "Meals",
+        "Office"
+      ],
+      "default": "Travel"
+    },
+    {
+      "id": "payment",
+      "type": "radio",
+      "label": "Paid with",
+      "options": [
+        "Company card",
+        "Own money"
+      ],
+      "default": "Own money"
+    },
+    {
+      "id": "details",
+      "type": "multiline",
+      "label": "Details",
+      "placeholder": "What was it for?"
+    },
+    {
+      "id": "receipt",
+      "type": "file",
+      "label": "Receipt"
+    },
+    {
+      "id": "pin",
+      "type": "password",
+      "label": "Approval PIN"
+    },
+    {
+      "id": "reference",
+      "type": "text",
+      "label": "Reference",
+      "read_only": true,
+      "default": "EXP-UT-1"
+    },
+    {
+      "id": "lines",
+      "type": "area",
+      "label": "Lines",
+      "fields": [
+        {
+          "id": "line_1",
+          "type": "text",
+          "label": "Line 1"
+        }
+      ]
+    },
+    {
+      "id": "agree",
+      "type": "checkbox",
+      "label": "I confirm the claim is correct",
+      "required": true
+    },
+    {
+      "id": "check",
+      "type": "button",
+      "label": "Check answers"
+    }
+  ],
+  "submitLabel": "Send claim"
+}

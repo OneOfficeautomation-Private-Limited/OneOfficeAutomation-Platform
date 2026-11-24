@@ -1,0 +1,11 @@
+{
+  "description": "Sorts a customer ticket into a category and a priority; answers as JSON.",
+  "system": "You sort customer tickets. CLASSIFY-TICKET. Reply only with a JSON object with the keys category (billing, delivery or other) and priority (high or normal).",
+  "prompt": "Customer: $customer$\nTicket: ${ticket}",
+  "provider": "openai_compatible",
+  "model": "ut-model",
+  "output": "json",
+  "temperature": 0,
+  "max_tokens": 200,
+  "mask_pii": false
+}
