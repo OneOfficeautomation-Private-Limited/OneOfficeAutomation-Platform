@@ -76,16 +76,16 @@ GROUPS = {
                                     "UT Invoice.doc.json, the way the extraction agent Studio makes from it does "
                                     "(stand-in model), and checks each field."},
     "item_object_repository": {"id": "ut_item_object_repository_test", "name": "UT Item Object repository",
-                               "toolkits": [], "needs": "desktop",
-                               "about": "Opens the stand-in's test page in a browser and fills it in through the "
+                               "toolkits": [], "needs": "standin",
+                               "about": "Opens the stand-in's test page in a headless browser and fills it in through the "
                                         "objects of the sample repository UT Shop.objects.json."},
     "item_prompt_skill": {"id": "ut_item_prompt_skill_test", "name": "UT Item Prompt Skill", "toolkits": [],
                           "needs": "standin",
                           "about": "Runs the sample Prompt Skill ut_classify_ticket (ai-skills) against the stand-in "
                                    "model and checks its JSON answer."},
-    "item_api_agent": {"id": "ut_item_api_agent_test", "name": "UT Item API agent", "toolkits": [], "needs": "local",
+    "item_api_agent": {"id": "ut_item_api_agent_test", "name": "UT Item API agent", "toolkits": [], "needs": "commandcenter",
                        "about": "Runs the sample API agent UT API agent (no desktop steps) as a child agent and checks "
-                                "its outputs; locally it is also run on its own."},
+                                "its outputs. Needs the agent repository (Studio or One CommandCenter)."},
     "item_python": {"id": "ut_item_python_test", "name": "UT Item Python script", "toolkits": [], "needs": "local",
                     "about": "Calls the sample script UT invoice tools.py as a script (arguments and standard input) "
                              "and as functions, and checks the JSON it gives back."},

@@ -1,0 +1,780 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_item_form_test",
+  "name": "UT Item Form",
+  "description": "Shows the sample form UT Form.form.json with values filled in, checks its answers and closes it (opens a window).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "items_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
+    },
+    {
+      "name": "uf_values",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "uf_value",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "uf_valid",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "uf_errors",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows the sample form UT Form.form.json with values filled in, checks its answers and closes it (opens a window)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Item Form started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.forms/display - the sample form with its defaults and answers"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Display form shows UT Form without waiting, filling in name and email; the designer's defaults (amount 100, category Travel, reference EXP-UT-1) are there too."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.file/copy",
+              "args": {
+                "source": "${items_dir}/form/UT Form.form.json",
+                "target": "ut-items/UT Form.form.json",
+                "overwrite": true
+              },
+              "description": "Copy the sample item UT Form.form.json into the work folder"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.forms/display",
+              "args": {
+                "form": "ut-items/UT Form.form.json",
+                "name": "ut_item_form",
+                "wait": "no",
+                "values": {
+                  "full_name": "Ann Lee",
+                  "email": "ann@example.com"
+                }
+              }
+            },
+            {
+              "id": "s9",
+              "action": "ooa.forms/get",
+              "args": {
+                "name": "ut_item_form"
+              },
+              "out": {
+                "value": "uf_values"
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/set",
+              "args": {
+                "variable": "uf_value",
+                "value": {
+                  "expr": "$uf_values.amount"
+                }
+              }
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_value$",
+                  "right": 100
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check amount",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "amount: expected eq 100, got ${uf_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "uf_value",
+                "value": {
+                  "expr": "$uf_values.category"
+                }
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_value$",
+                  "right": "Travel"
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check category",
+              "else": [
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "category: expected eq \"Travel\", got ${uf_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "uf_value",
+                "value": {
+                  "expr": "$uf_values.reference"
+                }
+              }
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_value$",
+                  "right": "EXP-UT-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check reference",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "reference: expected eq \"EXP-UT-1\", got ${uf_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "uf_value",
+                "value": {
+                  "expr": "$uf_values.payment"
+                }
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_value$",
+                  "right": "Own money"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check payment",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "payment: expected eq \"Own money\", got ${uf_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.forms/display: the sample form with its defaults and answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.forms/display: the sample form with its defaults and answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.forms/display - the sample form with its defaults and answers"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.forms/validate - the form's own checks"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "The sample's checks: the confirmation box is required, the email must be an address and the amount at most 5000. With a bad email the form is invalid and email is named; put right, it is valid."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.forms/set",
+              "args": {
+                "name": "ut_item_form",
+                "element": "email",
+                "value": "not an address"
+              }
+            },
+            {
+              "id": "s34",
+              "action": "ooa.forms/set",
+              "args": {
+                "name": "ut_item_form",
+                "element": "agree",
+                "value": true
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.forms/validate",
+              "args": {
+                "name": "ut_item_form"
+              },
+              "out": {
+                "valid": "uf_valid",
+                "errors": "uf_errors"
+              }
+            },
+            {
+              "id": "s36",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_valid$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check uf_valid",
+              "else": [
+                {
+                  "id": "s38",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "uf_valid: expected eq false, got ${uf_valid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$uf_errors$",
+                  "right": "email"
+                }
+              },
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the errors",
+              "else": [
+                {
+                  "id": "s41",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the errors: expected contains \"email\", got ${uf_errors}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s42",
+              "action": "ooa.forms/set",
+              "args": {
+                "name": "ut_item_form",
+                "element": "email",
+                "value": "ann@example.com"
+              }
+            },
+            {
+              "id": "s43",
+              "action": "ooa.forms/validate",
+              "args": {
+                "name": "ut_item_form"
+              },
+              "out": {
+                "valid": "uf_valid"
+              }
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_valid$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check uf_valid",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "uf_valid: expected eq true, got ${uf_valid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.forms/validate: the form's own checks\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.forms/validate: the form's own checks: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.forms/validate - the form's own checks"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.forms/close - close it and keep the answers"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Close form closes the window and gives back the answers."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.forms/close",
+              "args": {
+                "name": "ut_item_form"
+              },
+              "out": {
+                "values": "uf_values"
+              }
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "uf_value",
+                "value": {
+                  "expr": "$uf_values.full_name"
+                }
+              }
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$uf_value$",
+                  "right": "Ann Lee"
+                }
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check full_name",
+              "else": [
+                {
+                  "id": "s58",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "full_name: expected eq \"Ann Lee\", got ${uf_value}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.forms/close: close it and keep the answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.forms/close: close it and keep the answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.forms/close - close it and keep the answers"
+    },
+    {
+      "id": "s63",
+      "action": "core/step",
+      "args": {
+        "title": "4. Summary"
+      },
+      "children": [
+        {
+          "id": "s64",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s65",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s66",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s67",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "4. Summary"
+    }
+  ]
+}
