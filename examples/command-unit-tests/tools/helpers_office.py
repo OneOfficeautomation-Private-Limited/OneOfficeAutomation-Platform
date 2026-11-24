@@ -114,6 +114,31 @@ def fix_samples(ua, close=None):
     _declare_loop_vars(ua)
     _walk(ua.f.steps, lambda s: _runtime_invalid(ua, s))
     _sample_credentials(ua)
+    _drop_needing_test_servers(ua)
+
+
+DROPPED: list[str] = []
+
+
+def _drop_needing_test_servers(ua):
+    """Samples that use the platform test's own servers ({mock}: a scripted web service, {web}: the case folder over
+    HTTP) cannot run in an agent; they are left out (listed in DROPPED) and the group's own cases cover the command."""
+    keep, dropped = [], []
+    for s in ua.f.steps:
+        t = json.dumps(s)
+        if s.get("action") == "core/step" and ("{mock}" in t or "{web}" in t):
+            dropped.append(s["args"]["title"])
+        else:
+            keep.append(s)
+    if not dropped:
+        return
+    ua.f.steps[:] = keep
+    DROPPED.extend(dropped)
+    ua.covered.clear()
+    for s in keep:
+        m = re.match(r"\d+\. (\S+) - ", s.get("args", {}).get("title", ""))
+        if m:
+            ua.covered.add(m.group(1))
 
 
 def _sample_credentials(ua):
@@ -228,7 +253,9 @@ def text_pdf(pages, size=(300, 200), font_size=12):
     for i, lines in enumerate(pages):
         po, co = 4 + 2 * i, 5 + 2 * i
         kids.append(f"{po} 0 R")
-        stream = "\n".join(f"BT /F1 {font_size} Tf {x} {y} Td ({t}) Tj ET" for x, y, t in lines)
+        # t = a text, or (width, height) for a filled black rectangle
+        stream = "\n".join(f"0 g {x} {y} {t[0]} {t[1]} re f" if isinstance(t, tuple)
+                           else f"BT /F1 {font_size} Tf {x} {y} Td ({t}) Tj ET" for x, y, t in lines)
         objs[po] = (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Contents {co} 0 R "
                     f"/Resources << /Font << /F1 3 0 R >> >> >>")
         objs[co] = f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream"
