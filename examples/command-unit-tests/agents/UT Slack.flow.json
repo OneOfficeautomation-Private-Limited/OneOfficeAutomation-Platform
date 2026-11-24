@@ -2809,12 +2809,13 @@
                   "id": "s298",
                   "action": "ooa.slack/get_workspace_details",
                   "args": {
+                    "base_url": "${standin_url}/biz/slack/api",
                     "bot_token": ""
                   },
                   "out": {
                     "workspace": "sl_ws"
                   },
-                  "description": "No token now: should fail"
+                  "description": "No token now (stand-in address): should fail"
                 }
               ],
               "description": "These steps should fail with *",

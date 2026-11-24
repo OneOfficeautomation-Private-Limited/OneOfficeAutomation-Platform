@@ -3331,7 +3331,7 @@
           "id": "s356",
           "action": "core/comment",
           "args": {
-            "text": "Create pipeline makes a YAML pipeline from a file in a repository; the repository can be given by name and is looked up. Checks the new pipeline's repository."
+            "text": "Create pipeline makes a YAML pipeline from a file in a repository; the repository can be given by name and is looked up to its id. Checks the new pipeline points at the repository's id."
           }
         },
         {
@@ -3375,7 +3375,7 @@
                 "condition": {
                   "op": "eq",
                   "left": "$ado_pipeinfo.repository$",
-                  "right": "ut-portal-api"
+                  "right": "6f1c0a52-0000-4000-8000-00000000a001"
                 }
               },
               "children": [
@@ -3387,14 +3387,14 @@
                   }
                 }
               ],
-              "description": "Check the repository",
+              "description": "Check the repository id",
               "else": [
                 {
                   "id": "s362",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "the repository: expected eq \"ut-portal-api\""
+                    "message": "the repository id: expected eq \"6f1c0a52-0000-4000-8000-00000000a001\""
                   },
                   "description": "Stop the case: the check failed"
                 }

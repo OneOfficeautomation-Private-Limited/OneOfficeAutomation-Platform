@@ -142,11 +142,12 @@ def jira(h, m, path, q):
             if m == "PUT":
                 b = h.body()
                 if "leadAccountId" in b:
-                    u = next((x for x in st["users"] if x["accountId"] == b.pop("leadAccountId")), None)
+                    lead_id = b.pop("leadAccountId")
+                    u = next((x for x in st["users"] if x["accountId"] == lead_id), None)
                     pr["lead"] = {"accountId": u["accountId"], "displayName": u["displayName"]} if u else None
                 if "categoryId" in b:
-                    cat = next((c for c in st["categories"] if str(c["id"]) == str(b.pop("categoryId"))), None)
-                    pr["projectCategory"] = cat
+                    want = str(b.pop("categoryId"))
+                    pr["projectCategory"] = next((c for c in st["categories"] if str(c["id"]) == want), None)
                 pr.update(b)
                 return h.send(200, pr)
             if m == "DELETE":

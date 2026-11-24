@@ -208,11 +208,11 @@ def add(ua):
 
     with ua.case(TK + "create_pipeline", "from a repository named, not its id",
                  "Create pipeline makes a YAML pipeline from a file in a repository; the repository can be given by "
-                 "name and is looked up. Checks the new pipeline's repository.") as f:
+                 "name and is looked up to its id. Checks the new pipeline points at the repository's id.") as f:
         act(f, "create_pipeline", "Create ut-nightly", project=PROJ, name="ut-nightly", repository_id=REPO,
             yaml_path="/pipelines/nightly.yml", folder="\\UT", out={"pipeline_id": "ado_pipeline"})
         act(f, "get_pipeline", "Read it back", project=PROJ, pipeline_id="$ado_pipeline$", out={"pipeline": "ado_pipeinfo"})
-        ua.check("eq", "$ado_pipeinfo.repository$", REPO, what="the repository")
+        ua.check("eq", "$ado_pipeinfo.repository$", REPO_ID, what="the repository id")
 
     with ua.case(TK + "update_pipeline", "rename and point at another YAML file",
                  "Edit pipeline renames a pipeline and points it at another YAML file. The case creates one first. "

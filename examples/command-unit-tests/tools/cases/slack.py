@@ -157,7 +157,7 @@ def add(ua):
                  "Disconnect forgets the connection Connect chose; later steps then give their own bot token and address. "
                  "Checks a step without a token now fails, and one with its own token works.") as f:
         f.act("ooa.slack/disconnect", desc="Forget ut_slack")
-        ua.expect_error("*", lambda ff: ff.act("ooa.slack/get_workspace_details", desc="No token now: should fail",
+        ua.expect_error("*", lambda ff: ff.act("ooa.slack/get_workspace_details", desc="No token now (stand-in address): should fail", base_url=API,
                                                out={"workspace": "sl_ws"}))
         f.act("ooa.slack/get_workspace_details", desc="With the step's own token and address",
               bot_token=cred("slack", "bot_token"), base_url=API, out={"workspace": "sl_ws"})

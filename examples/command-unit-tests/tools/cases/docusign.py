@@ -33,6 +33,14 @@ def _session_steps(steps, cmd_prefix, required):
                     _session_steps(b.get("children") or [], cmd_prefix, required)
 
 
+def _check_saved(ua, f):
+    """The downloaded file is there (File exists used as a condition)."""
+    f.set("ds_exists", False)
+    with f.if_({"condition": "ooa.file/exists", "args": {"path": "$ds_path$"}}, desc="Is the file there?"):
+        f.set("ds_exists", True, desc="The file is there")
+    ua.check_eq("ds_exists", True)
+
+
 def _draft(f, send_now=False):
     """A new envelope with one document, a signer for embedded signing and a copy recipient."""
     f.act("ooa.file/write_text", desc="Prepare the document", path="ut_docusign_contract.txt", text="Contract C-77 /sig/")
@@ -133,22 +141,19 @@ def add(ua):
                  "Download document saves one document of an envelope. Checks the file is there.") as f:
         f.act("ooa.docusign/download_document", desc="Save document 1", envelope_id=DONE, document_id="1",
               save_as="ut_docusign/contract.pdf", out={"path": "ds_path"})
-        f.act("ooa.file/get_info", desc="Look for the file", path="$ds_path$", out={"exists": "ds_exists"})
-        ua.check_eq("ds_exists", True)
+        _check_saved(ua, f)
 
     with ua.case("ooa.docusign/download_combined_pdf", "all documents in one PDF",
                  "Download combined PDF saves all documents as one PDF with the signing certificate. Checks the file is there.") as f:
         f.act("ooa.docusign/download_combined_pdf", desc="Save the combined PDF", envelope_id=DONE, save_as="ut_docusign/",
               include_certificate=True, out={"path": "ds_path"})
-        f.act("ooa.file/get_info", desc="Look for the file", path="$ds_path$", out={"exists": "ds_exists"})
-        ua.check_eq("ds_exists", True)
+        _check_saved(ua, f)
         ua.check("contains", "$ds_path$", ".pdf", what="the file name")
 
     with ua.case("ooa.docusign/download_zip", "signed documents as a ZIP",
                  "Download signed ZIP saves all documents and the certificate in one ZIP file. Checks the file is there.") as f:
         f.act("ooa.docusign/download_zip", desc="Save the ZIP", envelope_id=DONE, save_as="ut_docusign/signed.zip", out={"path": "ds_path"})
-        f.act("ooa.file/get_info", desc="Look for the file", path="$ds_path$", out={"exists": "ds_exists"})
-        ua.check_eq("ds_exists", True)
+        _check_saved(ua, f)
 
     with ua.case("ooa.docusign/set_custom_fields", "add an order number",
                  "Set envelope custom fields adds new fields and changes existing ones. Checks the new field is read back.") as f:
