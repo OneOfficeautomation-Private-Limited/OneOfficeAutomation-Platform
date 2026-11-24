@@ -1,0 +1,1451 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_csv",
+  "name": "UT CSV TXT",
+  "description": "Unit tests of every CSV/TXT command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "sum",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "back",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "csv_rows",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "csv_cols",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "csv_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "csv_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "csv_rec",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "csv_skus",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every CSV/TXT command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT CSV TXT started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s71",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s72",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.csv/write - quote all"
+      },
+      "children": [
+        {
+          "id": "s73",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.csv/write (quote all) and checks its result."
+          }
+        },
+        {
+          "id": "s74",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "t",
+                "value": {
+                  "columns": [
+                    "a"
+                  ],
+                  "rows": [
+                    [
+                      "x"
+                    ]
+                  ]
+                }
+              },
+              "description": "Test value for t"
+            },
+            {
+              "action": "ooa.csv/write",
+              "args": {
+                "table": "$t",
+                "path": "ut_tmp/c1/o.csv",
+                "quote_all": true,
+                "line_ending": "lf"
+              },
+              "id": "s76"
+            },
+            {
+              "id": "s77",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/c1/o.csv"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read o.csv"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": {
+                  "expr": "replace($ut_text, '\\r\\n', '\\n')"
+                }
+              },
+              "description": "Windows line ends as \\n"
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "\"a\"\n\"x\"\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check o.csv",
+              "else": [
+                {
+                  "id": "s81",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "o.csv: expected eq \"\\\"a\\\"\\n\\\"x\\\"\\n\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/write: quote all\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/write: quote all: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.csv/write - quote all"
+    },
+    {
+      "id": "s86",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.csv/read - skip lines, trim"
+      },
+      "children": [
+        {
+          "id": "s87",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.csv/read (skip lines, trim) and checks its result."
+          }
+        },
+        {
+          "id": "s88",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c2/in.csv",
+                "text": "title line\nname;qty\n  pen ;2\n\ncup;3\n"
+              },
+              "description": "Prepare the test file in.csv"
+            },
+            {
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "ut_tmp/c2/in.csv",
+                "delimiter": ";",
+                "skip_lines": 1,
+                "trim": "both",
+                "skip_empty_rows": true
+              },
+              "out": {
+                "table": "t",
+                "row_count": "n"
+              },
+              "id": "s90"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": {
+                    "columns": [
+                      "name",
+                      "qty"
+                    ],
+                    "rows": [
+                      [
+                        "pen",
+                        "2"
+                      ],
+                      [
+                        "cup",
+                        "3"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"columns\": [\"name\", \"qty\"], \"rows\": [[\"pen\", \"2\"], [\"cup\", \"3\"]], got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/read: skip lines, trim\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/read: skip lines, trim: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.csv/read - skip lines, trim"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.csv/rows - loop iterator"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.csv/rows (loop iterator) and checks its result."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s104",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c3/in.csv",
+                "text": "n\n1\n2\n"
+              },
+              "description": "Prepare the test file in.csv"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "sum",
+                "value": 0
+              },
+              "description": "Test value for sum"
+            },
+            {
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.csv/rows",
+                "iterator_args": {
+                  "path": "ut_tmp/c3/in.csv",
+                  "detect_types": true
+                },
+                "as": "row"
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sum",
+                    "value": {
+                      "expr": "$sum + $row.n"
+                    }
+                  },
+                  "id": "s107"
+                }
+              ],
+              "id": "s106"
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$sum$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check sum",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "sum: expected eq 3, got ${sum}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/rows: loop iterator\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/rows: loop iterator: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.csv/rows - loop iterator"
+    },
+    {
+      "id": "s115",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.csv/read - detect types (new)"
+      },
+      "children": [
+        {
+          "id": "s116",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.csv/read (detect types (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s117",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s118",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c4/in.csv",
+                "text": "id,qty,ok,day\n00123,2.5,true,2026-10-23\n"
+              },
+              "description": "Prepare the test file in.csv"
+            },
+            {
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "ut_tmp/c4/in.csv",
+                "detect_types": true
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s119"
+            },
+            {
+              "id": "s120",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": {
+                    "columns": [
+                      "id",
+                      "qty",
+                      "ok",
+                      "day"
+                    ],
+                    "rows": [
+                      [
+                        "00123",
+                        2.5,
+                        true,
+                        "2026-10-23T00:00"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s122",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"columns\": [\"id\", \"qty\", \"ok\", \"day\"], \"rows\": [[\"00123\", 2.5, true, \"2026-10-23T00:00\"]], got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/read: detect types (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/read: detect types (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.csv/read - detect types (new)"
+    },
+    {
+      "id": "s127",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.csv/write - regional delimiter round trip"
+      },
+      "children": [
+        {
+          "id": "s128",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.csv/write (regional delimiter round trip) and checks its result."
+          }
+        },
+        {
+          "id": "s129",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "t",
+                "value": {
+                  "columns": [
+                    "Item",
+                    "Qty"
+                  ],
+                  "rows": [
+                    [
+                      "Pen",
+                      "2"
+                    ]
+                  ]
+                }
+              },
+              "description": "Test value for t"
+            },
+            {
+              "action": "ooa.csv/write",
+              "args": {
+                "table": "$t",
+                "path": "ut_tmp/c5/r.csv",
+                "delimiter": "regional"
+              },
+              "id": "s131"
+            },
+            {
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "ut_tmp/c5/r.csv",
+                "delimiter": "regional"
+              },
+              "out": {
+                "table": "back"
+              },
+              "id": "s132"
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$back$",
+                  "right": {
+                    "columns": [
+                      "Item",
+                      "Qty"
+                    ],
+                    "rows": [
+                      [
+                        "Pen",
+                        "2"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check back",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "back: expected eq \"columns\": [\"Item\", \"Qty\"], \"rows\": [[\"Pen\", \"2\"]], got ${back}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/write: regional delimiter round trip\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s138",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s139",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/write: regional delimiter round trip: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.csv/write - regional delimiter round trip"
+    },
+    {
+      "id": "s140",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.csv/open - a semicolon file read once as a session"
+      },
+      "children": [
+        {
+          "id": "s141",
+          "action": "core/comment",
+          "args": {
+            "text": "Open reads a CSV or delimited text file once as a named session; Read and Each row then use the session. Checks: the row count and columns Open gives, a Read and a loop over the session."
+          }
+        },
+        {
+          "id": "s142",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s143",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/csv/items.csv",
+                "text": "sku;qty;price\nA-1;2;9.50\nB-7;1;20\nC-3;4;1.25\n"
+              },
+              "description": "A semicolon-separated file"
+            },
+            {
+              "id": "s144",
+              "action": "ooa.csv/open",
+              "args": {
+                "path": "ut_tmp/csv/items.csv",
+                "session": "ut_items",
+                "delimiter": ";"
+              },
+              "out": {
+                "row_count": "csv_rows",
+                "columns": "csv_cols"
+              },
+              "description": "Open it as session ut_items"
+            },
+            {
+              "id": "s145",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$csv_rows$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check csv_rows",
+              "else": [
+                {
+                  "id": "s147",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "csv_rows: expected eq 3, got ${csv_rows}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s148",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$csv_cols$",
+                  "right": [
+                    "sku",
+                    "qty",
+                    "price"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check csv_cols",
+              "else": [
+                {
+                  "id": "s150",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "csv_cols: expected eq [\"sku\", \"qty\", \"price\"], got ${csv_cols}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s151",
+              "action": "ooa.csv/read",
+              "args": {
+                "session": "ut_items"
+              },
+              "out": {
+                "table": "csv_table",
+                "row_count": "csv_n"
+              },
+              "description": "Read the session into a table"
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$csv_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check csv_n",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "csv_n: expected eq 3, got ${csv_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "csv_skus",
+                "value": ""
+              }
+            },
+            {
+              "id": "s156",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.csv/rows",
+                "iterator_args": {
+                  "session": "ut_items"
+                },
+                "as": "csv_rec"
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "csv_skus",
+                    "value": "${csv_skus}${csv_rec.sku};"
+                  }
+                }
+              ],
+              "description": "Each row of the session"
+            },
+            {
+              "id": "s158",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$csv_skus$",
+                  "right": "A-1;B-7;C-3;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check csv_skus",
+              "else": [
+                {
+                  "id": "s160",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "csv_skus: expected eq \"A-1;B-7;C-3;\", got ${csv_skus}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s161",
+              "action": "ooa.csv/close",
+              "args": {
+                "session": "ut_items"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s162",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s163",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/open: a semicolon file read once as a session\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s165",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/open: a semicolon file read once as a session: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.csv/open - a semicolon file read once as a session"
+    },
+    {
+      "id": "s166",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.csv/close - a closed session can no longer be read"
+      },
+      "children": [
+        {
+          "id": "s167",
+          "action": "core/comment",
+          "args": {
+            "text": "Close ends a CSV/TXT session opened with Open. Checks: Read of the closed session fails with SESSION.NOT_FOUND."
+          }
+        },
+        {
+          "id": "s168",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s169",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/csv/two.csv",
+                "text": "a,b\n1,2\n"
+              },
+              "description": "A small file"
+            },
+            {
+              "id": "s170",
+              "action": "ooa.csv/open",
+              "args": {
+                "path": "ut_tmp/csv/two.csv",
+                "session": "ut_two"
+              },
+              "description": "Open it as session ut_two"
+            },
+            {
+              "id": "s171",
+              "action": "ooa.csv/close",
+              "args": {
+                "session": "ut_two"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s173",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s174",
+                  "action": "ooa.csv/read",
+                  "args": {
+                    "session": "ut_two"
+                  },
+                  "out": {
+                    "table": "csv_table"
+                  },
+                  "description": "Read the closed session"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s175",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s176",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s178",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.csv/close: a closed session can no longer be read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.csv/close: a closed session can no longer be read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.csv/close - a closed session can no longer be read"
+    },
+    {
+      "id": "s183",
+      "action": "core/step",
+      "args": {
+        "title": "8. Summary"
+      },
+      "children": [
+        {
+          "id": "s184",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s185",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s186",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s187",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "8. Summary"
+    }
+  ]
+}

@@ -1,0 +1,2964 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_number",
+  "name": "UT Number",
+  "description": "Unit tests of every Number command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "prices",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "price",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "qty",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "tax",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "amount",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "band",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "same",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Number command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Number started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s258",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s259",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.number/increment - by step"
+      },
+      "children": [
+        {
+          "id": "s260",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/increment (by step) and checks its result."
+          }
+        },
+        {
+          "id": "s261",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s262",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 5
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.number/increment",
+              "args": {
+                "value": "$n",
+                "step": 2.5
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s263"
+            },
+            {
+              "id": "s264",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 7.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s266",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 7.5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s267",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s268",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/increment: by step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s269",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s270",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/increment: by step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.number/increment - by step"
+    },
+    {
+      "id": "s271",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.number/decrement - by one"
+      },
+      "children": [
+        {
+          "id": "s272",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/decrement (by one) and checks its result."
+          }
+        },
+        {
+          "id": "s273",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 5
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.number/decrement",
+              "args": {
+                "value": "$n"
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s275"
+            },
+            {
+              "id": "s276",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s277",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s278",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 4, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s279",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s280",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/decrement: by one\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s282",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/decrement: by one: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.number/decrement - by one"
+    },
+    {
+      "id": "s283",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.number/round - half even"
+      },
+      "children": [
+        {
+          "id": "s284",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/round (half even) and checks its result."
+          }
+        },
+        {
+          "id": "s285",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/round",
+              "args": {
+                "value": 2.5,
+                "mode": "half_even"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s286"
+            },
+            {
+              "id": "s287",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s288",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s289",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 2, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s290",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s291",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/round: half even\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s292",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s293",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/round: half even: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.number/round - half even"
+    },
+    {
+      "id": "s294",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.number/format - German thousands"
+      },
+      "children": [
+        {
+          "id": "s295",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/format (German thousands) and checks its result."
+          }
+        },
+        {
+          "id": "s296",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/format",
+              "args": {
+                "value": 1234.5,
+                "decimals": 2,
+                "locale": "de-DE"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s297"
+            },
+            {
+              "id": "s298",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "1.234,50"
+                }
+              },
+              "children": [
+                {
+                  "id": "s299",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s300",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"1.234,50\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s301",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s302",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/format: German thousands\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s303",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s304",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/format: German thousands: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.number/format - German thousands"
+    },
+    {
+      "id": "s305",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.number/to_text - truncate"
+      },
+      "children": [
+        {
+          "id": "s306",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/to_text (truncate) and checks its result."
+          }
+        },
+        {
+          "id": "s307",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/to_text",
+              "args": {
+                "value": 2.789,
+                "decimals": 2,
+                "rounding": "truncate"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s308"
+            },
+            {
+              "id": "s309",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "2.78"
+                }
+              },
+              "children": [
+                {
+                  "id": "s310",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s311",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"2.78\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s312",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s313",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/to_text: truncate\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s314",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s315",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/to_text: truncate: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.number/to_text - truncate"
+    },
+    {
+      "id": "s316",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.number/random - within range"
+      },
+      "children": [
+        {
+          "id": "s317",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/random (within range) and checks its result."
+          }
+        },
+        {
+          "id": "s318",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/random",
+              "args": {
+                "min": 1,
+                "max": 3
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s319"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$r >= 1 and $r <= 3"
+                }
+              },
+              "id": "s320"
+            },
+            {
+              "id": "s321",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s322",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s323",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s324",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s325",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/random: within range\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s326",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s327",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/random: within range: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.number/random - within range"
+    },
+    {
+      "id": "s328",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.number/format - Indian lakh grouping (fixed)"
+      },
+      "children": [
+        {
+          "id": "s329",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/format (Indian lakh grouping (fixed)) and checks its result."
+          }
+        },
+        {
+          "id": "s330",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/format",
+              "args": {
+                "value": 1234567.5,
+                "decimals": 1,
+                "locale": "en-IN"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s331"
+            },
+            {
+              "id": "s332",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "12,34,567.5"
+                }
+              },
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s334",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"12,34,567.5\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/format: Indian lakh grouping (fixed)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/format: Indian lakh grouping (fixed): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.number/format - Indian lakh grouping (fixed)"
+    },
+    {
+      "id": "s339",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.number/calculate - operation: percent of"
+      },
+      "children": [
+        {
+          "id": "s340",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (operation: percent of) and checks its result."
+          }
+        },
+        {
+          "id": "s341",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/calculate",
+              "args": {
+                "operation": "percent_of",
+                "a": 18,
+                "b": 250
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s342"
+            },
+            {
+              "id": "s343",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 45
+                }
+              },
+              "children": [
+                {
+                  "id": "s344",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s345",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 45, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s346",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s347",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: operation: percent of\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s348",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s349",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: operation: percent of: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.number/calculate - operation: percent of"
+    },
+    {
+      "id": "s350",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.number/calculate - operation: round up to 2 decimals"
+      },
+      "children": [
+        {
+          "id": "s351",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (operation: round up to 2 decimals) and checks its result."
+          }
+        },
+        {
+          "id": "s352",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/calculate",
+              "args": {
+                "operation": "round_up",
+                "a": 2.341,
+                "decimals": 2
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s353"
+            },
+            {
+              "id": "s354",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 2.35
+                }
+              },
+              "children": [
+                {
+                  "id": "s355",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s356",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 2.35, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: operation: round up to 2 decimals\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: operation: round up to 2 decimals: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.number/calculate - operation: round up to 2 decimals"
+    },
+    {
+      "id": "s361",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.number/calculate - operation: average of a list"
+      },
+      "children": [
+        {
+          "id": "s362",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (operation: average of a list) and checks its result."
+          }
+        },
+        {
+          "id": "s363",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "core/set",
+              "args": {
+                "variable": "prices",
+                "value": [
+                  10,
+                  20,
+                  45
+                ]
+              },
+              "description": "Test value for prices"
+            },
+            {
+              "action": "ooa.number/calculate",
+              "args": {
+                "operation": "average",
+                "values": "$prices$"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s365"
+            },
+            {
+              "id": "s366",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 25
+                }
+              },
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s368",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 25, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: operation: average of a list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: operation: average of a list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.number/calculate - operation: average of a list"
+    },
+    {
+      "id": "s373",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.number/calculate - formula saved by Studio"
+      },
+      "children": [
+        {
+          "id": "s374",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (formula saved by Studio) and checks its result."
+          }
+        },
+        {
+          "id": "s375",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s376",
+              "action": "core/set",
+              "args": {
+                "variable": "price",
+                "value": 12.5
+              },
+              "description": "Test value for price"
+            },
+            {
+              "id": "s377",
+              "action": "core/set",
+              "args": {
+                "variable": "qty",
+                "value": 3
+              },
+              "description": "Test value for qty"
+            },
+            {
+              "id": "s378",
+              "action": "core/set",
+              "args": {
+                "variable": "tax",
+                "value": 18
+              },
+              "description": "Test value for tax"
+            },
+            {
+              "action": "ooa.number/calculate",
+              "args": {
+                "formula": {
+                  "expr": "($price$ * $qty$) * (1 + $tax$ / 100)"
+                },
+                "decimals": 2
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s379"
+            },
+            {
+              "id": "s380",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 44.25
+                }
+              },
+              "children": [
+                {
+                  "id": "s381",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s382",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 44.25, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s383",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s384",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: formula saved by Studio\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s385",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s386",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: formula saved by Studio: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.number/calculate - formula saved by Studio"
+    },
+    {
+      "id": "s387",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.number/calculate - formula with functions"
+      },
+      "children": [
+        {
+          "id": "s388",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (formula with functions) and checks its result."
+          }
+        },
+        {
+          "id": "s389",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s390",
+              "action": "core/set",
+              "args": {
+                "variable": "prices",
+                "value": [
+                  10,
+                  20,
+                  45
+                ]
+              },
+              "description": "Test value for prices"
+            },
+            {
+              "action": "ooa.number/calculate",
+              "args": {
+                "formula": {
+                  "expr": "ceiling(average($prices$) / 4)"
+                }
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s391"
+            },
+            {
+              "id": "s392",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 7
+                }
+              },
+              "children": [
+                {
+                  "id": "s393",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s394",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 7, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s395",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s396",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: formula with functions\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s398",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: formula with functions: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.number/calculate - formula with functions"
+    },
+    {
+      "id": "s399",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.number/calculate - divide by zero"
+      },
+      "children": [
+        {
+          "id": "s400",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/calculate (divide by zero) and checks its result."
+          }
+        },
+        {
+          "id": "s401",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s403",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s404",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.number/calculate",
+                  "args": {
+                    "operation": "divide",
+                    "a": 1,
+                    "b": 0
+                  },
+                  "id": "s402"
+                }
+              ],
+              "description": "These steps should fail with NUMBER.DIVIDE_BY_ZERO",
+              "catch": [
+                {
+                  "codes": [
+                    "NUMBER.DIVIDE_BY_ZERO"
+                  ],
+                  "children": [
+                    {
+                      "id": "s405",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s406",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s407",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error NUMBER.DIVIDE_BY_ZERO",
+              "else": [
+                {
+                  "id": "s408",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error NUMBER.DIVIDE_BY_ZERO: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s409",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s410",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/calculate: divide by zero\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s411",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s412",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/calculate: divide by zero: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.number/calculate - divide by zero"
+    },
+    {
+      "id": "s413",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.number/statistics - median and total"
+      },
+      "children": [
+        {
+          "id": "s414",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/statistics (median and total) and checks its result."
+          }
+        },
+        {
+          "id": "s415",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s416",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": [
+                  3,
+                  1,
+                  4,
+                  1,
+                  5
+                ]
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.number/statistics",
+              "args": {
+                "values": "$v$"
+              },
+              "out": {
+                "median": "m",
+                "sum": "s",
+                "count": "c"
+              },
+              "id": "s417"
+            },
+            {
+              "id": "s418",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s419",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s420",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq 3, got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s421",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": 14
+                }
+              },
+              "children": [
+                {
+                  "id": "s422",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s423",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq 14, got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s424",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s425",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s426",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq 5, got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s427",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s428",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/statistics: median and total\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s429",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s430",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/statistics: median and total: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.number/statistics - median and total"
+    },
+    {
+      "id": "s431",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.number/round_to_step - nearest 0.05"
+      },
+      "children": [
+        {
+          "id": "s432",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/round_to_step (nearest 0.05) and checks its result."
+          }
+        },
+        {
+          "id": "s433",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/round_to_step",
+              "args": {
+                "value": 1.23,
+                "step": 0.05
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s434"
+            },
+            {
+              "id": "s435",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 1.25
+                }
+              },
+              "children": [
+                {
+                  "id": "s436",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s437",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 1.25, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s438",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s439",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/round_to_step: nearest 0.05\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s440",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s441",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/round_to_step: nearest 0.05: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.number/round_to_step - nearest 0.05"
+    },
+    {
+      "id": "s442",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.number/format_as - euro in German"
+      },
+      "children": [
+        {
+          "id": "s443",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/format_as (euro in German) and checks its result."
+          }
+        },
+        {
+          "id": "s444",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/format_as",
+              "args": {
+                "value": 1234.5,
+                "style": "currency",
+                "currency": "EUR",
+                "locale": "de-DE"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s445"
+            },
+            {
+              "id": "s446",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "1.234,50 €"
+                }
+              },
+              "children": [
+                {
+                  "id": "s447",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s448",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"1.234,50 €\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s449",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s450",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/format_as: euro in German\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s451",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s452",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/format_as: euro in German: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.number/format_as - euro in German"
+    },
+    {
+      "id": "s453",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.number/format_as - percent from a fraction"
+      },
+      "children": [
+        {
+          "id": "s454",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/format_as (percent from a fraction) and checks its result."
+          }
+        },
+        {
+          "id": "s455",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/format_as",
+              "args": {
+                "value": 0.155,
+                "style": "percent",
+                "decimals": 1
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s456"
+            },
+            {
+              "id": "s457",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "15.5%"
+                }
+              },
+              "children": [
+                {
+                  "id": "s458",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s459",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"15.5%\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s460",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s461",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/format_as: percent from a fraction\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s462",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s463",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/format_as: percent from a fraction: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.number/format_as - percent from a fraction"
+    },
+    {
+      "id": "s464",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.number/to_words - cheque amount"
+      },
+      "children": [
+        {
+          "id": "s465",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/to_words (cheque amount) and checks its result."
+          }
+        },
+        {
+          "id": "s466",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/to_words",
+              "args": {
+                "value": 1234.5
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s467"
+            },
+            {
+              "id": "s468",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "One thousand two hundred thirty-four dollars and fifty cents"
+                }
+              },
+              "children": [
+                {
+                  "id": "s469",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s470",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"One thousand two hundred thirty-four dollars and fifty cents\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s471",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s472",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/to_words: cheque amount\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s473",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s474",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/to_words: cheque amount: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.number/to_words - cheque amount"
+    },
+    {
+      "id": "s475",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.number/to_words - lakh and crore"
+      },
+      "children": [
+        {
+          "id": "s476",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/to_words (lakh and crore) and checks its result."
+          }
+        },
+        {
+          "id": "s477",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.number/to_words",
+              "args": {
+                "value": 25000000,
+                "system": "indian",
+                "major_unit": "rupees"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s478"
+            },
+            {
+              "id": "s479",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "Two crore fifty lakh rupees"
+                }
+              },
+              "children": [
+                {
+                  "id": "s480",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s481",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"Two crore fifty lakh rupees\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s482",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s483",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/to_words: lakh and crore\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s484",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s485",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/to_words: lakh and crore: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.number/to_words - lakh and crore"
+    },
+    {
+      "id": "s486",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.number/is_between - in an If"
+      },
+      "children": [
+        {
+          "id": "s487",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/is_between (in an If) and checks its result."
+          }
+        },
+        {
+          "id": "s488",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s489",
+              "action": "core/set",
+              "args": {
+                "variable": "amount",
+                "value": 750
+              },
+              "description": "Test value for amount"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.number/is_between",
+                  "args": {
+                    "value": "$amount$",
+                    "low": 500,
+                    "high": 1000
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "band",
+                    "value": "medium"
+                  },
+                  "id": "s491"
+                }
+              ],
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "band",
+                    "value": "other"
+                  },
+                  "id": "s492"
+                }
+              ],
+              "id": "s490"
+            },
+            {
+              "id": "s493",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$band$",
+                  "right": "medium"
+                }
+              },
+              "children": [
+                {
+                  "id": "s494",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check band",
+              "else": [
+                {
+                  "id": "s495",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "band: expected eq \"medium\", got ${band}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s496",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s497",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/is_between: in an If\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s498",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s499",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/is_between: in an If: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.number/is_between - in an If"
+    },
+    {
+      "id": "s500",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.number/compare - equal within a cent"
+      },
+      "children": [
+        {
+          "id": "s501",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.number/compare (equal within a cent) and checks its result."
+          }
+        },
+        {
+          "id": "s502",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s503",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": 10.004
+              },
+              "description": "Test value for a"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.number/compare",
+                  "args": {
+                    "value": "$a$",
+                    "operator": "equal",
+                    "other": 10,
+                    "tolerance": 0.01
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "same",
+                    "value": true
+                  },
+                  "id": "s505"
+                }
+              ],
+              "id": "s504"
+            },
+            {
+              "id": "s506",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$same$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s507",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check same",
+              "else": [
+                {
+                  "id": "s508",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "same: expected eq true, got ${same}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s509",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s510",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.number/compare: equal within a cent\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s511",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s512",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.number/compare: equal within a cent: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.number/compare - equal within a cent"
+    },
+    {
+      "id": "s513",
+      "action": "core/step",
+      "args": {
+        "title": "22. Summary"
+      },
+      "children": [
+        {
+          "id": "s514",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s515",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s516",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s517",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "22. Summary"
+    }
+  ]
+}

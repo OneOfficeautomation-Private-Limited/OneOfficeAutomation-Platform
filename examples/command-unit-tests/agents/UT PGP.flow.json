@@ -1,0 +1,1293 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_pgp",
+  "name": "UT PGP",
+  "description": "Unit tests of every PGP command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "fpr",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "cred_pw",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "enc",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every PGP command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT PGP started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.pgp/create_keys - creates a key pair and saves both keys as files"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/create_keys (creates a key pair and saves both keys as files) and checks its result."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c1/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c1/ann.pub.asc",
+                "private_key_file": "ut_tmp/c1/ann.key.asc",
+                "gnupg_home": "ut_tmp/c1/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s87"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_tmp/c1/ann.pub.asc"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Look for ann.pub.asc"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ann.pub.asc exists",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ann.pub.asc exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_tmp/c1/ann.key.asc"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Look for ann.key.asc"
+            },
+            {
+              "id": "s97",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ann.key.asc exists",
+              "else": [
+                {
+                  "id": "s99",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ann.key.asc exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s101",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/create_keys: creates a key pair and saves both keys as files\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/create_keys: creates a key pair and saves both keys as files: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.pgp/create_keys - creates a key pair and saves both keys as files"
+    },
+    {
+      "id": "s104",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.pgp/encrypt - encrypts for a key in the key folder"
+      },
+      "children": [
+        {
+          "id": "s105",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/encrypt (encrypts for a key in the key folder) and checks its result."
+          }
+        },
+        {
+          "id": "s106",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c2/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c2/ann.pub.asc",
+                "private_key_file": "ut_tmp/c2/ann.key.asc",
+                "gnupg_home": "ut_tmp/c2/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s109"
+            },
+            {
+              "action": "ooa.pgp/encrypt",
+              "args": {
+                "path": "ut_tmp/c2/report.csv",
+                "recipients": "ann@acme.test",
+                "gnupg_home": "ut_tmp/c2/keys"
+              },
+              "out": {
+                "target": "enc"
+              },
+              "id": "s110"
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_tmp/c2/report.csv.pgp"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Look for report.csv.pgp"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check report.csv.pgp exists",
+              "else": [
+                {
+                  "id": "s116",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "report.csv.pgp exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/encrypt: encrypts for a key in the key folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s120",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/encrypt: encrypts for a key in the key folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.pgp/encrypt - encrypts for a key in the key folder"
+    },
+    {
+      "id": "s121",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.pgp/decrypt - decrypts with the private key and its passphrase"
+      },
+      "children": [
+        {
+          "id": "s122",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/decrypt (decrypts with the private key and its passphrase) and checks its result."
+          }
+        },
+        {
+          "id": "s123",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s125",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c3/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c3/ann.pub.asc",
+                "private_key_file": "ut_tmp/c3/ann.key.asc",
+                "gnupg_home": "ut_tmp/c3/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s126"
+            },
+            {
+              "action": "ooa.pgp/encrypt",
+              "args": {
+                "path": "ut_tmp/c3/report.csv",
+                "recipients": "ann@acme.test",
+                "gnupg_home": "ut_tmp/c3/keys"
+              },
+              "id": "s127"
+            },
+            {
+              "action": "ooa.pgp/decrypt",
+              "args": {
+                "path": "ut_tmp/c3/report.csv.pgp",
+                "target": "ut_tmp/c3/back.csv",
+                "passphrase": "$cred_pw",
+                "gnupg_home": "ut_tmp/c3/keys"
+              },
+              "id": "s128"
+            },
+            {
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/c3/back.csv"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s129"
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "id,amount\n1,42.50\n"
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"id,amount\\n1,42.50\\n\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/decrypt: decrypts with the private key and its passphrase\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s136",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/decrypt: decrypts with the private key and its passphrase: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.pgp/decrypt - decrypts with the private key and its passphrase"
+    },
+    {
+      "id": "s137",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.pgp/sign - signs a file"
+      },
+      "children": [
+        {
+          "id": "s138",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/sign (signs a file) and checks its result."
+          }
+        },
+        {
+          "id": "s139",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s141",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c4/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c4/ann.pub.asc",
+                "private_key_file": "ut_tmp/c4/ann.key.asc",
+                "gnupg_home": "ut_tmp/c4/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s142"
+            },
+            {
+              "action": "ooa.pgp/sign",
+              "args": {
+                "path": "ut_tmp/c4/report.csv",
+                "signature": "ut_tmp/c4/report.csv.sig",
+                "passphrase": "$cred_pw",
+                "gnupg_home": "ut_tmp/c4/keys"
+              },
+              "id": "s143"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s145",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_tmp/c4/report.csv.sig"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Look for report.csv.sig"
+            },
+            {
+              "id": "s147",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check report.csv.sig exists",
+              "else": [
+                {
+                  "id": "s149",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "report.csv.sig exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/sign: signs a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/sign: signs a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.pgp/sign - signs a file"
+    },
+    {
+      "id": "s154",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.pgp/verify - a partner imports the public key and checks the signature"
+      },
+      "children": [
+        {
+          "id": "s155",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/verify (a partner imports the public key and checks the signature) and checks its result."
+          }
+        },
+        {
+          "id": "s156",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s158",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c5/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c5/ann.pub.asc",
+                "private_key_file": "ut_tmp/c5/ann.key.asc",
+                "gnupg_home": "ut_tmp/c5/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s159"
+            },
+            {
+              "action": "ooa.pgp/sign",
+              "args": {
+                "path": "ut_tmp/c5/report.csv",
+                "signature": "ut_tmp/c5/report.csv.sig",
+                "passphrase": "$cred_pw",
+                "gnupg_home": "ut_tmp/c5/keys"
+              },
+              "id": "s160"
+            },
+            {
+              "action": "ooa.pgp/import_key",
+              "args": {
+                "path": "ut_tmp/c5/ann.pub.asc",
+                "gnupg_home": "ut_tmp/c5/partner"
+              },
+              "id": "s161"
+            },
+            {
+              "action": "ooa.pgp/verify",
+              "args": {
+                "path": "ut_tmp/c5/report.csv",
+                "signature": "ut_tmp/c5/report.csv.sig",
+                "gnupg_home": "ut_tmp/c5/partner"
+              },
+              "out": {
+                "valid": "ok"
+              },
+              "id": "s162"
+            },
+            {
+              "id": "s163",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s164",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s165",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s167",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/verify: a partner imports the public key and checks the signature\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/verify: a partner imports the public key and checks the signature: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.pgp/verify - a partner imports the public key and checks the signature"
+    },
+    {
+      "id": "s170",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.pgp/import_key - imports a public key file"
+      },
+      "children": [
+        {
+          "id": "s171",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.pgp/import_key (imports a public key file) and checks its result."
+          }
+        },
+        {
+          "id": "s172",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "id": "s174",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c6/report.csv",
+                "text": "id,amount\n1,42.50\n"
+              },
+              "description": "Prepare the test file report.csv"
+            },
+            {
+              "action": "ooa.pgp/create_keys",
+              "args": {
+                "name": "Ann Agent",
+                "email": "ann@acme.test",
+                "passphrase": "$cred_pw",
+                "public_key_file": "ut_tmp/c6/ann.pub.asc",
+                "private_key_file": "ut_tmp/c6/ann.key.asc",
+                "gnupg_home": "ut_tmp/c6/keys"
+              },
+              "out": {
+                "fingerprint": "fpr"
+              },
+              "id": "s175"
+            },
+            {
+              "action": "ooa.pgp/import_key",
+              "args": {
+                "path": "ut_tmp/c6/ann.pub.asc",
+                "gnupg_home": "ut_tmp/c6/partner"
+              },
+              "out": {
+                "fingerprints": "f"
+              },
+              "id": "s176"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$f"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s177"
+            },
+            {
+              "id": "s178",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s179",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s180",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s181",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s182",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.pgp/import_key: imports a public key file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s184",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.pgp/import_key: imports a public key file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.pgp/import_key - imports a public key file"
+    },
+    {
+      "id": "s185",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s186",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s187",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s188",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s189",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}

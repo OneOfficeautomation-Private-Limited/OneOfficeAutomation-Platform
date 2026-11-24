@@ -1,0 +1,845 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_convert",
+  "name": "UT Convert",
+  "description": "Unit tests of the Convert command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "l",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Convert command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Convert started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s66",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s67",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.convert/convert - German number text"
+      },
+      "children": [
+        {
+          "id": "s68",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.convert/convert (German number text) and checks its result."
+          }
+        },
+        {
+          "id": "s69",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.convert/convert",
+              "args": {
+                "value": "1.234,50",
+                "to": "number",
+                "locale": "de-DE"
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s70"
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1234.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s73",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1234.5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.convert/convert: German number text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.convert/convert: German number text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.convert/convert - German number text"
+    },
+    {
+      "id": "s78",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.convert/convert - date from a pattern"
+      },
+      "children": [
+        {
+          "id": "s79",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.convert/convert (date from a pattern) and checks its result."
+          }
+        },
+        {
+          "id": "s80",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.convert/convert",
+              "args": {
+                "value": "16/11/2026",
+                "to": "date_time",
+                "date_pattern": "dd/MM/yyyy"
+              },
+              "out": {
+                "result": "d"
+              },
+              "id": "s81"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "t",
+                "value": {
+                  "expr": "formatDate($d$, '%Y-%m-%d')"
+                }
+              },
+              "id": "s82"
+            },
+            {
+              "id": "s83",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "2026-11-16"
+                }
+              },
+              "children": [
+                {
+                  "id": "s84",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s85",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"2026-11-16\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.convert/convert: date from a pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.convert/convert: date from a pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.convert/convert - date from a pattern"
+    },
+    {
+      "id": "s90",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.convert/convert - text to list"
+      },
+      "children": [
+        {
+          "id": "s91",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.convert/convert (text to list) and checks its result."
+          }
+        },
+        {
+          "id": "s92",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.convert/convert",
+              "args": {
+                "value": "a, b ,c",
+                "to": "list"
+              },
+              "out": {
+                "result": "l"
+              },
+              "id": "s93"
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "a",
+                    "b",
+                    "c"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s96",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"a\", \"b\", \"c\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.convert/convert: text to list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.convert/convert: text to list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.convert/convert - text to list"
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.convert/convert - fallback"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.convert/convert (fallback) and checks its result."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.convert/convert",
+              "args": {
+                "value": "n/a",
+                "to": "number",
+                "on_error": "fallback",
+                "fallback": 0
+              },
+              "out": {
+                "result": "n",
+                "ok": "ok"
+              },
+              "id": "s104"
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.convert/convert: fallback\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.convert/convert: fallback: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.convert/convert - fallback"
+    },
+    {
+      "id": "s115",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.convert/convert - fails without a fallback"
+      },
+      "children": [
+        {
+          "id": "s116",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.convert/convert (fails without a fallback) and checks its result."
+          }
+        },
+        {
+          "id": "s117",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s120",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.convert/convert",
+                  "args": {
+                    "value": "n/a",
+                    "to": "number"
+                  },
+                  "id": "s118"
+                }
+              ],
+              "description": "These steps should fail with CONVERT.FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "CONVERT.FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s121",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error CONVERT.FAILED",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error CONVERT.FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.convert/convert: fails without a fallback\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.convert/convert: fails without a fallback: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.convert/convert - fails without a fallback"
+    },
+    {
+      "id": "s129",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s130",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s131",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s132",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s133",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

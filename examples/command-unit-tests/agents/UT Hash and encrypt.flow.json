@@ -1,0 +1,2668 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_crypto",
+  "name": "UT Hash and encrypt",
+  "description": "Unit tests of every Hash and encrypt command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "h",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "cred_k",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "cred_pp",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cred_a",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "cred_b",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "priv",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "pub",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "v2",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_pub",
+      "type": "File",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_priv",
+      "type": "File",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_cipher",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_plain",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_sig",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "rsa_valid",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "file_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "cred_pass",
+      "type": "Credential",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Hash and encrypt command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Hash and encrypt started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s123",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s124",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.crypto/hash_text - SHA-256 hex"
+      },
+      "children": [
+        {
+          "id": "s125",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/hash_text (SHA-256 hex) and checks its result."
+          }
+        },
+        {
+          "id": "s126",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.crypto/hash_text",
+              "args": {
+                "text": "abc"
+              },
+              "out": {
+                "hash": "h"
+              },
+              "id": "s127"
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$h$",
+                  "right": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check h",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "h: expected eq \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\", got ${h}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/hash_text: SHA-256 hex\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/hash_text: SHA-256 hex: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.crypto/hash_text - SHA-256 hex"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.crypto/hash_file - MD5"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/hash_file (MD5) and checks its result."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c2/a.txt",
+                "text": "abc"
+              },
+              "description": "Prepare the test file a.txt"
+            },
+            {
+              "action": "ooa.crypto/hash_file",
+              "args": {
+                "path": "ut_tmp/c2/a.txt",
+                "algorithm": "MD5"
+              },
+              "out": {
+                "hash": "h"
+              },
+              "id": "s139"
+            },
+            {
+              "id": "s140",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$h$",
+                  "right": "900150983cd24fb0d6963f7d28e17f72"
+                }
+              },
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check h",
+              "else": [
+                {
+                  "id": "s142",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "h: expected eq \"900150983cd24fb0d6963f7d28e17f72\", got ${h}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s143",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/hash_file: MD5\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/hash_file: MD5: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.crypto/hash_file - MD5"
+    },
+    {
+      "id": "s147",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.crypto/hmac - SHA-256"
+      },
+      "children": [
+        {
+          "id": "s148",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/hmac (SHA-256) and checks its result."
+          }
+        },
+        {
+          "id": "s149",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_k",
+                "value": {
+                  "$credential": "unit_tests/samples_test_hmac/key"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_k"
+            },
+            {
+              "action": "ooa.crypto/hmac",
+              "args": {
+                "text": "The quick brown fox jumps over the lazy dog",
+                "key": "$cred_k"
+              },
+              "out": {
+                "signature": "s"
+              },
+              "id": "s151"
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$s$",
+                  "right": "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check s",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "s: expected eq \"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8\", got ${s}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/hmac: SHA-256\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/hmac: SHA-256: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.crypto/hmac - SHA-256"
+    },
+    {
+      "id": "s159",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.crypto/base64_encode - round trip"
+      },
+      "children": [
+        {
+          "id": "s160",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/base64_encode (round trip) and checks its result."
+          }
+        },
+        {
+          "id": "s161",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.crypto/base64_encode",
+              "args": {
+                "text": "héllo"
+              },
+              "out": {
+                "result": "b"
+              },
+              "id": "s162"
+            },
+            {
+              "action": "ooa.crypto/base64_decode",
+              "args": {
+                "text": "$b"
+              },
+              "out": {
+                "result": "t"
+              },
+              "id": "s163"
+            },
+            {
+              "id": "s164",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": "aMOpbGxv"
+                }
+              },
+              "children": [
+                {
+                  "id": "s165",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s166",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq \"aMOpbGxv\", got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s167",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "héllo"
+                }
+              },
+              "children": [
+                {
+                  "id": "s168",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s169",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"héllo\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s170",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/base64_encode: round trip\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/base64_encode: round trip: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.crypto/base64_encode - round trip"
+    },
+    {
+      "id": "s174",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.crypto/base64_decode - not Base64"
+      },
+      "children": [
+        {
+          "id": "s175",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/base64_decode (not Base64) and checks its result."
+          }
+        },
+        {
+          "id": "s176",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s178",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s179",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.crypto/base64_decode",
+                  "args": {
+                    "text": "***"
+                  },
+                  "id": "s177"
+                }
+              ],
+              "description": "These steps should fail with ENCODING.INVALID",
+              "catch": [
+                {
+                  "codes": [
+                    "ENCODING.INVALID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s180",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s181",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s182",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error ENCODING.INVALID",
+              "else": [
+                {
+                  "id": "s183",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error ENCODING.INVALID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s184",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s185",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/base64_decode: not Base64\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s187",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/base64_decode: not Base64: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.crypto/base64_decode - not Base64"
+    },
+    {
+      "id": "s188",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.crypto/encrypt_text - encrypt, decrypt text and file"
+      },
+      "children": [
+        {
+          "id": "s189",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/encrypt_text (encrypt, decrypt text and file) and checks its result."
+          }
+        },
+        {
+          "id": "s190",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pp",
+                "value": {
+                  "$credential": "unit_tests/samples_test_crypto/pass"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pp"
+            },
+            {
+              "id": "s192",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/c6/a.txt",
+                "text": "plain"
+              },
+              "description": "Prepare the test file a.txt"
+            },
+            {
+              "action": "ooa.crypto/encrypt_text",
+              "args": {
+                "text": "hello",
+                "passphrase": "$cred_pp"
+              },
+              "out": {
+                "result": "c"
+              },
+              "id": "s193"
+            },
+            {
+              "action": "ooa.crypto/decrypt_text",
+              "args": {
+                "text": "$c",
+                "passphrase": "$cred_pp"
+              },
+              "out": {
+                "result": "t"
+              },
+              "id": "s194"
+            },
+            {
+              "action": "ooa.crypto/encrypt_file",
+              "args": {
+                "path": "ut_tmp/c6/a.txt",
+                "target": "ut_tmp/c6/a.enc",
+                "passphrase": "$cred_pp"
+              },
+              "id": "s195"
+            },
+            {
+              "action": "ooa.crypto/decrypt_file",
+              "args": {
+                "path": "ut_tmp/c6/a.enc",
+                "target": "ut_tmp/c6/b.txt",
+                "passphrase": "$cred_pp"
+              },
+              "id": "s196"
+            },
+            {
+              "id": "s197",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$t$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s198",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t (a Credential) holds a value",
+              "else": [
+                {
+                  "id": "s199",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t (a Credential) holds a value: expected notEmpty , got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s200",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/c6/b.txt"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read b.txt"
+            },
+            {
+              "id": "s201",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": {
+                  "expr": "replace($ut_text, '\\r\\n', '\\n')"
+                }
+              },
+              "description": "Windows line ends as \\n"
+            },
+            {
+              "id": "s202",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "plain"
+                }
+              },
+              "children": [
+                {
+                  "id": "s203",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b.txt",
+              "else": [
+                {
+                  "id": "s204",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b.txt: expected eq \"plain\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s205",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s206",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/encrypt_text: encrypt, decrypt text and file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s207",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/encrypt_text: encrypt, decrypt text and file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.crypto/encrypt_text - encrypt, decrypt text and file"
+    },
+    {
+      "id": "s209",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.crypto/decrypt_text - wrong passphrase"
+      },
+      "children": [
+        {
+          "id": "s210",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/decrypt_text (wrong passphrase) and checks its result."
+          }
+        },
+        {
+          "id": "s211",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s212",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_a",
+                "value": {
+                  "$credential": "unit_tests/samples_test_crypto/a"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_a"
+            },
+            {
+              "id": "s213",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_b",
+                "value": {
+                  "$credential": "unit_tests/samples_test_crypto/b"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_b"
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s217",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.crypto/encrypt_text",
+                  "args": {
+                    "text": "hello",
+                    "passphrase": "$cred_a"
+                  },
+                  "out": {
+                    "result": "c"
+                  },
+                  "id": "s214"
+                },
+                {
+                  "action": "ooa.crypto/decrypt_text",
+                  "args": {
+                    "text": "$c",
+                    "passphrase": "$cred_b"
+                  },
+                  "id": "s215"
+                }
+              ],
+              "description": "These steps should fail with CRYPTO.WRONG_KEY",
+              "catch": [
+                {
+                  "codes": [
+                    "CRYPTO.WRONG_KEY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s218",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s219",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s220",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error CRYPTO.WRONG_KEY",
+              "else": [
+                {
+                  "id": "s221",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error CRYPTO.WRONG_KEY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s222",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/decrypt_text: wrong passphrase\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s224",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s225",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/decrypt_text: wrong passphrase: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.crypto/decrypt_text - wrong passphrase"
+    },
+    {
+      "id": "s226",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.crypto/rsa_generate_keys - keys, encrypt, decrypt, sign, verify"
+      },
+      "children": [
+        {
+          "id": "s227",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.crypto/rsa_generate_keys (keys, encrypt, decrypt, sign, verify) and checks its result."
+          }
+        },
+        {
+          "id": "s228",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.crypto/rsa_generate_keys",
+              "args": {
+                "folder": "ut_tmp/c8/keys"
+              },
+              "out": {
+                "public_key": "pub",
+                "private_key": "priv"
+              },
+              "id": "s229"
+            },
+            {
+              "action": "ooa.crypto/rsa_encrypt",
+              "args": {
+                "text": "hi",
+                "public_key": "$pub"
+              },
+              "out": {
+                "result": "c"
+              },
+              "id": "s230"
+            },
+            {
+              "action": "ooa.crypto/rsa_decrypt",
+              "args": {
+                "text": "$c",
+                "private_key": "$priv"
+              },
+              "out": {
+                "result": "t"
+              },
+              "id": "s231"
+            },
+            {
+              "action": "ooa.crypto/rsa_sign",
+              "args": {
+                "text": "doc",
+                "private_key": "$priv"
+              },
+              "out": {
+                "signature": "s"
+              },
+              "id": "s232"
+            },
+            {
+              "action": "ooa.crypto/rsa_verify",
+              "args": {
+                "text": "doc",
+                "signature": "$s",
+                "public_key": "$pub"
+              },
+              "out": {
+                "valid": "v"
+              },
+              "id": "s233"
+            },
+            {
+              "action": "ooa.crypto/rsa_verify",
+              "args": {
+                "text": "tampered",
+                "signature": "$s",
+                "public_key": "$pub"
+              },
+              "out": {
+                "valid": "v2"
+              },
+              "id": "s234"
+            },
+            {
+              "id": "s235",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$t$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t (a Credential) holds a value",
+              "else": [
+                {
+                  "id": "s237",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t (a Credential) holds a value: expected notEmpty , got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq true, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v2$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s242",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v2",
+              "else": [
+                {
+                  "id": "s243",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v2: expected eq false, got ${v2}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s244",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s245",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/rsa_generate_keys: keys, encrypt, decrypt, sign, verify\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s247",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/rsa_generate_keys: keys, encrypt, decrypt, sign, verify: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.crypto/rsa_generate_keys - keys, encrypt, decrypt, sign, verify"
+    },
+    {
+      "id": "s248",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.crypto/encrypt_file - a text file into an encrypted copy"
+      },
+      "children": [
+        {
+          "id": "s249",
+          "action": "core/comment",
+          "args": {
+            "text": "Encrypt file writes an AES-256 encrypted copy of a file, with a passphrase from the vault. Checks: the copy exists and does not hold the plain text."
+          }
+        },
+        {
+          "id": "s250",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pass",
+                "value": {
+                  "$credential": "unit_tests/samples_test_crypto/pass"
+                }
+              },
+              "description": "Passphrase from the vault"
+            },
+            {
+              "id": "s252",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/enc/plain.txt",
+                "text": "Invoice 42: 120.50 EUR"
+              },
+              "description": "A plain text file"
+            },
+            {
+              "id": "s253",
+              "action": "ooa.crypto/encrypt_file",
+              "args": {
+                "path": "ut_tmp/enc/plain.txt",
+                "target": "ut_tmp/enc/plain.enc",
+                "passphrase": "$cred_pass$"
+              },
+              "description": "Encrypt it"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.crypto/hash_file",
+              "args": {
+                "path": "ut_tmp/enc/plain.txt"
+              },
+              "out": {
+                "hash": "file_text"
+              },
+              "description": "Fingerprint of the plain file"
+            },
+            {
+              "id": "s255",
+              "action": "ooa.crypto/hash_file",
+              "args": {
+                "path": "ut_tmp/enc/plain.enc"
+              },
+              "out": {
+                "hash": "rsa_sig"
+              },
+              "description": "Fingerprint of the encrypted copy"
+            },
+            {
+              "id": "s256",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$rsa_sig$",
+                  "right": "$file_text$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s257",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the encrypted copy differs from the plain file",
+              "else": [
+                {
+                  "id": "s258",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the encrypted copy differs from the plain file: expected ne \"file_text\", got ${rsa_sig}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s259",
+              "action": "ooa.file/get_info",
+              "args": {
+                "path": "ut_tmp/enc/plain.enc"
+              },
+              "out": {
+                "info": "rsa_plain"
+              },
+              "description": "Size of the encrypted copy"
+            },
+            {
+              "id": "s260",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$rsa_plain.size_bytes$",
+                  "right": 22
+                }
+              },
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the encrypted copy is larger than the 22-byte original",
+              "else": [
+                {
+                  "id": "s262",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the encrypted copy is larger than the 22-byte original: expected gt 22"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s263",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s264",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/encrypt_file: a text file into an encrypted copy\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s265",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s266",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/encrypt_file: a text file into an encrypted copy: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.crypto/encrypt_file - a text file into an encrypted copy"
+    },
+    {
+      "id": "s267",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.crypto/decrypt_file - back to the original text"
+      },
+      "children": [
+        {
+          "id": "s268",
+          "action": "core/comment",
+          "args": {
+            "text": "Decrypt file turns a file made by Encrypt file back into the original, with the same passphrase. Checks: the decrypted file has the original text."
+          }
+        },
+        {
+          "id": "s269",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s270",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pass",
+                "value": {
+                  "$credential": "unit_tests/samples_test_crypto/pass"
+                }
+              },
+              "description": "Passphrase from the vault"
+            },
+            {
+              "id": "s271",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_tmp/dec/plain.txt",
+                "text": "Order 7, 3 boxes"
+              },
+              "description": "A plain text file"
+            },
+            {
+              "id": "s272",
+              "action": "ooa.crypto/encrypt_file",
+              "args": {
+                "path": "ut_tmp/dec/plain.txt",
+                "target": "ut_tmp/dec/plain.enc",
+                "passphrase": "$cred_pass$"
+              },
+              "description": "Encrypt it"
+            },
+            {
+              "id": "s273",
+              "action": "ooa.crypto/decrypt_file",
+              "args": {
+                "path": "ut_tmp/dec/plain.enc",
+                "target": "ut_tmp/dec/back.txt",
+                "passphrase": "$cred_pass$"
+              },
+              "description": "Decrypt it again"
+            },
+            {
+              "id": "s274",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/dec/back.txt"
+              },
+              "out": {
+                "text": "file_text"
+              },
+              "description": "Read the decrypted file"
+            },
+            {
+              "id": "s275",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$file_text$",
+                  "right": "Order 7, 3 boxes"
+                }
+              },
+              "children": [
+                {
+                  "id": "s276",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check file_text",
+              "else": [
+                {
+                  "id": "s277",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "file_text: expected eq \"Order 7, 3 boxes\", got ${file_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s279",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/decrypt_file: back to the original text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s280",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s281",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/decrypt_file: back to the original text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.crypto/decrypt_file - back to the original text"
+    },
+    {
+      "id": "s282",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.crypto/rsa_encrypt - a short text with the public key"
+      },
+      "children": [
+        {
+          "id": "s283",
+          "action": "core/comment",
+          "args": {
+            "text": "RSA encrypt turns a short text into Base64 with a public key. Checks: the result is Base64 text that does not hold the original."
+          }
+        },
+        {
+          "id": "s284",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s285",
+              "action": "ooa.crypto/rsa_generate_keys",
+              "args": {
+                "folder": "ut_tmp/rsa1",
+                "if_keys_exist": "overwrite",
+                "key_size": 2048
+              },
+              "out": {
+                "public_key": "rsa_pub",
+                "private_key": "rsa_priv"
+              },
+              "description": "A fresh RSA key pair for this case"
+            },
+            {
+              "id": "s286",
+              "action": "ooa.crypto/rsa_encrypt",
+              "args": {
+                "text": "PIN 4711",
+                "public_key": "$rsa_pub$"
+              },
+              "out": {
+                "result": "rsa_cipher"
+              },
+              "description": "Encrypt with the public key"
+            },
+            {
+              "id": "s287",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$rsa_cipher$",
+                  "right": "^[A-Za-z0-9+/=]{100,}$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s288",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_cipher is Base64",
+              "else": [
+                {
+                  "id": "s289",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_cipher is Base64: expected matches \"^[A-Za-z0-9+/=]100,\", got ${rsa_cipher}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$rsa_cipher$",
+                  "right": "4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_cipher",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_cipher: expected notContains \"4711\", got ${rsa_cipher}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/rsa_encrypt: a short text with the public key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/rsa_encrypt: a short text with the public key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.crypto/rsa_encrypt - a short text with the public key"
+    },
+    {
+      "id": "s297",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.crypto/rsa_decrypt - back with the private key"
+      },
+      "children": [
+        {
+          "id": "s298",
+          "action": "core/comment",
+          "args": {
+            "text": "RSA decrypt turns text from RSA encrypt back with the matching private key; the result is a Credential, so it is checked through a text made from it (Base64 of the plain text)."
+          }
+        },
+        {
+          "id": "s299",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s300",
+              "action": "ooa.crypto/rsa_generate_keys",
+              "args": {
+                "folder": "ut_tmp/rsa2",
+                "if_keys_exist": "overwrite",
+                "key_size": 2048
+              },
+              "out": {
+                "public_key": "rsa_pub",
+                "private_key": "rsa_priv"
+              },
+              "description": "A fresh RSA key pair for this case"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.crypto/rsa_encrypt",
+              "args": {
+                "text": "PIN 4711",
+                "public_key": "$rsa_pub$"
+              },
+              "out": {
+                "result": "rsa_cipher"
+              },
+              "description": "Encrypt with the public key"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.crypto/rsa_decrypt",
+              "args": {
+                "text": "$rsa_cipher$",
+                "private_key": "$rsa_priv$"
+              },
+              "out": {
+                "result": "rsa_plain"
+              },
+              "description": "Decrypt with the private key"
+            },
+            {
+              "id": "s303",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$rsa_plain$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_plain (a Credential) holds a value",
+              "else": [
+                {
+                  "id": "s305",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_plain (a Credential) holds a value: expected notEmpty , got ${rsa_plain}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s306",
+              "action": "ooa.crypto/hmac",
+              "args": {
+                "text": "probe",
+                "key": "$rsa_plain$"
+              },
+              "out": {
+                "signature": "file_text"
+              },
+              "description": "Sign the text probe with the decrypted value as key"
+            },
+            {
+              "id": "s307",
+              "action": "core/comment",
+              "args": {
+                "text": "HMAC-SHA256 of probe with the key PIN 4711 is 3d0ca6c3...7dae: the decrypted value is PIN 4711"
+              }
+            },
+            {
+              "id": "s308",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$file_text$",
+                  "right": "3d0ca6c3e870d4790c6dcffe6a21a485bfea08cf2484843cd2c8a66cb7387dae"
+                }
+              },
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check file_text",
+              "else": [
+                {
+                  "id": "s310",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "file_text: expected eq \"3d0ca6c3e870d4790c6dcffe6a21a485bfea08cf2484843cd2c8a66cb7387dae\", got ${file_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s311",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s312",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/rsa_decrypt: back with the private key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s313",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s314",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/rsa_decrypt: back with the private key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.crypto/rsa_decrypt - back with the private key"
+    },
+    {
+      "id": "s315",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.crypto/rsa_sign - a signature with the private key"
+      },
+      "children": [
+        {
+          "id": "s316",
+          "action": "core/comment",
+          "args": {
+            "text": "RSA sign signs a text with a private key (SHA256withRSA) and gives a Base64 signature. Checks: the signature is Base64 and RSA verify accepts it."
+          }
+        },
+        {
+          "id": "s317",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s318",
+              "action": "ooa.crypto/rsa_generate_keys",
+              "args": {
+                "folder": "ut_tmp/rsa3",
+                "if_keys_exist": "overwrite",
+                "key_size": 2048
+              },
+              "out": {
+                "public_key": "rsa_pub",
+                "private_key": "rsa_priv"
+              },
+              "description": "A fresh RSA key pair for this case"
+            },
+            {
+              "id": "s319",
+              "action": "ooa.crypto/rsa_sign",
+              "args": {
+                "text": "Pay 100 to ACME",
+                "private_key": "$rsa_priv$"
+              },
+              "out": {
+                "signature": "rsa_sig"
+              },
+              "description": "Sign the text"
+            },
+            {
+              "id": "s320",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$rsa_sig$",
+                  "right": "^[A-Za-z0-9+/=]{100,}$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s321",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_sig is Base64",
+              "else": [
+                {
+                  "id": "s322",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_sig is Base64: expected matches \"^[A-Za-z0-9+/=]100,\", got ${rsa_sig}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s323",
+              "action": "ooa.crypto/rsa_verify",
+              "args": {
+                "text": "Pay 100 to ACME",
+                "signature": "$rsa_sig$",
+                "public_key": "$rsa_pub$"
+              },
+              "out": {
+                "valid": "rsa_valid"
+              },
+              "description": "Check it"
+            },
+            {
+              "id": "s324",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$rsa_valid$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_valid",
+              "else": [
+                {
+                  "id": "s326",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_valid: expected eq true, got ${rsa_valid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s327",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/rsa_sign: a signature with the private key\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s329",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/rsa_sign: a signature with the private key: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.crypto/rsa_sign - a signature with the private key"
+    },
+    {
+      "id": "s331",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.crypto/rsa_verify - a changed text does not verify"
+      },
+      "children": [
+        {
+          "id": "s332",
+          "action": "core/comment",
+          "args": {
+            "text": "RSA verify checks a signature with the public key and gives true or false instead of failing. Checks: true for the signed text, false for a changed one."
+          }
+        },
+        {
+          "id": "s333",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s334",
+              "action": "ooa.crypto/rsa_generate_keys",
+              "args": {
+                "folder": "ut_tmp/rsa4",
+                "if_keys_exist": "overwrite",
+                "key_size": 2048
+              },
+              "out": {
+                "public_key": "rsa_pub",
+                "private_key": "rsa_priv"
+              },
+              "description": "A fresh RSA key pair for this case"
+            },
+            {
+              "id": "s335",
+              "action": "ooa.crypto/rsa_sign",
+              "args": {
+                "text": "Pay 100 to ACME",
+                "private_key": "$rsa_priv$"
+              },
+              "out": {
+                "signature": "rsa_sig"
+              },
+              "description": "Sign the text"
+            },
+            {
+              "id": "s336",
+              "action": "ooa.crypto/rsa_verify",
+              "args": {
+                "text": "Pay 100 to ACME",
+                "signature": "$rsa_sig$",
+                "public_key": "$rsa_pub$"
+              },
+              "out": {
+                "valid": "rsa_valid"
+              },
+              "description": "Check the signed text"
+            },
+            {
+              "id": "s337",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$rsa_valid$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s338",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_valid",
+              "else": [
+                {
+                  "id": "s339",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_valid: expected eq true, got ${rsa_valid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s340",
+              "action": "ooa.crypto/rsa_verify",
+              "args": {
+                "text": "Pay 900 to ACME",
+                "signature": "$rsa_sig$",
+                "public_key": "$rsa_pub$"
+              },
+              "out": {
+                "valid": "rsa_valid"
+              },
+              "description": "Check a changed text"
+            },
+            {
+              "id": "s341",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$rsa_valid$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rsa_valid",
+              "else": [
+                {
+                  "id": "s343",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rsa_valid: expected eq false, got ${rsa_valid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.crypto/rsa_verify: a changed text does not verify\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s347",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.crypto/rsa_verify: a changed text does not verify: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.crypto/rsa_verify - a changed text does not verify"
+    },
+    {
+      "id": "s348",
+      "action": "core/step",
+      "args": {
+        "title": "15. Summary"
+      },
+      "children": [
+        {
+          "id": "s349",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s350",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s351",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s352",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "15. Summary"
+    }
+  ]
+}

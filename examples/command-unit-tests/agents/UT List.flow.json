@@ -1,0 +1,3654 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_list",
+  "name": "UT List",
+  "description": "Unit tests of every List command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "l",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "back",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "s",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "acme",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "big",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "nums",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "recs",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "some",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every List command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT List started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s310",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.list/add_item - several at a position, skip existing"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/add_item (several at a position, skip existing) and checks its result."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "a",
+                  "d"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/add_item",
+              "args": {
+                "list": "$l",
+                "items": [
+                  "b",
+                  "c",
+                  "a"
+                ],
+                "position": 1,
+                "skip_existing": true
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s315"
+            },
+            {
+              "id": "s316",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "a",
+                    "b",
+                    "c",
+                    "d"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s318",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"a\", \"b\", \"c\", \"d\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s320",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/add_item: several at a position, skip existing\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s322",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/add_item: several at a position, skip existing: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.list/add_item - several at a position, skip existing"
+    },
+    {
+      "id": "s323",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.list/append_list - appends"
+      },
+      "children": [
+        {
+          "id": "s324",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/append_list (appends) and checks its result."
+          }
+        },
+        {
+          "id": "s325",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s326",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "id": "s327",
+              "action": "core/set",
+              "args": {
+                "variable": "m",
+                "value": [
+                  2,
+                  3
+                ]
+              },
+              "description": "Test value for m"
+            },
+            {
+              "action": "ooa.list/append_list",
+              "args": {
+                "list": "$l",
+                "other": "$m"
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s328"
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s331",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [1, 2, 3], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s332",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s333",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/append_list: appends\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s335",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/append_list: appends: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.list/append_list - appends"
+    },
+    {
+      "id": "s336",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.list/clear - empties"
+      },
+      "children": [
+        {
+          "id": "s337",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/clear (empties) and checks its result."
+          }
+        },
+        {
+          "id": "s338",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s339",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/clear",
+              "args": {
+                "list": "$l"
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s340"
+            },
+            {
+              "id": "s341",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": []
+                }
+              },
+              "children": [
+                {
+                  "id": "s342",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s343",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s345",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/clear: empties\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s347",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/clear: empties: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.list/clear - empties"
+    },
+    {
+      "id": "s348",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.list/get_item - negative from end"
+      },
+      "children": [
+        {
+          "id": "s349",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/get_item (negative from end) and checks its result."
+          }
+        },
+        {
+          "id": "s350",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s351",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/get_item",
+              "args": {
+                "list": "$l",
+                "position": -1
+              },
+              "out": {
+                "item": "x"
+              },
+              "id": "s352"
+            },
+            {
+              "id": "s353",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "c"
+                }
+              },
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s355",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"c\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/get_item: negative from end\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/get_item: negative from end: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.list/get_item - negative from end"
+    },
+    {
+      "id": "s360",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.list/get_item - default when out of range"
+      },
+      "children": [
+        {
+          "id": "s361",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/get_item (default when out of range) and checks its result."
+          }
+        },
+        {
+          "id": "s362",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s363",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "a"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/get_item",
+              "args": {
+                "list": "$l",
+                "position": 5,
+                "if_out_of_range": "default",
+                "default": "none"
+              },
+              "out": {
+                "item": "x"
+              },
+              "id": "s364"
+            },
+            {
+              "id": "s365",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": "none"
+                }
+              },
+              "children": [
+                {
+                  "id": "s366",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s367",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq \"none\", got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s368",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s369",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/get_item: default when out of range\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s370",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s371",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/get_item: default when out of range: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.list/get_item - default when out of range"
+    },
+    {
+      "id": "s372",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.list/index_of - last, ignore case"
+      },
+      "children": [
+        {
+          "id": "s373",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/index_of (last, ignore case) and checks its result."
+          }
+        },
+        {
+          "id": "s374",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s375",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "A",
+                  "b",
+                  "a"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/index_of",
+              "args": {
+                "list": "$l",
+                "value": "a",
+                "ignore_case": true,
+                "last": true
+              },
+              "out": {
+                "index": "i",
+                "found": "f"
+              },
+              "id": "s376"
+            },
+            {
+              "id": "s377",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$i$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s378",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check i",
+              "else": [
+                {
+                  "id": "s379",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "i: expected eq 2, got ${i}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s380",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s381",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s382",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq true, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s383",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s384",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/index_of: last, ignore case\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s385",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s386",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/index_of: last, ignore case: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.list/index_of - last, ignore case"
+    },
+    {
+      "id": "s387",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.list/join - skip empty, escape"
+      },
+      "children": [
+        {
+          "id": "s388",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/join (skip empty, escape) and checks its result."
+          }
+        },
+        {
+          "id": "s389",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s390",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "a",
+                  "",
+                  "b"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/join",
+              "args": {
+                "list": "$l",
+                "separator": "\\n",
+                "skip_empty": true,
+                "escape_sequences": true
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s391"
+            },
+            {
+              "id": "s392",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "a\nb"
+                }
+              },
+              "children": [
+                {
+                  "id": "s393",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s394",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"a\\nb\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s395",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s396",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/join: skip empty, escape\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s397",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s398",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/join: skip empty, escape: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.list/join - skip empty, escape"
+    },
+    {
+      "id": "s399",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.list/remove_duplicates - keeps first"
+      },
+      "children": [
+        {
+          "id": "s400",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/remove_duplicates (keeps first) and checks its result."
+          }
+        },
+        {
+          "id": "s401",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2,
+                  1,
+                  3
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/remove_duplicates",
+              "args": {
+                "list": "$l"
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s403"
+            },
+            {
+              "id": "s404",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s405",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s406",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [1, 2, 3], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s407",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s408",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/remove_duplicates: keeps first\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s409",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s410",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/remove_duplicates: keeps first: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.list/remove_duplicates - keeps first"
+    },
+    {
+      "id": "s411",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.list/remove_item - by value, all"
+      },
+      "children": [
+        {
+          "id": "s412",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/remove_item (by value, all) and checks its result."
+          }
+        },
+        {
+          "id": "s413",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s414",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "x",
+                  "y",
+                  "x"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/remove_item",
+              "args": {
+                "list": "$l",
+                "value": "x"
+              },
+              "out": {
+                "list": "l",
+                "count": "n"
+              },
+              "id": "s415"
+            },
+            {
+              "id": "s416",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "y"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s417",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s418",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"y\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s419",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s420",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s421",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s422",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s423",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/remove_item: by value, all\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s424",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s425",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/remove_item: by value, all: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.list/remove_item - by value, all"
+    },
+    {
+      "id": "s426",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.list/remove_item - by position returns removed"
+      },
+      "children": [
+        {
+          "id": "s427",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/remove_item (by position returns removed) and checks its result."
+          }
+        },
+        {
+          "id": "s428",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s429",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "x",
+                  "y"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/remove_item",
+              "args": {
+                "list": "$l",
+                "position": 0
+              },
+              "out": {
+                "list": "l",
+                "removed": "r"
+              },
+              "id": "s430"
+            },
+            {
+              "id": "s431",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "y"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s432",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s433",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"y\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s434",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "x"
+                }
+              },
+              "children": [
+                {
+                  "id": "s435",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s436",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"x\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s437",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s438",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/remove_item: by position returns removed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s439",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s440",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/remove_item: by position returns removed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.list/remove_item - by position returns removed"
+    },
+    {
+      "id": "s441",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.list/reverse - reverses"
+      },
+      "children": [
+        {
+          "id": "s442",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/reverse (reverses) and checks its result."
+          }
+        },
+        {
+          "id": "s443",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s444",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/reverse",
+              "args": {
+                "list": "$l"
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s445"
+            },
+            {
+              "id": "s446",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    3,
+                    2,
+                    1
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s447",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s448",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [3, 2, 1], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s449",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s450",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/reverse: reverses\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s451",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s452",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/reverse: reverses: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.list/reverse - reverses"
+    },
+    {
+      "id": "s453",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.list/set_item - replaces"
+      },
+      "children": [
+        {
+          "id": "s454",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/set_item (replaces) and checks its result."
+          }
+        },
+        {
+          "id": "s455",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s456",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/set_item",
+              "args": {
+                "list": "$l",
+                "position": 1,
+                "item": 9
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s457"
+            },
+            {
+              "id": "s458",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    1,
+                    9
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s459",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s460",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [1, 9], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s461",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s462",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/set_item: replaces\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s463",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s464",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/set_item: replaces: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.list/set_item - replaces"
+    },
+    {
+      "id": "s465",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.list/set_item - out of range"
+      },
+      "children": [
+        {
+          "id": "s466",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/set_item (out of range) and checks its result."
+          }
+        },
+        {
+          "id": "s467",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s468",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "id": "s470",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s471",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.list/set_item",
+                  "args": {
+                    "list": "$l",
+                    "position": 4,
+                    "item": 9
+                  },
+                  "id": "s469"
+                }
+              ],
+              "description": "These steps should fail with LIST.INDEX",
+              "catch": [
+                {
+                  "codes": [
+                    "LIST.INDEX"
+                  ],
+                  "children": [
+                    {
+                      "id": "s472",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s473",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s474",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error LIST.INDEX",
+              "else": [
+                {
+                  "id": "s475",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error LIST.INDEX: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s476",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s477",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/set_item: out of range\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s478",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s479",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/set_item: out of range: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.list/set_item - out of range"
+    },
+    {
+      "id": "s480",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.list/size - counts"
+      },
+      "children": [
+        {
+          "id": "s481",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/size (counts) and checks its result."
+          }
+        },
+        {
+          "id": "s482",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s483",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$l"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s484"
+            },
+            {
+              "id": "s485",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s486",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s487",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s488",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s489",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/size: counts\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s490",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s491",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/size: counts: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.list/size - counts"
+    },
+    {
+      "id": "s492",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.list/sort - descending, ignore case"
+      },
+      "children": [
+        {
+          "id": "s493",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/sort (descending, ignore case) and checks its result."
+          }
+        },
+        {
+          "id": "s494",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s495",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  "b",
+                  "A",
+                  "c"
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/sort",
+              "args": {
+                "list": "$l",
+                "descending": true
+              },
+              "out": {
+                "list": "l"
+              },
+              "id": "s496"
+            },
+            {
+              "id": "s497",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "c",
+                    "b",
+                    "A"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s498",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s499",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"c\", \"b\", \"A\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s500",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s501",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/sort: descending, ignore case\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s502",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s503",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/sort: descending, ignore case: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.list/sort - descending, ignore case"
+    },
+    {
+      "id": "s504",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.list/contains - condition"
+      },
+      "children": [
+        {
+          "id": "s505",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/contains (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s506",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s507",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "id": "s508",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.list/contains",
+                  "args": {
+                    "list": "$l",
+                    "value": 2
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s510"
+                }
+              ],
+              "id": "s509"
+            },
+            {
+              "id": "s511",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s512",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s513",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s514",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s515",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/contains: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s516",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s517",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/contains: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.list/contains - condition"
+    },
+    {
+      "id": "s518",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.list/is_empty - condition"
+      },
+      "children": [
+        {
+          "id": "s519",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/is_empty (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s520",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s521",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": []
+              },
+              "description": "Test value for l"
+            },
+            {
+              "id": "s522",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.list/is_empty",
+                  "args": {
+                    "list": "$l"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s524"
+                }
+              ],
+              "id": "s523"
+            },
+            {
+              "id": "s525",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s526",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s527",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s528",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s529",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/is_empty: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s530",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s531",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/is_empty: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.list/is_empty - condition"
+    },
+    {
+      "id": "s532",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.list/shuffle - same items (G06)"
+      },
+      "children": [
+        {
+          "id": "s533",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/shuffle (same items (G06)) and checks its result."
+          }
+        },
+        {
+          "id": "s534",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s535",
+              "action": "core/set",
+              "args": {
+                "variable": "l",
+                "value": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "description": "Test value for l"
+            },
+            {
+              "action": "ooa.list/shuffle",
+              "args": {
+                "list": "$l"
+              },
+              "out": {
+                "list": "s"
+              },
+              "id": "s536"
+            },
+            {
+              "action": "ooa.list/sort",
+              "args": {
+                "list": "$s"
+              },
+              "out": {
+                "list": "back"
+              },
+              "id": "s537"
+            },
+            {
+              "action": "ooa.list/size",
+              "args": {
+                "list": "$s"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s538"
+            },
+            {
+              "id": "s539",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$back$",
+                  "right": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s540",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check back",
+              "else": [
+                {
+                  "id": "s541",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "back: expected eq [1, 2, 3, 4, 5], got ${back}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s542",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s543",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s544",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s545",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s546",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/shuffle: same items (G06)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s547",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s548",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/shuffle: same items (G06): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.list/shuffle - same items (G06)"
+    },
+    {
+      "id": "s549",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.list/intersect - invoices in both"
+      },
+      "children": [
+        {
+          "id": "s550",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/intersect (invoices in both) and checks its result."
+          }
+        },
+        {
+          "id": "s551",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s552",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": [
+                  "INV-1",
+                  "INV-2",
+                  "INV-2",
+                  "INV-3"
+                ]
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s553",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": [
+                  "INV-3",
+                  "INV-2",
+                  "INV-9"
+                ]
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.list/intersect",
+              "args": {
+                "list": "$a",
+                "other": "$b"
+              },
+              "out": {
+                "list": "l",
+                "count": "n"
+              },
+              "id": "s554"
+            },
+            {
+              "id": "s555",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "INV-2",
+                    "INV-3"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s556",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s557",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"INV-2\", \"INV-3\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s558",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s559",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s560",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s561",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s562",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/intersect: invoices in both\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s563",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s564",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/intersect: invoices in both: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.list/intersect - invoices in both"
+    },
+    {
+      "id": "s565",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.list/subtract - not yet processed"
+      },
+      "children": [
+        {
+          "id": "s566",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/subtract (not yet processed) and checks its result."
+          }
+        },
+        {
+          "id": "s567",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s568",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": [
+                  "INV-1",
+                  "INV-2",
+                  "INV-3"
+                ]
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s569",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": [
+                  "INV-2"
+                ]
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.list/subtract",
+              "args": {
+                "list": "$a",
+                "other": "$b"
+              },
+              "out": {
+                "list": "l",
+                "count": "n"
+              },
+              "id": "s570"
+            },
+            {
+              "id": "s571",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$l$",
+                  "right": [
+                    "INV-1",
+                    "INV-3"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s572",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check l",
+              "else": [
+                {
+                  "id": "s573",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "l: expected eq [\"INV-1\", \"INV-3\"], got ${l}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s574",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s575",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s576",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s577",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s578",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/subtract: not yet processed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s579",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s580",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/subtract: not yet processed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.list/subtract - not yet processed"
+    },
+    {
+      "id": "s581",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.list/filter - numbers and record fields"
+      },
+      "children": [
+        {
+          "id": "s582",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/filter (numbers and record fields) and checks its result."
+          }
+        },
+        {
+          "id": "s583",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s584",
+              "action": "core/set",
+              "args": {
+                "variable": "nums",
+                "value": [
+                  50,
+                  150,
+                  99.5,
+                  300
+                ]
+              },
+              "description": "Test value for nums"
+            },
+            {
+              "id": "s585",
+              "action": "core/set",
+              "args": {
+                "variable": "recs",
+                "value": [
+                  {
+                    "name": "Acme Ltd",
+                    "total": 10
+                  },
+                  {
+                    "name": "Zeta",
+                    "total": 20
+                  }
+                ]
+              },
+              "description": "Test value for recs"
+            },
+            {
+              "action": "ooa.list/filter",
+              "args": {
+                "list": "$nums",
+                "operator": "gt",
+                "value": 100
+              },
+              "out": {
+                "list": "big",
+                "count": "n"
+              },
+              "id": "s586"
+            },
+            {
+              "action": "ooa.list/filter",
+              "args": {
+                "list": "$recs",
+                "field": "name",
+                "operator": "contains",
+                "value": "acme"
+              },
+              "out": {
+                "list": "acme"
+              },
+              "id": "s587"
+            },
+            {
+              "id": "s588",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$big$",
+                  "right": [
+                    150,
+                    300
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s589",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check big",
+              "else": [
+                {
+                  "id": "s590",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "big: expected eq [150, 300], got ${big}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s591",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s592",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s593",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s594",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$acme$",
+                  "right": [
+                    {
+                      "name": "Acme Ltd",
+                      "total": 10
+                    }
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s595",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check acme",
+              "else": [
+                {
+                  "id": "s596",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "acme: expected eq [\"name\": \"Acme Ltd\", \"total\": 10], got ${acme}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s597",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s598",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/filter: numbers and record fields\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s599",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s600",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/filter: numbers and record fields: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.list/filter - numbers and record fields"
+    },
+    {
+      "id": "s601",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.list/select - one field of records"
+      },
+      "children": [
+        {
+          "id": "s602",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.list/select (one field of records) and checks its result."
+          }
+        },
+        {
+          "id": "s603",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s604",
+              "action": "core/set",
+              "args": {
+                "variable": "recs",
+                "value": [
+                  {
+                    "c": {
+                      "email": "a@x.io"
+                    }
+                  },
+                  {
+                    "c": {}
+                  },
+                  {
+                    "c": {
+                      "email": "b@x.io"
+                    }
+                  }
+                ]
+              },
+              "description": "Test value for recs"
+            },
+            {
+              "action": "ooa.list/select",
+              "args": {
+                "list": "$recs",
+                "field": "c.email"
+              },
+              "out": {
+                "list": "all"
+              },
+              "id": "s605"
+            },
+            {
+              "action": "ooa.list/select",
+              "args": {
+                "list": "$recs",
+                "field": "c.email",
+                "skip_missing": true
+              },
+              "out": {
+                "list": "some"
+              },
+              "id": "s606"
+            },
+            {
+              "id": "s607",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$all$",
+                  "right": [
+                    "a@x.io",
+                    null,
+                    "b@x.io"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s608",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check all",
+              "else": [
+                {
+                  "id": "s609",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "all: expected eq [\"a@x.io\", null, \"b@x.io\"], got ${all}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s610",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$some$",
+                  "right": [
+                    "a@x.io",
+                    "b@x.io"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s611",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check some",
+              "else": [
+                {
+                  "id": "s612",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "some: expected eq [\"a@x.io\", \"b@x.io\"], got ${some}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s613",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s614",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.list/select: one field of records\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s615",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s616",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.list/select: one field of records: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.list/select - one field of records"
+    },
+    {
+      "id": "s617",
+      "action": "core/step",
+      "args": {
+        "title": "23. Summary"
+      },
+      "children": [
+        {
+          "id": "s618",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s619",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s620",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s621",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "23. Summary"
+    }
+  ]
+}

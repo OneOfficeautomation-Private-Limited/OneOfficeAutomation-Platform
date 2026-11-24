@@ -1,0 +1,2868 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_json",
+  "name": "UT JSON",
+  "description": "Unit tests of every JSON command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "f",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "js_value",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "js_sku",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "js_path",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "js_text",
+      "type": "String",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every JSON command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT JSON started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s207",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s208",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.json/parse - text to dictionary"
+      },
+      "children": [
+        {
+          "id": "s209",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/parse (text to dictionary) and checks its result."
+          }
+        },
+        {
+          "id": "s210",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.json/parse",
+              "args": {
+                "text": "{\"a\": {\"b\": [1, 2]}}"
+              },
+              "out": {
+                "value": "v"
+              },
+              "id": "s211"
+            },
+            {
+              "id": "s212",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": {
+                    "a": {
+                      "b": [
+                        1,
+                        2
+                      ]
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s213",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s214",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"a\": \"b\": [1, 2], got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s215",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/parse: text to dictionary\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s217",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s218",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/parse: text to dictionary: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.json/parse - text to dictionary"
+    },
+    {
+      "id": "s219",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.json/parse - bad JSON"
+      },
+      "children": [
+        {
+          "id": "s220",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/parse (bad JSON) and checks its result."
+          }
+        },
+        {
+          "id": "s221",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s223",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s224",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.json/parse",
+                  "args": {
+                    "text": "{oops"
+                  },
+                  "id": "s222"
+                }
+              ],
+              "description": "These steps should fail with JSON.INVALID",
+              "catch": [
+                {
+                  "codes": [
+                    "JSON.INVALID"
+                  ],
+                  "children": [
+                    {
+                      "id": "s225",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s226",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s227",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error JSON.INVALID",
+              "else": [
+                {
+                  "id": "s228",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error JSON.INVALID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s229",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s230",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/parse: bad JSON\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s232",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/parse: bad JSON: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.json/parse - bad JSON"
+    },
+    {
+      "id": "s233",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.json/stringify - pretty"
+      },
+      "children": [
+        {
+          "id": "s234",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/stringify (pretty) and checks its result."
+          }
+        },
+        {
+          "id": "s235",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s236",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": 1
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/stringify",
+              "args": {
+                "value": "$v",
+                "pretty": true,
+                "indent": 1
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s237"
+            },
+            {
+              "id": "s238",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "{\n \"a\": 1\n}"
+                }
+              },
+              "children": [
+                {
+                  "id": "s239",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s240",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"\\n \\\"a\\\": 1\\n\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s241",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s242",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/stringify: pretty\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s243",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s244",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/stringify: pretty: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.json/stringify - pretty"
+    },
+    {
+      "id": "s245",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.json/get_node - path with index"
+      },
+      "children": [
+        {
+          "id": "s246",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/get_node (path with index) and checks its result."
+          }
+        },
+        {
+          "id": "s247",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s248",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": {
+                    "b": [
+                      1,
+                      2
+                    ]
+                  }
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/get_node",
+              "args": {
+                "value": "$v",
+                "path": "a.b[1]"
+              },
+              "out": {
+                "result": "r",
+                "found": "f"
+              },
+              "id": "s249"
+            },
+            {
+              "id": "s250",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s252",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 2, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s253",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s254",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s255",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq true, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s256",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s257",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/get_node: path with index\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s258",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s259",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/get_node: path with index: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.json/get_node - path with index"
+    },
+    {
+      "id": "s260",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.json/get_node - missing gives default"
+      },
+      "children": [
+        {
+          "id": "s261",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/get_node (missing gives default) and checks its result."
+          }
+        },
+        {
+          "id": "s262",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s263",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {}
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/get_node",
+              "args": {
+                "value": "$v",
+                "path": "x.y",
+                "default": "-"
+              },
+              "out": {
+                "result": "r",
+                "found": "f"
+              },
+              "id": "s264"
+            },
+            {
+              "id": "s265",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s266",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s267",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"-\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s268",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$f$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s269",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check f",
+              "else": [
+                {
+                  "id": "s270",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "f: expected eq false, got ${f}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s271",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s272",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/get_node: missing gives default\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s273",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s274",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/get_node: missing gives default: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.json/get_node - missing gives default"
+    },
+    {
+      "id": "s275",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.json/get_nodes - several"
+      },
+      "children": [
+        {
+          "id": "s276",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/get_nodes (several) and checks its result."
+          }
+        },
+        {
+          "id": "s277",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s278",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": 1,
+                  "b": {
+                    "c": 2
+                  }
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/get_nodes",
+              "args": {
+                "value": "$v",
+                "paths": {
+                  "one": "a",
+                  "two": "b.c",
+                  "none": "z"
+                }
+              },
+              "out": {
+                "values": "r",
+                "missing": "m"
+              },
+              "id": "s279"
+            },
+            {
+              "id": "s280",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": [
+                    "none"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s281",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s282",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq [\"none\"], got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s284",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/get_nodes: several\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s286",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/get_nodes: several: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.json/get_nodes - several"
+    },
+    {
+      "id": "s287",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.json/get_node_array - list at path"
+      },
+      "children": [
+        {
+          "id": "s288",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/get_node_array (list at path) and checks its result."
+          }
+        },
+        {
+          "id": "s289",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s290",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "items": [
+                    {
+                      "id": 1
+                    },
+                    {
+                      "id": 2
+                    }
+                  ]
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/get_node_array",
+              "args": {
+                "value": "$v",
+                "path": "items"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s291"
+            },
+            {
+              "id": "s292",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s293",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s294",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s295",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s296",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/get_node_array: list at path\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s297",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s298",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/get_node_array: list at path: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.json/get_node_array - list at path"
+    },
+    {
+      "id": "s299",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.json/insert_node - create parents"
+      },
+      "children": [
+        {
+          "id": "s300",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/insert_node (create parents) and checks its result."
+          }
+        },
+        {
+          "id": "s301",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s302",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {}
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/insert_node",
+              "args": {
+                "value": "$v",
+                "path": "a.b",
+                "node": 5,
+                "create_parents": true
+              },
+              "out": {
+                "value": "v"
+              },
+              "id": "s303"
+            },
+            {
+              "id": "s304",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": {
+                    "a": {
+                      "b": 5
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s306",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"a\": \"b\": 5, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s307",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s308",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/insert_node: create parents\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s309",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s310",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/insert_node: create parents: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.json/insert_node - create parents"
+    },
+    {
+      "id": "s311",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.json/insert_node - exists is an error"
+      },
+      "children": [
+        {
+          "id": "s312",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/insert_node (exists is an error) and checks its result."
+          }
+        },
+        {
+          "id": "s313",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s314",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": 1
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s317",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.json/insert_node",
+                  "args": {
+                    "value": "$v",
+                    "path": "a",
+                    "node": 5
+                  },
+                  "id": "s315"
+                }
+              ],
+              "description": "These steps should fail with JSON.NODE_EXISTS",
+              "catch": [
+                {
+                  "codes": [
+                    "JSON.NODE_EXISTS"
+                  ],
+                  "children": [
+                    {
+                      "id": "s318",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error JSON.NODE_EXISTS",
+              "else": [
+                {
+                  "id": "s321",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error JSON.NODE_EXISTS: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s322",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/insert_node: exists is an error\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s324",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/insert_node: exists is an error: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.json/insert_node - exists is an error"
+    },
+    {
+      "id": "s326",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.json/update_node - previous value"
+      },
+      "children": [
+        {
+          "id": "s327",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/update_node (previous value) and checks its result."
+          }
+        },
+        {
+          "id": "s328",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s329",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": 1
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/update_node",
+              "args": {
+                "value": "$v",
+                "path": "a",
+                "node": 2
+              },
+              "out": {
+                "value": "v",
+                "previous": "p"
+              },
+              "id": "s330"
+            },
+            {
+              "id": "s331",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": {
+                    "a": 2
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s332",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s333",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"a\": 2, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s334",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$p$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s335",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p",
+              "else": [
+                {
+                  "id": "s336",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p: expected eq 1, got ${p}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s338",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/update_node: previous value\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s340",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/update_node: previous value: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.json/update_node - previous value"
+    },
+    {
+      "id": "s341",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.json/delete_node - removes"
+      },
+      "children": [
+        {
+          "id": "s342",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/delete_node (removes) and checks its result."
+          }
+        },
+        {
+          "id": "s343",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": 1,
+                  "b": 2
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/delete_node",
+              "args": {
+                "value": "$v",
+                "path": "a"
+              },
+              "out": {
+                "value": "v",
+                "removed": "r"
+              },
+              "id": "s345"
+            },
+            {
+              "id": "s346",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": {
+                    "b": 2
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s347",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s348",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"b\": 2, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s349",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s350",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s351",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq 1, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s352",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s353",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/delete_node: removes\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s355",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/delete_node: removes: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.json/delete_node - removes"
+    },
+    {
+      "id": "s356",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.json/to_table - flatten"
+      },
+      "children": [
+        {
+          "id": "s357",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/to_table (flatten) and checks its result."
+          }
+        },
+        {
+          "id": "s358",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s359",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": [
+                  {
+                    "id": 1,
+                    "who": {
+                      "name": "A"
+                    }
+                  }
+                ]
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/to_table",
+              "args": {
+                "value": "$v",
+                "flatten": true
+              },
+              "out": {
+                "table": "t"
+              },
+              "id": "s360"
+            },
+            {
+              "id": "s361",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": {
+                    "columns": [
+                      "id",
+                      "who.name"
+                    ],
+                    "rows": [
+                      [
+                        1,
+                        "A"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s362",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s363",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"columns\": [\"id\", \"who.name\"], \"rows\": [[1, \"A\"]], got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s364",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s365",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/to_table: flatten\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s366",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s367",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/to_table: flatten: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.json/to_table - flatten"
+    },
+    {
+      "id": "s368",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.json/validate - schema errors"
+      },
+      "children": [
+        {
+          "id": "s369",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/validate (schema errors) and checks its result."
+          }
+        },
+        {
+          "id": "s370",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s371",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "n": "x"
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/validate",
+              "args": {
+                "json": "$v",
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "n": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "out": {
+                "valid": "ok",
+                "errors": "e"
+              },
+              "id": "s372"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": {
+                  "expr": "len($e)"
+                }
+              },
+              "id": "s373"
+            },
+            {
+              "id": "s374",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s375",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s376",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s377",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s378",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s379",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s380",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s381",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/validate: schema errors\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s382",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s383",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/validate: schema errors: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.json/validate - schema errors"
+    },
+    {
+      "id": "s384",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.json/write_file - write then read"
+      },
+      "children": [
+        {
+          "id": "s385",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/write_file (write then read) and checks its result."
+          }
+        },
+        {
+          "id": "s386",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s387",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "a": [
+                    1
+                  ]
+                }
+              },
+              "description": "Test value for v"
+            },
+            {
+              "action": "ooa.json/write_file",
+              "args": {
+                "path": "ut_tmp/c14/a.json",
+                "value": "$v"
+              },
+              "id": "s388"
+            },
+            {
+              "action": "ooa.json/read_file",
+              "args": {
+                "path": "ut_tmp/c14/a.json"
+              },
+              "out": {
+                "value": "r"
+              },
+              "id": "s389"
+            },
+            {
+              "id": "s390",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": {
+                    "a": [
+                      1
+                    ]
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s391",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s392",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"a\": [1], got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s393",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s394",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/write_file: write then read\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s395",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s396",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/write_file: write then read: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.json/write_file - write then read"
+    },
+    {
+      "id": "s397",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.json/read_file - missing file"
+      },
+      "children": [
+        {
+          "id": "s398",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.json/read_file (missing file) and checks its result."
+          }
+        },
+        {
+          "id": "s399",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s401",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s402",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.json/read_file",
+                  "args": {
+                    "path": "ut_tmp/c15/none.json"
+                  },
+                  "id": "s400"
+                }
+              ],
+              "description": "These steps should fail with FILE.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FILE.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s403",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s404",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s405",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FILE.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s406",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FILE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s407",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s408",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/read_file: missing file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s409",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s410",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/read_file: missing file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.json/read_file - missing file"
+    },
+    {
+      "id": "s411",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.json/start_session - load an order once, read and change it"
+      },
+      "children": [
+        {
+          "id": "s412",
+          "action": "core/comment",
+          "args": {
+            "text": "Start session loads JSON once under a name; later steps read and change it by naming the session instead of passing the value along. Checks: the loaded value, a read through the session and a change seen by End session."
+          }
+        },
+        {
+          "id": "s413",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s414",
+              "action": "ooa.json/start_session",
+              "args": {
+                "session": "ut_order",
+                "value": {
+                  "order": {
+                    "id": 42,
+                    "items": [
+                      {
+                        "sku": "A-1",
+                        "qty": 2
+                      }
+                    ]
+                  }
+                }
+              },
+              "out": {
+                "value": "js_value"
+              },
+              "description": "Load an order as session ut_order"
+            },
+            {
+              "id": "s415",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${js_value}",
+                  "right": "A-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s416",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check js_value",
+              "else": [
+                {
+                  "id": "s417",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "js_value: expected contains \"A-1\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s418",
+              "action": "ooa.json/get_node",
+              "args": {
+                "session": "ut_order",
+                "path": "order.items[0].sku"
+              },
+              "out": {
+                "result": "js_sku"
+              },
+              "description": "Read the first sku from the session"
+            },
+            {
+              "id": "s419",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$js_sku$",
+                  "right": "A-1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s420",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check js_sku",
+              "else": [
+                {
+                  "id": "s421",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "js_sku: expected eq \"A-1\", got ${js_sku}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s422",
+              "action": "ooa.json/update_node",
+              "args": {
+                "session": "ut_order",
+                "path": "order.items[0].qty",
+                "node": 5
+              },
+              "description": "Change the quantity in the session"
+            },
+            {
+              "id": "s423",
+              "action": "ooa.json/end_session",
+              "args": {
+                "session": "ut_order"
+              },
+              "out": {
+                "value": "js_value"
+              },
+              "description": "Close the session"
+            },
+            {
+              "id": "s424",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "${js_value}",
+                  "right": "\"qty\":5"
+                }
+              },
+              "children": [
+                {
+                  "id": "s425",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check js_value after the change",
+              "else": [
+                {
+                  "id": "s426",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "js_value after the change: expected contains \"\\\"qty\\\":5\""
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s427",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s428",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/start_session: load an order once, read and change it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s429",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s430",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/start_session: load an order once, read and change it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.json/start_session - load an order once, read and change it"
+    },
+    {
+      "id": "s431",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.json/end_session - save the session to a file"
+      },
+      "children": [
+        {
+          "id": "s432",
+          "action": "core/comment",
+          "args": {
+            "text": "End session closes a JSON session and can first save its document to a file. Checks: the path it gives back, and the file holds the changed document."
+          }
+        },
+        {
+          "id": "s433",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s434",
+              "action": "ooa.json/start_session",
+              "args": {
+                "session": "ut_cfg",
+                "value": {
+                  "mode": "test"
+                }
+              },
+              "description": "Load a small document as session ut_cfg"
+            },
+            {
+              "id": "s435",
+              "action": "ooa.json/insert_node",
+              "args": {
+                "session": "ut_cfg",
+                "path": "retries",
+                "node": 3
+              },
+              "description": "Add a key in the session"
+            },
+            {
+              "id": "s436",
+              "action": "ooa.json/end_session",
+              "args": {
+                "session": "ut_cfg",
+                "save_to": "ut_tmp/json/cfg.json"
+              },
+              "out": {
+                "path": "js_path"
+              },
+              "description": "Close it, saving to a file"
+            },
+            {
+              "id": "s437",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$js_path$",
+                  "right": "cfg.json"
+                }
+              },
+              "children": [
+                {
+                  "id": "s438",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check js_path",
+              "else": [
+                {
+                  "id": "s439",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "js_path: expected endsWith \"cfg.json\", got ${js_path}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s440",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/json/cfg.json"
+              },
+              "out": {
+                "text": "js_text"
+              },
+              "description": "Read the saved file"
+            },
+            {
+              "id": "s441",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$js_text$",
+                  "right": "\"retries\":3"
+                }
+              },
+              "children": [
+                {
+                  "id": "s442",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the saved file",
+              "else": [
+                {
+                  "id": "s443",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the saved file: expected contains \"\\\"retries\\\":3\", got ${js_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s444",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s445",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.json/end_session: save the session to a file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s446",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s447",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.json/end_session: save the session to a file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.json/end_session - save the session to a file"
+    },
+    {
+      "id": "s448",
+      "action": "core/step",
+      "args": {
+        "title": "18. Summary"
+      },
+      "children": [
+        {
+          "id": "s449",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s450",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s451",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s452",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "18. Summary"
+    }
+  ]
+}

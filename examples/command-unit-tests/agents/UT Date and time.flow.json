@@ -1,0 +1,5830 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_datetime",
+  "name": "UT Date and time",
+  "description": "Unit tests of every Date and time command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "d",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "y",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "b",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "q",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "back",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "same",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "h",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ra",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rb",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rc",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "w",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "open",
+      "type": "Any",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Date and time command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Date and time started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s528",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s529",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.datetime/now - returns a date"
+      },
+      "children": [
+        {
+          "id": "s530",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/now (returns a date) and checks its result."
+          }
+        },
+        {
+          "id": "s531",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.datetime/now",
+              "out": {
+                "value": "d"
+              },
+              "id": "s532"
+            },
+            {
+              "action": "ooa.datetime/get_part",
+              "args": {
+                "value": "$d",
+                "part": "year"
+              },
+              "out": {
+                "result": "y"
+              },
+              "id": "s533"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$y >= 2026"
+                }
+              },
+              "id": "s534"
+            },
+            {
+              "id": "s535",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s536",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s537",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s538",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s539",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/now: returns a date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s540",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s541",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/now: returns a date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.datetime/now - returns a date"
+    },
+    {
+      "id": "s542",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.datetime/parse - custom pattern"
+      },
+      "children": [
+        {
+          "id": "s543",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/parse (custom pattern) and checks its result."
+          }
+        },
+        {
+          "id": "s544",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.datetime/parse",
+              "args": {
+                "text": "23/10/2026 14:05",
+                "pattern": "dd/MM/yyyy HH:mm"
+              },
+              "out": {
+                "value": "d"
+              },
+              "id": "s545"
+            },
+            {
+              "id": "s546",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$d$",
+                  "right": "2026-10-23T14:05"
+                }
+              },
+              "children": [
+                {
+                  "id": "s547",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check d",
+              "else": [
+                {
+                  "id": "s548",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "d: expected eq \"2026-10-23T14:05\", got ${d}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s549",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s550",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/parse: custom pattern\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s551",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s552",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/parse: custom pattern: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.datetime/parse - custom pattern"
+    },
+    {
+      "id": "s553",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.datetime/parse - standard ISO"
+      },
+      "children": [
+        {
+          "id": "s554",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/parse (standard ISO) and checks its result."
+          }
+        },
+        {
+          "id": "s555",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.datetime/parse",
+              "args": {
+                "text": "2026-10-23",
+                "standard": "ISO_LOCAL_DATE"
+              },
+              "out": {
+                "value": "d"
+              },
+              "id": "s556"
+            },
+            {
+              "id": "s557",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$d$",
+                  "right": "2026-10-23T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s558",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check d",
+              "else": [
+                {
+                  "id": "s559",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "d: expected eq \"2026-10-23T00:00\", got ${d}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s560",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s561",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/parse: standard ISO\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s562",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s563",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/parse: standard ISO: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.datetime/parse - standard ISO"
+    },
+    {
+      "id": "s564",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.datetime/parse - bad text"
+      },
+      "children": [
+        {
+          "id": "s565",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/parse (bad text) and checks its result."
+          }
+        },
+        {
+          "id": "s566",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s568",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s569",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.datetime/parse",
+                  "args": {
+                    "text": "31/02/2026",
+                    "pattern": "dd/MM/yyyy"
+                  },
+                  "id": "s567"
+                }
+              ],
+              "description": "These steps should fail with DATETIME.PARSE_FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "DATETIME.PARSE_FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s570",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s571",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s572",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATETIME.PARSE_FAILED",
+              "else": [
+                {
+                  "id": "s573",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATETIME.PARSE_FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s574",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s575",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/parse: bad text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s576",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s577",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/parse: bad text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.datetime/parse - bad text"
+    },
+    {
+      "id": "s578",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.datetime/format - pattern and zone"
+      },
+      "children": [
+        {
+          "id": "s579",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/format (pattern and zone) and checks its result."
+          }
+        },
+        {
+          "id": "s580",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s581",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-23T10:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/format",
+              "args": {
+                "value": "$d",
+                "pattern": "dd MMM yyyy HH:mm",
+                "time_zone": "Asia/Kolkata"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s582"
+            },
+            {
+              "id": "s583",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "23 Oct 2026 15:30"
+                }
+              },
+              "children": [
+                {
+                  "id": "s584",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s585",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"23 Oct 2026 15:30\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s586",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s587",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/format: pattern and zone\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s588",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s589",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/format: pattern and zone: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.datetime/format - pattern and zone"
+    },
+    {
+      "id": "s590",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.datetime/add - months"
+      },
+      "children": [
+        {
+          "id": "s591",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add (months) and checks its result."
+          }
+        },
+        {
+          "id": "s592",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s593",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-01-31T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add",
+              "args": {
+                "value": "$d",
+                "amount": 1,
+                "unit": "months"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s594"
+            },
+            {
+              "id": "s595",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-02-28T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s596",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s597",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-02-28T00:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s598",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s599",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add: months\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s600",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s601",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add: months: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.datetime/add - months"
+    },
+    {
+      "id": "s602",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.datetime/add - business days skip weekend and holiday (new)"
+      },
+      "children": [
+        {
+          "id": "s603",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add (business days skip weekend and holiday (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s604",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s605",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-12-24T09:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add",
+              "args": {
+                "value": "$d",
+                "amount": 2,
+                "unit": "business_days",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s606"
+            },
+            {
+              "id": "s607",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-12-29T09:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s608",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s609",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-12-29T09:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s610",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s611",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add: business days skip weekend and holiday (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s612",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s613",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add: business days skip weekend and holiday (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.datetime/add - business days skip weekend and holiday (new)"
+    },
+    {
+      "id": "s614",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.datetime/subtract - business days back over weekend (new)"
+      },
+      "children": [
+        {
+          "id": "s615",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/subtract (business days back over weekend (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s616",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s617",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-26T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/subtract",
+              "args": {
+                "value": "$d",
+                "amount": 1,
+                "unit": "business_days"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s618"
+            },
+            {
+              "id": "s619",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-10-23T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s620",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s621",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-10-23T00:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s622",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s623",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/subtract: business days back over weekend (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s624",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s625",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/subtract: business days back over weekend (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.datetime/subtract - business days back over weekend (new)"
+    },
+    {
+      "id": "s626",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.datetime/subtract - hours"
+      },
+      "children": [
+        {
+          "id": "s627",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/subtract (hours) and checks its result."
+          }
+        },
+        {
+          "id": "s628",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s629",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-23T10:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/subtract",
+              "args": {
+                "value": "$d",
+                "amount": 3,
+                "unit": "hours"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s630"
+            },
+            {
+              "id": "s631",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-10-23T07:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s632",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s633",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-10-23T07:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s634",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s635",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/subtract: hours\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s636",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s637",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/subtract: hours: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.datetime/subtract - hours"
+    },
+    {
+      "id": "s638",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.datetime/difference - business days (new)"
+      },
+      "children": [
+        {
+          "id": "s639",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/difference (business days (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s640",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s641",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-10-23T00:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s642",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-10-30T00:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/difference",
+              "args": {
+                "start": "$a",
+                "end": "$b",
+                "unit": "business_days"
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s643"
+            },
+            {
+              "id": "s644",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s645",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s646",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s647",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s648",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/difference: business days (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s649",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s650",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/difference: business days (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.datetime/difference - business days (new)"
+    },
+    {
+      "id": "s651",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.datetime/difference - hours fractional, absolute"
+      },
+      "children": [
+        {
+          "id": "s652",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/difference (hours fractional, absolute) and checks its result."
+          }
+        },
+        {
+          "id": "s653",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s654",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-10-23T12:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s655",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-10-23T10:30:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/difference",
+              "args": {
+                "start": "$a",
+                "end": "$b",
+                "unit": "hours",
+                "absolute": true
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s656"
+            },
+            {
+              "id": "s657",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1.5
+                }
+              },
+              "children": [
+                {
+                  "id": "s658",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s659",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1.5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s660",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s661",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/difference: hours fractional, absolute\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s662",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s663",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/difference: hours fractional, absolute: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.datetime/difference - hours fractional, absolute"
+    },
+    {
+      "id": "s664",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.datetime/get_part - quarter"
+      },
+      "children": [
+        {
+          "id": "s665",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/get_part (quarter) and checks its result."
+          }
+        },
+        {
+          "id": "s666",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s667",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-23T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/get_part",
+              "args": {
+                "value": "$d",
+                "part": "quarter"
+              },
+              "out": {
+                "result": "q"
+              },
+              "id": "s668"
+            },
+            {
+              "id": "s669",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$q$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s670",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check q",
+              "else": [
+                {
+                  "id": "s671",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "q: expected eq 4, got ${q}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s672",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s673",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/get_part: quarter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s674",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s675",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/get_part: quarter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.datetime/get_part - quarter"
+    },
+    {
+      "id": "s676",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.datetime/start_of - month"
+      },
+      "children": [
+        {
+          "id": "s677",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/start_of (month) and checks its result."
+          }
+        },
+        {
+          "id": "s678",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s679",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-23T15:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/start_of",
+              "args": {
+                "value": "$d",
+                "unit": "month"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s680"
+            },
+            {
+              "id": "s681",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-10-01T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s682",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s683",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-10-01T00:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s684",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s685",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/start_of: month\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s686",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s687",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/start_of: month: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.datetime/start_of - month"
+    },
+    {
+      "id": "s688",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.datetime/end_of - month"
+      },
+      "children": [
+        {
+          "id": "s689",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/end_of (month) and checks its result."
+          }
+        },
+        {
+          "id": "s690",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s691",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-02-10T15:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/end_of",
+              "args": {
+                "value": "$d",
+                "unit": "month"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s692"
+            },
+            {
+              "id": "s693",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$r$",
+                  "right": "2026-02-28T23:59:59"
+                }
+              },
+              "children": [
+                {
+                  "id": "s694",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s695",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected contains \"2026-02-28T23:59:59\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s696",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s697",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/end_of: month\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s698",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s699",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/end_of: month: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.datetime/end_of - month"
+    },
+    {
+      "id": "s700",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.datetime/convert_time_zone - to New York"
+      },
+      "children": [
+        {
+          "id": "s701",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/convert_time_zone (to New York) and checks its result."
+          }
+        },
+        {
+          "id": "s702",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s703",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-07-01T12:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/convert_time_zone",
+              "args": {
+                "value": "$d",
+                "time_zone": "America/New_York"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s704"
+            },
+            {
+              "id": "s705",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$t$",
+                  "right": "08:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s706",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s707",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected contains \"08:00\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s708",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s709",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/convert_time_zone: to New York\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s710",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s711",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/convert_time_zone: to New York: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.datetime/convert_time_zone - to New York"
+    },
+    {
+      "id": "s712",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.datetime/is_after - dates only"
+      },
+      "children": [
+        {
+          "id": "s713",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_after (dates only) and checks its result."
+          }
+        },
+        {
+          "id": "s714",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s715",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-10-23T18:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s716",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-10-23T09:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/is_after",
+              "args": {
+                "value": "$a",
+                "other": "$b",
+                "include_time": false
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s717"
+            },
+            {
+              "id": "s718",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s719",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s720",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq false, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s721",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s722",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_after: dates only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s723",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s724",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_after: dates only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.datetime/is_after - dates only"
+    },
+    {
+      "id": "s725",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.datetime/is_before - with time"
+      },
+      "children": [
+        {
+          "id": "s726",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_before (with time) and checks its result."
+          }
+        },
+        {
+          "id": "s727",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s728",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-10-23T08:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s729",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-10-23T09:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/is_before",
+              "args": {
+                "value": "$a",
+                "other": "$b"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s730"
+            },
+            {
+              "id": "s731",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s732",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s733",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s734",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s735",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_before: with time\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s736",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s737",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_before: with time: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.datetime/is_before - with time"
+    },
+    {
+      "id": "s738",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.datetime/is_equal - same day"
+      },
+      "children": [
+        {
+          "id": "s739",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_equal (same day) and checks its result."
+          }
+        },
+        {
+          "id": "s740",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s741",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-10-23T08:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s742",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-10-23T09:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/is_equal",
+              "args": {
+                "value": "$a",
+                "other": "$b",
+                "include_time": false
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s743"
+            },
+            {
+              "id": "s744",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s745",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s746",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s747",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s748",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_equal: same day\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s749",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s750",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_equal: same day: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.datetime/is_equal - same day"
+    },
+    {
+      "id": "s751",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.datetime/is_leap_year - by year"
+      },
+      "children": [
+        {
+          "id": "s752",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_leap_year (by year) and checks its result."
+          }
+        },
+        {
+          "id": "s753",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.datetime/is_leap_year",
+              "args": {
+                "year": 2028
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s754"
+            },
+            {
+              "id": "s755",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s756",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s757",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s758",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s759",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_leap_year: by year\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s760",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s761",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_leap_year: by year: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.datetime/is_leap_year - by year"
+    },
+    {
+      "id": "s762",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.datetime/is_between - condition"
+      },
+      "children": [
+        {
+          "id": "s763",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_between (condition) and checks its result."
+          }
+        },
+        {
+          "id": "s764",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s765",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-23T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "id": "s766",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_between",
+                  "args": {
+                    "value": "$d",
+                    "from": "2026-10-01T00:00:00",
+                    "to": "2026-10-31T00:00:00"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s768"
+                }
+              ],
+              "id": "s767"
+            },
+            {
+              "id": "s769",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s770",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s771",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s772",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s773",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_between: condition\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s774",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s775",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_between: condition: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.datetime/is_between - condition"
+    },
+    {
+      "id": "s776",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.datetime/is_weekend - Saturday"
+      },
+      "children": [
+        {
+          "id": "s777",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_weekend (Saturday) and checks its result."
+          }
+        },
+        {
+          "id": "s778",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s779",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-10-24T10:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "id": "s780",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_weekend",
+                  "args": {
+                    "value": "$d"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s782"
+                }
+              ],
+              "id": "s781"
+            },
+            {
+              "id": "s783",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s784",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s785",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s786",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s787",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_weekend: Saturday\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s788",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s789",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_weekend: Saturday: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.datetime/is_weekend - Saturday"
+    },
+    {
+      "id": "s790",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.datetime/is_valid - invalid date text"
+      },
+      "children": [
+        {
+          "id": "s791",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_valid (invalid date text) and checks its result."
+          }
+        },
+        {
+          "id": "s792",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s793",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_valid",
+                  "args": {
+                    "text": "2026-02-30"
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s795"
+                }
+              ],
+              "id": "s794"
+            },
+            {
+              "id": "s796",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s797",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s798",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s799",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s800",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_valid: invalid date text\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s801",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s802",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_valid: invalid date text: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.datetime/is_valid - invalid date text"
+    },
+    {
+      "id": "s803",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.datetime/is_business_hours - 24h window every day is always true"
+      },
+      "children": [
+        {
+          "id": "s804",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_business_hours (24h window every day is always true) and checks its result."
+          }
+        },
+        {
+          "id": "s805",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s806",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_business_hours",
+                  "args": {
+                    "start_hour": 0,
+                    "end_hour": 24,
+                    "weekdays_only": false
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s808"
+                }
+              ],
+              "id": "s807"
+            },
+            {
+              "id": "s809",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s810",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s811",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s812",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s813",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_business_hours: 24h window every day is always true\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s814",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s815",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_business_hours: 24h window every day is always true: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.datetime/is_business_hours - 24h window every day is always true"
+    },
+    {
+      "id": "s816",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.datetime/is_business_hours - an empty window is never true"
+      },
+      "children": [
+        {
+          "id": "s817",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_business_hours (an empty window is never true) and checks its result."
+          }
+        },
+        {
+          "id": "s818",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s819",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_business_hours",
+                  "args": {
+                    "start_hour": 5,
+                    "end_hour": 5,
+                    "weekdays_only": false
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s821"
+                }
+              ],
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s822"
+                }
+              ],
+              "id": "s820"
+            },
+            {
+              "id": "s823",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s824",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s825",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s826",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s827",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_business_hours: an empty window is never true\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s828",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s829",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_business_hours: an empty window is never true: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.datetime/is_business_hours - an empty window is never true"
+    },
+    {
+      "id": "s830",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.datetime/add_working_days - over Christmas and the year end, time of day kept"
+      },
+      "children": [
+        {
+          "id": "s831",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (over Christmas and the year end, time of day kept) and checks its result."
+          }
+        },
+        {
+          "id": "s832",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s833",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-12-24T09:30:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add_working_days",
+              "args": {
+                "value": "$d",
+                "days": 5,
+                "holidays": [
+                  "2026-12-25",
+                  "2027-01-01"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s834"
+            },
+            {
+              "id": "s835",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2027-01-04T09:30"
+                }
+              },
+              "children": [
+                {
+                  "id": "s836",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s837",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2027-01-04T09:30\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s838",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s839",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: over Christmas and the year end, time of day kept\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s840",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s841",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: over Christmas and the year end, time of day kept: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.datetime/add_working_days - over Christmas and the year end, time of day kept"
+    },
+    {
+      "id": "s842",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.datetime/add_working_days - a negative number goes back"
+      },
+      "children": [
+        {
+          "id": "s843",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (a negative number goes back) and checks its result."
+          }
+        },
+        {
+          "id": "s844",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s845",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2027-01-04T09:30:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add_working_days",
+              "args": {
+                "value": "$d",
+                "days": -5,
+                "holidays": [
+                  "2026-12-25",
+                  "2027-01-01"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s846"
+            },
+            {
+              "id": "s847",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-12-24T09:30"
+                }
+              },
+              "children": [
+                {
+                  "id": "s848",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s849",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-12-24T09:30\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s850",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s851",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: a negative number goes back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s852",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s853",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: a negative number goes back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.datetime/add_working_days - a negative number goes back"
+    },
+    {
+      "id": "s854",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.datetime/add_working_days - a Friday-Saturday weekend"
+      },
+      "children": [
+        {
+          "id": "s855",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (a Friday-Saturday weekend) and checks its result."
+          }
+        },
+        {
+          "id": "s856",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s857",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-11-05T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add_working_days",
+              "args": {
+                "value": "$d",
+                "days": 1,
+                "weekend": "FRI,SAT"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s858"
+            },
+            {
+              "id": "s859",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-11-08T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s860",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s861",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-11-08T00:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s862",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s863",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: a Friday-Saturday weekend\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s864",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s865",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: a Friday-Saturday weekend: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.datetime/add_working_days - a Friday-Saturday weekend"
+    },
+    {
+      "id": "s866",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.datetime/add_working_days - leap day counts"
+      },
+      "children": [
+        {
+          "id": "s867",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (leap day counts) and checks its result."
+          }
+        },
+        {
+          "id": "s868",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s869",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2028-02-28T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/add_working_days",
+              "args": {
+                "value": "$d",
+                "days": 1
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s870"
+            },
+            {
+              "id": "s871",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2028-02-29T00:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s872",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s873",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2028-02-29T00:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s874",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s875",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: leap day counts\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s876",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s877",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: leap day counts: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.datetime/add_working_days - leap day counts"
+    },
+    {
+      "id": "s878",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.datetime/add_working_days - whole numbers only"
+      },
+      "children": [
+        {
+          "id": "s879",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (whole numbers only) and checks its result."
+          }
+        },
+        {
+          "id": "s880",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s881",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-11-05T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "id": "s883",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s884",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.datetime/add_working_days",
+                  "args": {
+                    "value": "$d",
+                    "days": 1.5
+                  },
+                  "id": "s882"
+                }
+              ],
+              "description": "These steps should fail with DATETIME.BAD_AMOUNT",
+              "catch": [
+                {
+                  "codes": [
+                    "DATETIME.BAD_AMOUNT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s885",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s886",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s887",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATETIME.BAD_AMOUNT",
+              "else": [
+                {
+                  "id": "s888",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATETIME.BAD_AMOUNT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s889",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s890",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: whole numbers only\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s891",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s892",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: whole numbers only: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.datetime/add_working_days - whole numbers only"
+    },
+    {
+      "id": "s893",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.datetime/add_working_days - a calendar name needs One CommandCenter"
+      },
+      "children": [
+        {
+          "id": "s894",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/add_working_days (a calendar name needs One CommandCenter) and checks its result."
+          }
+        },
+        {
+          "id": "s895",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s896",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-11-05T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "id": "s898",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s899",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.datetime/add_working_days",
+                  "args": {
+                    "value": "$d",
+                    "days": 1,
+                    "calendar": "India 2026"
+                  },
+                  "id": "s897"
+                }
+              ],
+              "description": "These steps should fail with DATETIME.NO_COMMAND_CENTER",
+              "catch": [
+                {
+                  "codes": [
+                    "DATETIME.NO_COMMAND_CENTER"
+                  ],
+                  "children": [
+                    {
+                      "id": "s900",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s901",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s902",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATETIME.NO_COMMAND_CENTER",
+              "else": [
+                {
+                  "id": "s903",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATETIME.NO_COMMAND_CENTER: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s904",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s905",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/add_working_days: a calendar name needs One CommandCenter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s906",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s907",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/add_working_days: a calendar name needs One CommandCenter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.datetime/add_working_days - a calendar name needs One CommandCenter"
+    },
+    {
+      "id": "s908",
+      "action": "core/step",
+      "args": {
+        "title": "31. ooa.datetime/working_days_between - Monday to Monday over a holiday"
+      },
+      "children": [
+        {
+          "id": "s909",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/working_days_between (Monday to Monday over a holiday) and checks its result."
+          }
+        },
+        {
+          "id": "s910",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s911",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-12-21T00:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s912",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-12-28T00:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/working_days_between",
+              "args": {
+                "start": "$a",
+                "end": "$b",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s913"
+            },
+            {
+              "id": "s914",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s915",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s916",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 4, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s917",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s918",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/working_days_between: Monday to Monday over a holiday\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s919",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s920",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/working_days_between: Monday to Monday over a holiday: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "31. ooa.datetime/working_days_between - Monday to Monday over a holiday"
+    },
+    {
+      "id": "s921",
+      "action": "core/step",
+      "args": {
+        "title": "32. ooa.datetime/working_days_between - with the start day, and backwards"
+      },
+      "children": [
+        {
+          "id": "s922",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/working_days_between (with the start day, and backwards) and checks its result."
+          }
+        },
+        {
+          "id": "s923",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s924",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-11-09T00:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s925",
+              "action": "core/set",
+              "args": {
+                "variable": "b",
+                "value": "2026-11-13T00:00:00"
+              },
+              "description": "Test value for b"
+            },
+            {
+              "action": "ooa.datetime/working_days_between",
+              "args": {
+                "start": "$a",
+                "end": "$b",
+                "include_start": true
+              },
+              "out": {
+                "result": "n"
+              },
+              "id": "s926"
+            },
+            {
+              "action": "ooa.datetime/working_days_between",
+              "args": {
+                "start": "$b",
+                "end": "$a"
+              },
+              "out": {
+                "result": "back"
+              },
+              "id": "s927"
+            },
+            {
+              "id": "s928",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 5
+                }
+              },
+              "children": [
+                {
+                  "id": "s929",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s930",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 5, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s931",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$back$",
+                  "right": -4
+                }
+              },
+              "children": [
+                {
+                  "id": "s932",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check back",
+              "else": [
+                {
+                  "id": "s933",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "back: expected eq -4, got ${back}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s934",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s935",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/working_days_between: with the start day, and backwards\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s936",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s937",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/working_days_between: with the start day, and backwards: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "32. ooa.datetime/working_days_between - with the start day, and backwards"
+    },
+    {
+      "id": "s938",
+      "action": "core/step",
+      "args": {
+        "title": "33. ooa.datetime/working_days_between - a weekend of every day is refused"
+      },
+      "children": [
+        {
+          "id": "s939",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/working_days_between (a weekend of every day is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s940",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s941",
+              "action": "core/set",
+              "args": {
+                "variable": "a",
+                "value": "2026-11-09T00:00:00"
+              },
+              "description": "Test value for a"
+            },
+            {
+              "id": "s943",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s944",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.datetime/working_days_between",
+                  "args": {
+                    "start": "$a",
+                    "end": "$a",
+                    "weekend": "MON,TUE,WED,THU,FRI,SAT,SUN"
+                  },
+                  "id": "s942"
+                }
+              ],
+              "description": "These steps should fail with DATETIME.BAD_WEEKEND",
+              "catch": [
+                {
+                  "codes": [
+                    "DATETIME.BAD_WEEKEND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s945",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s946",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s947",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATETIME.BAD_WEEKEND",
+              "else": [
+                {
+                  "id": "s948",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATETIME.BAD_WEEKEND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s949",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s950",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/working_days_between: a weekend of every day is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s951",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s952",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/working_days_between: a weekend of every day is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "33. ooa.datetime/working_days_between - a weekend of every day is refused"
+    },
+    {
+      "id": "s953",
+      "action": "core/step",
+      "args": {
+        "title": "34. ooa.datetime/next_working_day - after a Friday holiday"
+      },
+      "children": [
+        {
+          "id": "s954",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/next_working_day (after a Friday holiday) and checks its result."
+          }
+        },
+        {
+          "id": "s955",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s956",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-12-24T08:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/next_working_day",
+              "args": {
+                "value": "$d",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s957"
+            },
+            {
+              "action": "ooa.datetime/next_working_day",
+              "args": {
+                "value": "$d",
+                "holidays": [
+                  "2026-12-25"
+                ],
+                "same_day": true
+              },
+              "out": {
+                "result": "same"
+              },
+              "id": "s958"
+            },
+            {
+              "id": "s959",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-12-28T08:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s960",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s961",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-12-28T08:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s962",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$same$",
+                  "right": "2026-12-24T08:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s963",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check same",
+              "else": [
+                {
+                  "id": "s964",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "same: expected eq \"2026-12-24T08:00\", got ${same}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s965",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s966",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/next_working_day: after a Friday holiday\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s967",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s968",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/next_working_day: after a Friday holiday: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "34. ooa.datetime/next_working_day - after a Friday holiday"
+    },
+    {
+      "id": "s969",
+      "action": "core/step",
+      "args": {
+        "title": "35. ooa.datetime/previous_working_day - before New Year's Day"
+      },
+      "children": [
+        {
+          "id": "s970",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/previous_working_day (before New Year's Day) and checks its result."
+          }
+        },
+        {
+          "id": "s971",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s972",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2027-01-03T08:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/previous_working_day",
+              "args": {
+                "value": "$d",
+                "holidays": [
+                  "2027-01-01"
+                ],
+                "same_day": true
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s973"
+            },
+            {
+              "id": "s974",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": "2026-12-31T08:00"
+                }
+              },
+              "children": [
+                {
+                  "id": "s975",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s976",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq \"2026-12-31T08:00\", got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s977",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s978",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/previous_working_day: before New Year's Day\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s979",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s980",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/previous_working_day: before New Year's Day: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "35. ooa.datetime/previous_working_day - before New Year's Day"
+    },
+    {
+      "id": "s981",
+      "action": "core/step",
+      "args": {
+        "title": "36. ooa.datetime/is_working_day - holiday, weekend and working day"
+      },
+      "children": [
+        {
+          "id": "s982",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_working_day (holiday, weekend and working day) and checks its result."
+          }
+        },
+        {
+          "id": "s983",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s984",
+              "action": "core/set",
+              "args": {
+                "variable": "h",
+                "value": "2026-12-25T00:00:00"
+              },
+              "description": "Test value for h"
+            },
+            {
+              "id": "s985",
+              "action": "core/set",
+              "args": {
+                "variable": "w",
+                "value": "2026-12-26T00:00:00"
+              },
+              "description": "Test value for w"
+            },
+            {
+              "id": "s986",
+              "action": "core/set",
+              "args": {
+                "variable": "x",
+                "value": "2026-12-24T00:00:00"
+              },
+              "description": "Test value for x"
+            },
+            {
+              "action": "ooa.datetime/is_working_day",
+              "args": {
+                "value": "$h",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "a",
+                "reason": "ra"
+              },
+              "id": "s987"
+            },
+            {
+              "action": "ooa.datetime/is_working_day",
+              "args": {
+                "value": "$w",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "b",
+                "reason": "rb"
+              },
+              "id": "s988"
+            },
+            {
+              "action": "ooa.datetime/is_working_day",
+              "args": {
+                "value": "$x",
+                "holidays": [
+                  "2026-12-25"
+                ]
+              },
+              "out": {
+                "result": "c",
+                "reason": "rc"
+              },
+              "id": "s989"
+            },
+            {
+              "id": "s990",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$a$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s991",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check a",
+              "else": [
+                {
+                  "id": "s992",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "a: expected eq false, got ${a}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s993",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ra$",
+                  "right": "holiday"
+                }
+              },
+              "children": [
+                {
+                  "id": "s994",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ra",
+              "else": [
+                {
+                  "id": "s995",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ra: expected eq \"holiday\", got ${ra}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s996",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$b$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s997",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check b",
+              "else": [
+                {
+                  "id": "s998",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "b: expected eq false, got ${b}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s999",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$rb$",
+                  "right": "weekend"
+                }
+              },
+              "children": [
+                {
+                  "id": "s1000",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rb",
+              "else": [
+                {
+                  "id": "s1001",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rb: expected eq \"weekend\", got ${rb}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1002",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$c$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s1003",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check c",
+              "else": [
+                {
+                  "id": "s1004",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "c: expected eq true, got ${c}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1005",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$rc$",
+                  "right": ""
+                }
+              },
+              "children": [
+                {
+                  "id": "s1006",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rc",
+              "else": [
+                {
+                  "id": "s1007",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rc: expected eq \"\", got ${rc}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1008",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s1009",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_working_day: holiday, weekend and working day\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s1010",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s1011",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_working_day: holiday, weekend and working day: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "36. ooa.datetime/is_working_day - holiday, weekend and working day"
+    },
+    {
+      "id": "s1012",
+      "action": "core/step",
+      "args": {
+        "title": "37. ooa.datetime/is_working_day - the date is read in the time zone"
+      },
+      "children": [
+        {
+          "id": "s1013",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_working_day (the date is read in the time zone) and checks its result."
+          }
+        },
+        {
+          "id": "s1014",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s1015",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-11-06T20:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "ooa.datetime/is_working_day",
+              "args": {
+                "value": "$d",
+                "time_zone": "Asia/Kolkata"
+              },
+              "out": {
+                "result": "r"
+              },
+              "id": "s1016"
+            },
+            {
+              "id": "s1017",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s1018",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s1019",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq false, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1020",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s1021",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_working_day: the date is read in the time zone\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s1022",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s1023",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_working_day: the date is read in the time zone: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "37. ooa.datetime/is_working_day - the date is read in the time zone"
+    },
+    {
+      "id": "s1024",
+      "action": "core/step",
+      "args": {
+        "title": "38. ooa.datetime/is_working_day - a holiday that is not a date"
+      },
+      "children": [
+        {
+          "id": "s1025",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_working_day (a holiday that is not a date) and checks its result."
+          }
+        },
+        {
+          "id": "s1026",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s1027",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-11-06T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "id": "s1029",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s1030",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.datetime/is_working_day",
+                  "args": {
+                    "value": "$d",
+                    "holidays": [
+                      "25/12/2026"
+                    ]
+                  },
+                  "id": "s1028"
+                }
+              ],
+              "description": "These steps should fail with DATETIME.BAD_HOLIDAY",
+              "catch": [
+                {
+                  "codes": [
+                    "DATETIME.BAD_HOLIDAY"
+                  ],
+                  "children": [
+                    {
+                      "id": "s1031",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s1032",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s1033",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error DATETIME.BAD_HOLIDAY",
+              "else": [
+                {
+                  "id": "s1034",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error DATETIME.BAD_HOLIDAY: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1035",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s1036",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_working_day: a holiday that is not a date\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s1037",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s1038",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_working_day: a holiday that is not a date: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "38. ooa.datetime/is_working_day - a holiday that is not a date"
+    },
+    {
+      "id": "s1039",
+      "action": "core/step",
+      "args": {
+        "title": "39. ooa.datetime/is_working_day - condition in an If"
+      },
+      "children": [
+        {
+          "id": "s1040",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.datetime/is_working_day (condition in an If) and checks its result."
+          }
+        },
+        {
+          "id": "s1041",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s1042",
+              "action": "core/set",
+              "args": {
+                "variable": "d",
+                "value": "2026-12-25T00:00:00"
+              },
+              "description": "Test value for d"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "open",
+                "value": "yes"
+              },
+              "id": "s1043"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.datetime/is_working_day",
+                  "args": {
+                    "value": "$d",
+                    "holidays": [
+                      "2026-12-25"
+                    ]
+                  }
+                }
+              },
+              "children": [],
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "open",
+                    "value": "no"
+                  },
+                  "id": "s1045"
+                }
+              ],
+              "id": "s1044"
+            },
+            {
+              "id": "s1046",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$open$",
+                  "right": "no"
+                }
+              },
+              "children": [
+                {
+                  "id": "s1047",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check open",
+              "else": [
+                {
+                  "id": "s1048",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "open: expected eq \"no\", got ${open}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s1049",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s1050",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.datetime/is_working_day: condition in an If\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s1051",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s1052",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.datetime/is_working_day: condition in an If: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "39. ooa.datetime/is_working_day - condition in an If"
+    },
+    {
+      "id": "s1053",
+      "action": "core/step",
+      "args": {
+        "title": "40. Summary"
+      },
+      "children": [
+        {
+          "id": "s1054",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s1055",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s1056",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s1057",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "40. Summary"
+    }
+  ]
+}

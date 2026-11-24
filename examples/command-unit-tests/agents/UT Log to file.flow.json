@@ -1,0 +1,1007 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_log",
+  "name": "UT Log to file",
+  "description": "Unit tests of every Log to file command. Each case shows the command in use and checks its result.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "cred_pw",
+      "type": "Credential",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "left",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of every Log to file command. Each case shows the command in use and checks its result."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Log to file started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "ut_tmp",
+            "pattern": "*",
+            "include_subfolders": true
+          },
+          "continueOnError": true,
+          "description": "Empty the case folders left by an earlier run"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.log/write - append with level"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/write (append with level) and checks its result."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.log/write",
+              "args": {
+                "path": "ut_tmp/c1/run.log",
+                "message": "started",
+                "timestamp": false
+              },
+              "id": "s85"
+            },
+            {
+              "action": "ooa.log/write",
+              "args": {
+                "path": "ut_tmp/c1/run.log",
+                "message": "done",
+                "level": "WARN",
+                "timestamp": false
+              },
+              "id": "s86"
+            },
+            {
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/c1/run.log"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s87"
+            },
+            {
+              "id": "s88",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$t$",
+                  "right": "WARN"
+                }
+              },
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s90",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected contains \"WARN\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/write: append with level\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s93",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/write: append with level: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.log/write - append with level"
+    },
+    {
+      "id": "s95",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.log/log_variables - masked secrets"
+      },
+      "children": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/log_variables (masked secrets) and checks its result."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "cred_pw",
+                "value": {
+                  "$credential": "unit_tests/samples_test_mail/password"
+                }
+              },
+              "description": "Test passphrase from the vault for cred_pw"
+            },
+            {
+              "action": "ooa.log/log_variables",
+              "args": {
+                "path": "ut_tmp/c2/vars.log",
+                "variables": {
+                  "user": "ann",
+                  "cred_pw": "$cred_pw"
+                },
+                "timestamp": false
+              },
+              "out": {
+                "lines": "n"
+              },
+              "id": "s99"
+            },
+            {
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_tmp/c2/vars.log"
+              },
+              "out": {
+                "text": "t"
+              },
+              "id": "s100"
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$t$",
+                  "right": "ann"
+                }
+              },
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s106",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected contains \"ann\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/log_variables: masked secrets\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/log_variables: masked secrets: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.log/log_variables - masked secrets"
+    },
+    {
+      "id": "s111",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.log/log_to_command_center - without One CommandCenter goes to the run log"
+      },
+      "children": [
+        {
+          "id": "s112",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/log_to_command_center (without One CommandCenter goes to the run log) and checks its result."
+          }
+        },
+        {
+          "id": "s113",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.log/log_to_command_center",
+              "args": {
+                "message": "hello"
+              },
+              "id": "s114"
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/log_to_command_center: without One CommandCenter goes to the run log\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/log_to_command_center: without One CommandCenter goes to the run log: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.log/log_to_command_center - without One CommandCenter goes to the run log"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.log/add_log_fields - fields set and removed (G16)"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/add_log_fields (fields set and removed (G16)) and checks its result."
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.log/add_log_fields",
+              "args": {
+                "fields": {
+                  "invoice": "INV-7",
+                  "customer": "Acme"
+                }
+              },
+              "out": {
+                "fields": "all"
+              },
+              "id": "s122"
+            },
+            {
+              "action": "core/log",
+              "args": {
+                "message": "working"
+              },
+              "id": "s123"
+            },
+            {
+              "action": "ooa.log/remove_log_fields",
+              "args": {
+                "names": [
+                  "customer"
+                ]
+              },
+              "out": {
+                "fields": "left"
+              },
+              "id": "s124"
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$all$",
+                  "right": {
+                    "invoice": "INV-7",
+                    "customer": "Acme"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check all",
+              "else": [
+                {
+                  "id": "s127",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "all: expected eq \"invoice\": \"INV-7\", \"customer\": \"Acme\", got ${all}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$left$",
+                  "right": {
+                    "invoice": "INV-7"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check left",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "left: expected eq \"invoice\": \"INV-7\", got ${left}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/add_log_fields: fields set and removed (G16)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/add_log_fields: fields set and removed (G16): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.log/add_log_fields - fields set and removed (G16)"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.log/add_log_fields - a name must start with a letter"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/add_log_fields (a name must start with a letter) and checks its result."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s140",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.log/add_log_fields",
+                  "args": {
+                    "fields": {
+                      "1st": "x"
+                    }
+                  },
+                  "id": "s138"
+                }
+              ],
+              "description": "These steps should fail with LOG.BAD_FIELD",
+              "catch": [
+                {
+                  "codes": [
+                    "LOG.BAD_FIELD"
+                  ],
+                  "children": [
+                    {
+                      "id": "s141",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error LOG.BAD_FIELD",
+              "else": [
+                {
+                  "id": "s144",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error LOG.BAD_FIELD: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/add_log_fields: a name must start with a letter\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/add_log_fields: a name must start with a letter: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.log/add_log_fields - a name must start with a letter"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.log/remove_log_fields - nothing set"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.log/remove_log_fields (nothing set) and checks its result."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.log/remove_log_fields",
+              "args": {},
+              "out": {
+                "fields": "left"
+              },
+              "id": "s152"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$left$",
+                  "right": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check left",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "left: expected eq , got ${left}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.log/remove_log_fields: nothing set\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.log/remove_log_fields: nothing set: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.log/remove_log_fields - nothing set"
+    },
+    {
+      "id": "s160",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s161",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s162",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s163",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s164",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}
