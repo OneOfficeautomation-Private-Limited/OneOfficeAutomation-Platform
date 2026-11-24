@@ -9,13 +9,13 @@ S = "ut_sql"
 
 
 def add(ua):
-    resample(ua)
+    # the sample "no connection" expects no session "db", but the H2 samples before it leave one open; the last case
+    # (Disconnect) checks SESSION.NOT_FOUND instead
+    resample(ua, drop={("ooa.database/call_procedure", "no connection")})
     for n, t in (("db_n", "Number"), ("db_t", "Table"), ("db_rows", "Number"), ("db_out", "Any"),
                  ("db_path", "Any"), ("db_text", "String"), ("db_rec", "Any"), ("db_sum", "Number"),
                  ("db_data", "Table"), ("db_open", "Boolean")):
         ua.var(n, t)
-    ua.var("db_user", "Credential")
-    ua.var("db_password", "Credential")
 
     def count(f, sql, params=None, what="the count"):
         f.act("ooa.database/query", desc="Count: " + sql, session=S, sql=sql, parameters=params,
@@ -27,10 +27,9 @@ def add(ua):
                  "Connect opens a database connection as a named session, here SQL Server with the user name and "
                  "password from the vault. It stays open for the cases below. Checks: a query on it sees the 5 "
                  "customers of the test data.") as f:
-        f.set("db_user", {"$credential": "unit_tests/sqlserver/username"}, desc="User name from the vault")
-        f.set("db_password", {"$credential": "unit_tests/sqlserver/password"}, desc="Password from the vault")
-        f.act("ooa.database/connect", desc="Connect to ooa_unit_test", jdbc_url=URL, user="$db_user$",
-              password="$db_password$", session=S)
+        f.act("ooa.database/connect", desc="Connect to ooa_unit_test (user name and password from the vault)",
+              jdbc_url=URL, user={"$credential": "unit_tests/sqlserver/username"},
+              password={"$credential": "unit_tests/sqlserver/password"}, session=S)
         count(f, "SELECT COUNT(*) FROM dbo.Customers")
         ua.check_eq("db_n", 5)
 
