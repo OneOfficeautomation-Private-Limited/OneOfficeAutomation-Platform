@@ -101,6 +101,16 @@
       "type": "String",
       "direction": "local",
       "default": ""
+    },
+    {
+      "name": "vals",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
     }
   ],
   "steps": [
@@ -308,180 +318,6 @@
       "description": "1. ooa.idp/classify_document - by keywords, no model needed"
     },
     {
-      "id": "s19",
-      "action": "core/step",
-      "args": {
-        "title": "2. ooa.idp/classify_document - by a stand-in model"
-      },
-      "children": [
-        {
-          "id": "s20",
-          "action": "core/comment",
-          "args": {
-            "text": "Shows ooa.idp/classify_document (by a stand-in model) and checks its result."
-          }
-        },
-        {
-          "id": "s21",
-          "action": "core/try",
-          "args": {},
-          "children": [
-            {
-              "id": "s22",
-              "action": "core/set",
-              "args": {
-                "variable": "t",
-                "value": "Goods dispatched to Berlin, 3 parcels"
-              },
-              "description": "Test value for t"
-            },
-            {
-              "action": "ooa.idp/classify_document",
-              "args": {
-                "text": "$t",
-                "method": "ai",
-                "provider": "openai_compatible",
-                "base_url": "{mock}",
-                "api_key": "$tok",
-                "model": "m",
-                "types": [
-                  {
-                    "name": "invoice",
-                    "description": "a supplier invoice"
-                  },
-                  {
-                    "name": "delivery_note",
-                    "description": "goods sent"
-                  }
-                ]
-              },
-              "out": {
-                "type": "ty",
-                "confidence": "c"
-              },
-              "id": "s23"
-            },
-            {
-              "id": "s24",
-              "action": "core/if",
-              "args": {
-                "condition": {
-                  "op": "eq",
-                  "left": "$ty$",
-                  "right": "delivery_note"
-                }
-              },
-              "children": [
-                {
-                  "id": "s25",
-                  "action": "core/comment",
-                  "args": {
-                    "text": "As expected"
-                  }
-                }
-              ],
-              "description": "Check ty",
-              "else": [
-                {
-                  "id": "s26",
-                  "action": "core/throw",
-                  "args": {
-                    "code": "UT.CHECK_FAILED",
-                    "message": "ty: expected eq \"delivery_note\", got ${ty}"
-                  },
-                  "description": "Stop the case: the check failed"
-                }
-              ]
-            },
-            {
-              "id": "s27",
-              "action": "core/if",
-              "args": {
-                "condition": {
-                  "op": "eq",
-                  "left": "$c$",
-                  "right": 0.9
-                }
-              },
-              "children": [
-                {
-                  "id": "s28",
-                  "action": "core/comment",
-                  "args": {
-                    "text": "As expected"
-                  }
-                }
-              ],
-              "description": "Check c",
-              "else": [
-                {
-                  "id": "s29",
-                  "action": "core/throw",
-                  "args": {
-                    "code": "UT.CHECK_FAILED",
-                    "message": "c: expected eq 0.9, got ${c}"
-                  },
-                  "description": "Stop the case: the check failed"
-                }
-              ]
-            },
-            {
-              "id": "s30",
-              "action": "core/set",
-              "args": {
-                "variable": "ut_pass",
-                "value": {
-                  "expr": "$ut_pass + 1"
-                }
-              },
-              "description": "Count the case as passed"
-            },
-            {
-              "id": "s31",
-              "action": "core/set",
-              "args": {
-                "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.idp/classify_document: by a stand-in model\n"
-              },
-              "description": "Add a PASS line to the report"
-            }
-          ],
-          "description": "Run the command and check what it gave back",
-          "catch": [
-            {
-              "codes": [
-                "*"
-              ],
-              "children": [
-                {
-                  "id": "s32",
-                  "action": "core/set",
-                  "args": {
-                    "variable": "ut_fail",
-                    "value": {
-                      "expr": "$ut_fail + 1"
-                    }
-                  },
-                  "description": "Count the case as failed"
-                },
-                {
-                  "id": "s33",
-                  "action": "core/set",
-                  "args": {
-                    "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.idp/classify_document: by a stand-in model: ${ut_err}\n"
-                  },
-                  "description": "Add a FAIL line with the reason"
-                }
-              ],
-              "message_to": "ut_err"
-            }
-          ]
-        }
-      ],
-      "description": "2. ooa.idp/classify_document - by a stand-in model"
-    },
-    {
       "id": "s34",
       "action": "core/step",
       "args": {
@@ -658,63 +494,62 @@
       "description": "3. ooa.idp/extract_by_rules - regex and after a label"
     },
     {
-      "id": "s49",
+      "id": "s73",
       "action": "core/step",
       "args": {
-        "title": "4. ooa.idp/save_example - keeps a checked example, then Extract with examples sends it to the model"
+        "title": "5. ooa.idp/extract_with_examples - claim decision with one checked example"
       },
       "children": [
         {
-          "id": "s50",
+          "id": "s74",
           "action": "core/comment",
           "args": {
-            "text": "Shows ooa.idp/save_example (keeps a checked example, then Extract with examples sends it to the model) and checks its result."
+            "text": "Extract with examples asks a model for named fields and sends the latest checked examples of the same document type along; the case keeps one example, extracts from a new claim and checks the fields and that one example went with the request."
           }
         },
         {
-          "id": "s51",
+          "id": "s75",
           "action": "core/try",
           "args": {},
           "children": [
             {
+              "id": "s76",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s77",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s78",
               "action": "ooa.idp/save_example",
               "args": {
-                "examples_file": "examples/invoice.examples.json",
-                "document_type": "invoice",
-                "text": "Invoice INV-1042 Total 115.00",
+                "examples_file": "case5/claims.examples.json",
+                "document_type": "claim",
+                "text": "CLAIM-SUGGEST Claimed amount: 450 Deductible: 50",
                 "fields": {
-                  "invoice_number": "INV-1042",
-                  "total": "115.00"
+                  "decision": "approve",
+                  "approved_amount": 400,
+                  "reason": "within policy"
                 }
               },
               "out": {
                 "count": "n"
               },
-              "id": "s52"
+              "description": "Keep a checked claim"
             },
             {
-              "action": "ooa.idp/extract_with_examples",
-              "args": {
-                "text": "Invoice INV-2001 Total 80.00",
-                "fields": {
-                  "invoice_number": "The invoice number",
-                  "total": "The total"
-                },
-                "examples_file": "examples/invoice.examples.json",
-                "document_type": "invoice",
-                "provider": "openai_compatible",
-                "base_url": "{mock}",
-                "api_key": "$tok",
-                "model": "m"
-              },
-              "out": {
-                "fields": "f",
-                "examples_used": "used"
-              },
-              "id": "s53"
-            },
-            {
-              "id": "s54",
+              "id": "s79",
               "action": "core/if",
               "args": {
                 "condition": {
@@ -725,7 +560,7 @@
               },
               "children": [
                 {
-                  "id": "s55",
+                  "id": "s80",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
@@ -735,7 +570,7 @@
               "description": "Check n",
               "else": [
                 {
-                  "id": "s56",
+                  "id": "s81",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
@@ -746,85 +581,150 @@
               ]
             },
             {
-              "id": "s57",
-              "action": "core/if",
+              "id": "s82",
+              "action": "ooa.idp/extract_with_examples",
               "args": {
-                "condition": {
-                  "op": "eq",
-                  "left": "$f$",
-                  "right": {
-                    "invoice_number": "INV-2001",
-                    "total": "80.00"
-                  }
-                }
+                "text": "CLAIM-SUGGEST Claimed amount: 500 Deductible: 100",
+                "fields": {
+                  "decision": "approve or reject",
+                  "approved_amount": "the amount to pay",
+                  "reason": "why"
+                },
+                "examples_file": "case5/claims.examples.json",
+                "document_type": "claim",
+                "provider": "openai_compatible",
+                "base_url": "${standin_url}/v1",
+                "api_key": {
+                  "$credential": "unit_tests/ai/api_key"
+                },
+                "model": "qa-scripted"
               },
-              "children": [
-                {
-                  "id": "s58",
-                  "action": "core/comment",
-                  "args": {
-                    "text": "As expected"
-                  }
-                }
-              ],
-              "description": "Check f",
-              "else": [
-                {
-                  "id": "s59",
-                  "action": "core/throw",
-                  "args": {
-                    "code": "UT.CHECK_FAILED",
-                    "message": "f: expected eq \"invoice_number\": \"INV-2001\", \"total\": \"80.00\", got ${f}"
-                  },
-                  "description": "Stop the case: the check failed"
-                }
-              ]
+              "out": {
+                "fields": "vals",
+                "examples_used": "n"
+              },
+              "description": "Extract from a new claim"
             },
             {
-              "id": "s60",
+              "id": "s83",
               "action": "core/if",
               "args": {
                 "condition": {
                   "op": "eq",
-                  "left": "$used$",
+                  "left": "$n$",
                   "right": 1
                 }
               },
               "children": [
                 {
-                  "id": "s61",
+                  "id": "s84",
                   "action": "core/comment",
                   "args": {
                     "text": "As expected"
                   }
                 }
               ],
-              "description": "Check used",
+              "description": "Check n",
               "else": [
                 {
-                  "id": "s62",
+                  "id": "s85",
                   "action": "core/throw",
                   "args": {
                     "code": "UT.CHECK_FAILED",
-                    "message": "used: expected eq 1, got ${used}"
+                    "message": "n: expected eq 1, got ${n}"
                   },
                   "description": "Stop the case: the check failed"
                 }
               ]
             },
             {
-              "id": "s63",
-              "action": "ooa.file/read_text",
+              "id": "s86",
+              "action": "core/set",
               "args": {
-                "path": "examples/invoice.examples.json"
+                "variable": "v",
+                "value": {
+                  "expr": "$vals.decision"
+                }
               },
-              "out": {
-                "text": "ut_text"
-              },
-              "description": "Read examples/invoice.examples.json"
+              "description": "The decision"
             },
             {
-              "id": "s64",
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "approve"
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"approve\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "v",
+                "value": {
+                  "expr": "$vals.approved_amount"
+                }
+              },
+              "description": "The amount"
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": 400
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq 400, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
               "action": "core/set",
               "args": {
                 "variable": "ut_pass",
@@ -835,11 +735,11 @@
               "description": "Count the case as passed"
             },
             {
-              "id": "s65",
+              "id": "s95",
               "action": "core/set",
               "args": {
                 "variable": "ut_report",
-                "value": "${ut_report}PASS  ooa.idp/save_example: keeps a checked example, then Extract with examples sends it to the model\n"
+                "value": "${ut_report}PASS  ooa.idp/extract_with_examples: claim decision with one checked example\n"
               },
               "description": "Add a PASS line to the report"
             }
@@ -852,7 +752,7 @@
               ],
               "children": [
                 {
-                  "id": "s66",
+                  "id": "s96",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_fail",
@@ -863,11 +763,11 @@
                   "description": "Count the case as failed"
                 },
                 {
-                  "id": "s67",
+                  "id": "s97",
                   "action": "core/set",
                   "args": {
                     "variable": "ut_report",
-                    "value": "${ut_report}FAIL  ooa.idp/save_example: keeps a checked example, then Extract with examples sends it to the model: ${ut_err}\n"
+                    "value": "${ut_report}FAIL  ooa.idp/extract_with_examples: claim decision with one checked example: ${ut_err}\n"
                   },
                   "description": "Add a FAIL line with the reason"
                 }
@@ -877,24 +777,258 @@
           ]
         }
       ],
-      "description": "4. ooa.idp/save_example - keeps a checked example, then Extract with examples sends it to the model"
+      "description": "5. ooa.idp/extract_with_examples - claim decision with one checked example"
     },
     {
-      "id": "s68",
+      "id": "s98",
       "action": "core/step",
       "args": {
-        "title": "5. Summary"
+        "title": "6. ooa.idp/save_example - two examples of one type"
       },
       "children": [
         {
-          "id": "s69",
+          "id": "s99",
+          "action": "core/comment",
+          "args": {
+            "text": "Save example keeps a document's checked values in the example file of its type and says how many examples that type now has."
+          }
+        },
+        {
+          "id": "s100",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s101",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s103",
+              "action": "ooa.idp/save_example",
+              "args": {
+                "examples_file": "case6/inv.examples.json",
+                "document_type": "invoice",
+                "text": "Invoice INV-1 Total 10.00",
+                "fields": {
+                  "invoice_number": "INV-1",
+                  "total": "10.00"
+                }
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Keep invoice INV-1"
+            },
+            {
+              "id": "s104",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s106",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "ooa.idp/save_example",
+              "args": {
+                "examples_file": "case6/inv.examples.json",
+                "document_type": "invoice",
+                "text": "Invoice INV-2 Total 20.00",
+                "fields": {
+                  "invoice_number": "INV-2",
+                  "total": "20.00"
+                }
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Keep invoice INV-2"
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s110",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 2, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case6/inv.examples.json"
+              },
+              "out": {
+                "text": "v"
+              },
+              "description": "Read the example file"
+            },
+            {
+              "id": "s112",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$v$",
+                  "right": "INV-2"
+                }
+              },
+              "children": [
+                {
+                  "id": "s113",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the example file",
+              "else": [
+                {
+                  "id": "s114",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the example file: expected contains \"INV-2\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s116",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.idp/save_example: two examples of one type\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s118",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.idp/save_example: two examples of one type: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.idp/save_example - two examples of one type"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s120",
           "action": "core/comment",
           "args": {
             "text": "How many cases passed; the run fails when any case failed."
           }
         },
         {
-          "id": "s70",
+          "id": "s121",
           "action": "core/log",
           "args": {
             "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
@@ -903,7 +1037,7 @@
           "description": "Write to the run log"
         },
         {
-          "id": "s71",
+          "id": "s122",
           "action": "core/if",
           "args": {
             "condition": {
@@ -914,7 +1048,7 @@
           },
           "children": [
             {
-              "id": "s72",
+              "id": "s123",
               "action": "core/throw",
               "args": {
                 "code": "UT.FAILED",
@@ -926,7 +1060,7 @@
           "description": "Did any case fail?"
         }
       ],
-      "description": "5. Summary"
+      "description": "7. Summary"
     }
   ]
 }
