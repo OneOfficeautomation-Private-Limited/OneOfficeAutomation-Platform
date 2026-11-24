@@ -461,10 +461,19 @@ public final class FormsPackage {
             .orElseThrow(() -> new ActionException("FORMS.WINDOWS_ONLY", "Hiding and showing a form needs a Windows runner with the Window toolkit installed",
                     "Run this agent on a Windows runner with a signed-in desktop."));
 
+    /** How long Hide and Show look for the form window: a form just opened (or retitled) gets its title a moment later. */
+    static long findWindowMillis = 5000;
+
     private static void formWindow(ActionContext ctx, String name, boolean hide) {
         FormWindow.Session s = session(ctx, name);
         String title = s.title == null || s.title.isBlank() ? s.name : s.title;
-        if (!Boolean.TRUE.equals(minimise.apply(title, hide)))
+        long end = System.currentTimeMillis() + findWindowMillis;
+        boolean done;
+        while (!(done = Boolean.TRUE.equals(minimise.apply(title, hide))) && System.currentTimeMillis() < end) {
+            ctx.checkCancelled();
+            try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        if (!done)
             throw new ActionException("FORMS.NO_WINDOW", "The window of form '" + s.name + "' was not found on the screen",
                     "Check that the form is still open; a form window renamed by the person cannot be found by its title.", true);
     }

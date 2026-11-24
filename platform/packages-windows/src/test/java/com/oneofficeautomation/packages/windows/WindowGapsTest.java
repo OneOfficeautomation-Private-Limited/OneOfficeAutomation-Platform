@@ -116,6 +116,32 @@ class WindowGapsTest {
         }
     }
 
+    @Test void restoreAfterMaximiseAndMinimiseGivesTheNormalSize() throws Exception {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") || GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIPPED: needs a Windows desktop");
+            return;
+        }
+        String tag = "OOA-test-" + UUID.randomUUID().toString().substring(0, 8);
+        Frame f = new Frame(tag);
+        f.setSize(300, 200);
+        f.setVisible(true);
+        try {
+            ActionContext c = ctx();
+            WindowPackage wp = new WindowPackage();
+            long end = System.currentTimeMillis() + 5000;
+            while (WindowPackage.all().stream().noneMatch(w -> w.title().equals(tag)) && System.currentTimeMillis() < end) Thread.sleep(100);
+            com.sun.jna.platform.win32.WinDef.HWND h = WindowPackage.all().stream().filter(w -> w.title().equals(tag)).findFirst().orElseThrow().hwnd();
+            wp.maximize(c, tag, null, 0, null);
+            assertEquals("maximized", WindowPackage.placementState(h));
+            wp.minimize(c, tag, null, 0, null);
+            assertEquals("minimized", WindowPackage.placementState(h));
+            wp.restore(c, tag, null, 0, null);
+            assertEquals("normal", WindowPackage.placementState(h), "Restore gives the normal size, not the maximised state from before");
+        } finally {
+            f.dispose();
+        }
+    }
+
     @Test void detailsAreAlsoSeparateOutputs() {
         Map<String, Object> d = new LinkedHashMap<>(Map.of("title", "T", "x", java.math.BigDecimal.ONE, "y", java.math.BigDecimal.TWO,
                 "width", java.math.BigDecimal.TEN, "height", java.math.BigDecimal.valueOf(20), "state", "maximized"));

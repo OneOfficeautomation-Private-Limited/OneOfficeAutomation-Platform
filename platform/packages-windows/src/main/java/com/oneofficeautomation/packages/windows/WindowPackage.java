@@ -302,8 +302,24 @@ public final class WindowPackage {
 
     private Map<String, Object> show(ActionContext ctx, String title, Long processId, Map<String, Object> alternatives, double wait, int cmd) {
         Win w = target(ctx, title, processId, alternatives, wait);
-        User32.INSTANCE.ShowWindow(w.hwnd(), cmd);
+        if (cmd == SW_RESTORE) restoreToNormal(w.hwnd()); else User32.INSTANCE.ShowWindow(w.hwnd(), cmd);
         return Map.of("title", w.title());
+    }
+
+    /**
+     * Restore brings a window to its normal size. Windows' own restore takes a minimised window back to the state it had
+     * before (maximised, when it was maximised then minimised), so a window still maximised afterwards is restored again.
+     */
+    static void restoreToNormal(WinDef.HWND h) {
+        User32 u = User32.INSTANCE;
+        u.ShowWindow(h, SW_RESTORE);
+        for (int i = 0; i < 2 && "maximized".equals(placementState(h)); i++) u.ShowWindow(h, SW_RESTORE);
+    }
+
+    static String placementState(WinDef.HWND h) {
+        WinUser.WINDOWPLACEMENT pl = new WinUser.WINDOWPLACEMENT();
+        User32.INSTANCE.GetWindowPlacement(h, pl);
+        return state(pl.showCmd);
     }
 
     @Action(id = "maximize", name = "Maximise window", category = "Window", capabilities = "desktop", description = "Maximise a window.",

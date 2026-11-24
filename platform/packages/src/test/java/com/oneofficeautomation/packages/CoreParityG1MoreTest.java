@@ -90,10 +90,17 @@ class CoreParityG1MoreTest {
             fp.hideForm(ctx, "order");
             fp.showForm(ctx, "order");
             assertEquals(List.of("hide Order entry", "show Order entry"), calls);
+            // the window gets its title a moment after it opens: Hide keeps looking for a while
+            FormsPackage.findWindowMillis = 2000;
+            int[] tries = {0};
+            FormsPackage.minimise = (title, min) -> ++tries[0] >= 3;
+            fp.hideForm(ctx, "order");
+            assertEquals(3, tries[0], "found on the third look");
+            FormsPackage.findWindowMillis = 300;
             FormsPackage.minimise = (title, min) -> false;
             assertEquals("FORMS.NO_WINDOW", assertThrows(ActionException.class, () -> fp.hideForm(ctx, "order")).code());
             assertEquals("FORMS.NOT_OPEN", assertThrows(ActionException.class, () -> fp.showForm(ctx, "other")).code());
-        } finally { FormsPackage.minimise = real; s.close(); }
+        } finally { FormsPackage.minimise = real; FormsPackage.findWindowMillis = 5000; s.close(); }
     }
 
     @Test void closeTransactionWithYourOwnStatusAndEveryVariable() throws Exception {
