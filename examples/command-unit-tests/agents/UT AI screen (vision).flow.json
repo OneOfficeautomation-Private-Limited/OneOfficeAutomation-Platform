@@ -1,0 +1,991 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_ai_screen",
+  "name": "UT AI screen (vision)",
+  "description": "Unit tests of the AI screen commands: a test window is opened, the screen is sent to the stand-in's scripted vision model, and the control it names is found, read, clicked and typed into.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_x",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_y",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the AI screen commands: a test window is opened, the screen is sent to the stand-in's scripted vision model, and the control it names is found, read, clicked and typed into."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT AI screen (vision) started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.ai_screen/find_on_screen - a control that is there, and one that is not"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Find on screen sends a picture of the screen to the model and gives where the described control is, with the model's confidence; for a missing control found is false."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT vision window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t); $f.TopMost = $true; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT vision window'"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT vision window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s9",
+              "action": "ooa.ai_screen/find_on_screen",
+              "args": {
+                "description": "the large notes text box",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/dsk/ai",
+                "model": "ut-vision"
+              },
+              "out": {
+                "found": "ut_ok",
+                "x": "ut_x",
+                "y": "ut_y",
+                "confidence": "ut_n"
+              },
+              "description": "Find the notes box"
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s12",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s13",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_x$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s14",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s15",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected gt 0, got ${ut_x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s16",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 0.6
+                }
+              },
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check confidence",
+              "else": [
+                {
+                  "id": "s18",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "confidence: expected ge 0.6, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s19",
+              "action": "ooa.ai_screen/find_on_screen",
+              "args": {
+                "description": "a Delete button that is missing",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/dsk/ai",
+                "model": "ut-vision"
+              },
+              "out": {
+                "found": "ut_ok"
+              },
+              "description": "Look for a missing control"
+            },
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s22",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s23",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_screen/find_on_screen: a control that is there, and one that is not\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_screen/find_on_screen: a control that is there, and one that is not: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.ai_screen/find_on_screen - a control that is there, and one that is not"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.ai_screen/read_described - the text the model reads"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Read described control asks the model for the text of the described control."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s31",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT vision window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t); $f.TopMost = $true; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT vision window'"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT vision window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s33",
+              "action": "ooa.ai_screen/read_described",
+              "args": {
+                "description": "the notes text box",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/dsk/ai",
+                "model": "ut-vision"
+              },
+              "out": {
+                "text": "ut_text",
+                "found": "ut_ok"
+              },
+              "description": "Read the notes box"
+            },
+            {
+              "id": "s34",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s36",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s37",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT screen text"
+                }
+              },
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s39",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT screen text\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s40",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_screen/read_described: the text the model reads\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_screen/read_described: the text the model reads: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.ai_screen/read_described - the text the model reads"
+    },
+    {
+      "id": "s45",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.ai_screen/click_described - click into the notes box"
+      },
+      "children": [
+        {
+          "id": "s46",
+          "action": "core/comment",
+          "args": {
+            "text": "Click described control clicks the control the model finds; the click puts the cursor in the notes box, so keys typed next land there."
+          }
+        },
+        {
+          "id": "s47",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s48",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT vision window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t); $f.TopMost = $true; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT vision window'"
+            },
+            {
+              "id": "s49",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT vision window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.ai_screen/click_described",
+              "args": {
+                "description": "the notes text box",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/dsk/ai",
+                "model": "ut-vision"
+              },
+              "out": {
+                "x": "ut_x",
+                "y": "ut_y"
+              },
+              "description": "Click the notes box"
+            },
+            {
+              "id": "s51",
+              "action": "ooa.desktop/press_keys",
+              "args": {
+                "keys": "a b c"
+              },
+              "description": "Type abc"
+            },
+            {
+              "id": "s52",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT vision window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the box"
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "abc"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check notes",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "notes: expected contains \"abc\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_screen/click_described: click into the notes box\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_screen/click_described: click into the notes box: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.ai_screen/click_described - click into the notes box"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.ai_screen/type_described - type into the notes box"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "Type into described control clicks the control the model finds and types the text."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s64",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT vision window'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t); $f.TopMost = $true; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT vision window'"
+            },
+            {
+              "id": "s65",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT vision window",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s66",
+              "action": "ooa.ai_screen/type_described",
+              "args": {
+                "description": "the notes text box",
+                "text": "typed by vision",
+                "provider": "openai_compatible",
+                "base_url": "$standin_url$/dsk/ai",
+                "model": "ut-vision"
+              },
+              "description": "Type into the notes box"
+            },
+            {
+              "id": "s67",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "UT vision window",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "ControlType",
+                      "value": "Edit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "AutomationId",
+                      "value": "notes",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ],
+                  "index": 0
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "ut_text"
+              },
+              "description": "Read the box"
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "typed by vision"
+                }
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check notes",
+              "else": [
+                {
+                  "id": "s70",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "notes: expected contains \"typed by vision\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT vision window"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ai_screen/type_described: type into the notes box\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ai_screen/type_described: type into the notes box: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.ai_screen/type_described - type into the notes box"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "5. Summary"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s79",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s80",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "5. Summary"
+    }
+  ]
+}

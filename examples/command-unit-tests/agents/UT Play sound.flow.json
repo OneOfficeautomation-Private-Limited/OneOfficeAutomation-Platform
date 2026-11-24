@@ -1,0 +1,760 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_sound",
+  "name": "UT Play sound",
+  "description": "Unit tests of the Play sound commands with a short quiet test tone. Makes sound.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Play sound commands with a short quiet test tone. Makes sound."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Play sound started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.sound/play - missing file"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.sound/play (missing file) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s32",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.sound/play",
+                  "args": {
+                    "path": "ut_case01/none.wav"
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with FILE.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FILE.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FILE.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FILE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sound/play: missing file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sound/play: missing file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.sound/play - missing file"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.sound/beep - one beep"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.sound/beep (one beep) and checks its result."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s41",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case02",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case02"
+            },
+            {
+              "action": "ooa.sound/beep",
+              "id": "s36"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sound/beep: one beep\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sound/beep: one beep: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.sound/beep - one beep"
+    },
+    {
+      "id": "s42",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.sound/play - the test tone twice, quietly"
+      },
+      "children": [
+        {
+          "id": "s43",
+          "action": "core/comment",
+          "args": {
+            "text": "Play plays a WAV file, here twice at 20 % volume, and waits until it has finished."
+          }
+        },
+        {
+          "id": "s44",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.file/from_base64",
+              "args": {
+                "base64": "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",
+                "path": "ut_tone.wav",
+                "overwrite": true
+              },
+              "description": "Write the quiet test tone"
+            },
+            {
+              "id": "s46",
+              "action": "ooa.sound/play",
+              "args": {
+                "path": "ut_tone.wav",
+                "wait": true,
+                "volume_percent": 20,
+                "repeat": 2
+              },
+              "description": "Play the tone twice"
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sound/play: the test tone twice, quietly\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sound/play: the test tone twice, quietly: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.sound/play - the test tone twice, quietly"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.sound/play_media - the tone through the media player"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Play media plays an audio or video file (no window for audio) and gives its length in seconds."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.file/from_base64",
+              "args": {
+                "base64": "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",
+                "path": "ut_tone.wav",
+                "overwrite": true
+              },
+              "description": "Write the quiet test tone"
+            },
+            {
+              "id": "s55",
+              "action": "ooa.sound/play_media",
+              "args": {
+                "path": "ut_tone.wav",
+                "wait": true,
+                "volume_percent": 20,
+                "max_seconds": 5
+              },
+              "out": {
+                "duration_seconds": "ut_n"
+              },
+              "description": "Play the tone"
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check duration",
+              "else": [
+                {
+                  "id": "s58",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "duration: expected ge 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sound/play_media: the tone through the media player\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sound/play_media: the tone through the media player: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.sound/play_media - the tone through the media player"
+    },
+    {
+      "id": "s63",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.sound/stop_media - stop what is playing"
+      },
+      "children": [
+        {
+          "id": "s64",
+          "action": "core/comment",
+          "args": {
+            "text": "Stop media stops a file Play media started without waiting, and says whether something was playing."
+          }
+        },
+        {
+          "id": "s65",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "ooa.file/from_base64",
+              "args": {
+                "base64": "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",
+                "path": "ut_tone.wav",
+                "overwrite": true
+              },
+              "description": "Write the quiet test tone"
+            },
+            {
+              "id": "s67",
+              "action": "ooa.sound/play_media",
+              "args": {
+                "path": "ut_tone.wav",
+                "wait": false,
+                "volume_percent": 20,
+                "repeat": 20
+              },
+              "description": "Start the tone, 20 times, without waiting"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.sound/stop_media",
+              "args": {},
+              "out": {
+                "stopped": "ut_ok"
+              },
+              "description": "Stop it"
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sound/stop_media: stop what is playing\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sound/stop_media: stop what is playing: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.sound/stop_media - stop what is playing"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "6. Summary"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s79",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s80",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "6. Summary"
+    }
+  ]
+}

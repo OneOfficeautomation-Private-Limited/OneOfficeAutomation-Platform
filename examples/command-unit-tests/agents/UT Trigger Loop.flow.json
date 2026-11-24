@@ -1,0 +1,1640 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_triggerloop",
+  "name": "UT Trigger Loop",
+  "description": "Unit tests of the Trigger Loop types that watch files, processes, services, timers and lists, each bounded by max_events or max_seconds.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ev",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ut_last",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_running",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Trigger Loop types that watch files, processes, services, timers and lists, each bounded by max_events or max_seconds."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Trigger Loop started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.triggerloop/process_running - this computer's Windows shell"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Program is running is a condition: true while a program with that executable name runs (explorer is always running on a signed-in desktop)."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.triggerloop/process_running",
+                  "args": {
+                    "process_name": "explorer.exe"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s12",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s13",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/process_running: this computer's Windows shell\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s15",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/process_running: this computer's Windows shell: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.triggerloop/process_running - this computer's Windows shell"
+    },
+    {
+      "id": "s17",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.triggerloop/process_running - no such program"
+      },
+      "children": [
+        {
+          "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "The same condition is false for a program that is not running."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s20",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s21",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.triggerloop/process_running",
+                  "args": {
+                    "process_name": "ut-no-such-program-9f3a.exe"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s22",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  },
+                  "description": "The condition was true"
+                }
+              ],
+              "description": "Use the condition in an If"
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the condition",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the condition: expected eq false, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/process_running: no such program\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/process_running: no such program: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.triggerloop/process_running - no such program"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.triggerloop/file_arrives - files already in the folder"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Each new or changed file in folder runs the steps for each file; with include_existing the files already there count too. Two invoices are written, and the loop sees both and stops after two events."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "tl_inbox",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty folder"
+            },
+            {
+              "id": "s34",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "tl_inbox"
+              },
+              "description": "Create the watched folder"
+            },
+            {
+              "id": "s35",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "tl_inbox/inv-1.txt",
+                "text": "1"
+              },
+              "description": "First invoice"
+            },
+            {
+              "id": "s36",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "tl_inbox/inv-2.txt",
+                "text": "2"
+              },
+              "description": "Second invoice"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s38",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.triggerloop/file_arrives",
+                "as": "ev",
+                "iterator_args": {
+                  "folder": "tl_inbox",
+                  "pattern": "inv-*.txt",
+                  "include_existing": true,
+                  "max_events": 2,
+                  "max_seconds": 20,
+                  "poll_seconds": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_n",
+                    "value": {
+                      "expr": "$ut_n + 1"
+                    }
+                  },
+                  "description": "Count the file"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_last",
+                    "value": "$ev.name$"
+                  },
+                  "description": "Keep its name"
+                }
+              ],
+              "description": "Each invoice file"
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_last$",
+                  "right": "inv-"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check file name",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "file name: expected startsWith \"inv-\", got ${ut_last}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/file_arrives: files already in the folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/file_arrives: files already in the folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.triggerloop/file_arrives - files already in the folder"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.triggerloop/file_arrives - a file written while the loop waits"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "Without include_existing only new files count: a parallel branch writes a file two seconds after the loop starts, and the loop gets it."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "tl_new",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty folder"
+            },
+            {
+              "id": "s55",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "tl_new"
+              },
+              "description": "Create the watched folder"
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_last",
+                "value": ""
+              }
+            },
+            {
+              "id": "s58",
+              "action": "core/parallel",
+              "args": {
+                "max_concurrency": 2
+              },
+              "children": [
+                {
+                  "id": "s59",
+                  "action": "core/step",
+                  "args": {
+                    "title": "Watch"
+                  },
+                  "children": [
+                    {
+                      "id": "s60",
+                      "action": "core/loop",
+                      "args": {
+                        "iterator": "ooa.triggerloop/file_arrives",
+                        "as": "ev",
+                        "iterator_args": {
+                          "folder": "tl_new",
+                          "max_events": 1,
+                          "max_seconds": 20,
+                          "poll_seconds": 1
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s61",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_n",
+                            "value": {
+                              "expr": "$ut_n + 1"
+                            }
+                          },
+                          "description": "Count the file"
+                        },
+                        {
+                          "id": "s62",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_last",
+                            "value": "$ev.name$"
+                          },
+                          "description": "Keep its name"
+                        }
+                      ],
+                      "description": "Each new file"
+                    }
+                  ],
+                  "description": "Watch"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/step",
+                  "args": {
+                    "title": "Write a file"
+                  },
+                  "children": [
+                    {
+                      "id": "s64",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": 2
+                      },
+                      "description": "Let the loop start"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "ooa.file/write_text",
+                      "args": {
+                        "path": "tl_new/arrived.csv",
+                        "text": "a,b"
+                      },
+                      "description": "The new file"
+                    }
+                  ],
+                  "description": "Write a file"
+                }
+              ],
+              "description": "Watch the folder while a file arrives"
+            },
+            {
+              "id": "s66",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s67",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s68",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_last$",
+                  "right": "arrived.csv"
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_last",
+              "else": [
+                {
+                  "id": "s71",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_last: expected eq \"arrived.csv\", got ${ut_last}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/file_arrives: a file written while the loop waits\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/file_arrives: a file written while the loop waits: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.triggerloop/file_arrives - a file written while the loop waits"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.triggerloop/timer_tick - three ticks a second apart"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Every interval runs the steps on a fixed interval and gives the tick number; with run_immediately the first tick comes at once."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s80",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.triggerloop/timer_tick",
+                "as": "ev",
+                "iterator_args": {
+                  "interval_seconds": 1,
+                  "run_immediately": true,
+                  "max_events": 3,
+                  "max_seconds": 20
+                }
+              },
+              "children": [
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_n",
+                    "value": "$ev.tick$"
+                  },
+                  "description": "Keep the tick number"
+                }
+              ],
+              "description": "Every second"
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 3, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/timer_tick: three ticks a second apart\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/timer_tick: three ticks a second apart: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.triggerloop/timer_tick - three ticks a second apart"
+    },
+    {
+      "id": "s89",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.triggerloop/process_starts - a program started while the loop waits"
+      },
+      "children": [
+        {
+          "id": "s90",
+          "action": "core/comment",
+          "args": {
+            "text": "Each time a program starts runs the steps for each new process of that name: a parallel branch runs ping two seconds after the loop starts."
+          }
+        },
+        {
+          "id": "s91",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s93",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_last",
+                "value": ""
+              }
+            },
+            {
+              "id": "s94",
+              "action": "core/parallel",
+              "args": {
+                "max_concurrency": 2
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/step",
+                  "args": {
+                    "title": "Watch"
+                  },
+                  "children": [
+                    {
+                      "id": "s96",
+                      "action": "core/loop",
+                      "args": {
+                        "iterator": "ooa.triggerloop/process_starts",
+                        "as": "ev",
+                        "iterator_args": {
+                          "process_name": "PING.EXE",
+                          "max_events": 1,
+                          "max_seconds": 25,
+                          "poll_seconds": 0.5
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s97",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_n",
+                            "value": {
+                              "expr": "$ut_n + 1"
+                            }
+                          },
+                          "description": "Count it"
+                        },
+                        {
+                          "id": "s98",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_last",
+                            "value": "$ev.change$"
+                          },
+                          "description": "Keep the change"
+                        }
+                      ],
+                      "description": "Each time ping starts"
+                    }
+                  ],
+                  "description": "Watch"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/step",
+                  "args": {
+                    "title": "Start ping"
+                  },
+                  "children": [
+                    {
+                      "id": "s100",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": 2
+                      },
+                      "description": "Let the loop start"
+                    },
+                    {
+                      "id": "s101",
+                      "action": "ooa.application/run_program",
+                      "args": {
+                        "program": "ping.exe",
+                        "arguments": [
+                          "-n",
+                          "4",
+                          "127.0.0.1"
+                        ]
+                      },
+                      "description": "Run ping for about three seconds"
+                    }
+                  ],
+                  "description": "Start ping"
+                }
+              ],
+              "description": "Watch for ping while it is started"
+            },
+            {
+              "id": "s102",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s104",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_last$",
+                  "right": "started"
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_last",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_last: expected eq \"started\", got ${ut_last}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/process_starts: a program started while the loop waits\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/process_starts: a program started while the loop waits: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.triggerloop/process_starts - a program started while the loop waits"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.triggerloop/service_changes - the current state of the Task Scheduler"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Each time a service changes state; with include_current the service's state now comes first as an event (the Task Scheduler always runs)."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_last",
+                "value": ""
+              }
+            },
+            {
+              "id": "s116",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.triggerloop/service_changes",
+                "as": "ev",
+                "iterator_args": {
+                  "service": "Schedule",
+                  "include_current": true,
+                  "max_events": 1,
+                  "max_seconds": 15
+                }
+              },
+              "children": [
+                {
+                  "id": "s117",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_last",
+                    "value": "$ev.state$"
+                  },
+                  "description": "Keep the state"
+                }
+              ],
+              "description": "The Task Scheduler's state"
+            },
+            {
+              "id": "s118",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$ut_last$",
+                  "right": "(?i)running"
+                }
+              },
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check state",
+              "else": [
+                {
+                  "id": "s120",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "state: expected matches \"(?i)running\", got ${ut_last}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/service_changes: the current state of the Task Scheduler\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/service_changes: the current state of the Task Scheduler: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.triggerloop/service_changes - the current state of the Task Scheduler"
+    },
+    {
+      "id": "s125",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.triggerloop/new_items - items of a command's list"
+      },
+      "children": [
+        {
+          "id": "s126",
+          "action": "core/comment",
+          "args": {
+            "text": "Each new e-mail, record or item reads a source again and again and runs the steps for each item not seen before; here the source is the Split text command, and include_existing hands over its three parts."
+          }
+        },
+        {
+          "id": "s127",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s128",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": 0
+              }
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_last",
+                "value": ""
+              }
+            },
+            {
+              "id": "s130",
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.triggerloop/new_items",
+                "as": "ev",
+                "iterator_args": {
+                  "source": "ooa.string/split",
+                  "source_inputs": {
+                    "text": "INV-1,INV-2,INV-3",
+                    "delimiter": ","
+                  },
+                  "list_output": "items",
+                  "include_existing": true,
+                  "poll_seconds": 1,
+                  "max_events": 3,
+                  "max_seconds": 20
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_n",
+                    "value": {
+                      "expr": "$ut_n + 1"
+                    }
+                  },
+                  "description": "Count the item"
+                },
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_last",
+                    "value": "${ut_last}$ev.item$;"
+                  },
+                  "description": "Collect the items"
+                }
+              ],
+              "description": "Each part"
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 3, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_last$",
+                  "right": "INV-1;INV-2;INV-3;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_last",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_last: expected eq \"INV-1;INV-2;INV-3;\", got ${ut_last}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.triggerloop/new_items: items of a command's list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.triggerloop/new_items: items of a command's list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.triggerloop/new_items - items of a command's list"
+    },
+    {
+      "id": "s143",
+      "action": "core/step",
+      "args": {
+        "title": "9. Summary"
+      },
+      "children": [
+        {
+          "id": "s144",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s145",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s146",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s147",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "9. Summary"
+    }
+  ]
+}

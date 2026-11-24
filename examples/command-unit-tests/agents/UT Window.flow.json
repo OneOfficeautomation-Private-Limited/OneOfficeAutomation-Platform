@@ -1,0 +1,4828 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_window",
+  "name": "UT Window",
+  "description": "Unit tests of the Window commands on test windows the cases open and close themselves.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "active",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "closed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "closed_in_time",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "exists",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "gone",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "info",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "listed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "pid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "prev",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "hidden",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "shown",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "visible",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_dict",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_x",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_y",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_w",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_h",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_cond",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Window commands on test windows the cases open and close themselves."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Window started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.window/close_all - too broad a title is refused"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/close_all (too broad a title is refused) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/close_all",
+                  "args": {
+                    "title": "a"
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.PATTERN_TOO_BROAD",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.PATTERN_TOO_BROAD"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.PATTERN_TOO_BROAD",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.PATTERN_TOO_BROAD: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/close_all: too broad a title is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/close_all: too broad a title is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.window/close_all - too broad a title is refused"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.window/hide - no window named"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/hide (no window named) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/hide",
+                  "args": {},
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.NO_TARGET",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.NO_TARGET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.NO_TARGET",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.NO_TARGET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/hide: no window named\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/hide: no window named: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.window/hide - no window named"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.window/show - no window named"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/show (no window named) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s37",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/show",
+                  "args": {},
+                  "id": "s35"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.NO_TARGET",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.NO_TARGET"
+                  ],
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s39",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.NO_TARGET",
+              "else": [
+                {
+                  "id": "s41",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.NO_TARGET: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/show: no window named\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/show: no window named: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.window/show - no window named"
+    },
+    {
+      "id": "s46",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.window/show - nothing hidden or visible by that title"
+      },
+      "children": [
+        {
+          "id": "s47",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/show (nothing hidden or visible by that title) and checks its result."
+          }
+        },
+        {
+          "id": "s48",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s51",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/show",
+                  "args": {
+                    "title": "no such window 7f3a"
+                  },
+                  "id": "s49"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s57",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/show: nothing hidden or visible by that title\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/show: nothing hidden or visible by that title: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.window/show - nothing hidden or visible by that title"
+    },
+    {
+      "id": "s60",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.window/wait_for - window life cycle on a test window"
+      },
+      "children": [
+        {
+          "id": "s61",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/wait_for (window life cycle on a test window) and checks its result."
+          }
+        },
+        {
+          "id": "s62",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s118",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA sample window'; $f.Width = 400; $f.Height = 300; [void]$f.ShowDialog()"
+                ]
+              },
+              "out": {
+                "process_id": "pid"
+              },
+              "id": "s63"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA sample window",
+                "timeout_seconds": 30
+              },
+              "out": {
+                "title": "t"
+              },
+              "id": "s64"
+            },
+            {
+              "action": "ooa.window/activate",
+              "args": {
+                "title": "OOA sample window"
+              },
+              "id": "s65"
+            },
+            {
+              "action": "ooa.window/get_active",
+              "out": {
+                "title": "active"
+              },
+              "id": "s66"
+            },
+            {
+              "action": "ooa.window/set_title",
+              "args": {
+                "title": "OOA sample window",
+                "new_title": "OOA sample renamed"
+              },
+              "out": {
+                "previous_title": "prev"
+              },
+              "id": "s67"
+            },
+            {
+              "action": "ooa.window/move_resize",
+              "args": {
+                "title": "OOA sample renamed",
+                "x": 100,
+                "y": 100,
+                "width": 500,
+                "height": 350
+              },
+              "id": "s68"
+            },
+            {
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "OOA sample renamed"
+              },
+              "out": {
+                "window": "info"
+              },
+              "id": "s69"
+            },
+            {
+              "action": "ooa.window/maximize",
+              "args": {
+                "title": "OOA sample renamed"
+              },
+              "id": "s70"
+            },
+            {
+              "action": "ooa.window/minimize",
+              "args": {
+                "title": "OOA sample renamed"
+              },
+              "id": "s71"
+            },
+            {
+              "action": "ooa.window/restore",
+              "args": {
+                "title": "OOA sample renamed"
+              },
+              "id": "s72"
+            },
+            {
+              "action": "ooa.window/capture",
+              "args": {
+                "title": "OOA sample renamed",
+                "path": "ut_case05/win.png",
+                "activate": true
+              },
+              "id": "s73"
+            },
+            {
+              "action": "ooa.window/list",
+              "out": {
+                "titles": "all"
+              },
+              "id": "s74"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "listed",
+                "value": {
+                  "expr": "contains($all, 'OOA sample renamed')"
+                }
+              },
+              "id": "s75"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "exists",
+                "value": false
+              },
+              "id": "s76"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.window/exists",
+                  "args": {
+                    "title": "OOA sample renamed"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "exists",
+                    "value": true
+                  },
+                  "id": "s78"
+                }
+              ],
+              "id": "s77"
+            },
+            {
+              "action": "ooa.window/close_all",
+              "args": {
+                "title": "OOA sample",
+                "keep": [
+                  "nothing to keep"
+                ]
+              },
+              "out": {
+                "count": "closed"
+              },
+              "id": "s79"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA sample renamed",
+                "state": "close",
+                "timeout_seconds": 10
+              },
+              "out": {
+                "met": "closed_in_time"
+              },
+              "id": "s80"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "gone",
+                "value": true
+              },
+              "id": "s81"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.window/exists",
+                  "args": {
+                    "title": "OOA sample renamed"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "gone",
+                    "value": false
+                  },
+                  "id": "s83"
+                }
+              ],
+              "id": "s82"
+            },
+            {
+              "id": "s84",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$t$",
+                  "right": "OOA sample window"
+                }
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check t",
+              "else": [
+                {
+                  "id": "s86",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "t: expected eq \"OOA sample window\", got ${t}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$active$",
+                  "right": "OOA sample window"
+                }
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check active",
+              "else": [
+                {
+                  "id": "s89",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "active: expected eq \"OOA sample window\", got ${active}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$prev$",
+                  "right": "OOA sample window"
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check prev",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "prev: expected eq \"OOA sample window\", got ${prev}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$listed$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check listed",
+              "else": [
+                {
+                  "id": "s95",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "listed: expected eq true, got ${listed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s96",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s97",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exists",
+              "else": [
+                {
+                  "id": "s98",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exists: expected eq true, got ${exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$closed$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check closed",
+              "else": [
+                {
+                  "id": "s101",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "closed: expected eq 1, got ${closed}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s102",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$gone$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s103",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check gone",
+              "else": [
+                {
+                  "id": "s104",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "gone: expected eq true, got ${gone}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$closed_in_time$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check closed_in_time",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "closed_in_time: expected eq true, got ${closed_in_time}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s113",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case05/win.png"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case05/win.png there?"
+            },
+            {
+              "id": "s115",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s116",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case05/win.png exists",
+              "else": [
+                {
+                  "id": "s117",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case05/win.png exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/wait_for: window life cycle on a test window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/wait_for: window life cycle on a test window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.window/wait_for - window life cycle on a test window"
+    },
+    {
+      "id": "s119",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.window/close_all - keep list (new) leaves the window open"
+      },
+      "children": [
+        {
+          "id": "s120",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/close_all (keep list (new) leaves the window open) and checks its result."
+          }
+        },
+        {
+          "id": "s121",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s133",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA keep me'; [void]$f.ShowDialog()"
+                ]
+              },
+              "id": "s122"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA keep me",
+                "timeout_seconds": 30
+              },
+              "id": "s123"
+            },
+            {
+              "action": "ooa.window/close_all",
+              "args": {
+                "title": "OOA keep",
+                "keep": [
+                  "keep me"
+                ]
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s124"
+            },
+            {
+              "action": "ooa.window/close",
+              "args": {
+                "title": "OOA keep me"
+              },
+              "id": "s125"
+            },
+            {
+              "id": "s126",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s128",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s129",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/close_all: keep list (new) leaves the window open\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/close_all: keep list (new) leaves the window open: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.window/close_all - keep list (new) leaves the window open"
+    },
+    {
+      "id": "s134",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.window/activate - missing window"
+      },
+      "children": [
+        {
+          "id": "s135",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/activate (missing window) and checks its result."
+          }
+        },
+        {
+          "id": "s136",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s148",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case07",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case07"
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s139",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/activate",
+                  "args": {
+                    "title": "No such window 9f3a"
+                  },
+                  "id": "s137"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s140",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s142",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s143",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s144",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s145",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/activate: missing window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s146",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s147",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/activate: missing window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.window/activate - missing window"
+    },
+    {
+      "id": "s149",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.window/wait_for - time-out"
+      },
+      "children": [
+        {
+          "id": "s150",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/wait_for (time-out) and checks its result."
+          }
+        },
+        {
+          "id": "s151",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s163",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "id": "s153",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s154",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.window/wait_for",
+                  "args": {
+                    "title": "No such window 9f3a",
+                    "timeout_seconds": 0.5
+                  },
+                  "id": "s152"
+                }
+              ],
+              "description": "These steps should fail with WINDOW.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "WINDOW.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s155",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error WINDOW.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s158",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error WINDOW.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s159",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s160",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/wait_for: time-out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s161",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s162",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/wait_for: time-out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.window/wait_for - time-out"
+    },
+    {
+      "id": "s164",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.window/wait_for - carry on when the window never opens (new)"
+      },
+      "children": [
+        {
+          "id": "s165",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/wait_for (carry on when the window never opens (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s166",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s175",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "No such window 9f3a",
+                "timeout_seconds": 0.5,
+                "fail_on_timeout": false
+              },
+              "out": {
+                "met": "m"
+              },
+              "id": "s167"
+            },
+            {
+              "id": "s168",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$m$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s169",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check m",
+              "else": [
+                {
+                  "id": "s170",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "m: expected eq false, got ${m}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s171",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s172",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/wait_for: carry on when the window never opens (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s174",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/wait_for: carry on when the window never opens (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.window/wait_for - carry on when the window never opens (new)"
+    },
+    {
+      "id": "s176",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.window/hide - hide, then show again (G03)"
+      },
+      "children": [
+        {
+          "id": "s177",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.window/hide (hide, then show again (G03)) and checks its result."
+          }
+        },
+        {
+          "id": "s178",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s195",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case10"
+            },
+            {
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'OOA hide sample'; $f.Width = 300; $f.Height = 200; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "id": "s179"
+            },
+            {
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA hide sample",
+                "timeout_seconds": 30
+              },
+              "id": "s180"
+            },
+            {
+              "action": "ooa.window/hide",
+              "args": {
+                "title": "OOA hide sample"
+              },
+              "out": {
+                "title": "hidden"
+              },
+              "id": "s181"
+            },
+            {
+              "action": "ooa.window/list",
+              "out": {
+                "titles": "visible"
+              },
+              "id": "s182"
+            },
+            {
+              "action": "ooa.window/show",
+              "args": {
+                "title": "OOA hide sample",
+                "activate": false
+              },
+              "out": {
+                "title": "shown"
+              },
+              "id": "s183"
+            },
+            {
+              "action": "ooa.window/close",
+              "args": {
+                "title": "OOA hide sample"
+              },
+              "id": "s184"
+            },
+            {
+              "id": "s185",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$hidden$",
+                  "right": "OOA hide sample"
+                }
+              },
+              "children": [
+                {
+                  "id": "s186",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check hidden",
+              "else": [
+                {
+                  "id": "s187",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "hidden: expected eq \"OOA hide sample\", got ${hidden}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s188",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$shown$",
+                  "right": "OOA hide sample"
+                }
+              },
+              "children": [
+                {
+                  "id": "s189",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check shown",
+              "else": [
+                {
+                  "id": "s190",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "shown: expected eq \"OOA hide sample\", got ${shown}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s192",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/hide: hide, then show again (G03)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s194",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/hide: hide, then show again (G03): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.window/hide - hide, then show again (G03)"
+    },
+    {
+      "id": "s196",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.window/move_resize - to a place and size"
+      },
+      "children": [
+        {
+          "id": "s197",
+          "action": "core/comment",
+          "args": {
+            "text": "Move and resize puts a window at a position with a size; Get window details reads them back."
+          }
+        },
+        {
+          "id": "s198",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s199",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window move'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window move'"
+            },
+            {
+              "id": "s200",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window move",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.window/restore",
+              "args": {
+                "title": "UT window move"
+              },
+              "description": "Make sure it is not maximized"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.window/move_resize",
+              "args": {
+                "title": "UT window move",
+                "x": 120,
+                "y": 80,
+                "width": 520,
+                "height": 360
+              },
+              "description": "Move to 120,80 at 520 x 360"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "UT window move"
+              },
+              "out": {
+                "x": "ut_x",
+                "y": "ut_y",
+                "width": "ut_w",
+                "height": "ut_h"
+              },
+              "description": "Read the window details"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_x$",
+                  "right": 120
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_x",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_x: expected eq 120, got ${ut_x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_y$",
+                  "right": 80
+                }
+              },
+              "children": [
+                {
+                  "id": "s208",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_y",
+              "else": [
+                {
+                  "id": "s209",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_y: expected eq 80, got ${ut_y}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s210",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_w$",
+                  "right": 520
+                }
+              },
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_w",
+              "else": [
+                {
+                  "id": "s212",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_w: expected eq 520, got ${ut_w}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s213",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_h$",
+                  "right": 360
+                }
+              },
+              "children": [
+                {
+                  "id": "s214",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_h",
+              "else": [
+                {
+                  "id": "s215",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_h: expected eq 360, got ${ut_h}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s216",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window move"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s218",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/move_resize: to a place and size\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s220",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/move_resize: to a place and size: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.window/move_resize - to a place and size"
+    },
+    {
+      "id": "s221",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.window/get_info - state and process"
+      },
+      "children": [
+        {
+          "id": "s222",
+          "action": "core/comment",
+          "args": {
+            "text": "Get window details gives the window's position, size, state and process id."
+          }
+        },
+        {
+          "id": "s223",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s224",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window info'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window info'"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window info",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "UT window info"
+              },
+              "out": {
+                "state": "ut_text",
+                "process_id": "ut_n"
+              },
+              "description": "Read the details"
+            },
+            {
+              "id": "s227",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s228",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check process id",
+              "else": [
+                {
+                  "id": "s229",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "process id: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s230",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_text$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s231",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check state",
+              "else": [
+                {
+                  "id": "s232",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "state: expected notEmpty , got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s233",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window info"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s234",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s235",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/get_info: state and process\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s236",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s237",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/get_info: state and process: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.window/get_info - state and process"
+    },
+    {
+      "id": "s238",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.window/maximize - maximize, minimize, restore"
+      },
+      "children": [
+        {
+          "id": "s239",
+          "action": "core/comment",
+          "args": {
+            "text": "Maximize, Minimize and Restore change the window's state; Get window details shows each one."
+          }
+        },
+        {
+          "id": "s240",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s241",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window states'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window states'"
+            },
+            {
+              "id": "s242",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window states",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s243",
+              "action": "ooa.window/maximize",
+              "args": {
+                "title": "UT window states"
+              },
+              "description": "Maximize"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "UT window states"
+              },
+              "out": {
+                "state": "ut_text"
+              },
+              "description": "Read the state"
+            },
+            {
+              "id": "s245",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$ut_text$",
+                  "right": "(?i)max.*"
+                }
+              },
+              "children": [
+                {
+                  "id": "s246",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check state",
+              "else": [
+                {
+                  "id": "s247",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "state: expected matches \"(?i)max.*\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s248",
+              "action": "ooa.window/minimize",
+              "args": {
+                "title": "UT window states"
+              },
+              "description": "Minimize"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "UT window states"
+              },
+              "out": {
+                "state": "ut_text"
+              },
+              "description": "Read the state"
+            },
+            {
+              "id": "s250",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$ut_text$",
+                  "right": "(?i)min.*"
+                }
+              },
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check state",
+              "else": [
+                {
+                  "id": "s252",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "state: expected matches \"(?i)min.*\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s253",
+              "action": "ooa.window/restore",
+              "args": {
+                "title": "UT window states"
+              },
+              "description": "Restore"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.window/get_info",
+              "args": {
+                "title": "UT window states"
+              },
+              "out": {
+                "state": "ut_text"
+              },
+              "description": "Read the state"
+            },
+            {
+              "id": "s255",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$ut_text$",
+                  "right": "(?i)(normal|restored)"
+                }
+              },
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check state",
+              "else": [
+                {
+                  "id": "s257",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "state: expected matches \"(?i)(normal|restored)\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s258",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window states"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s260",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/maximize: maximize, minimize, restore\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s261",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s262",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/maximize: maximize, minimize, restore: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.window/maximize - maximize, minimize, restore"
+    },
+    {
+      "id": "s263",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.window/minimize - gives the title"
+      },
+      "children": [
+        {
+          "id": "s264",
+          "action": "core/comment",
+          "args": {
+            "text": "Minimize gives the title of the window it minimized."
+          }
+        },
+        {
+          "id": "s265",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s266",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window minimize'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window minimize'"
+            },
+            {
+              "id": "s267",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window minimize",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s268",
+              "action": "ooa.window/minimize",
+              "args": {
+                "title": "UT window minimize"
+              },
+              "out": {
+                "title": "ut_text"
+              },
+              "description": "Minimize"
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT window minimize"
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s271",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT window minimize\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s272",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window minimize"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/minimize: gives the title\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/minimize: gives the title: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.window/minimize - gives the title"
+    },
+    {
+      "id": "s277",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.window/restore - after maximize"
+      },
+      "children": [
+        {
+          "id": "s278",
+          "action": "core/comment",
+          "args": {
+            "text": "Restore brings a maximized window back to its normal size and gives its title."
+          }
+        },
+        {
+          "id": "s279",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s280",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window restore'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window restore'"
+            },
+            {
+              "id": "s281",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window restore",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s282",
+              "action": "ooa.window/maximize",
+              "args": {
+                "title": "UT window restore"
+              },
+              "description": "Maximize"
+            },
+            {
+              "id": "s283",
+              "action": "ooa.window/restore",
+              "args": {
+                "title": "UT window restore"
+              },
+              "out": {
+                "title": "ut_text"
+              },
+              "description": "Restore"
+            },
+            {
+              "id": "s284",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT window restore"
+                }
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s286",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT window restore\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s287",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window restore"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/restore: after maximize\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/restore: after maximize: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.window/restore - after maximize"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.window/set_title - rename and back"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Set window title renames a window and gives the old title."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s295",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window title'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window title'"
+            },
+            {
+              "id": "s296",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window title",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s297",
+              "action": "ooa.window/set_title",
+              "args": {
+                "title": "UT window title",
+                "new_title": "UT window renamed"
+              },
+              "out": {
+                "previous_title": "ut_text"
+              },
+              "description": "Rename it"
+            },
+            {
+              "id": "s298",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT window title"
+                }
+              },
+              "children": [
+                {
+                  "id": "s299",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s300",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT window title\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s301",
+              "action": "ooa.window/set_title",
+              "args": {
+                "title": "UT window renamed",
+                "new_title": "UT window title"
+              },
+              "description": "Back to its name"
+            },
+            {
+              "id": "s302",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window title"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/set_title: rename and back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/set_title: rename and back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.window/set_title - rename and back"
+    },
+    {
+      "id": "s307",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.window/get_active - after activating the test window"
+      },
+      "children": [
+        {
+          "id": "s308",
+          "action": "core/comment",
+          "args": {
+            "text": "Get active window gives the title of the window in front."
+          }
+        },
+        {
+          "id": "s309",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s310",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window active'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window active'"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window active",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s312",
+              "action": "ooa.window/activate",
+              "args": {
+                "title": "UT window active"
+              },
+              "description": "Bring it to the front"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.window/get_active",
+              "args": {},
+              "out": {
+                "title": "ut_text",
+                "process_name": "ut_dict"
+              },
+              "description": "Read the active window"
+            },
+            {
+              "id": "s314",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT window active"
+                }
+              },
+              "children": [
+                {
+                  "id": "s315",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s316",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT window active\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s317",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window active"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s318",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s319",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/get_active: after activating the test window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s320",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s321",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/get_active: after activating the test window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.window/get_active - after activating the test window"
+    },
+    {
+      "id": "s322",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.window/is_active - true after activating"
+      },
+      "children": [
+        {
+          "id": "s323",
+          "action": "core/comment",
+          "args": {
+            "text": "Window is active is a condition: true while that window is in front."
+          }
+        },
+        {
+          "id": "s324",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s325",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window is active'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window is active'"
+            },
+            {
+              "id": "s326",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window is active",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s327",
+              "action": "ooa.window/activate",
+              "args": {
+                "title": "UT window is active"
+              },
+              "description": "Bring it to the front"
+            },
+            {
+              "id": "s328",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s329",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.window/is_active",
+                  "args": {
+                    "title": "UT window is active",
+                    "wait_seconds": 3
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s330",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is it in front?"
+            },
+            {
+              "id": "s331",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s332",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check active",
+              "else": [
+                {
+                  "id": "s333",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "active: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s334",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window is active"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/is_active: true after activating\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/is_active: true after activating: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.window/is_active - true after activating"
+    },
+    {
+      "id": "s339",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.window/exists - an open and a missing window"
+      },
+      "children": [
+        {
+          "id": "s340",
+          "action": "core/comment",
+          "args": {
+            "text": "Window exists is a condition: true while a window with the title is open."
+          }
+        },
+        {
+          "id": "s341",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s342",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window exists'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window exists'"
+            },
+            {
+              "id": "s343",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window exists",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_cond",
+                "value": false
+              }
+            },
+            {
+              "id": "s345",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.window/exists",
+                  "args": {
+                    "title": "UT window exists"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is it open?"
+            },
+            {
+              "id": "s347",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s348",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check exists",
+              "else": [
+                {
+                  "id": "s349",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "exists: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s350",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.window/exists",
+                  "args": {
+                    "title": "UT no such window 9f3a"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s351",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_cond",
+                    "value": false
+                  }
+                }
+              ],
+              "description": "Is a missing window open?"
+            },
+            {
+              "id": "s352",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_cond$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s353",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check missing window",
+              "else": [
+                {
+                  "id": "s354",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "missing window: expected eq true, got ${ut_cond}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s355",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window exists"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s356",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/exists: an open and a missing window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s358",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/exists: an open and a missing window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.window/exists - an open and a missing window"
+    },
+    {
+      "id": "s360",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.window/list - the test window is listed"
+      },
+      "children": [
+        {
+          "id": "s361",
+          "action": "core/comment",
+          "args": {
+            "text": "List windows gives the titles of the open windows."
+          }
+        },
+        {
+          "id": "s362",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s363",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window list'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window list'"
+            },
+            {
+              "id": "s364",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window list",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.window/list",
+              "args": {},
+              "out": {
+                "titles": "ut_list"
+              },
+              "description": "List the windows"
+            },
+            {
+              "id": "s366",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_list$",
+                  "right": "UT window list"
+                }
+              },
+              "children": [
+                {
+                  "id": "s367",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check titles",
+              "else": [
+                {
+                  "id": "s368",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "titles: expected contains \"UT window list\", got ${ut_list}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s369",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window list"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s370",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s371",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/list: the test window is listed\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s372",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s373",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/list: the test window is listed: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.window/list - the test window is listed"
+    },
+    {
+      "id": "s374",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.window/capture - a picture of the window"
+      },
+      "children": [
+        {
+          "id": "s375",
+          "action": "core/comment",
+          "args": {
+            "text": "Capture window saves a picture of one window."
+          }
+        },
+        {
+          "id": "s376",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s377",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window capture'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window capture'"
+            },
+            {
+              "id": "s378",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window capture",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s379",
+              "action": "ooa.file/delete",
+              "args": {
+                "path": "win_capture.png"
+              },
+              "continueOnError": true,
+              "description": "No old picture"
+            },
+            {
+              "id": "s380",
+              "action": "ooa.window/capture",
+              "args": {
+                "title": "UT window capture",
+                "path": "win_capture.png",
+                "activate": true
+              },
+              "out": {
+                "path": "ut_text"
+              },
+              "description": "Capture it"
+            },
+            {
+              "id": "s381",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$ut_text$",
+                  "right": "win_capture.png"
+                }
+              },
+              "children": [
+                {
+                  "id": "s382",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check path",
+              "else": [
+                {
+                  "id": "s383",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "path: expected endsWith \"win_capture.png\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s384",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window capture"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s385",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s386",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/capture: a picture of the window\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s387",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s388",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/capture: a picture of the window: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.window/capture - a picture of the window"
+    },
+    {
+      "id": "s389",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.window/close - closed and gone"
+      },
+      "children": [
+        {
+          "id": "s390",
+          "action": "core/comment",
+          "args": {
+            "text": "Close window closes it and, with wait_closed_seconds, waits until it is gone."
+          }
+        },
+        {
+          "id": "s391",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s392",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window close'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window close'"
+            },
+            {
+              "id": "s393",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window close",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s394",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window close",
+                "wait_closed_seconds": 10
+              },
+              "out": {
+                "closed": "ut_ok"
+              },
+              "description": "Close it"
+            },
+            {
+              "id": "s395",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s396",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s397",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s398",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window close",
+                "state": "close",
+                "timeout_seconds": 5
+              },
+              "out": {
+                "met": "ut_ok"
+              },
+              "description": "It is gone"
+            },
+            {
+              "id": "s399",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s400",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s401",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s403",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/close: closed and gone\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s404",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s405",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/close: closed and gone: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.window/close - closed and gone"
+    },
+    {
+      "id": "s406",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.window/type_in_background - into the text box without focus"
+      },
+      "children": [
+        {
+          "id": "s407",
+          "action": "core/comment",
+          "args": {
+            "text": "Type in background puts text into a control of a window that need not be in front, by its class."
+          }
+        },
+        {
+          "id": "s408",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s409",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "powershell.exe",
+                "arguments": [
+                  "-NoProfile",
+                  "-WindowStyle",
+                  "Hidden",
+                  "-Command",
+                  "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = 'UT window background typing'; $f.Width = 460; $f.Height = 320; $f.StartPosition = 'CenterScreen'; $t = New-Object Windows.Forms.TextBox; $t.Name = 'notes'; $t.Multiline = $true; $t.SetBounds(10, 10, 400, 200); $f.Controls.Add($t); [System.Windows.Forms.Application]::Run($f)"
+                ]
+              },
+              "description": "Open the test window 'UT window background typing'"
+            },
+            {
+              "id": "s410",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "UT window background typing",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for the test window"
+            },
+            {
+              "id": "s411",
+              "action": "ooa.window/type_in_background",
+              "args": {
+                "title": "UT window background typing",
+                "text": "hello from UT",
+                "control_class": "Edit",
+                "method": "replace"
+              },
+              "out": {
+                "control_text": "ut_text"
+              },
+              "description": "Type into the text box"
+            },
+            {
+              "id": "s412",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "hello from UT"
+                }
+              },
+              "children": [
+                {
+                  "id": "s413",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check control text",
+              "else": [
+                {
+                  "id": "s414",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "control text: expected contains \"hello from UT\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s415",
+              "action": "ooa.window/close",
+              "args": {
+                "title": "UT window background typing"
+              },
+              "continueOnError": true,
+              "description": "Close the test window"
+            },
+            {
+              "id": "s416",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s417",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/type_in_background: into the text box without focus\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s418",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s419",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/type_in_background: into the text box without focus: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.window/type_in_background - into the text box without focus"
+    },
+    {
+      "id": "s420",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.window/pick_point - nobody picks: time-out"
+      },
+      "children": [
+        {
+          "id": "s421",
+          "action": "core/comment",
+          "args": {
+            "text": "Pick a point (design time) waits for a person to click a spot; nobody clicks in an unattended run, so it ends with its time-out error after 2 seconds."
+          }
+        },
+        {
+          "id": "s422",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s423",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s424",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s425",
+                  "action": "ooa.window/pick_point",
+                  "args": {
+                    "timeout_seconds": 2
+                  },
+                  "description": "Wait 2 s for a click"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s426",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s427",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s428",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s429",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s430",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s431",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.window/pick_point: nobody picks: time-out\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s432",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s433",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.window/pick_point: nobody picks: time-out: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.window/pick_point - nobody picks: time-out"
+    },
+    {
+      "id": "s434",
+      "action": "core/step",
+      "args": {
+        "title": "25. Summary"
+      },
+      "children": [
+        {
+          "id": "s435",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s436",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s437",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s438",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "25. Summary"
+    }
+  ]
+}

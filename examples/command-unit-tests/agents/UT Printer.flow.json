@@ -1,0 +1,1061 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_printer",
+  "name": "UT Printer",
+  "description": "Unit tests of the Printer commands that change nothing: list printers, the default printer, and the errors for a missing file, an unknown printer and a removal without confirmation. Nothing is printed.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "p",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_json",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_default",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_default2",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_printers",
+      "type": "List",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Printer commands that change nothing: list printers, the default printer, and the errors for a missing file, an unknown printer and a removal without confirmation. Nothing is printed."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Printer started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s68",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.printer/list_printers - lists printers"
+      },
+      "children": [
+        {
+          "id": "s69",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.printer/list_printers (lists printers) and checks its result."
+          }
+        },
+        {
+          "id": "s70",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s80",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case01",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case01"
+            },
+            {
+              "action": "ooa.printer/list_printers",
+              "out": {
+                "printers": "p"
+              },
+              "id": "s71"
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_json",
+                "value": {
+                  "expr": "jsonStringify($p)"
+                }
+              },
+              "description": "The value as JSON, to see its type"
+            },
+            {
+              "id": "s77",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_json$",
+                  "right": "["
+                }
+              },
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p is array",
+              "else": [
+                {
+                  "id": "s79",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p is array: expected startsWith \"[\", got ${ut_json}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/list_printers: lists printers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s75",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/list_printers: lists printers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.printer/list_printers - lists printers"
+    },
+    {
+      "id": "s81",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.printer/get_default - default printer"
+      },
+      "children": [
+        {
+          "id": "s82",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.printer/get_default (default printer) and checks its result."
+          }
+        },
+        {
+          "id": "s83",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s93",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case02",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case02"
+            },
+            {
+              "action": "ooa.printer/get_default",
+              "out": {
+                "printer": "p"
+              },
+              "id": "s84"
+            },
+            {
+              "id": "s89",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_json",
+                "value": {
+                  "expr": "jsonStringify($p)"
+                }
+              },
+              "description": "The value as JSON, to see its type"
+            },
+            {
+              "id": "s90",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_json$",
+                  "right": "\""
+                }
+              },
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check p is string",
+              "else": [
+                {
+                  "id": "s92",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "p is string: expected startsWith \"\\\"\", got ${ut_json}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s86",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/get_default: default printer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s88",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/get_default: default printer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.printer/get_default - default printer"
+    },
+    {
+      "id": "s26",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.printer/remove_printer - refused without confirm"
+      },
+      "children": [
+        {
+          "id": "s27",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.printer/remove_printer (refused without confirm) and checks its result."
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s31",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.printer/remove_printer",
+                  "args": {
+                    "printer": "x",
+                    "confirm": false
+                  },
+                  "id": "s29"
+                }
+              ],
+              "description": "These steps should fail with PRINTER.CONFIRM_REQUIRED",
+              "catch": [
+                {
+                  "codes": [
+                    "PRINTER.CONFIRM_REQUIRED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s32",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PRINTER.CONFIRM_REQUIRED",
+              "else": [
+                {
+                  "id": "s35",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PRINTER.CONFIRM_REQUIRED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/remove_printer: refused without confirm\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/remove_printer: refused without confirm: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.printer/remove_printer - refused without confirm"
+    },
+    {
+      "id": "s40",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.printer/set_default - unknown printer"
+      },
+      "children": [
+        {
+          "id": "s41",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.printer/set_default (unknown printer) and checks its result."
+          }
+        },
+        {
+          "id": "s42",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s45",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.printer/set_default",
+                  "args": {
+                    "printer": "No such printer 9f3a"
+                  },
+                  "id": "s43"
+                }
+              ],
+              "description": "These steps should fail with PRINTER.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "PRINTER.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s46",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error PRINTER.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s49",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error PRINTER.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s51",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/set_default: unknown printer\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/set_default: unknown printer: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.printer/set_default - unknown printer"
+    },
+    {
+      "id": "s94",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.printer/print_file - missing file"
+      },
+      "children": [
+        {
+          "id": "s95",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.printer/print_file (missing file) and checks its result."
+          }
+        },
+        {
+          "id": "s96",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s108",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s99",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.printer/print_file",
+                  "args": {
+                    "path": "ut_case05/none.pdf"
+                  },
+                  "id": "s97"
+                }
+              ],
+              "description": "These steps should fail with FILE.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "FILE.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s100",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s101",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s102",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FILE.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s103",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FILE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s104",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s105",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/print_file: missing file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s107",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/print_file: missing file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.printer/print_file - missing file"
+    },
+    {
+      "id": "s109",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.printer/list_printers - the default printer is in the list"
+      },
+      "children": [
+        {
+          "id": "s110",
+          "action": "core/comment",
+          "args": {
+            "text": "List printers gives every printer and the default one; it is the same default Get default printer gives."
+          }
+        },
+        {
+          "id": "s111",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s112",
+              "action": "ooa.printer/list_printers",
+              "args": {},
+              "out": {
+                "printers": "ut_printers",
+                "default_printer": "ut_default"
+              },
+              "description": "List the printers"
+            },
+            {
+              "id": "s113",
+              "action": "ooa.printer/get_default",
+              "args": {},
+              "out": {
+                "printer": "ut_default2"
+              },
+              "description": "Read the default printer"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_default$",
+                  "right": "$ut_default2$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check default printer",
+              "else": [
+                {
+                  "id": "s116",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "default printer: expected eq \"ut_default2\", got ${ut_default}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s117",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_default$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s118",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$ut_printers$",
+                      "right": "$ut_default$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s119",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check printers",
+                  "else": [
+                    {
+                      "id": "s120",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "printers: expected contains \"ut_default\", got ${ut_printers}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Is there a default printer?"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.printer/list_printers: the default printer is in the list\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s124",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.printer/list_printers: the default printer is in the list: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.printer/list_printers - the default printer is in the list"
+    },
+    {
+      "id": "s125",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s126",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s127",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s128",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s129",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}

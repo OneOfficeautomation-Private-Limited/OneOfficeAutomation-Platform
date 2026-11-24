@@ -1,0 +1,3739 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_sap",
+  "name": "UT SAP GUI",
+  "description": "Unit tests of the SAP GUI commands against a made-up test system (UT1, client 100) on the usual SAP Easy Access and transaction screens. Needs SAP GUI with scripting on: build and validate only here.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_any",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_conn",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the SAP GUI commands against a made-up test system (UT1, client 100) on the usual SAP Easy Access and transaction screens. Needs SAP GUI with scripting on: build and validate only here."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT SAP GUI started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.sap/log_on - sign in to the test system"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Log on starts SAP Logon if needed, opens the system by its description and signs in; it gives the connection number the other steps use."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.sap/log_on",
+              "args": {
+                "system": "UT1 Test",
+                "client": "100",
+                "user": "UT_BOT",
+                "password": {
+                  "$credential": "unit_tests/sap/password"
+                },
+                "language": "EN",
+                "multiple_logon": "continue"
+              },
+              "out": {
+                "connection": "ut_conn"
+              },
+              "description": "Sign in to UT1"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_conn$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check connection",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "connection: expected ge 0, got ${ut_conn}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/log_on: sign in to the test system\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/log_on: sign in to the test system: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.sap/log_on - sign in to the test system"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.sap/open_connection - a second connection without signing in"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Open connection opens a system's sign-in screen only (for single sign-on or a custom sign-in); it is closed again with Close."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.sap/open_connection",
+              "args": {
+                "system": "UT1 Test"
+              },
+              "out": {
+                "connection": "ut_n"
+              },
+              "description": "Open UT1's sign-in screen"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check connection",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "connection: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "ooa.sap/close",
+              "args": {
+                "connection": "$ut_n$"
+              },
+              "description": "Close that connection"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/open_connection: a second connection without signing in\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/open_connection: a second connection without signing in: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.sap/open_connection - a second connection without signing in"
+    },
+    {
+      "id": "s27",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.sap/run_transaction - SE16 opens"
+      },
+      "children": [
+        {
+          "id": "s28",
+          "action": "core/comment",
+          "args": {
+            "text": "Run transaction starts a transaction code; the screen's title field shows it."
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s30",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16",
+                "fail_on_error_message": true
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s31",
+              "action": "ooa.sap/get_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "property": "type"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read the table field's type"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "CTextField"
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check field type",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "field type: expected contains \"CTextField\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/run_transaction: SE16 opens\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/run_transaction: SE16 opens: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.sap/run_transaction - SE16 opens"
+    },
+    {
+      "id": "s39",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.sap/set_field - type a table name"
+      },
+      "children": [
+        {
+          "id": "s40",
+          "action": "core/comment",
+          "args": {
+            "text": "Set field types a value into a field; Get field reads it back."
+          }
+        },
+        {
+          "id": "s41",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s42",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s43",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001"
+              },
+              "description": "Type T001"
+            },
+            {
+              "id": "s44",
+              "action": "ooa.sap/get_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read it back"
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "T001"
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"T001\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/set_field: type a table name\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/set_field: type a table name: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.sap/set_field - type a table name"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.sap/get_field - the command field's tooltip"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "Get field reads a property of a field: text, tooltip, name, type, changeable, max length or icon."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s55",
+              "action": "ooa.sap/get_field",
+              "args": {
+                "id": "wnd[0]/tbar[0]/okcd",
+                "property": "changeable"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Is the command field changeable?"
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "matches",
+                  "left": "$ut_text$",
+                  "right": "(?i)true"
+                }
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check changeable",
+              "else": [
+                {
+                  "id": "s58",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "changeable: expected matches \"(?i)true\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_field: the command field's tooltip\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_field: the command field's tooltip: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.sap/get_field - the command field's tooltip"
+    },
+    {
+      "id": "s63",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.sap/send_key - Enter and F3"
+      },
+      "children": [
+        {
+          "id": "s64",
+          "action": "core/comment",
+          "args": {
+            "text": "Send key presses a function key in a window (Enter, F3 Back, F8 Run...)."
+          }
+        },
+        {
+          "id": "s65",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s66",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s67",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F3"
+              },
+              "description": "F3: back"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "vkey": 0
+              },
+              "description": "Enter by its key code"
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/send_key: Enter and F3\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/send_key: Enter and F3: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.sap/send_key - Enter and F3"
+    },
+    {
+      "id": "s73",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.sap/press - the Back button"
+      },
+      "children": [
+        {
+          "id": "s74",
+          "action": "core/comment",
+          "args": {
+            "text": "Press presses a button by its id (here Back in the toolbar)."
+          }
+        },
+        {
+          "id": "s75",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s76",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s77",
+              "action": "ooa.sap/press",
+              "args": {
+                "id": "wnd[0]/tbar[0]/btn[3]"
+              },
+              "description": "Press Back"
+            },
+            {
+              "id": "s78",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s79",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/press: the Back button\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/press: the Back button: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.sap/press - the Back button"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.sap/click - a button by click"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Click clicks a control by its id."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.sap/click",
+              "args": {
+                "id": "wnd[0]/tbar[0]/btn[3]"
+              },
+              "description": "Click Back"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s88",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/click: a button by click\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/click: a button by click: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.sap/click - a button by click"
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.sap/click_menu - System > User Profile > Own Data"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Click menu opens a menu entry by its path of texts."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.sap/click_menu",
+              "args": {
+                "menu_path": "System/User Profile/Own Data"
+              },
+              "description": "Open Own Data"
+            },
+            {
+              "id": "s95",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F3"
+              },
+              "description": "F3: back"
+            },
+            {
+              "id": "s96",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s97",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/click_menu: System > User Profile > Own Data\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s98",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/click_menu: System > User Profile > Own Data: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.sap/click_menu - System > User Profile > Own Data"
+    },
+    {
+      "id": "s100",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.sap/get_status_bar - the message after an unknown transaction"
+      },
+      "children": [
+        {
+          "id": "s101",
+          "action": "core/comment",
+          "args": {
+            "text": "Get status bar reads the status bar's message, its type and number."
+          }
+        },
+        {
+          "id": "s102",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s103",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "ZZUT_NONE"
+              },
+              "description": "An unknown transaction"
+            },
+            {
+              "id": "s104",
+              "action": "ooa.sap/get_status_bar",
+              "args": {},
+              "out": {
+                "text": "ut_text",
+                "type": "ut_any"
+              },
+              "description": "Read the status bar"
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_text$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message",
+              "else": [
+                {
+                  "id": "s107",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message: expected notEmpty , got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_status_bar: the message after an unknown transaction\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s111",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_status_bar: the message after an unknown transaction: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.sap/get_status_bar - the message after an unknown transaction"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.sap/read_grid - company codes in the SE16 grid"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Read grid turns an ALV grid into a data table."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s115",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s116",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s117",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s118",
+              "action": "ooa.sap/read_grid",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "max_rows": 100
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Read the grid"
+            },
+            {
+              "id": "s119",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$ut_table$"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s120",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows",
+              "else": [
+                {
+                  "id": "s122",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/read_grid: company codes in the SE16 grid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/read_grid: company codes in the SE16 grid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.sap/read_grid - company codes in the SE16 grid"
+    },
+    {
+      "id": "s127",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.sap/export_table - the grid to a CSV file"
+      },
+      "children": [
+        {
+          "id": "s128",
+          "action": "core/comment",
+          "args": {
+            "text": "Export table writes a grid or table control to a data table and a CSV file."
+          }
+        },
+        {
+          "id": "s129",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s130",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s131",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s132",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s133",
+              "action": "ooa.sap/export_table",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "csv_path": "sap_t001.csv",
+                "delimiter": ";"
+              },
+              "out": {
+                "count": "ut_n",
+                "path": "ut_text"
+              },
+              "description": "Export the grid"
+            },
+            {
+              "id": "s134",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s135",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows",
+              "else": [
+                {
+                  "id": "s136",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s137",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s138",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/export_table: the grid to a CSV file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/export_table: the grid to a CSV file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.sap/export_table - the grid to a CSV file"
+    },
+    {
+      "id": "s141",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.sap/table_row_count - rows of the grid"
+      },
+      "children": [
+        {
+          "id": "s142",
+          "action": "core/comment",
+          "args": {
+            "text": "Table row count gives the number of rows of a grid or table control."
+          }
+        },
+        {
+          "id": "s143",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s144",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s145",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s146",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s147",
+              "action": "ooa.sap/table_row_count",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the rows"
+            },
+            {
+              "id": "s148",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s149",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check rows",
+              "else": [
+                {
+                  "id": "s150",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "rows: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s151",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s152",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/table_row_count: rows of the grid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s154",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/table_row_count: rows of the grid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.sap/table_row_count - rows of the grid"
+    },
+    {
+      "id": "s155",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.sap/table_column_count - columns of the grid"
+      },
+      "children": [
+        {
+          "id": "s156",
+          "action": "core/comment",
+          "args": {
+            "text": "Table column count gives the number of columns."
+          }
+        },
+        {
+          "id": "s157",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s158",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s159",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s160",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s161",
+              "action": "ooa.sap/table_column_count",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the columns"
+            },
+            {
+              "id": "s162",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s163",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check columns",
+              "else": [
+                {
+                  "id": "s164",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "columns: expected gt 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s165",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s166",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/table_column_count: columns of the grid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s168",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/table_column_count: columns of the grid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.sap/table_column_count - columns of the grid"
+    },
+    {
+      "id": "s169",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.sap/table_cell_count - cells of the grid"
+      },
+      "children": [
+        {
+          "id": "s170",
+          "action": "core/comment",
+          "args": {
+            "text": "Table cell count gives the number of cells (rows times columns)."
+          }
+        },
+        {
+          "id": "s171",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s172",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s173",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s174",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s175",
+              "action": "ooa.sap/table_cell_count",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the cells"
+            },
+            {
+              "id": "s176",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check cells",
+              "else": [
+                {
+                  "id": "s178",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "cells: expected gt 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s179",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s180",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/table_cell_count: cells of the grid\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s181",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s182",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/table_cell_count: cells of the grid: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.sap/table_cell_count - cells of the grid"
+    },
+    {
+      "id": "s183",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.sap/get_table_cell - first company code"
+      },
+      "children": [
+        {
+          "id": "s184",
+          "action": "core/comment",
+          "args": {
+            "text": "Get table cell reads one cell by row and column name."
+          }
+        },
+        {
+          "id": "s185",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s186",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s187",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s188",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s189",
+              "action": "ooa.sap/get_table_cell",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "row": 0,
+                "column": "BUKRS"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Row 0, column BUKRS"
+            },
+            {
+              "id": "s190",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$ut_text$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check company code",
+              "else": [
+                {
+                  "id": "s192",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "company code: expected notEmpty , got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s193",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s194",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_table_cell: first company code\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s195",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s196",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_table_cell: first company code: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.sap/get_table_cell - first company code"
+    },
+    {
+      "id": "s197",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.sap/get_table_cell_index - where company code 1000 is"
+      },
+      "children": [
+        {
+          "id": "s198",
+          "action": "core/comment",
+          "args": {
+            "text": "Get table cell index finds the row (and column) holding a value."
+          }
+        },
+        {
+          "id": "s199",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s200",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s201",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s202",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s203",
+              "action": "ooa.sap/get_table_cell_index",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "value": "1000",
+                "column": "BUKRS"
+              },
+              "out": {
+                "found": "ut_ok",
+                "row": "ut_n"
+              },
+              "description": "Find 1000 in BUKRS"
+            },
+            {
+              "id": "s204",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s205",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s206",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s207",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s208",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_table_cell_index: where company code 1000 is\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s210",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_table_cell_index: where company code 1000 is: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.sap/get_table_cell_index - where company code 1000 is"
+    },
+    {
+      "id": "s211",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.sap/set_table_cell - a cell of an editable table"
+      },
+      "children": [
+        {
+          "id": "s212",
+          "action": "core/comment",
+          "args": {
+            "text": "Set table cell types a value into a cell of an editable table control, found by row or by text."
+          }
+        },
+        {
+          "id": "s213",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s214",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SU3"
+              },
+              "description": "Start SU3"
+            },
+            {
+              "id": "s215",
+              "action": "ooa.sap/set_table_cell",
+              "args": {
+                "id": "wnd[0]/usr/tabsTABSTRIP1/tabpPARAM/ssubMAINAREA:SAPLSUID_MAINTENANCE:1104/cntlG_PARAMETER_CONTAINER/shellcont/shell",
+                "row": 0,
+                "column": "PARID",
+                "value": "BUK"
+              },
+              "out": {
+                "row": "ut_n"
+              },
+              "description": "Set row 0, column PARID"
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/set_table_cell: a cell of an editable table\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/set_table_cell: a cell of an editable table: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.sap/set_table_cell - a cell of an editable table"
+    },
+    {
+      "id": "s220",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.sap/double_click - a grid row"
+      },
+      "children": [
+        {
+          "id": "s221",
+          "action": "core/comment",
+          "args": {
+            "text": "Double click double-clicks a control, or a grid cell by item and column."
+          }
+        },
+        {
+          "id": "s222",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s223",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s225",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s226",
+              "action": "ooa.sap/double_click",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "item": "0",
+                "column": "BUKRS"
+              },
+              "description": "Open the first row"
+            },
+            {
+              "id": "s227",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F3"
+              },
+              "description": "F3: back"
+            },
+            {
+              "id": "s228",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s229",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/double_click: a grid row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s230",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s231",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/double_click: a grid row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.sap/double_click - a grid row"
+    },
+    {
+      "id": "s232",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.sap/right_click - a grid cell's menu"
+      },
+      "children": [
+        {
+          "id": "s233",
+          "action": "core/comment",
+          "args": {
+            "text": "Right click opens a control's context menu and can pick an entry by its code or text."
+          }
+        },
+        {
+          "id": "s234",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s235",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s236",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s237",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s238",
+              "action": "ooa.sap/right_click",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "item": "0",
+                "column": "BUKRS",
+                "menu_item": "&COPY",
+                "menu_by": "code"
+              },
+              "description": "Right-click the first cell, Copy Text"
+            },
+            {
+              "id": "s239",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s240",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/right_click: a grid cell's menu\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s241",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s242",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/right_click: a grid cell's menu: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.sap/right_click - a grid cell's menu"
+    },
+    {
+      "id": "s243",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.sap/press_toolbar_button - sort in the grid toolbar"
+      },
+      "children": [
+        {
+          "id": "s244",
+          "action": "core/comment",
+          "args": {
+            "text": "Press toolbar button presses a button of a grid's toolbar (and a menu entry under it)."
+          }
+        },
+        {
+          "id": "s245",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s246",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SE16"
+              },
+              "description": "Start SE16"
+            },
+            {
+              "id": "s247",
+              "action": "ooa.sap/set_field",
+              "args": {
+                "id": "wnd[0]/usr/ctxtDATABROWSE-TABLENAME",
+                "value": "T001",
+                "press_enter": true
+              },
+              "description": "Table T001"
+            },
+            {
+              "id": "s248",
+              "action": "ooa.sap/send_key",
+              "args": {
+                "key": "F8"
+              },
+              "description": "F8: show the rows"
+            },
+            {
+              "id": "s249",
+              "action": "ooa.sap/press_toolbar_button",
+              "args": {
+                "id": "wnd[0]/usr/cntlGRID1/shellcont/shell",
+                "button_id": "&SORT_ASC"
+              },
+              "description": "Sort ascending"
+            },
+            {
+              "id": "s250",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s251",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/press_toolbar_button: sort in the grid toolbar\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s252",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s253",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/press_toolbar_button: sort in the grid toolbar: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.sap/press_toolbar_button - sort in the grid toolbar"
+    },
+    {
+      "id": "s254",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.sap/get_selected_item - the selected grid row"
+      },
+      "children": [
+        {
+          "id": "s255",
+          "action": "core/comment",
+          "args": {
+            "text": "Get selected item gives the key, text and index of the selected item of a list or tree."
+          }
+        },
+        {
+          "id": "s256",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s257",
+              "action": "ooa.sap/get_selected_item",
+              "args": {
+                "id": "wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell"
+              },
+              "out": {
+                "key": "ut_text"
+              },
+              "description": "Selected node of the Easy Access tree"
+            },
+            {
+              "id": "s258",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s259",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_selected_item: the selected grid row\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s260",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s261",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_selected_item: the selected grid row: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.sap/get_selected_item - the selected grid row"
+    },
+    {
+      "id": "s262",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.sap/expand_node - a node of the Easy Access tree"
+      },
+      "children": [
+        {
+          "id": "s263",
+          "action": "core/comment",
+          "args": {
+            "text": "Expand node opens a tree node by its key, text or index; Get item count then counts the tree's items."
+          }
+        },
+        {
+          "id": "s264",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s265",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SESSION_MANAGER"
+              },
+              "description": "SAP Easy Access"
+            },
+            {
+              "id": "s266",
+              "action": "ooa.sap/expand_node",
+              "args": {
+                "id": "wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell",
+                "node_key": "0",
+                "match_by": "index",
+                "select": true
+              },
+              "description": "Open the first node"
+            },
+            {
+              "id": "s267",
+              "action": "ooa.sap/get_item_count",
+              "args": {
+                "id": "wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the items"
+            },
+            {
+              "id": "s268",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s269",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check items",
+              "else": [
+                {
+                  "id": "s270",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "items: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s271",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s272",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/expand_node: a node of the Easy Access tree\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s273",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s274",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/expand_node: a node of the Easy Access tree: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.sap/expand_node - a node of the Easy Access tree"
+    },
+    {
+      "id": "s275",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.sap/get_item_count - items of the Easy Access tree"
+      },
+      "children": [
+        {
+          "id": "s276",
+          "action": "core/comment",
+          "args": {
+            "text": "Get item count gives how many items a list, tree or combo box has."
+          }
+        },
+        {
+          "id": "s277",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s278",
+              "action": "ooa.sap/get_item_count",
+              "args": {
+                "id": "wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Count the tree items"
+            },
+            {
+              "id": "s279",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s280",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check items",
+              "else": [
+                {
+                  "id": "s281",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "items: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s282",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s283",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_item_count: items of the Easy Access tree\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s284",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s285",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_item_count: items of the Easy Access tree: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.sap/get_item_count - items of the Easy Access tree"
+    },
+    {
+      "id": "s286",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.sap/get_children - controls of the main window's user area"
+      },
+      "children": [
+        {
+          "id": "s287",
+          "action": "core/comment",
+          "args": {
+            "text": "Get children lists the child controls of a container (id, type, text)."
+          }
+        },
+        {
+          "id": "s288",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s289",
+              "action": "ooa.sap/get_children",
+              "args": {
+                "id": "wnd[0]/usr"
+              },
+              "out": {
+                "table": "ut_table",
+                "count": "ut_n"
+              },
+              "description": "Children of wnd[0]/usr"
+            },
+            {
+              "id": "s290",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s291",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check children",
+              "else": [
+                {
+                  "id": "s292",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "children: expected gt 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s293",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s294",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_children: controls of the main window's user area\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s295",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s296",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_children: controls of the main window's user area: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.sap/get_children - controls of the main window's user area"
+    },
+    {
+      "id": "s297",
+      "action": "core/step",
+      "args": {
+        "title": "26. ooa.sap/select_item - a language in a list box"
+      },
+      "children": [
+        {
+          "id": "s298",
+          "action": "core/comment",
+          "args": {
+            "text": "Select item picks an entry of a combo box by text, key or index."
+          }
+        },
+        {
+          "id": "s299",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s300",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SU3"
+              },
+              "description": "Start SU3"
+            },
+            {
+              "id": "s301",
+              "action": "ooa.sap/select_item",
+              "args": {
+                "id": "wnd[0]/usr/tabsTABSTRIP1/tabpDEFA/ssubMAINAREA:SAPLSUID_MAINTENANCE:1105/cmbSUID_ST_NODE_DEFAULTS-DATFM",
+                "value": "0",
+                "match_by": "index"
+              },
+              "description": "Pick the first date format"
+            },
+            {
+              "id": "s302",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/select_item: a language in a list box\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s304",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/select_item: a language in a list box: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "26. ooa.sap/select_item - a language in a list box"
+    },
+    {
+      "id": "s306",
+      "action": "core/step",
+      "args": {
+        "title": "27. ooa.sap/check_box - tick and read back"
+      },
+      "children": [
+        {
+          "id": "s307",
+          "action": "core/comment",
+          "args": {
+            "text": "Check box ticks or clears a check box; Get status reads whether it is ticked."
+          }
+        },
+        {
+          "id": "s308",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s309",
+              "action": "ooa.sap/run_transaction",
+              "args": {
+                "tcode": "SU3"
+              },
+              "description": "Start SU3"
+            },
+            {
+              "id": "s310",
+              "action": "ooa.sap/check_box",
+              "args": {
+                "id": "wnd[0]/usr/tabsTABSTRIP1/tabpDEFA/ssubMAINAREA:SAPLSUID_MAINTENANCE:1105/chkSUID_ST_NODE_DEFAULTS-CATTKENNZ",
+                "checked": true
+              },
+              "description": "Tick it"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.sap/get_status",
+              "args": {
+                "id": "wnd[0]/usr/tabsTABSTRIP1/tabpDEFA/ssubMAINAREA:SAPLSUID_MAINTENANCE:1105/chkSUID_ST_NODE_DEFAULTS-CATTKENNZ"
+              },
+              "out": {
+                "selected": "ut_ok"
+              },
+              "description": "Is it ticked?"
+            },
+            {
+              "id": "s312",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s313",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s314",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s315",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s316",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/check_box: tick and read back\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s318",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/check_box: tick and read back: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "27. ooa.sap/check_box - tick and read back"
+    },
+    {
+      "id": "s319",
+      "action": "core/step",
+      "args": {
+        "title": "28. ooa.sap/get_status - a radio button"
+      },
+      "children": [
+        {
+          "id": "s320",
+          "action": "core/comment",
+          "args": {
+            "text": "Get status says whether a check box or radio button is selected."
+          }
+        },
+        {
+          "id": "s321",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s322",
+              "action": "ooa.sap/get_status",
+              "args": {
+                "id": "wnd[0]/usr/radRB1"
+              },
+              "out": {
+                "selected": "ut_ok"
+              },
+              "description": "Read a radio button"
+            },
+            {
+              "id": "s323",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s324",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/get_status: a radio button\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s325",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s326",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/get_status: a radio button: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "28. ooa.sap/get_status - a radio button"
+    },
+    {
+      "id": "s327",
+      "action": "core/step",
+      "args": {
+        "title": "29. ooa.sap/select_radio - pick a radio button"
+      },
+      "children": [
+        {
+          "id": "s328",
+          "action": "core/comment",
+          "args": {
+            "text": "Select radio selects a radio button."
+          }
+        },
+        {
+          "id": "s329",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s330",
+              "action": "ooa.sap/select_radio",
+              "args": {
+                "id": "wnd[0]/usr/radRB1"
+              },
+              "description": "Select it"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.sap/get_status",
+              "args": {
+                "id": "wnd[0]/usr/radRB1"
+              },
+              "out": {
+                "selected": "ut_ok"
+              },
+              "description": "Is it selected?"
+            },
+            {
+              "id": "s332",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s333",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s334",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s335",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s336",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/select_radio: pick a radio button\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s337",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s338",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/select_radio: pick a radio button: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "29. ooa.sap/select_radio - pick a radio button"
+    },
+    {
+      "id": "s339",
+      "action": "core/step",
+      "args": {
+        "title": "30. ooa.sap/close - close the test connection"
+      },
+      "children": [
+        {
+          "id": "s340",
+          "action": "core/comment",
+          "args": {
+            "text": "Close ends a connection (signing it off)."
+          }
+        },
+        {
+          "id": "s341",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s342",
+              "action": "ooa.sap/close",
+              "args": {
+                "connection": 0
+              },
+              "description": "Close connection 0"
+            },
+            {
+              "id": "s343",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s344",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.sap/close: close the test connection\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s345",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s346",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.sap/close: close the test connection: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "30. ooa.sap/close - close the test connection"
+    },
+    {
+      "id": "s347",
+      "action": "core/step",
+      "args": {
+        "title": "31. Summary"
+      },
+      "children": [
+        {
+          "id": "s348",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s349",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s350",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s351",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "31. Summary"
+    }
+  ]
+}

@@ -1,0 +1,5533 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_email",
+  "name": "UT Email",
+  "description": "Unit tests of the Email (IMAP/POP3 and SMTP) commands against a made-up test mailbox on mail.ut.test. Needs a test mail server: build and validate only here; the cases without a server run.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "mail_host",
+      "type": "String",
+      "direction": "input",
+      "default": "mail.ut.test",
+      "description": "Test mail server: mail_host."
+    },
+    {
+      "name": "imap_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 143,
+      "description": "Test mail server: imap_port."
+    },
+    {
+      "name": "smtp_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 25,
+      "description": "Test mail server: smtp_port."
+    },
+    {
+      "name": "mail",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "id",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "mid",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "subject",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "after",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "allfiles",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "before",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "deleted",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "empty",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "folders",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "forwards",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "last",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "left",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "moved",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "replies",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rest",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "unread",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_exists",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_json",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "subjects",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "ut_list",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ut_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ut_id",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ev",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ut_mail",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Email (IMAP/POP3 and SMTP) commands against a made-up test mailbox on mail.ut.test. Needs a test mail server: build and validate only here; the cases without a server run."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Email started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.email/send - no server anywhere"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/send (no server anywhere) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.email/send",
+                  "args": {
+                    "to": "a@b.c",
+                    "subject": "x"
+                  },
+                  "id": "s7"
+                }
+              ],
+              "description": "These steps should fail with EMAIL.NO_SMTP",
+              "catch": [
+                {
+                  "codes": [
+                    "EMAIL.NO_SMTP"
+                  ],
+                  "children": [
+                    {
+                      "id": "s10",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s12",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EMAIL.NO_SMTP",
+              "else": [
+                {
+                  "id": "s13",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EMAIL.NO_SMTP: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/send: no server anywhere\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/send: no server anywhere: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.email/send - no server anywhere"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.email/get - no open mailbox"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/get (no open mailbox) and checks its result."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.email/get",
+                  "args": {
+                    "id": 1
+                  },
+                  "id": "s21"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s24",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s25",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s27",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/get: no open mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/get: no open mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.email/get - no open mailbox"
+    },
+    {
+      "id": "s32",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.email/send - send through the session's outgoing server (new), then find and read it"
+      },
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/send (send through the session's outgoing server (new), then find and read it) and checks its result."
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s56",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case03",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case03"
+            },
+            {
+              "id": "s35",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case03/invoice.txt",
+                "text": "INV-1"
+              },
+              "description": "Prepare the test file ut_case03/invoice.txt"
+            },
+            {
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "id": "s36"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "Invoice 1",
+                "body": "Please pay",
+                "attachments": [
+                  "ut_case03/invoice.txt"
+                ],
+                "importance": "high"
+              },
+              "out": {
+                "message_id": "mid"
+              },
+              "id": "s37"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "Invoice"
+              },
+              "out": {
+                "table": "t",
+                "count": "n"
+              },
+              "id": "s38"
+            },
+            {
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$t",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "id"
+              },
+              "id": "s39"
+            },
+            {
+              "action": "ooa.email/get",
+              "args": {
+                "id": "$id"
+              },
+              "out": {
+                "email": "e"
+              },
+              "id": "s40"
+            },
+            {
+              "action": "core/set",
+              "args": {
+                "variable": "subject",
+                "value": {
+                  "expr": "$e.subject"
+                }
+              },
+              "id": "s41"
+            },
+            {
+              "action": "ooa.email/disconnect",
+              "id": "s42"
+            },
+            {
+              "id": "s43",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s44",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s45",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s46",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$subject$",
+                  "right": "Invoice 1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s47",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check subject",
+              "else": [
+                {
+                  "id": "s48",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "subject: expected eq \"Invoice 1\", got ${subject}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$mid$",
+                  "right": "@"
+                }
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check mid",
+              "else": [
+                {
+                  "id": "s55",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "mid: expected contains \"@\", got ${mid}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s50",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/send: send through the session's outgoing server (new), then find and read it\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/send: send through the session's outgoing server (new), then find and read it: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.email/send - send through the session's outgoing server (new), then find and read it"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.email/send - classic SMTP fields on the step"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/send (classic SMTP fields on the step) and checks its result."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case04",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case04"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "smtp_host": "$mail_host$",
+                "port": "$smtp_port$",
+                "security": "none",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "to": "bot@sample.test",
+                "subject": "Direct"
+              },
+              "id": "s60"
+            },
+            {
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none"
+              },
+              "id": "s61"
+            },
+            {
+              "action": "ooa.email/list",
+              "out": {
+                "count": "n"
+              },
+              "id": "s62"
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/send: classic SMTP fields on the step\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/send: classic SMTP fields on the step: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.email/send - classic SMTP fields on the step"
+    },
+    {
+      "id": "s71",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.email/send - wrong password"
+      },
+      "children": [
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/send (wrong password) and checks its result."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case05",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case05"
+            },
+            {
+              "id": "s75",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s76",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.email/connect",
+                  "args": {
+                    "imap_host": "$mail_host$",
+                    "port": "$imap_port$",
+                    "user": "bot@sample.test",
+                    "password": "wrong",
+                    "security": "none"
+                  },
+                  "id": "s74"
+                }
+              ],
+              "description": "These steps should fail with EMAIL.NO_CREDENTIAL",
+              "catch": [
+                {
+                  "codes": [
+                    "EMAIL.NO_CREDENTIAL"
+                  ],
+                  "children": [
+                    {
+                      "id": "s77",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s78",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s79",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EMAIL.NO_CREDENTIAL",
+              "else": [
+                {
+                  "id": "s80",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EMAIL.NO_CREDENTIAL: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s81",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/send: wrong password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s84",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/send: wrong password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.email/send - wrong password"
+    },
+    {
+      "id": "s86",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.email/reply - reply, reply all, forward, mark, attachments, eml, folders, move, delete"
+      },
+      "children": [
+        {
+          "id": "s87",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/reply (reply, reply all, forward, mark, attachments, eml, folders, move, delete) and checks its result."
+          }
+        },
+        {
+          "id": "s88",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s160",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case06",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case06"
+            },
+            {
+              "id": "s89",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "ut_case06/a.pdf",
+                "text": "%PDF-1.4 sample"
+              },
+              "description": "Prepare the test file ut_case06/a.pdf"
+            },
+            {
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "id": "s90"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "cc": "other@sample.test",
+                "subject": "Order 7",
+                "body": "hello",
+                "attachments": [
+                  "ut_case06/a.pdf"
+                ]
+              },
+              "id": "s91"
+            },
+            {
+              "action": "ooa.email/list",
+              "out": {
+                "table": "t"
+              },
+              "id": "s92"
+            },
+            {
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$t",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "id"
+              },
+              "id": "s93"
+            },
+            {
+              "action": "ooa.email/reply",
+              "args": {
+                "id": "$id",
+                "body": "Thanks"
+              },
+              "id": "s94"
+            },
+            {
+              "action": "ooa.email/reply_all",
+              "args": {
+                "id": "$id",
+                "body": "Thanks all"
+              },
+              "id": "s95"
+            },
+            {
+              "action": "ooa.email/forward",
+              "args": {
+                "id": "$id",
+                "to": "bot@sample.test",
+                "note": "FYI"
+              },
+              "id": "s96"
+            },
+            {
+              "action": "ooa.email/mark",
+              "args": {
+                "id": "$id",
+                "read": false,
+                "flagged": true
+              },
+              "id": "s97"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "unread_only": true
+              },
+              "out": {
+                "count": "unread"
+              },
+              "id": "s98"
+            },
+            {
+              "action": "ooa.email/save_attachments",
+              "args": {
+                "id": "$id",
+                "target_folder": "ut_case06/att"
+              },
+              "out": {
+                "files": "files"
+              },
+              "id": "s99"
+            },
+            {
+              "action": "ooa.email/save_email_as_eml",
+              "args": {
+                "id": "$id",
+                "local_path": "ut_case06/order.eml"
+              },
+              "id": "s100"
+            },
+            {
+              "action": "ooa.email/folder_exists",
+              "args": {
+                "folder": "Done"
+              },
+              "out": {
+                "exists": "before"
+              },
+              "id": "s101"
+            },
+            {
+              "action": "ooa.email/move",
+              "args": {
+                "id": "$id",
+                "to_folder": "Done",
+                "create_folder": true
+              },
+              "id": "s102"
+            },
+            {
+              "action": "ooa.email/folder_exists",
+              "args": {
+                "folder": "Done"
+              },
+              "out": {
+                "exists": "after"
+              },
+              "id": "s103"
+            },
+            {
+              "action": "ooa.email/get_folders",
+              "out": {
+                "folders": "folders"
+              },
+              "id": "s104"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "Re:"
+              },
+              "out": {
+                "count": "replies"
+              },
+              "id": "s105"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "Fwd"
+              },
+              "out": {
+                "count": "forwards"
+              },
+              "id": "s106"
+            },
+            {
+              "action": "ooa.email/save_all_attachments",
+              "args": {
+                "target_folder": "ut_case06/all",
+                "folder": "Done"
+              },
+              "out": {
+                "files": "allfiles"
+              },
+              "id": "s107"
+            },
+            {
+              "action": "ooa.email/move_all",
+              "args": {
+                "to_folder": "Done",
+                "subject_contains": "Re:"
+              },
+              "out": {
+                "count": "moved"
+              },
+              "id": "s108"
+            },
+            {
+              "action": "ooa.email/delete_all",
+              "args": {
+                "folder": "Done",
+                "permanent": true
+              },
+              "out": {
+                "count": "deleted"
+              },
+              "id": "s109"
+            },
+            {
+              "action": "ooa.email/list",
+              "out": {
+                "table": "rest",
+                "count": "left"
+              },
+              "id": "s110"
+            },
+            {
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$rest",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "last"
+              },
+              "id": "s111"
+            },
+            {
+              "action": "ooa.email/delete",
+              "args": {
+                "id": "$last",
+                "permanent": true
+              },
+              "id": "s112"
+            },
+            {
+              "action": "ooa.email/list",
+              "out": {
+                "count": "empty"
+              },
+              "id": "s113"
+            },
+            {
+              "action": "ooa.email/disconnect",
+              "id": "s114"
+            },
+            {
+              "id": "s115",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$unread$",
+                  "right": 4
+                }
+              },
+              "children": [
+                {
+                  "id": "s116",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check unread",
+              "else": [
+                {
+                  "id": "s117",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "unread: expected eq 4, got ${unread}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s118",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$before$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check before",
+              "else": [
+                {
+                  "id": "s120",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "before: expected eq false, got ${before}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s121",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$after$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s122",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check after",
+              "else": [
+                {
+                  "id": "s123",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "after: expected eq true, got ${after}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s124",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$replies$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s125",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check replies",
+              "else": [
+                {
+                  "id": "s126",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "replies: expected eq 2, got ${replies}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s127",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$forwards$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check forwards",
+              "else": [
+                {
+                  "id": "s129",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "forwards: expected eq 1, got ${forwards}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s130",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$moved$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s131",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check moved",
+              "else": [
+                {
+                  "id": "s132",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "moved: expected eq 2, got ${moved}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s133",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$deleted$",
+                  "right": 3
+                }
+              },
+              "children": [
+                {
+                  "id": "s134",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check deleted",
+              "else": [
+                {
+                  "id": "s135",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "deleted: expected eq 3, got ${deleted}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$left$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check left",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "left: expected eq 1, got ${left}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$empty$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check empty",
+              "else": [
+                {
+                  "id": "s141",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "empty: expected eq 0, got ${empty}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s142",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "ut_case06/att/a.pdf"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read ut_case06/att/a.pdf"
+            },
+            {
+              "id": "s143",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "%PDF-1.4 sample"
+                }
+              },
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case06/att/a.pdf",
+              "else": [
+                {
+                  "id": "s145",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case06/att/a.pdf: expected eq \"%PDF-1.4 sample\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s150",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_exists",
+                "value": false
+              }
+            },
+            {
+              "id": "s151",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "ut_case06/order.eml"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s152",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_exists",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is ut_case06/order.eml there?"
+            },
+            {
+              "id": "s153",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_exists$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s154",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_case06/order.eml exists",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_case06/order.eml exists: expected eq true, got ${ut_exists}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_json",
+                "value": {
+                  "expr": "jsonStringify($files)"
+                }
+              },
+              "description": "The value as JSON, to see its type"
+            },
+            {
+              "id": "s157",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "startsWith",
+                  "left": "$ut_json$",
+                  "right": "["
+                }
+              },
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check files is array",
+              "else": [
+                {
+                  "id": "s159",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "files is array: expected startsWith \"[\", got ${ut_json}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s146",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s147",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/reply: reply, reply all, forward, mark, attachments, eml, folders, move, delete\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s149",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/reply: reply, reply all, forward, mark, attachments, eml, folders, move, delete: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.email/reply - reply, reply all, forward, mark, attachments, eml, folders, move, delete"
+    },
+    {
+      "id": "s161",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.email/move - missing folder without create"
+      },
+      "children": [
+        {
+          "id": "s162",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/move (missing folder without create) and checks its result."
+          }
+        },
+        {
+          "id": "s163",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s179",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case07",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case07"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s170",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.email/connect",
+                  "args": {
+                    "imap_host": "$mail_host$",
+                    "port": "$imap_port$",
+                    "user": "bot@sample.test",
+                    "password": {
+                      "$credential": "unit_tests/email/password"
+                    },
+                    "security": "none",
+                    "smtp_host": "$mail_host$",
+                    "smtp_port": "$smtp_port$",
+                    "smtp_security": "none"
+                  },
+                  "id": "s164"
+                },
+                {
+                  "action": "ooa.email/send",
+                  "args": {
+                    "to": "bot@sample.test",
+                    "subject": "x"
+                  },
+                  "id": "s165"
+                },
+                {
+                  "action": "ooa.email/list",
+                  "out": {
+                    "table": "t"
+                  },
+                  "id": "s166"
+                },
+                {
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$t",
+                    "row": 0,
+                    "column": "id"
+                  },
+                  "out": {
+                    "value": "id"
+                  },
+                  "id": "s167"
+                },
+                {
+                  "action": "ooa.email/move",
+                  "args": {
+                    "id": "$id",
+                    "to_folder": "Nowhere"
+                  },
+                  "id": "s168"
+                }
+              ],
+              "description": "These steps should fail with EMAIL.NO_FOLDER",
+              "catch": [
+                {
+                  "codes": [
+                    "EMAIL.NO_FOLDER"
+                  ],
+                  "children": [
+                    {
+                      "id": "s171",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s172",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s173",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EMAIL.NO_FOLDER",
+              "else": [
+                {
+                  "id": "s174",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EMAIL.NO_FOLDER: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s175",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s176",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/move: missing folder without create\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s177",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/move: missing folder without create: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.email/move - missing folder without create"
+    },
+    {
+      "id": "s180",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.email/send - internal relay without sign-in (new)"
+      },
+      "children": [
+        {
+          "id": "s181",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/send (internal relay without sign-in (new)) and checks its result."
+          }
+        },
+        {
+          "id": "s182",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s193",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case08",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case08"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "smtp_host": "$mail_host$",
+                "port": "$smtp_port$",
+                "security": "none",
+                "from": "robot@sample.test",
+                "to": "bot@sample.test",
+                "subject": "Relay"
+              },
+              "id": "s183"
+            },
+            {
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none"
+              },
+              "id": "s184"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "Relay"
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s185"
+            },
+            {
+              "id": "s186",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s187",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s188",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s189",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s190",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/send: internal relay without sign-in (new)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s191",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s192",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/send: internal relay without sign-in (new): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.email/send - internal relay without sign-in (new)"
+    },
+    {
+      "id": "s194",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.email/emails - loop over matching emails and mark each read by its id"
+      },
+      "children": [
+        {
+          "id": "s195",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.email/emails (loop over matching emails and mark each read by its id) and checks its result."
+          }
+        },
+        {
+          "id": "s196",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s218",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "ut_case09",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start with an empty case folder ut_case09"
+            },
+            {
+              "id": "s197",
+              "action": "core/set",
+              "args": {
+                "variable": "subjects",
+                "value": ""
+              },
+              "description": "Test value for subjects"
+            },
+            {
+              "id": "s198",
+              "action": "core/set",
+              "args": {
+                "variable": "n",
+                "value": 0
+              },
+              "description": "Test value for n"
+            },
+            {
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "id": "s199"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "Invoice 1",
+                "body": "a"
+              },
+              "id": "s200"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "Hello",
+                "body": "b"
+              },
+              "id": "s201"
+            },
+            {
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "Invoice 2",
+                "body": "c"
+              },
+              "id": "s202"
+            },
+            {
+              "action": "core/loop",
+              "args": {
+                "iterator": "ooa.email/emails",
+                "iterator_args": {
+                  "subject_contains": "Invoice",
+                  "unread_only": true,
+                  "oldest_first": true
+                },
+                "as": "mail"
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "subjects",
+                    "value": "${subjects}${mail.subject};"
+                  },
+                  "id": "s204"
+                },
+                {
+                  "action": "ooa.email/mark",
+                  "args": {
+                    "id": "$mail.id"
+                  },
+                  "id": "s205"
+                }
+              ],
+              "id": "s203"
+            },
+            {
+              "action": "ooa.email/list",
+              "args": {
+                "unread_only": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "id": "s206"
+            },
+            {
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "id": "s207"
+            },
+            {
+              "id": "s208",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$subjects$",
+                  "right": "Invoice 1;Invoice 2;"
+                }
+              },
+              "children": [
+                {
+                  "id": "s209",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check subjects",
+              "else": [
+                {
+                  "id": "s210",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "subjects: expected eq \"Invoice 1;Invoice 2;\", got ${subjects}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s211",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s212",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s213",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s214",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s215",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/emails: loop over matching emails and mark each read by its id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s216",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s217",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/emails: loop over matching emails and mark each read by its id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.email/emails - loop over matching emails and mark each read by its id"
+    },
+    {
+      "id": "s219",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.email/get_folders - the mailbox's folders"
+      },
+      "children": [
+        {
+          "id": "s220",
+          "action": "core/comment",
+          "args": {
+            "text": "Get folders lists the mailbox's folders; folder_exists tells whether one is there."
+          }
+        },
+        {
+          "id": "s221",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s222",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s223",
+              "action": "ooa.email/get_folders",
+              "args": {},
+              "out": {
+                "folders": "ut_list"
+              },
+              "description": "List the folders"
+            },
+            {
+              "id": "s224",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_list$",
+                  "right": "INBOX"
+                }
+              },
+              "children": [
+                {
+                  "id": "s225",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check folders",
+              "else": [
+                {
+                  "id": "s226",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "folders: expected contains \"INBOX\", got ${ut_list}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s227",
+              "action": "ooa.email/folder_exists",
+              "args": {
+                "folder": "INBOX"
+              },
+              "out": {
+                "exists": "ut_ok"
+              },
+              "description": "Is there an INBOX?"
+            },
+            {
+              "id": "s228",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s229",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s230",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s231",
+              "action": "ooa.email/folder_exists",
+              "args": {
+                "folder": "UT-Nowhere"
+              },
+              "out": {
+                "exists": "ut_ok"
+              },
+              "description": "A folder that is not there"
+            },
+            {
+              "id": "s232",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s233",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s234",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq false, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s235",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s236",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s237",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/get_folders: the mailbox's folders\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s238",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s239",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/get_folders: the mailbox's folders: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.email/get_folders - the mailbox's folders"
+    },
+    {
+      "id": "s240",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.email/get - read one email by its id"
+      },
+      "children": [
+        {
+          "id": "s241",
+          "action": "core/comment",
+          "args": {
+            "text": "Get reads one email (subject, sender, body, attachments) by its id."
+          }
+        },
+        {
+          "id": "s242",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s243",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s244",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT get 1",
+                "body": "UT body UT get 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s245",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s246",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT get 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s247",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s248",
+              "action": "ooa.email/get",
+              "args": {
+                "id": "$ut_id$"
+              },
+              "out": {
+                "email": "ut_mail"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s249",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_text",
+                "value": "$ut_mail.subject$"
+              },
+              "description": "Its subject"
+            },
+            {
+              "id": "s250",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_text$",
+                  "right": "UT get 1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s251",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_text",
+              "else": [
+                {
+                  "id": "s252",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_text: expected eq \"UT get 1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s253",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s254",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s255",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/get: read one email by its id\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s257",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/get: read one email by its id: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.email/get - read one email by its id"
+    },
+    {
+      "id": "s258",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.email/mark - unread again"
+      },
+      "children": [
+        {
+          "id": "s259",
+          "action": "core/comment",
+          "args": {
+            "text": "Mark sets an email read or unread (and flagged); listing the unread ones finds it again."
+          }
+        },
+        {
+          "id": "s260",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s261",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s262",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT mark 1",
+                "body": "UT body UT mark 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s263",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s264",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT mark 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s265",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s266",
+              "action": "ooa.email/mark",
+              "args": {
+                "id": "$ut_id$",
+                "status": "read"
+              },
+              "description": "Mark it read"
+            },
+            {
+              "id": "s267",
+              "action": "ooa.email/mark",
+              "args": {
+                "id": "$ut_id$",
+                "status": "unread"
+              },
+              "description": "Mark it unread"
+            },
+            {
+              "id": "s268",
+              "action": "ooa.email/list",
+              "args": {
+                "status": "unread",
+                "subject_contains": "UT mark 1"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Unread test emails"
+            },
+            {
+              "id": "s269",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s270",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check unread",
+              "else": [
+                {
+                  "id": "s271",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "unread: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s272",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s273",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s274",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/mark: unread again\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s275",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s276",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/mark: unread again: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.email/mark - unread again"
+    },
+    {
+      "id": "s277",
+      "action": "core/step",
+      "args": {
+        "title": "13. ooa.email/move_all - into a new folder"
+      },
+      "children": [
+        {
+          "id": "s278",
+          "action": "core/comment",
+          "args": {
+            "text": "Move all moves every matching email to a folder (created when asked) and gives how many."
+          }
+        },
+        {
+          "id": "s279",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s280",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s281",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT move-all 1",
+                "body": "UT body UT move-all 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s282",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s283",
+              "action": "ooa.email/move_all",
+              "args": {
+                "to_folder": "UT-Moved",
+                "subject_contains": "UT move-all",
+                "create_folder": true
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Move them"
+            },
+            {
+              "id": "s284",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s285",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check moved",
+              "else": [
+                {
+                  "id": "s286",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "moved: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s287",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s288",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s289",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/move_all: into a new folder\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s290",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s291",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/move_all: into a new folder: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "13. ooa.email/move_all - into a new folder"
+    },
+    {
+      "id": "s292",
+      "action": "core/step",
+      "args": {
+        "title": "14. ooa.email/delete_all - every test email of a subject"
+      },
+      "children": [
+        {
+          "id": "s293",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete all deletes every matching email and gives how many."
+          }
+        },
+        {
+          "id": "s294",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s295",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s296",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT delete-all 1",
+                "body": "UT body UT delete-all 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s297",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s298",
+              "action": "ooa.email/delete_all",
+              "args": {
+                "subject_contains": "UT delete-all",
+                "permanent": true
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Delete them"
+            },
+            {
+              "id": "s299",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s300",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check deleted",
+              "else": [
+                {
+                  "id": "s301",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "deleted: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s302",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s303",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s304",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/delete_all: every test email of a subject\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s305",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s306",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/delete_all: every test email of a subject: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "14. ooa.email/delete_all - every test email of a subject"
+    },
+    {
+      "id": "s307",
+      "action": "core/step",
+      "args": {
+        "title": "15. ooa.email/save_all_attachments - the text files of matching emails"
+      },
+      "children": [
+        {
+          "id": "s308",
+          "action": "core/comment",
+          "args": {
+            "text": "Save all attachments saves the attachments of every matching email into a folder."
+          }
+        },
+        {
+          "id": "s309",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s310",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "em_all",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Empty folders"
+            },
+            {
+              "id": "s311",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "em_all/src/note.txt",
+                "text": "note"
+              },
+              "description": "A file to attach"
+            },
+            {
+              "id": "s312",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s313",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT save-all 1",
+                "body": "UT body UT save-all 1",
+                "attachments": [
+                  "em_all/src/note.txt"
+                ]
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s314",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s315",
+              "action": "ooa.email/save_all_attachments",
+              "args": {
+                "target_folder": "em_all/out",
+                "subject_contains": "UT save-all",
+                "overwrite": true
+              },
+              "out": {
+                "files": "ut_list",
+                "email_count": "ut_n"
+              },
+              "description": "Save the attachments"
+            },
+            {
+              "id": "s316",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s317",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check emails",
+              "else": [
+                {
+                  "id": "s318",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "emails: expected ge 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s319",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s320",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s321",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/save_all_attachments: the text files of matching emails\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s322",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s323",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/save_all_attachments: the text files of matching emails: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "15. ooa.email/save_all_attachments - the text files of matching emails"
+    },
+    {
+      "id": "s324",
+      "action": "core/step",
+      "args": {
+        "title": "16. ooa.email/save_email_as_msg - an Outlook .msg file"
+      },
+      "children": [
+        {
+          "id": "s325",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email as MSG writes one email as an Outlook .msg file."
+          }
+        },
+        {
+          "id": "s326",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s327",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s328",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT msg 1",
+                "body": "UT body UT msg 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s329",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s330",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT msg 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s331",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s332",
+              "action": "ooa.email/save_email_as_msg",
+              "args": {
+                "id": "$ut_id$",
+                "local_path": "em_msg",
+                "file_name": "mail.msg"
+              },
+              "out": {
+                "path": "ut_text"
+              },
+              "description": "Save it"
+            },
+            {
+              "id": "s333",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "endsWith",
+                  "left": "$ut_text$",
+                  "right": ".msg"
+                }
+              },
+              "children": [
+                {
+                  "id": "s334",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check path",
+              "else": [
+                {
+                  "id": "s335",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "path: expected endsWith \".msg\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s336",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s337",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s338",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/save_email_as_msg: an Outlook .msg file\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s339",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s340",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/save_email_as_msg: an Outlook .msg file: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "16. ooa.email/save_email_as_msg - an Outlook .msg file"
+    },
+    {
+      "id": "s341",
+      "action": "core/step",
+      "args": {
+        "title": "17. ooa.email/save_attachments - one email's attachment"
+      },
+      "children": [
+        {
+          "id": "s342",
+          "action": "core/comment",
+          "args": {
+            "text": "Save attachments saves one email's attachments that fit a name pattern."
+          }
+        },
+        {
+          "id": "s343",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s344",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "em_one",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Empty folders"
+            },
+            {
+              "id": "s345",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "em_one/src/a.csv",
+                "text": "1,2"
+              },
+              "description": "A file to attach"
+            },
+            {
+              "id": "s346",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s347",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT att 1",
+                "body": "UT body UT att 1",
+                "attachments": [
+                  "em_one/src/a.csv"
+                ]
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s348",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s349",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT att 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s350",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s351",
+              "action": "ooa.email/save_attachments",
+              "args": {
+                "id": "$ut_id$",
+                "target_folder": "em_one/out",
+                "name_pattern": "*.csv"
+              },
+              "out": {
+                "files": "ut_list"
+              },
+              "description": "Save the CSV"
+            },
+            {
+              "id": "s352",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_n",
+                "value": {
+                  "expr": "len($ut_list)"
+                }
+              },
+              "description": "Count them"
+            },
+            {
+              "id": "s353",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s354",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s355",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 1, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s356",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s357",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s358",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/save_attachments: one email's attachment\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s359",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s360",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/save_attachments: one email's attachment: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "17. ooa.email/save_attachments - one email's attachment"
+    },
+    {
+      "id": "s361",
+      "action": "core/step",
+      "args": {
+        "title": "18. ooa.email/connect - sign in, and a wrong password"
+      },
+      "children": [
+        {
+          "id": "s362",
+          "action": "core/comment",
+          "args": {
+            "text": "Connect opens the mailbox over IMAP (POP3 also works) and names the outgoing server for later sends; a wrong password is refused with an error."
+          }
+        },
+        {
+          "id": "s363",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s364",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s365",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s366",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s367",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s368",
+                  "action": "ooa.email/connect",
+                  "args": {
+                    "imap_host": "$mail_host$",
+                    "port": "$imap_port$",
+                    "user": "bot@sample.test",
+                    "password": {
+                      "$credential": "unit_tests/email/wrong_password"
+                    },
+                    "security": "none",
+                    "session": "wrong"
+                  },
+                  "description": "Sign in with a wrong password"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s369",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s370",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s371",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s372",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s373",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s374",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/connect: sign in, and a wrong password\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s375",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s376",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/connect: sign in, and a wrong password: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "18. ooa.email/connect - sign in, and a wrong password"
+    },
+    {
+      "id": "s377",
+      "action": "core/step",
+      "args": {
+        "title": "19. ooa.email/disconnect - the session is gone afterwards"
+      },
+      "children": [
+        {
+          "id": "s378",
+          "action": "core/comment",
+          "args": {
+            "text": "Disconnect closes the mailbox; listing after it fails because no session is open."
+          }
+        },
+        {
+          "id": "s379",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s380",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s381",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s382",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s383",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s384",
+                  "action": "ooa.email/list",
+                  "args": {},
+                  "description": "List after closing"
+                }
+              ],
+              "description": "These steps should fail with SESSION.NOT_FOUND",
+              "catch": [
+                {
+                  "codes": [
+                    "SESSION.NOT_FOUND"
+                  ],
+                  "children": [
+                    {
+                      "id": "s385",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s386",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s387",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SESSION.NOT_FOUND",
+              "else": [
+                {
+                  "id": "s388",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SESSION.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s389",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s390",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/disconnect: the session is gone afterwards\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s391",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s392",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/disconnect: the session is gone afterwards: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "19. ooa.email/disconnect - the session is gone afterwards"
+    },
+    {
+      "id": "s393",
+      "action": "core/step",
+      "args": {
+        "title": "20. ooa.email/folder_exists - INBOX is there"
+      },
+      "children": [
+        {
+          "id": "s394",
+          "action": "core/comment",
+          "args": {
+            "text": "Folder exists says whether the mailbox has a folder."
+          }
+        },
+        {
+          "id": "s395",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s396",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s397",
+              "action": "ooa.email/folder_exists",
+              "args": {
+                "folder": "INBOX"
+              },
+              "out": {
+                "exists": "ut_ok"
+              },
+              "description": "Is there an INBOX?"
+            },
+            {
+              "id": "s398",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s399",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_ok",
+              "else": [
+                {
+                  "id": "s400",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_ok: expected eq true, got ${ut_ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s401",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s402",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s403",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/folder_exists: INBOX is there\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s404",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s405",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/folder_exists: INBOX is there: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "20. ooa.email/folder_exists - INBOX is there"
+    },
+    {
+      "id": "s406",
+      "action": "core/step",
+      "args": {
+        "title": "21. ooa.email/list - test emails by subject, oldest first"
+      },
+      "children": [
+        {
+          "id": "s407",
+          "action": "core/comment",
+          "args": {
+            "text": "List gives a table of the matching emails (id, subject, from, date, ...) and how many."
+          }
+        },
+        {
+          "id": "s408",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s409",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s410",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT list A",
+                "body": "UT body UT list A"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s411",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s412",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT list B",
+                "body": "UT body UT list B"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s413",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s414",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT list",
+                "oldest_first": true
+              },
+              "out": {
+                "table": "ut_table",
+                "count": "ut_n"
+              },
+              "description": "List them"
+            },
+            {
+              "id": "s415",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ge",
+                  "left": "$ut_n$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s416",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check count",
+              "else": [
+                {
+                  "id": "s417",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "count: expected ge 2, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s418",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s419",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s420",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/list: test emails by subject, oldest first\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s421",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s422",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/list: test emails by subject, oldest first: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "21. ooa.email/list - test emails by subject, oldest first"
+    },
+    {
+      "id": "s423",
+      "action": "core/step",
+      "args": {
+        "title": "22. ooa.email/reply_all - to the test mailbox"
+      },
+      "children": [
+        {
+          "id": "s424",
+          "action": "core/comment",
+          "args": {
+            "text": "Reply all answers the sender and everyone in copy; the answer arrives in the test mailbox."
+          }
+        },
+        {
+          "id": "s425",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s426",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s427",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT reply-all 1",
+                "body": "UT body UT reply-all 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s428",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s429",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT reply-all 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s430",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s431",
+              "action": "ooa.email/reply_all",
+              "args": {
+                "id": "$ut_id$",
+                "body": "Noted by all"
+              },
+              "out": {
+                "message_id": "ut_text"
+              },
+              "description": "Reply to all"
+            },
+            {
+              "id": "s432",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "@"
+                }
+              },
+              "children": [
+                {
+                  "id": "s433",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s434",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected contains \"@\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s435",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s436",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s437",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/reply_all: to the test mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s438",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s439",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/reply_all: to the test mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "22. ooa.email/reply_all - to the test mailbox"
+    },
+    {
+      "id": "s440",
+      "action": "core/step",
+      "args": {
+        "title": "23. ooa.email/forward - with a note, to the test mailbox"
+      },
+      "children": [
+        {
+          "id": "s441",
+          "action": "core/comment",
+          "args": {
+            "text": "Forward sends an email on to other people with a note above it."
+          }
+        },
+        {
+          "id": "s442",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s443",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s444",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT forward 1",
+                "body": "UT body UT forward 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s445",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s446",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT forward 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s447",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s448",
+              "action": "ooa.email/forward",
+              "args": {
+                "id": "$ut_id$",
+                "to": "bot@sample.test",
+                "note": "FYI"
+              },
+              "out": {
+                "message_id": "ut_text"
+              },
+              "description": "Forward it"
+            },
+            {
+              "id": "s449",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "@"
+                }
+              },
+              "children": [
+                {
+                  "id": "s450",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check message id",
+              "else": [
+                {
+                  "id": "s451",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "message id: expected contains \"@\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s452",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s453",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s454",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/forward: with a note, to the test mailbox\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s455",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s456",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/forward: with a note, to the test mailbox: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "23. ooa.email/forward - with a note, to the test mailbox"
+    },
+    {
+      "id": "s457",
+      "action": "core/step",
+      "args": {
+        "title": "24. ooa.email/save_email_as_eml - a whole email as .eml"
+      },
+      "children": [
+        {
+          "id": "s458",
+          "action": "core/comment",
+          "args": {
+            "text": "Save email as EML writes one email as a standard .eml file."
+          }
+        },
+        {
+          "id": "s459",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s460",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s461",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT eml 1",
+                "body": "UT body UT eml 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s462",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s463",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT eml 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s464",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s465",
+              "action": "ooa.email/save_email_as_eml",
+              "args": {
+                "id": "$ut_id$",
+                "local_path": "em_eml",
+                "file_name": "mail.eml"
+              },
+              "out": {
+                "path": "ut_text"
+              },
+              "description": "Save it"
+            },
+            {
+              "id": "s466",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$ut_text$"
+              },
+              "out": {
+                "text": "ut_text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s467",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$ut_text$",
+                  "right": "UT eml 1"
+                }
+              },
+              "children": [
+                {
+                  "id": "s468",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check eml",
+              "else": [
+                {
+                  "id": "s469",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "eml: expected contains \"UT eml 1\", got ${ut_text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s470",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s471",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s472",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/save_email_as_eml: a whole email as .eml\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s473",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s474",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/save_email_as_eml: a whole email as .eml: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "24. ooa.email/save_email_as_eml - a whole email as .eml"
+    },
+    {
+      "id": "s475",
+      "action": "core/step",
+      "args": {
+        "title": "25. ooa.email/delete - one email"
+      },
+      "children": [
+        {
+          "id": "s476",
+          "action": "core/comment",
+          "args": {
+            "text": "Delete removes one email by its id (to the trash, or for good with permanent)."
+          }
+        },
+        {
+          "id": "s477",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s478",
+              "action": "ooa.email/connect",
+              "args": {
+                "imap_host": "$mail_host$",
+                "port": "$imap_port$",
+                "user": "bot@sample.test",
+                "password": {
+                  "$credential": "unit_tests/email/password"
+                },
+                "security": "none",
+                "smtp_host": "$mail_host$",
+                "smtp_port": "$smtp_port$",
+                "smtp_security": "none"
+              },
+              "description": "Open the test mailbox"
+            },
+            {
+              "id": "s479",
+              "action": "ooa.email/send",
+              "args": {
+                "to": "bot@sample.test",
+                "subject": "UT delete 1",
+                "body": "UT body UT delete 1"
+              },
+              "description": "Send a test email to the mailbox itself"
+            },
+            {
+              "id": "s480",
+              "action": "core/delay",
+              "args": {
+                "seconds": 2
+              },
+              "description": "Let it arrive"
+            },
+            {
+              "id": "s481",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT delete 1"
+              },
+              "out": {
+                "table": "ut_table"
+              },
+              "description": "Find the test email"
+            },
+            {
+              "id": "s482",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$ut_table$",
+                "row": 0,
+                "column": "id"
+              },
+              "out": {
+                "value": "ut_id"
+              },
+              "description": "Its id"
+            },
+            {
+              "id": "s483",
+              "action": "ooa.email/delete",
+              "args": {
+                "id": "$ut_id$",
+                "permanent": true
+              },
+              "description": "Delete it for good"
+            },
+            {
+              "id": "s484",
+              "action": "ooa.email/list",
+              "args": {
+                "subject_contains": "UT delete 1"
+              },
+              "out": {
+                "count": "ut_n"
+              },
+              "description": "Look for it"
+            },
+            {
+              "id": "s485",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s486",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ut_n",
+              "else": [
+                {
+                  "id": "s487",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ut_n: expected eq 0, got ${ut_n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s488",
+              "action": "ooa.email/disconnect",
+              "args": {},
+              "description": "Close the mailbox"
+            },
+            {
+              "id": "s489",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s490",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.email/delete: one email\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s491",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s492",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.email/delete: one email: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "25. ooa.email/delete - one email"
+    },
+    {
+      "id": "s493",
+      "action": "core/step",
+      "args": {
+        "title": "26. Summary"
+      },
+      "children": [
+        {
+          "id": "s494",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s495",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s496",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s497",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "26. Summary"
+    }
+  ]
+}
