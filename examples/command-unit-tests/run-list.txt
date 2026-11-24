@@ -1,0 +1,99 @@
+UT String
+UT Salesforce
+UT ServiceNow
+UT Jira
+UT Workday
+UT Okta
+UT Asana
+UT Box
+UT DocuSign
+UT Zendesk
+UT Slack
+UT GitHub
+UT Azure DevOps
+UT AWS EC2
+UT Azure VMs
+UT AWS AI services
+UT Azure AI services
+UT Google Cloud AI
+UT Databricks
+UT Snowflake
+UT Kafka
+UT REST Web Service
+UT SOAP Web Service
+UT Generative AI
+UT Knowledge Q&A
+UT MCP tools
+UT Custom Connectors
+UT Communications mining
+UT Process mining
+UT Core
+UT Boolean
+UT Number
+UT List
+UT Dictionary
+UT Data Table
+UT Date and time
+UT JSON
+UT XML
+UT CSV TXT
+UT Convert
+UT Currency
+UT Hash and encrypt
+UT Fuzzy Match
+UT Business rules
+UT Run context
+UT Log to file
+UT PGP
+UT Scripts
+UT Database
+UT Application
+UT Browser
+UT Web goal agent
+UT Terminal emulator
+UT FTP and SFTP
+UT Exchange (EWS)
+UT Interrupt handlers
+UT Trigger Loop
+UT Printer
+UT Microsoft 365 Outlook mail and calendar
+UT Microsoft 365 Excel online
+UT Microsoft 365 Teams and Planner
+UT Microsoft 365 OneDrive and SharePoint
+UT Microsoft 365 Users and groups
+UT Google Workspace Gmail
+UT Google Workspace Drive
+UT Google Workspace Sheets
+UT Google Workspace Calendar and Docs
+UT Active Directory
+UT File
+UT Folder
+UT Excel Workbooks
+UT Excel Cells
+UT Excel Desktop
+UT Word
+UT PowerPoint
+UT PowerPoint Desktop
+UT PDF
+UT Office Attachments
+UT OCR
+UT Document Extraction
+UT Image
+UT System
+UT Windows Services
+UT Network
+UT DLL
+UT DotNet
+UT Work queues
+UT Environment locks
+UT Insights
+UT Data store
+UT Shared values
+UT Credential Manager
+UT Coded agents
+UT Prompt Skills
+UT Item Document type
+UT Item Object repository
+UT Item Prompt Skill
+UT Item Python script
+UT Item PowerShell script

@@ -54,7 +54,7 @@
       "name": "items_dir",
       "type": "String",
       "direction": "input",
-      "default": "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items",
+      "default": "C:/Users/virup/OOA Unit tests/items",
       "description": "Folder with the sample items (agents/items of the repository); the agent copies what it needs into its work folder."
     },
     {

@@ -158,7 +158,7 @@ INVOICE_LINES = ["UT Supplies Ltd", "Invoice number: INV-UT-1", "Invoice date: 2
                  "Currency: EUR", "Net: 100.00", "Tax: 20.50", "Total: 120.50"]
 
 
-ITEMS_DEFAULT = "C:/OOA/OneOfficeAutomation-Platform/examples/command-unit-tests/agents/items"
+ITEMS_DEFAULT = "C:/Users/virup/OOA Unit tests/items"   # a copy of agents/items (the runner reads the samples from here)
 
 
 def items_input(ua):

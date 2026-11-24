@@ -27,7 +27,7 @@ GROUPS = {
     "genai": _g("genai", "ooa.genai", "Generative AI",
                 about="Unit tests of every Generative AI command: each case uses the stand-in's scripted model "
                       "(an OpenAI-compatible provider on the stand-in, made-up key from the vault) and checks the result."),
-    "knowledge": _g("knowledge", "ooa.knowledge", "Knowledge Q&A"),
+    "knowledge": _g("knowledge", "ooa.knowledge", "Knowledge Q and A"),   # no & in repository names
     "mcp": _g("mcp", "ooa.mcp", "MCP tools"),
     "connector": _g("connector", "ooa.connector", "Custom Connectors"),
     "comms": _g("comms", "ooa.comms", "Communications mining", needs="local"),

@@ -2,8 +2,8 @@
   "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
   "kind": "TaskBot",
   "id": "ut_knowledge",
-  "name": "UT Knowledge Q&A",
-  "description": "Unit tests of every Knowledge Q&A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
+  "name": "UT Knowledge Q and A",
+  "description": "Unit tests of every Knowledge Q and A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result.",
   "tags": [
     "unit-test",
     "commands"
@@ -98,14 +98,14 @@
           "id": "s2",
           "action": "core/comment",
           "args": {
-            "text": "Unit tests of every Knowledge Q&A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
+            "text": "Unit tests of every Knowledge Q and A command: each case shows the command in use against the local stand-in (made-up keys from the vault, never a real account) and checks its result."
           }
         },
         {
           "id": "s3",
           "action": "core/log",
           "args": {
-            "message": "Unit test agent UT Knowledge Q&A started",
+            "message": "Unit test agent UT Knowledge Q and A started",
             "level": "info"
           },
           "description": "Write to the run log"

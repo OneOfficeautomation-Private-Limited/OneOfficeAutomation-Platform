@@ -3,7 +3,7 @@ finding every element through the sample repository UT Shop.objects.json (by pro
 from helpers_platform import renumber, items_input, copy_item
 
 B = "ooa.browser/"
-REPO = "ut-items/UT Shop.objects.json"
+REPO = "Commands unit testing folder/items/object-repository/UT Shop.objects.json"   # the same path in the workspace, the repository and the run folder
 
 
 def obj(element):
