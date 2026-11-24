@@ -1,0 +1,1462 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_excel_desktop",
+  "name": "UT Excel Desktop",
+  "description": "Unit tests of the commands that drive the installed Excel program (it runs hidden).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "p",
+      "type": "File",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "result",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the commands that drive the installed Excel program (it runs hidden)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Excel Desktop started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.excel_desktop/convert - xlsx to the old xls format"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Convert has Excel save a workbook in another format; the case converts to .xls, opens the result and reads the value back."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s9",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s10",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case1/c.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s11",
+              "action": "ooa.excel/set_cell",
+              "args": {
+                "cell": "A1",
+                "value": "kept"
+              },
+              "description": "Write a value"
+            },
+            {
+              "id": "s12",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s13",
+              "action": "ooa.excel_desktop/convert",
+              "args": {
+                "path": "case1/c.xlsx",
+                "target": "case1/c.xls",
+                "overwrite": true
+              },
+              "description": "Convert to .xls"
+            },
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case1/c.xls"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Was case1/c.xls made?"
+            },
+            {
+              "id": "s17",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s19",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s20",
+              "action": "ooa.excel/open",
+              "args": {
+                "path": "case1/c.xls"
+              },
+              "description": "Open the .xls"
+            },
+            {
+              "id": "s21",
+              "action": "ooa.excel/get_cell",
+              "args": {
+                "cell": "A1"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read A1"
+            },
+            {
+              "id": "s22",
+              "action": "ooa.excel/close",
+              "args": {}
+            },
+            {
+              "id": "s23",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "kept"
+                }
+              },
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s25",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"kept\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/convert: xlsx to the old xls format\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/convert: xlsx to the old xls format: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.excel_desktop/convert - xlsx to the old xls format"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.excel_desktop/convert - xlsx to csv"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Convert to .csv writes the first sheet as comma-separated text; the case reads the text."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s34",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s35",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s36",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case2/c.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.excel/set_cell",
+              "args": {
+                "cell": "A1",
+                "value": "kept"
+              },
+              "description": "Write a value"
+            },
+            {
+              "id": "s38",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s39",
+              "action": "ooa.excel_desktop/convert",
+              "args": {
+                "path": "case2/c.xlsx",
+                "target": "case2/c.csv"
+              },
+              "description": "Convert to .csv"
+            },
+            {
+              "id": "s40",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "case2/c.csv",
+                "trim": "both"
+              },
+              "out": {
+                "text": "v"
+              },
+              "description": "Read the csv"
+            },
+            {
+              "id": "s41",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "kept"
+                }
+              },
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s43",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"kept\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s44",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/convert: xlsx to csv\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/convert: xlsx to csv: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.excel_desktop/convert - xlsx to csv"
+    },
+    {
+      "id": "s48",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.excel_desktop/export_pdf - whole workbook"
+      },
+      "children": [
+        {
+          "id": "s49",
+          "action": "core/comment",
+          "args": {
+            "text": "Export to PDF has Excel save the workbook as a PDF; the case checks the PDF has one page."
+          }
+        },
+        {
+          "id": "s50",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s51",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s52",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s53",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s54",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case3/e.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s55",
+              "action": "ooa.excel/set_cell",
+              "args": {
+                "cell": "A1",
+                "value": "report"
+              },
+              "description": "Write a value"
+            },
+            {
+              "id": "s56",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s57",
+              "action": "ooa.excel_desktop/export_pdf",
+              "args": {
+                "path": "case3/e.xlsx",
+                "target": "case3/e.pdf",
+                "overwrite": true
+              },
+              "out": {
+                "path": "p"
+              },
+              "description": "Export to PDF"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case3/e.pdf"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Was case3/e.pdf made?"
+            },
+            {
+              "id": "s61",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s63",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "ooa.pdf/page_count",
+              "args": {
+                "path": "case3/e.pdf"
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Count the pages of the PDF"
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s67",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 1, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s69",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/export_pdf: whole workbook\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s71",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/export_pdf: whole workbook: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.excel_desktop/export_pdf - whole workbook"
+    },
+    {
+      "id": "s72",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.excel_desktop/refresh_all - recalculates and saves"
+      },
+      "children": [
+        {
+          "id": "s73",
+          "action": "core/comment",
+          "args": {
+            "text": "Refresh all refreshes queries and pivot tables, recalculates and saves; with nothing to refresh, the formula's value is in the saved file afterwards."
+          }
+        },
+        {
+          "id": "s74",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s75",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s76",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s77",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s78",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case4/r.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s79",
+              "action": "ooa.excel/set_cell",
+              "args": {
+                "cell": "A1",
+                "value": 21
+              },
+              "description": "Write a value"
+            },
+            {
+              "id": "s80",
+              "action": "ooa.excel/set_formula",
+              "args": {
+                "cell": "B1",
+                "formula": "A1*2"
+              },
+              "description": "Write a formula"
+            },
+            {
+              "id": "s81",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s82",
+              "action": "ooa.excel_desktop/refresh_all",
+              "args": {
+                "path": "case4/r.xlsx",
+                "save": true
+              },
+              "description": "Refresh and save"
+            },
+            {
+              "id": "s83",
+              "action": "ooa.excel/open",
+              "args": {
+                "path": "case4/r.xlsx"
+              },
+              "description": "Open the workbook"
+            },
+            {
+              "id": "s84",
+              "action": "ooa.excel/get_cell",
+              "args": {
+                "cell": "B1"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read the formula's value"
+            },
+            {
+              "id": "s85",
+              "action": "ooa.excel/close",
+              "args": {}
+            },
+            {
+              "id": "s86",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": 42
+                }
+              },
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s88",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq 42, got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s89",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/refresh_all: recalculates and saves\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/refresh_all: recalculates and saves: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.excel_desktop/refresh_all - recalculates and saves"
+    },
+    {
+      "id": "s93",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.excel_desktop/update_links - workbook with no links"
+      },
+      "children": [
+        {
+          "id": "s94",
+          "action": "core/comment",
+          "args": {
+            "text": "Update links has Excel refresh the values taken from linked workbooks and save. A link to another workbook cannot be written without Excel, so the case uses a workbook with none: the count of updated links is 0 and the workbook still reads back."
+          }
+        },
+        {
+          "id": "s95",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s96",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s97",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s98",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s99",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case5/l.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s100",
+              "action": "ooa.excel/set_cell",
+              "args": {
+                "cell": "A1",
+                "value": "kept"
+              },
+              "description": "Write a value"
+            },
+            {
+              "id": "s101",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.excel_desktop/update_links",
+              "args": {
+                "path": "case5/l.xlsx",
+                "save": true
+              },
+              "out": {
+                "count": "n"
+              },
+              "description": "Update the links and save"
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$n$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check n",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "n: expected eq 0, got ${n}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "ooa.excel/open",
+              "args": {
+                "path": "case5/l.xlsx"
+              },
+              "description": "Open the workbook"
+            },
+            {
+              "id": "s107",
+              "action": "ooa.excel/get_cell",
+              "args": {
+                "cell": "A1"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read A1"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.excel/close",
+              "args": {}
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$v$",
+                  "right": "kept"
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check v",
+              "else": [
+                {
+                  "id": "s111",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "v: expected eq \"kept\", got ${v}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/update_links: workbook with no links\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s114",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s115",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/update_links: workbook with no links: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.excel_desktop/update_links - workbook with no links"
+    },
+    {
+      "id": "s116",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.excel_desktop/run_macro - a workbook without the macro"
+      },
+      "children": [
+        {
+          "id": "s117",
+          "action": "core/comment",
+          "args": {
+            "text": "Run macro runs a VBA macro in a macro-enabled workbook. A workbook without the macro stops with EXCEL_DESKTOP.FAILED (a workbook with VBA cannot be made here without changing Excel's trust settings)."
+          }
+        },
+        {
+          "id": "s118",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s119",
+              "action": "ooa.excel/close",
+              "args": {},
+              "continueOnError": true,
+              "description": "Close the session if an earlier case left it open"
+            },
+            {
+              "id": "s120",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s121",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s122",
+              "action": "ooa.excel/create_workbook",
+              "args": {
+                "path": "case6/m.xlsx",
+                "sheet": "Data"
+              },
+              "description": "Create a workbook for this case"
+            },
+            {
+              "id": "s123",
+              "action": "ooa.excel/close",
+              "args": {
+                "save": true
+              },
+              "description": "Save and close"
+            },
+            {
+              "id": "s124",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s125",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "ooa.excel_desktop/run_macro",
+                  "args": {
+                    "path": "case6/m.xlsx",
+                    "macro": "NoSuchMacro"
+                  },
+                  "out": {
+                    "result": "result"
+                  },
+                  "description": "Run a macro that is not there"
+                }
+              ],
+              "description": "These steps should fail with EXCEL_DESKTOP.FAILED",
+              "catch": [
+                {
+                  "codes": [
+                    "EXCEL_DESKTOP.FAILED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s127",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s128",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s129",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error EXCEL_DESKTOP.FAILED",
+              "else": [
+                {
+                  "id": "s130",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error EXCEL_DESKTOP.FAILED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s132",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.excel_desktop/run_macro: a workbook without the macro\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s134",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.excel_desktop/run_macro: a workbook without the macro: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.excel_desktop/run_macro - a workbook without the macro"
+    },
+    {
+      "id": "s135",
+      "action": "core/step",
+      "args": {
+        "title": "7. Summary"
+      },
+      "children": [
+        {
+          "id": "s136",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s137",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s138",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s139",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "7. Summary"
+    }
+  ]
+}

@@ -1,0 +1,2229 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_ocr",
+  "name": "UT OCR",
+  "description": "Unit tests of the OCR commands on picture files made by the agent (never the screen).",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "n",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "png",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "engine",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "langs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "status",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the OCR commands on picture files made by the agent (never the screen)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT OCR started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.ocr/engine_status - engines on this runner"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Engine status says which OCR engines this runner has and their languages."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case2",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s26",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case2"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s27",
+              "action": "ooa.ocr/engine_status",
+              "args": {},
+              "out": {
+                "engine": "engine"
+              },
+              "description": "Check the engines"
+            },
+            {
+              "id": "s28",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$engine$"
+                }
+              },
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check engine",
+              "else": [
+                {
+                  "id": "s30",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "engine: expected notEmpty , got ${engine}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s32",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/engine_status: engines on this runner\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/engine_status: engines on this runner: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.ocr/engine_status - engines on this runner"
+    },
+    {
+      "id": "s35",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.ocr/read_image - text of a picture"
+      },
+      "children": [
+        {
+          "id": "s36",
+          "action": "core/comment",
+          "args": {
+            "text": "Read image extracts the text of a picture file; the invoice number is in it."
+          }
+        },
+        {
+          "id": "s37",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s38",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s39",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s40",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/page.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 86 >>\nstream\nBT /F1 36 Tf 20 110 Td (INVOICE 4711) Tj ET\nBT /F1 36 Tf 20 40 Td (Total 115.00) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n447\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s41",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case3/page.pdf",
+                "target_folder": "case3",
+                "dpi": 150,
+                "pages": "1",
+                "file_prefix": "page"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into a PNG"
+            },
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "png",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture"
+            },
+            {
+              "id": "s43",
+              "action": "ooa.ocr/read_image",
+              "args": {
+                "path": "$png$"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the picture"
+            },
+            {
+              "id": "s44",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s45",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OCR text",
+              "else": [
+                {
+                  "id": "s46",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OCR text: expected contains \"4711\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/read_image: text of a picture\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/read_image: text of a picture: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.ocr/read_image - text of a picture"
+    },
+    {
+      "id": "s51",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.ocr/read_image - between two markers"
+      },
+      "children": [
+        {
+          "id": "s52",
+          "action": "core/comment",
+          "args": {
+            "text": "With after_text and before_text, Read image keeps only the text between them."
+          }
+        },
+        {
+          "id": "s53",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s54",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s55",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s56",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/page.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 86 >>\nstream\nBT /F1 36 Tf 20 110 Td (INVOICE 4711) Tj ET\nBT /F1 36 Tf 20 40 Td (Total 115.00) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n447\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s57",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case4/page.pdf",
+                "target_folder": "case4",
+                "dpi": 150,
+                "pages": "1",
+                "file_prefix": "page"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into a PNG"
+            },
+            {
+              "id": "s58",
+              "action": "core/set",
+              "args": {
+                "variable": "png",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture"
+            },
+            {
+              "id": "s59",
+              "action": "ooa.ocr/read_image",
+              "args": {
+                "path": "$png$",
+                "after_text": "INVOICE",
+                "before_text": "Total"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the text after INVOICE"
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OCR text",
+              "else": [
+                {
+                  "id": "s62",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OCR text: expected contains \"4711\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s63",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notContains",
+                  "left": "$text$",
+                  "right": "115"
+                }
+              },
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OCR text",
+              "else": [
+                {
+                  "id": "s65",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OCR text: expected notContains \"115\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s66",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s67",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/read_image: between two markers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/read_image: between two markers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.ocr/read_image - between two markers"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.ocr/find_text_in_image - word found with its position"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Find text in image locates a word in a picture and gives its centre."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s73",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s74",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s75",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/page.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 86 >>\nstream\nBT /F1 36 Tf 20 110 Td (INVOICE 4711) Tj ET\nBT /F1 36 Tf 20 40 Td (Total 115.00) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n447\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s76",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case5/page.pdf",
+                "target_folder": "case5",
+                "dpi": 150,
+                "pages": "1",
+                "file_prefix": "page"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into a PNG"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "png",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture"
+            },
+            {
+              "id": "s78",
+              "action": "ooa.ocr/find_text_in_image",
+              "args": {
+                "path": "$png$",
+                "text": "4711"
+              },
+              "out": {
+                "found": "found",
+                "x": "x",
+                "count": "n"
+              },
+              "description": "Find 4711"
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s81",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$x$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected gt 0, got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "ooa.ocr/find_text_in_image",
+              "args": {
+                "path": "$png$",
+                "text": "Refund"
+              },
+              "out": {
+                "found": "found"
+              },
+              "description": "Look for a word that is not there"
+            },
+            {
+              "id": "s86",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s88",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq false, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s89",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s90",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/find_text_in_image: word found with its position\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s92",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/find_text_in_image: word found with its position: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.ocr/find_text_in_image - word found with its position"
+    },
+    {
+      "id": "s93",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.ocr/read_url - picture from a web address"
+      },
+      "children": [
+        {
+          "id": "s94",
+          "action": "core/comment",
+          "args": {
+            "text": "Read URL downloads a picture and reads its text; the picture is put on the local stand-in first."
+          }
+        },
+        {
+          "id": "s95",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s96",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s97",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s98",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case6/page.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 86 >>\nstream\nBT /F1 36 Tf 20 110 Td (INVOICE 4711) Tj ET\nBT /F1 36 Tf 20 40 Td (Total 115.00) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n447\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s99",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case6/page.pdf",
+                "target_folder": "case6",
+                "dpi": 150,
+                "pages": "1",
+                "file_prefix": "page"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into a PNG"
+            },
+            {
+              "id": "s100",
+              "action": "core/set",
+              "args": {
+                "variable": "png",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture"
+            },
+            {
+              "id": "s101",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "PUT",
+                "body_file": "$png$",
+                "url": "${standin_url}/graph/v1.0/me/drive/root:/ut-office/ocr-page.png:/content",
+                "content_type": "image/png"
+              },
+              "out": {
+                "status": "status"
+              },
+              "description": "Put the picture on the stand-in"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.ocr/read_url",
+              "args": {
+                "url": "${standin_url}/graph/v1.0/me/drive/root:/ut-office/ocr-page.png:/content"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the picture from its address"
+            },
+            {
+              "id": "s103",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "contains",
+                  "left": "$text$",
+                  "right": "4711"
+                }
+              },
+              "children": [
+                {
+                  "id": "s104",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check OCR text",
+              "else": [
+                {
+                  "id": "s105",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "OCR text: expected contains \"4711\", got ${text}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s106",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s107",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/read_url: picture from a web address\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s109",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/read_url: picture from a web address: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.ocr/read_url - picture from a web address"
+    },
+    {
+      "id": "s110",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.ocr/read_with_cloud - no cloud session open"
+      },
+      "children": [
+        {
+          "id": "s111",
+          "action": "core/comment",
+          "args": {
+            "text": "Read with cloud OCR sends a picture to Azure AI or Google Vision through a Connect session; with no session open it stops with an error and nothing is sent."
+          }
+        },
+        {
+          "id": "s112",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s113",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s114",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s115",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case7/page.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 86 >>\nstream\nBT /F1 36 Tf 20 110 Td (INVOICE 4711) Tj ET\nBT /F1 36 Tf 20 40 Td (Total 115.00) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n447\n%%EOF\n"
+              },
+              "description": "A PDF with large text"
+            },
+            {
+              "id": "s116",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case7/page.pdf",
+                "target_folder": "case7",
+                "dpi": 150,
+                "pages": "1",
+                "file_prefix": "page"
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into a PNG"
+            },
+            {
+              "id": "s117",
+              "action": "core/set",
+              "args": {
+                "variable": "png",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s119",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s120",
+                  "action": "ooa.ocr/read_with_cloud",
+                  "args": {
+                    "engine": "azure",
+                    "path": "$png$",
+                    "session": "ut_no_such_session"
+                  },
+                  "description": "Read without a session"
+                }
+              ],
+              "description": "These steps should fail with *",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s121",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error *",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error *: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/read_with_cloud: no cloud session open\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s127",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/read_with_cloud: no cloud session open: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.ocr/read_with_cloud - no cloud session open"
+    },
+    {
+      "id": "s129",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.ocr/add_windows_language - a bad language tag is refused"
+      },
+      "children": [
+        {
+          "id": "s130",
+          "action": "core/comment",
+          "args": {
+            "text": "Add Windows OCR language installs a language pack (administrator rights, changes the computer), so the case only checks that a malformed tag is refused before anything is installed."
+          }
+        },
+        {
+          "id": "s131",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s132",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s133",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s134",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s135",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s136",
+                  "action": "ooa.ocr/add_windows_language",
+                  "args": {
+                    "language": "not a tag!"
+                  },
+                  "description": "Try a malformed tag"
+                }
+              ],
+              "description": "These steps should fail with OCR.BAD_LANGUAGE",
+              "catch": [
+                {
+                  "codes": [
+                    "OCR.BAD_LANGUAGE"
+                  ],
+                  "children": [
+                    {
+                      "id": "s137",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s138",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s139",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error OCR.BAD_LANGUAGE",
+              "else": [
+                {
+                  "id": "s140",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error OCR.BAD_LANGUAGE: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s141",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s142",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/add_windows_language: a bad language tag is refused\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s143",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s144",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/add_windows_language: a bad language tag is refused: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.ocr/add_windows_language - a bad language tag is refused"
+    },
+    {
+      "id": "s145",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.ocr/read_screen - text in a corner of the screen"
+      },
+      "children": [
+        {
+          "id": "s146",
+          "action": "core/comment",
+          "args": {
+            "text": "Read screen captures a region of the screen and reads its text. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s147",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s148",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s149",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s150",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s151",
+                  "action": "ooa.ocr/read_screen",
+                  "args": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 600,
+                    "height": 300
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read the top-left corner"
+                },
+                {
+                  "id": "s152",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "notEmpty",
+                      "left": "$text$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s153",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check screen text",
+                  "else": [
+                    {
+                      "id": "s154",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "screen text: expected notEmpty , got ${text}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s155",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.ocr/read_screen needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/read_screen: text in a corner of the screen\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/read_screen: text in a corner of the screen: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.ocr/read_screen - text in a corner of the screen"
+    },
+    {
+      "id": "s160",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.ocr/text_on_screen - a word that is not shown"
+      },
+      "children": [
+        {
+          "id": "s161",
+          "action": "core/comment",
+          "args": {
+            "text": "Text on screen is a condition: true when the text is visible on the screen. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s162",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s163",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s167",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "condition": "ooa.ocr/text_on_screen",
+                      "args": {
+                        "text": "UT-NOT-ON-SCREEN-9137"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s168",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ok",
+                        "value": true
+                      }
+                    }
+                  ],
+                  "description": "Is it shown?"
+                },
+                {
+                  "id": "s169",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ok$",
+                      "right": false
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s170",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check ok",
+                  "else": [
+                    {
+                      "id": "s171",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "ok: expected eq false, got ${ok}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s172",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.ocr/text_on_screen needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s173",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s174",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/text_on_screen: a word that is not shown\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s176",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/text_on_screen: a word that is not shown: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.ocr/text_on_screen - a word that is not shown"
+    },
+    {
+      "id": "s177",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.ocr/click_text - missing text is reported"
+      },
+      "children": [
+        {
+          "id": "s178",
+          "action": "core/comment",
+          "args": {
+            "text": "Click text finds a word on the screen with OCR and clicks it; a word that is not shown stops with OCR.TEXT_NOT_FOUND, so nothing is clicked. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s179",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s180",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s181",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s182",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s183",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_got_error",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s184",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s185",
+                      "action": "ooa.ocr/click_text",
+                      "args": {
+                        "text": "UT-NOT-ON-SCREEN-9137"
+                      },
+                      "description": "Click a word not on screen"
+                    }
+                  ],
+                  "description": "These steps should fail with OCR.TEXT_NOT_FOUND",
+                  "catch": [
+                    {
+                      "codes": [
+                        "OCR.TEXT_NOT_FOUND"
+                      ],
+                      "children": [
+                        {
+                          "id": "s186",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_got_error",
+                            "value": true
+                          },
+                          "description": "The expected error came"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s187",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ut_got_error$",
+                      "right": true
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s188",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check error OCR.TEXT_NOT_FOUND",
+                  "else": [
+                    {
+                      "id": "s189",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "error OCR.TEXT_NOT_FOUND: expected eq true, got ${ut_got_error}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s190",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.ocr/click_text needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s191",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s192",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/click_text: missing text is reported\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s193",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s194",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/click_text: missing text is reported: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.ocr/click_text - missing text is reported"
+    },
+    {
+      "id": "s195",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.ocr/act_near_label - missing label is reported"
+      },
+      "children": [
+        {
+          "id": "s196",
+          "action": "core/comment",
+          "args": {
+            "text": "Act near label finds a label with OCR and reads, clicks or types into the field next to it; a label that is not shown stops with an error. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s197",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s198",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s199",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s200",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s201",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_got_error",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s202",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s203",
+                      "action": "ooa.ocr/act_near_label",
+                      "args": {
+                        "label": "UT-NOT-ON-SCREEN-9137:"
+                      },
+                      "out": {
+                        "text": "text"
+                      },
+                      "description": "Read next to a label not on screen"
+                    }
+                  ],
+                  "description": "These steps should fail with *",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s204",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_got_error",
+                            "value": true
+                          },
+                          "description": "The expected error came"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s205",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ut_got_error$",
+                      "right": true
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s206",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check error *",
+                  "else": [
+                    {
+                      "id": "s207",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "error *: expected eq true, got ${ut_got_error}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s208",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.ocr/act_near_label needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s209",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s210",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.ocr/act_near_label: missing label is reported\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s211",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s212",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.ocr/act_near_label: missing label is reported: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.ocr/act_near_label - missing label is reported"
+    },
+    {
+      "id": "s213",
+      "action": "core/step",
+      "args": {
+        "title": "13. Summary"
+      },
+      "children": [
+        {
+          "id": "s214",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s215",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s216",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s217",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "13. Summary"
+    }
+  ]
+}

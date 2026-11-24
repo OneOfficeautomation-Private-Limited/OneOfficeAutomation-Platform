@@ -1,0 +1,1968 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_network",
+  "name": "UT Network",
+  "description": "Unit tests of the Network commands against this computer and the local stand-in.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "r",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ut_arg_s55_host",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ut_arg_s55_port",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "eng",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ms",
+      "type": "Number",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the Network commands against this computer and the local stand-in."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Network started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.network/ping - loopback"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/ping (loopback) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.network/ping",
+              "args": {
+                "host": "127.0.0.1"
+              },
+              "out": {
+                "reachable": "r"
+              },
+              "id": "s7"
+            },
+            {
+              "id": "s8",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s9",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s10",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s12",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/ping: loopback\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s14",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/ping: loopback: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.network/ping - loopback"
+    },
+    {
+      "id": "s15",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.network/check_port - closed port"
+      },
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/check_port (closed port) and checks its result."
+          }
+        },
+        {
+          "id": "s17",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "action": "ooa.network/check_port",
+              "args": {
+                "host": "127.0.0.1",
+                "port": 9,
+                "timeout_ms": 300
+              },
+              "out": {
+                "open": "o"
+              },
+              "id": "s18"
+            },
+            {
+              "id": "s19",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$o$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s20",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check o",
+              "else": [
+                {
+                  "id": "s21",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "o: expected eq false, got ${o}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/check_port: closed port\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/check_port: closed port: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.network/check_port - closed port"
+    },
+    {
+      "id": "s26",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.network/port_open - condition false"
+      },
+      "children": [
+        {
+          "id": "s27",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/port_open (condition false) and checks its result."
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": true
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.network/port_open",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": 9,
+                    "timeout_ms": 300
+                  }
+                }
+              },
+              "else": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  },
+                  "id": "s31"
+                }
+              ],
+              "id": "s30"
+            },
+            {
+              "id": "s32",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s34",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq false, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/port_open: condition false\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/port_open: condition false: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.network/port_open - condition false"
+    },
+    {
+      "id": "s39",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.network/host_reachable - condition true"
+      },
+      "children": [
+        {
+          "id": "s40",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/host_reachable (condition true) and checks its result."
+          }
+        },
+        {
+          "id": "s41",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s42",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              },
+              "description": "Test value for ok"
+            },
+            {
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.network/host_reachable",
+                  "args": {
+                    "host": "127.0.0.1"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  },
+                  "id": "s44"
+                }
+              ],
+              "id": "s43"
+            },
+            {
+              "id": "s45",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s47",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s48",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/host_reachable: condition true\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/host_reachable: condition true: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.network/host_reachable - condition true"
+    },
+    {
+      "id": "s52",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.network/check_port - port out of range is reported before the run (new limit)"
+      },
+      "children": [
+        {
+          "id": "s53",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/check_port (port out of range is reported before the run (new limit)) and checks its result."
+          }
+        },
+        {
+          "id": "s54",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s56",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s57",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_arg_s55_host",
+                    "value": "127.0.0.1"
+                  },
+                  "description": "The value the editor would refuse, given through a variable"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_arg_s55_port",
+                    "value": 70000
+                  },
+                  "description": "The value the editor would refuse, given through a variable"
+                },
+                {
+                  "action": "ooa.network/check_port",
+                  "args": {
+                    "host": "$ut_arg_s55_host$",
+                    "port": "$ut_arg_s55_port$"
+                  },
+                  "id": "s55"
+                }
+              ],
+              "description": "These steps should fail with FLOW.INVALID",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s58",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error FLOW.INVALID",
+              "else": [
+                {
+                  "id": "s61",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error FLOW.INVALID: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/check_port: port out of range is reported before the run (new limit)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s64",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/check_port: port out of range is reported before the run (new limit): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.network/check_port - port out of range is reported before the run (new limit)"
+    },
+    {
+      "id": "s66",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.network/snmp_get - no agent answers"
+      },
+      "children": [
+        {
+          "id": "s67",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.network/snmp_get (no agent answers) and checks its result."
+          }
+        },
+        {
+          "id": "s68",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s70",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s71",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.network/snmp_get",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "oids": "1.3.6.1.2.1.1.1.0",
+                    "port": 16199,
+                    "timeout_ms": 200,
+                    "retries": 0
+                  },
+                  "id": "s69"
+                }
+              ],
+              "description": "These steps should fail with SNMP.TIMEOUT",
+              "catch": [
+                {
+                  "codes": [
+                    "SNMP.TIMEOUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s72",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s73",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s74",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SNMP.TIMEOUT",
+              "else": [
+                {
+                  "id": "s75",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SNMP.TIMEOUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/snmp_get: no agent answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/snmp_get: no agent answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.network/snmp_get - no agent answers"
+    },
+    {
+      "id": "s82",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.network/snmp_get_next - no agent answers"
+      },
+      "children": [
+        {
+          "id": "s83",
+          "action": "core/comment",
+          "args": {
+            "text": "Get next reads the object after an OID. No SNMP agent listens on the closed local port, so the step stops with SNMP.TIMEOUT."
+          }
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s87",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s88",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s89",
+                  "action": "ooa.network/snmp_get_next",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": 16199,
+                    "timeout_ms": 200,
+                    "retries": 0,
+                    "oid": "1.3.6.1.2.1.1.1.0"
+                  },
+                  "description": "Ask a closed port"
+                }
+              ],
+              "description": "These steps should fail with SNMP.TIMEOUT",
+              "catch": [
+                {
+                  "codes": [
+                    "SNMP.TIMEOUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s90",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s91",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s92",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SNMP.TIMEOUT",
+              "else": [
+                {
+                  "id": "s93",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SNMP.TIMEOUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s95",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/snmp_get_next: no agent answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/snmp_get_next: no agent answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.network/snmp_get_next - no agent answers"
+    },
+    {
+      "id": "s98",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.network/snmp_walk - no agent answers"
+      },
+      "children": [
+        {
+          "id": "s99",
+          "action": "core/comment",
+          "args": {
+            "text": "Walk reads every object under an OID. No SNMP agent listens on the closed local port, so the step stops with SNMP.TIMEOUT."
+          }
+        },
+        {
+          "id": "s100",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s101",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s102",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s103",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s104",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s105",
+                  "action": "ooa.network/snmp_walk",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": 16199,
+                    "timeout_ms": 200,
+                    "retries": 0,
+                    "oid": "1.3.6.1.2.1.1"
+                  },
+                  "description": "Ask a closed port"
+                }
+              ],
+              "description": "These steps should fail with SNMP.TIMEOUT",
+              "catch": [
+                {
+                  "codes": [
+                    "SNMP.TIMEOUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s106",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s107",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s108",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SNMP.TIMEOUT",
+              "else": [
+                {
+                  "id": "s109",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SNMP.TIMEOUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s111",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/snmp_walk: no agent answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s113",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/snmp_walk: no agent answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.network/snmp_walk - no agent answers"
+    },
+    {
+      "id": "s114",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.network/snmp_set - no agent answers"
+      },
+      "children": [
+        {
+          "id": "s115",
+          "action": "core/comment",
+          "args": {
+            "text": "Set changes one value on a device. No SNMP agent listens on the closed local port, so the step stops with SNMP.TIMEOUT."
+          }
+        },
+        {
+          "id": "s116",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s117",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s118",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s120",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "ooa.network/snmp_set",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "port": 16199,
+                    "timeout_ms": 200,
+                    "retries": 0,
+                    "oid": "1.3.6.1.2.1.1.6.0",
+                    "value": "UT room"
+                  },
+                  "description": "Ask a closed port"
+                }
+              ],
+              "description": "These steps should fail with SNMP.TIMEOUT",
+              "catch": [
+                {
+                  "codes": [
+                    "SNMP.TIMEOUT"
+                  ],
+                  "children": [
+                    {
+                      "id": "s122",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error SNMP.TIMEOUT",
+              "else": [
+                {
+                  "id": "s125",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error SNMP.TIMEOUT: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s126",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s127",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/snmp_set: no agent answers\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s129",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/snmp_set: no agent answers: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.network/snmp_set - no agent answers"
+    },
+    {
+      "id": "s130",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.network/snmp_send_trap - trap to a local port"
+      },
+      "children": [
+        {
+          "id": "s131",
+          "action": "core/comment",
+          "args": {
+            "text": "Send trap sends a notification to a monitoring system; it is not answered, so it is sent to a closed local port and the step succeeds."
+          }
+        },
+        {
+          "id": "s132",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s133",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s134",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s135",
+              "action": "ooa.network/snmp_send_trap",
+              "args": {
+                "host": "127.0.0.1",
+                "port": 16299,
+                "trap_oid": "1.3.6.1.4.1.99999.0.1",
+                "variables": {
+                  "1.3.6.1.4.1.99999.1": "unit test"
+                }
+              },
+              "out": {
+                "engine_id": "eng"
+              },
+              "description": "Send a v2c trap"
+            },
+            {
+              "id": "s136",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$eng$",
+                  "right": "UT-NOT-SET"
+                }
+              },
+              "children": [
+                {
+                  "id": "s137",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check the step finished",
+              "else": [
+                {
+                  "id": "s138",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "the step finished: expected ne \"UT-NOT-SET\", got ${eng}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s139",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s140",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/snmp_send_trap: trap to a local port\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s141",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/snmp_send_trap: trap to a local port: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.network/snmp_send_trap - trap to a local port"
+    },
+    {
+      "id": "s143",
+      "action": "core/step",
+      "args": {
+        "title": "11. ooa.network/ping - loopback twice"
+      },
+      "children": [
+        {
+          "id": "s144",
+          "action": "core/comment",
+          "args": {
+            "text": "Ping checks a host answers; two pings to this computer both come back."
+          }
+        },
+        {
+          "id": "s145",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s146",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case11",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s147",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case11"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s148",
+              "action": "ooa.network/ping",
+              "args": {
+                "host": "127.0.0.1",
+                "count": 2,
+                "interval_ms": 200
+              },
+              "out": {
+                "reachable": "r",
+                "replies": "ms"
+              },
+              "description": "Ping 127.0.0.1 twice"
+            },
+            {
+              "id": "s149",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$r$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s150",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check r",
+              "else": [
+                {
+                  "id": "s151",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "r: expected eq true, got ${r}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s152",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ms$",
+                  "right": 2
+                }
+              },
+              "children": [
+                {
+                  "id": "s153",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ms",
+              "else": [
+                {
+                  "id": "s154",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ms: expected eq 2, got ${ms}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s155",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s156",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/ping: loopback twice\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s157",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s158",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/ping: loopback twice: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "11. ooa.network/ping - loopback twice"
+    },
+    {
+      "id": "s159",
+      "action": "core/step",
+      "args": {
+        "title": "12. ooa.network/check_port - the stand-in's port is open"
+      },
+      "children": [
+        {
+          "id": "s160",
+          "action": "core/comment",
+          "args": {
+            "text": "Check port is true for a port that accepts connections: the local stand-in on 8791."
+          }
+        },
+        {
+          "id": "s161",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s162",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case12",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s163",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case12"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s164",
+              "action": "ooa.network/check_port",
+              "args": {
+                "host": "127.0.0.1",
+                "port": 8791
+              },
+              "out": {
+                "open": "o"
+              },
+              "description": "Check port 8791"
+            },
+            {
+              "id": "s165",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$o$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s166",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check o",
+              "else": [
+                {
+                  "id": "s167",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "o: expected eq true, got ${o}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s168",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s169",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.network/check_port: the stand-in's port is open\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s170",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s171",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.network/check_port: the stand-in's port is open: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "12. ooa.network/check_port - the stand-in's port is open"
+    },
+    {
+      "id": "s172",
+      "action": "core/step",
+      "args": {
+        "title": "13. Summary"
+      },
+      "children": [
+        {
+          "id": "s173",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s174",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s175",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s176",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "13. Summary"
+    }
+  ]
+}

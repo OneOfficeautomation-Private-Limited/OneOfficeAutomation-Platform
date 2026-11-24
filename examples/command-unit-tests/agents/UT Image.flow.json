@@ -1,0 +1,3026 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "ut_image",
+  "name": "UT Image",
+  "description": "Unit tests of the picture-file commands (not the screen): each case makes its own picture.",
+  "tags": [
+    "unit-test",
+    "commands"
+  ],
+  "variables": [
+    {
+      "name": "ut_dir",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Unit tests",
+      "description": "Folder with the test data (files, workbooks, fixtures)."
+    },
+    {
+      "name": "standin_url",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local stand-in that imitates outside services."
+    },
+    {
+      "name": "ut_pass",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks passed."
+    },
+    {
+      "name": "ut_fail",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Commands whose checks failed."
+    },
+    {
+      "name": "ut_report",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One line per case: PASS or FAIL, the command and the case."
+    },
+    {
+      "name": "ut_err",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ut_got_error",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "found",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "img",
+      "type": "Image",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "big",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "tpl",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "moved",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "other",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "y",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "same",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "pct",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "changed",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "diff",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "ut_screen",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the cases that take over the screen, open windows or print (off: they are built but not run)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "0. About this agent"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Unit tests of the picture-file commands (not the screen): each case makes its own picture."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test agent UT Image started",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        }
+      ],
+      "description": "0. About this agent"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "1. ooa.image/compare_images - missing picture (G11)"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.image/compare_images (missing picture (G11)) and checks its result."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s31",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case1",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case1"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s7",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case1/a.txt",
+                "text": "not a picture"
+              },
+              "description": "Prepare the test file a.txt"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_got_error",
+                "value": false
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "action": "ooa.image/compare_images",
+                  "args": {
+                    "image": "case1/a.txt",
+                    "other": "case1/none.png"
+                  },
+                  "id": "s8"
+                }
+              ],
+              "description": "These steps should fail with IMAGE.UNSUPPORTED",
+              "catch": [
+                {
+                  "codes": [
+                    "IMAGE.UNSUPPORTED"
+                  ],
+                  "children": [
+                    {
+                      "id": "s11",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ut_got_error",
+                        "value": true
+                      },
+                      "description": "The expected error came"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s12",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ut_got_error$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s13",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check error IMAGE.UNSUPPORTED",
+              "else": [
+                {
+                  "id": "s14",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "error IMAGE.UNSUPPORTED: expected eq true, got ${ut_got_error}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/compare_images: missing picture (G11)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s18",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/compare_images: missing picture (G11): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "1. ooa.image/compare_images - missing picture (G11)"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "2. ooa.image/find_in_image - Image variables given straight to the picture fields (G22)"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Shows ooa.image/find_in_image (Image variables given straight to the picture fields (G22)) and checks its result."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "img",
+                "value": {
+                  "$binary": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEklEQVR4nGP4z8AAQVDqPwMDAEHSBfsl0XwmAAAAAElFTkSuQmCC"
+                }
+              },
+              "description": "Test value for img"
+            },
+            {
+              "action": "ooa.image/find_in_image",
+              "args": {
+                "image": "$img",
+                "template": "$img",
+                "tolerance": 0
+              },
+              "out": {
+                "found": "found"
+              },
+              "id": "s23"
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s26",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/find_in_image: Image variables given straight to the picture fields (G22)\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/find_in_image: Image variables given straight to the picture fields (G22): ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "2. ooa.image/find_in_image - Image variables given straight to the picture fields (G22)"
+    },
+    {
+      "id": "s33",
+      "action": "core/step",
+      "args": {
+        "title": "3. ooa.image/find_in_image - square found with its centre"
+      },
+      "children": [
+        {
+          "id": "s34",
+          "action": "core/comment",
+          "args": {
+            "text": "Find in image looks for a small picture inside a larger one and gives the centre of the match."
+          }
+        },
+        {
+          "id": "s35",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s36",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case3",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s37",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case3"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s38",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/big.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture big"
+            },
+            {
+              "id": "s39",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case3/big.pdf",
+                "target_folder": "case3/big",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into big.png"
+            },
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "big",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture big"
+            },
+            {
+              "id": "s41",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/tpl.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+              },
+              "description": "PDF for the picture tpl"
+            },
+            {
+              "id": "s42",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case3/tpl.pdf",
+                "target_folder": "case3/tpl",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into tpl.png"
+            },
+            {
+              "id": "s43",
+              "action": "core/set",
+              "args": {
+                "variable": "tpl",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture tpl"
+            },
+            {
+              "id": "s44",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/moved.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture moved"
+            },
+            {
+              "id": "s45",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case3/moved.pdf",
+                "target_folder": "case3/moved",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into moved.png"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "moved",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture moved"
+            },
+            {
+              "id": "s47",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case3/other.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+              },
+              "description": "PDF for the picture other"
+            },
+            {
+              "id": "s48",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case3/other.pdf",
+                "target_folder": "case3/other",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into other.png"
+            },
+            {
+              "id": "s49",
+              "action": "core/set",
+              "args": {
+                "variable": "other",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture other"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.image/find_in_image",
+              "args": {
+                "image": "$big$",
+                "template": "$tpl$",
+                "tolerance": 5
+              },
+              "out": {
+                "found": "found",
+                "x": "x",
+                "y": "y",
+                "count": "n"
+              },
+              "description": "Find the square"
+            },
+            {
+              "id": "s51",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$found$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check found",
+              "else": [
+                {
+                  "id": "s53",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "found: expected eq true, got ${found}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s54",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$x$",
+                  "right": 110
+                }
+              },
+              "children": [
+                {
+                  "id": "s55",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check x",
+              "else": [
+                {
+                  "id": "s56",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "x: expected eq 110, got ${x}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$y$",
+                  "right": 110
+                }
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check y",
+              "else": [
+                {
+                  "id": "s59",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "y: expected eq 110, got ${y}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s61",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/find_in_image: square found with its centre\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/find_in_image: square found with its centre: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "3. ooa.image/find_in_image - square found with its centre"
+    },
+    {
+      "id": "s64",
+      "action": "core/step",
+      "args": {
+        "title": "4. ooa.image/compare_images - same and different"
+      },
+      "children": [
+        {
+          "id": "s65",
+          "action": "core/comment",
+          "args": {
+            "text": "Compare images says whether two pictures are the same and how much differs; it can save a copy with the changes in red."
+          }
+        },
+        {
+          "id": "s66",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s67",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case4",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case4"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s69",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/big.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture big"
+            },
+            {
+              "id": "s70",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case4/big.pdf",
+                "target_folder": "case4/big",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into big.png"
+            },
+            {
+              "id": "s71",
+              "action": "core/set",
+              "args": {
+                "variable": "big",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture big"
+            },
+            {
+              "id": "s72",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/tpl.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+              },
+              "description": "PDF for the picture tpl"
+            },
+            {
+              "id": "s73",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case4/tpl.pdf",
+                "target_folder": "case4/tpl",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into tpl.png"
+            },
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "tpl",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture tpl"
+            },
+            {
+              "id": "s75",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/moved.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture moved"
+            },
+            {
+              "id": "s76",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case4/moved.pdf",
+                "target_folder": "case4/moved",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into moved.png"
+            },
+            {
+              "id": "s77",
+              "action": "core/set",
+              "args": {
+                "variable": "moved",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture moved"
+            },
+            {
+              "id": "s78",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case4/other.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+              },
+              "description": "PDF for the picture other"
+            },
+            {
+              "id": "s79",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case4/other.pdf",
+                "target_folder": "case4/other",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into other.png"
+            },
+            {
+              "id": "s80",
+              "action": "core/set",
+              "args": {
+                "variable": "other",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture other"
+            },
+            {
+              "id": "s81",
+              "action": "ooa.image/compare_images",
+              "args": {
+                "image": "$big$",
+                "other": "$big$"
+              },
+              "out": {
+                "same": "same"
+              },
+              "description": "Compare a picture with itself"
+            },
+            {
+              "id": "s82",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$same$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s83",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check same",
+              "else": [
+                {
+                  "id": "s84",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "same: expected eq true, got ${same}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "ooa.image/compare_images",
+              "args": {
+                "image": "$big$",
+                "other": "$moved$",
+                "difference_image": "case4/diff.png"
+              },
+              "out": {
+                "same": "same",
+                "difference_percent": "pct",
+                "difference_image": "diff"
+              },
+              "description": "Compare with the moved square"
+            },
+            {
+              "id": "s86",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$same$",
+                  "right": false
+                }
+              },
+              "children": [
+                {
+                  "id": "s87",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check same",
+              "else": [
+                {
+                  "id": "s88",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "same: expected eq false, got ${same}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s89",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "gt",
+                  "left": "$pct$",
+                  "right": 0
+                }
+              },
+              "children": [
+                {
+                  "id": "s90",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check difference_percent",
+              "else": [
+                {
+                  "id": "s91",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "difference_percent: expected gt 0, got ${pct}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s92",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s93",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "case4/diff.png"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Was the difference picture saved?"
+            },
+            {
+              "id": "s95",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s96",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s97",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s99",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/compare_images: same and different\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s101",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/compare_images: same and different: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "4. ooa.image/compare_images - same and different"
+    },
+    {
+      "id": "s102",
+      "action": "core/step",
+      "args": {
+        "title": "5. ooa.image/image_in_image - square in the page, bar not"
+      },
+      "children": [
+        {
+          "id": "s103",
+          "action": "core/comment",
+          "args": {
+            "text": "Image in image is a condition: true when the template appears in the picture; the wide bar does not."
+          }
+        },
+        {
+          "id": "s104",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s105",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case5",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s106",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case5"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s107",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/big.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture big"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case5/big.pdf",
+                "target_folder": "case5/big",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into big.png"
+            },
+            {
+              "id": "s109",
+              "action": "core/set",
+              "args": {
+                "variable": "big",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture big"
+            },
+            {
+              "id": "s110",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/tpl.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+              },
+              "description": "PDF for the picture tpl"
+            },
+            {
+              "id": "s111",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case5/tpl.pdf",
+                "target_folder": "case5/tpl",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into tpl.png"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "tpl",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture tpl"
+            },
+            {
+              "id": "s113",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/moved.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+              },
+              "description": "PDF for the picture moved"
+            },
+            {
+              "id": "s114",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case5/moved.pdf",
+                "target_folder": "case5/moved",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into moved.png"
+            },
+            {
+              "id": "s115",
+              "action": "core/set",
+              "args": {
+                "variable": "moved",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture moved"
+            },
+            {
+              "id": "s116",
+              "action": "ooa.file/write_text",
+              "args": {
+                "path": "case5/other.pdf",
+                "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+              },
+              "description": "PDF for the picture other"
+            },
+            {
+              "id": "s117",
+              "action": "ooa.pdf/to_images",
+              "args": {
+                "path": "case5/other.pdf",
+                "target_folder": "case5/other",
+                "dpi": 72
+              },
+              "out": {
+                "files": "files"
+              },
+              "description": "Turn it into other.png"
+            },
+            {
+              "id": "s118",
+              "action": "core/set",
+              "args": {
+                "variable": "other",
+                "value": {
+                  "expr": "$files[0]"
+                }
+              },
+              "description": "The picture other"
+            },
+            {
+              "id": "s119",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": false
+              }
+            },
+            {
+              "id": "s120",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.image/image_in_image",
+                  "args": {
+                    "image": "$big$",
+                    "template": "$tpl$",
+                    "tolerance": 5
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s121",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": true
+                  }
+                }
+              ],
+              "description": "Is the square in the page?"
+            },
+            {
+              "id": "s122",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s123",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s124",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s125",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.image/image_in_image",
+                  "args": {
+                    "image": "$big$",
+                    "template": "$other$",
+                    "tolerance": 5
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s126",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  }
+                }
+              ],
+              "description": "Is the bar in the page?"
+            },
+            {
+              "id": "s127",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$ok$",
+                  "right": true
+                }
+              },
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "As expected"
+                  }
+                }
+              ],
+              "description": "Check ok",
+              "else": [
+                {
+                  "id": "s129",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "UT.CHECK_FAILED",
+                    "message": "ok: expected eq true, got ${ok}"
+                  },
+                  "description": "Stop the case: the check failed"
+                }
+              ]
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/image_in_image: square in the page, bar not\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s132",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s133",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/image_in_image: square in the page, bar not: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "5. ooa.image/image_in_image - square in the page, bar not"
+    },
+    {
+      "id": "s134",
+      "action": "core/step",
+      "args": {
+        "title": "6. ooa.image/find_on_screen - a picture that is not shown"
+      },
+      "children": [
+        {
+          "id": "s135",
+          "action": "core/comment",
+          "args": {
+            "text": "Find on screen looks for a picture on the screen; a picture made only for this case is not there. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s136",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s137",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case6",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s138",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case6"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case6/big.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture big"
+                },
+                {
+                  "id": "s141",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case6/big.pdf",
+                    "target_folder": "case6/big",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into big.png"
+                },
+                {
+                  "id": "s142",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "big",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture big"
+                },
+                {
+                  "id": "s143",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case6/tpl.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture tpl"
+                },
+                {
+                  "id": "s144",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case6/tpl.pdf",
+                    "target_folder": "case6/tpl",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into tpl.png"
+                },
+                {
+                  "id": "s145",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tpl",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture tpl"
+                },
+                {
+                  "id": "s146",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case6/moved.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture moved"
+                },
+                {
+                  "id": "s147",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case6/moved.pdf",
+                    "target_folder": "case6/moved",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into moved.png"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "moved",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture moved"
+                },
+                {
+                  "id": "s149",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case6/other.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture other"
+                },
+                {
+                  "id": "s150",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case6/other.pdf",
+                    "target_folder": "case6/other",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into other.png"
+                },
+                {
+                  "id": "s151",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "other",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture other"
+                },
+                {
+                  "id": "s152",
+                  "action": "ooa.image/find_on_screen",
+                  "args": {
+                    "template": "$other$",
+                    "tolerance": 0
+                  },
+                  "out": {
+                    "found": "found"
+                  },
+                  "description": "Look for the test picture"
+                },
+                {
+                  "id": "s153",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$found$",
+                      "right": false
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s154",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check found",
+                  "else": [
+                    {
+                      "id": "s155",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "found: expected eq false, got ${found}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s156",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.image/find_on_screen needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s157",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s158",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/find_on_screen: a picture that is not shown\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s159",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s160",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/find_on_screen: a picture that is not shown: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "6. ooa.image/find_on_screen - a picture that is not shown"
+    },
+    {
+      "id": "s161",
+      "action": "core/step",
+      "args": {
+        "title": "7. ooa.image/image_on_screen - a picture that is not shown"
+      },
+      "children": [
+        {
+          "id": "s162",
+          "action": "core/comment",
+          "args": {
+            "text": "Image on screen is a condition: true when the picture is visible. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s163",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s164",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case7",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s165",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case7"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s166",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s167",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case7/big.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture big"
+                },
+                {
+                  "id": "s168",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case7/big.pdf",
+                    "target_folder": "case7/big",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into big.png"
+                },
+                {
+                  "id": "s169",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "big",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture big"
+                },
+                {
+                  "id": "s170",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case7/tpl.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture tpl"
+                },
+                {
+                  "id": "s171",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case7/tpl.pdf",
+                    "target_folder": "case7/tpl",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into tpl.png"
+                },
+                {
+                  "id": "s172",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tpl",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture tpl"
+                },
+                {
+                  "id": "s173",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case7/moved.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture moved"
+                },
+                {
+                  "id": "s174",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case7/moved.pdf",
+                    "target_folder": "case7/moved",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into moved.png"
+                },
+                {
+                  "id": "s175",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "moved",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture moved"
+                },
+                {
+                  "id": "s176",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case7/other.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture other"
+                },
+                {
+                  "id": "s177",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case7/other.pdf",
+                    "target_folder": "case7/other",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into other.png"
+                },
+                {
+                  "id": "s178",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "other",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture other"
+                },
+                {
+                  "id": "s179",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s180",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "condition": "ooa.image/image_on_screen",
+                      "args": {
+                        "template": "$other$",
+                        "tolerance": 0
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s181",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ok",
+                        "value": true
+                      }
+                    }
+                  ],
+                  "description": "Is it shown?"
+                },
+                {
+                  "id": "s182",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ok$",
+                      "right": false
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s183",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check ok",
+                  "else": [
+                    {
+                      "id": "s184",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "ok: expected eq false, got ${ok}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s185",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.image/image_on_screen needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s186",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s187",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/image_on_screen: a picture that is not shown\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s188",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s189",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/image_on_screen: a picture that is not shown: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "7. ooa.image/image_on_screen - a picture that is not shown"
+    },
+    {
+      "id": "s190",
+      "action": "core/step",
+      "args": {
+        "title": "8. ooa.image/wait_for_image - times out for a picture that is not shown"
+      },
+      "children": [
+        {
+          "id": "s191",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for image waits until a picture appears; one that never does stops with IMAGE.NOT_FOUND. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s192",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s193",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case8",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s194",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case8"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s195",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s196",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case8/big.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture big"
+                },
+                {
+                  "id": "s197",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case8/big.pdf",
+                    "target_folder": "case8/big",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into big.png"
+                },
+                {
+                  "id": "s198",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "big",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture big"
+                },
+                {
+                  "id": "s199",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case8/tpl.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture tpl"
+                },
+                {
+                  "id": "s200",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case8/tpl.pdf",
+                    "target_folder": "case8/tpl",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into tpl.png"
+                },
+                {
+                  "id": "s201",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tpl",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture tpl"
+                },
+                {
+                  "id": "s202",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case8/moved.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture moved"
+                },
+                {
+                  "id": "s203",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case8/moved.pdf",
+                    "target_folder": "case8/moved",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into moved.png"
+                },
+                {
+                  "id": "s204",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "moved",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture moved"
+                },
+                {
+                  "id": "s205",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case8/other.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture other"
+                },
+                {
+                  "id": "s206",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case8/other.pdf",
+                    "target_folder": "case8/other",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into other.png"
+                },
+                {
+                  "id": "s207",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "other",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture other"
+                },
+                {
+                  "id": "s208",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_got_error",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s209",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s210",
+                      "action": "ooa.image/wait_for_image",
+                      "args": {
+                        "template": "$other$",
+                        "tolerance": 0,
+                        "timeout_seconds": 2
+                      },
+                      "description": "Wait 2 seconds"
+                    }
+                  ],
+                  "description": "These steps should fail with IMAGE.NOT_FOUND",
+                  "catch": [
+                    {
+                      "codes": [
+                        "IMAGE.NOT_FOUND"
+                      ],
+                      "children": [
+                        {
+                          "id": "s211",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_got_error",
+                            "value": true
+                          },
+                          "description": "The expected error came"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s212",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ut_got_error$",
+                      "right": true
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s213",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check error IMAGE.NOT_FOUND",
+                  "else": [
+                    {
+                      "id": "s214",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "error IMAGE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s215",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.image/wait_for_image needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s216",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s217",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/wait_for_image: times out for a picture that is not shown\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s218",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s219",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/wait_for_image: times out for a picture that is not shown: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "8. ooa.image/wait_for_image - times out for a picture that is not shown"
+    },
+    {
+      "id": "s220",
+      "action": "core/step",
+      "args": {
+        "title": "9. ooa.image/click_image - nothing is clicked when the picture is not shown"
+      },
+      "children": [
+        {
+          "id": "s221",
+          "action": "core/comment",
+          "args": {
+            "text": "Click image finds a picture on the screen and clicks it; one that is not shown stops with an error and nothing is clicked. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s222",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s223",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case9",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s224",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case9"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s225",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s226",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case9/big.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 100 80 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture big"
+                },
+                {
+                  "id": "s227",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case9/big.pdf",
+                    "target_folder": "case9/big",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into big.png"
+                },
+                {
+                  "id": "s228",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "big",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture big"
+                },
+                {
+                  "id": "s229",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case9/tpl.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 20 >>\nstream\n0 g 10 10 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n379\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture tpl"
+                },
+                {
+                  "id": "s230",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case9/tpl.pdf",
+                    "target_folder": "case9/tpl",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into tpl.png"
+                },
+                {
+                  "id": "s231",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tpl",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture tpl"
+                },
+                {
+                  "id": "s232",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case9/moved.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 21 >>\nstream\n0 g 180 30 20 20 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000311 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n382\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture moved"
+                },
+                {
+                  "id": "s233",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case9/moved.pdf",
+                    "target_folder": "case9/moved",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into moved.png"
+                },
+                {
+                  "id": "s234",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "moved",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture moved"
+                },
+                {
+                  "id": "s235",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "case9/other.pdf",
+                    "text": "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n5 0 obj\n<< /Length 18 >>\nstream\n0 g 0 0 40 10 re f\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000185 00000 n \n0000000309 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n377\n%%EOF\n"
+                  },
+                  "description": "PDF for the picture other"
+                },
+                {
+                  "id": "s236",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "case9/other.pdf",
+                    "target_folder": "case9/other",
+                    "dpi": 72
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "description": "Turn it into other.png"
+                },
+                {
+                  "id": "s237",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "other",
+                    "value": {
+                      "expr": "$files[0]"
+                    }
+                  },
+                  "description": "The picture other"
+                },
+                {
+                  "id": "s238",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_got_error",
+                    "value": false
+                  }
+                },
+                {
+                  "id": "s239",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s240",
+                      "action": "ooa.image/click_image",
+                      "args": {
+                        "template": "$other$",
+                        "tolerance": 0
+                      },
+                      "description": "Click the test picture"
+                    }
+                  ],
+                  "description": "These steps should fail with IMAGE.NOT_FOUND",
+                  "catch": [
+                    {
+                      "codes": [
+                        "IMAGE.NOT_FOUND"
+                      ],
+                      "children": [
+                        {
+                          "id": "s241",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "ut_got_error",
+                            "value": true
+                          },
+                          "description": "The expected error came"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s242",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$ut_got_error$",
+                      "right": true
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s243",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check error IMAGE.NOT_FOUND",
+                  "else": [
+                    {
+                      "id": "s244",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "error IMAGE.NOT_FOUND: expected eq true, got ${ut_got_error}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s245",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.image/click_image needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s246",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s247",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/click_image: nothing is clicked when the picture is not shown\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s248",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s249",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/click_image: nothing is clicked when the picture is not shown: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "9. ooa.image/click_image - nothing is clicked when the picture is not shown"
+    },
+    {
+      "id": "s250",
+      "action": "core/step",
+      "args": {
+        "title": "10. ooa.image/wait_for_screen_change - no change in a corner, carry on"
+      },
+      "children": [
+        {
+          "id": "s251",
+          "action": "core/comment",
+          "args": {
+            "text": "Wait for screen change waits until a region changes; with fail_on_timeout off it reports no change. (Runs only when the input ut_screen is on, because it takes over the screen.)"
+          }
+        },
+        {
+          "id": "s252",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s253",
+              "action": "ooa.folder/delete",
+              "args": {
+                "path": "case10",
+                "recursive": true
+              },
+              "continueOnError": true,
+              "description": "Start from an empty case folder (left from an earlier run)"
+            },
+            {
+              "id": "s254",
+              "action": "ooa.folder/create",
+              "args": {
+                "path": "case10"
+              },
+              "description": "Create the case folder"
+            },
+            {
+              "id": "s255",
+              "action": "core/if",
+              "args": {
+                "condition": "$ut_screen$"
+              },
+              "children": [
+                {
+                  "id": "s256",
+                  "action": "ooa.image/wait_for_screen_change",
+                  "args": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 20,
+                    "height": 20,
+                    "timeout_seconds": 0.6,
+                    "threshold_percent": 50,
+                    "fail_on_timeout": false
+                  },
+                  "out": {
+                    "changed": "changed"
+                  },
+                  "description": "Watch the top-left corner"
+                },
+                {
+                  "id": "s257",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$changed$",
+                      "right": false
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s258",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "As expected"
+                      }
+                    }
+                  ],
+                  "description": "Check changed",
+                  "else": [
+                    {
+                      "id": "s259",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "UT.CHECK_FAILED",
+                        "message": "changed: expected eq false, got ${changed}"
+                      },
+                      "description": "Stop the case: the check failed"
+                    }
+                  ]
+                }
+              ],
+              "description": "Only when screen cases are switched on",
+              "else": [
+                {
+                  "id": "s260",
+                  "action": "core/log",
+                  "args": {
+                    "message": "Not run: ooa.image/wait_for_screen_change needs the screen (switch on ut_screen to run it)",
+                    "level": "info"
+                  },
+                  "description": "Write to the run log"
+                }
+              ]
+            },
+            {
+              "id": "s261",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_pass",
+                "value": {
+                  "expr": "$ut_pass + 1"
+                }
+              },
+              "description": "Count the case as passed"
+            },
+            {
+              "id": "s262",
+              "action": "core/set",
+              "args": {
+                "variable": "ut_report",
+                "value": "${ut_report}PASS  ooa.image/wait_for_screen_change: no change in a corner, carry on\n"
+              },
+              "description": "Add a PASS line to the report"
+            }
+          ],
+          "description": "Run the command and check what it gave back",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s263",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_fail",
+                    "value": {
+                      "expr": "$ut_fail + 1"
+                    }
+                  },
+                  "description": "Count the case as failed"
+                },
+                {
+                  "id": "s264",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ut_report",
+                    "value": "${ut_report}FAIL  ooa.image/wait_for_screen_change: no change in a corner, carry on: ${ut_err}\n"
+                  },
+                  "description": "Add a FAIL line with the reason"
+                }
+              ],
+              "message_to": "ut_err"
+            }
+          ]
+        }
+      ],
+      "description": "10. ooa.image/wait_for_screen_change - no change in a corner, carry on"
+    },
+    {
+      "id": "s265",
+      "action": "core/step",
+      "args": {
+        "title": "11. Summary"
+      },
+      "children": [
+        {
+          "id": "s266",
+          "action": "core/comment",
+          "args": {
+            "text": "How many cases passed; the run fails when any case failed."
+          }
+        },
+        {
+          "id": "s267",
+          "action": "core/log",
+          "args": {
+            "message": "Unit test results: ${ut_pass} passed, ${ut_fail} failed\n${ut_report}",
+            "level": "info"
+          },
+          "description": "Write to the run log"
+        },
+        {
+          "id": "s268",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "gt",
+              "left": "$ut_fail$",
+              "right": 0
+            }
+          },
+          "children": [
+            {
+              "id": "s269",
+              "action": "core/throw",
+              "args": {
+                "code": "UT.FAILED",
+                "message": "${ut_fail} of the cases failed; see ut_report"
+              },
+              "description": "Mark the run failed"
+            }
+          ],
+          "description": "Did any case fail?"
+        }
+      ],
+      "description": "11. Summary"
+    }
+  ]
+}
