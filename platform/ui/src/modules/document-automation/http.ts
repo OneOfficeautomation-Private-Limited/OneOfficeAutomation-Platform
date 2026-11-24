@@ -3,7 +3,7 @@ import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
-  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard,
+  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
 } from "./api";
@@ -285,6 +285,10 @@ export class HttpDocFlowApi implements DocFlowApi {
         overdue: queue.filter((q) => q.flowId === f.id && q.overdue).length, lastAt: last?.created_at ?? null,
       };
     });
+  }
+
+  async accuracy(processId: string): Promise<Accuracy> {
+    return this.call<Accuracy>("GET", `/df/flows/${encodeURIComponent(processId)}/accuracy`);
   }
 
   async documents(processId: string, limit = 200): Promise<DocumentRow[]> {
@@ -710,7 +714,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       return out.join("; ") || "—";
     };
     return {
-      rows: r.fields.map((f) => ({ field: f.label, a: value(a, f.name), aConf: conf(a, f.name), b: b ? value(b, f.name) : "", bConf: b ? conf(b, f.name) : "",
+      rows: r.fields.map((f) => ({ field: f.label, key: f.name, a: value(a, f.name), aConf: conf(a, f.name), b: b ? value(b, f.name) : "", bConf: b ? conf(b, f.name) : "",
         check: check(f), differs: !!b && value(a, f.name) !== value(b, f.name) })),
       runs: r.runs.map((x) => ({ engine: x.engine, seconds: (x.ms ?? 0) / 1000, confidence: pct(x.confidence), review: !!x.review,
         readBy: (x.readBy ?? []).map((e) => ENGINE_NAMES[e] ?? e).join(", then ") || "—", error: x.error })),

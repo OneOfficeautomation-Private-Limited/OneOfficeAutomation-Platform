@@ -67,7 +67,8 @@ export function SetDetail({ api, setId }: { api: DocFlowApi; setId: string }) {
       {run && <RunResults run={run} name={choices.name} fieldLabel={fieldLabel} />}
       {(runs?.length ?? 0) > 0 && <PastRuns runs={runs!.map((r) => (r.id === run?.id ? run : r))} shown={shownId} name={choices.name} onOpen={setRunId} />}
 
-      {editing && <ItemDialog item={editing === "new" ? null : editing} fields={fields} onSave={saveItem} onClose={() => setEditing(null)} />}
+      {editing && <ItemDialog item={editing === "new" ? null : editing} fields={fields} onSave={saveItem} onClose={() => setEditing(null)}
+        onRead={async (file) => Object.fromEntries((await api.runTest(file, set.docType, "auto", null)).rows.filter((r) => r.key && r.a !== "—").map((r) => [r.key!, r.a]))} />}
       {choosing && <RunDialog ocr={choices.ocr} extraction={choices.extraction} onRun={start} onClose={() => setChoosing(false)} />}
       <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete test set?" width={440}
         footer={<><Button onClick={() => setDeleting(false)}>Cancel</Button><Button kind="danger" onClick={drop}>Delete</Button></>}>

@@ -4,6 +4,7 @@ import { INBOX_ID, type DocFlowApi, type DocStatus, type Source } from "./api";
 import { folderLabel } from "./dialogs";
 import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad } from "./ui";
 import { UploadFiles } from "./upload";
+import { AccuracyCard } from "./accuracy";
 
 const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split from a batch" };
 
@@ -62,6 +63,8 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
         <Kpi label="Need review" value={p.review} />
         <Kpi label="Processing" value={p.processing} />
       </div>
+
+      {p.id !== INBOX_ID && <AccuracyCard api={api} processId={p.id} />}
 
       <section className="df-card" aria-label={"Documents in " + p.name} style={{ overflow: "hidden" }}>
         <FilterBar onClear={clear} count={`${rows.length} of ${docs.length} documents`} actions={<a className="ui-btn ui-btn-secondary" href={api.exportUrl(p.id, "xlsx")} download={p.name + ".xlsx"} title="Done and approved documents, one row each">Export to Excel</a>}>

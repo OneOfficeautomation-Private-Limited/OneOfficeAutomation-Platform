@@ -3,13 +3,16 @@ import { Button, Dialog, Field, TextInput } from "../../../components";
 import type { TestSetItem } from "../api";
 import { READABLE_FILES } from "../formats";
 import { value } from "./format";
+import { reportError } from "../ui";
 
 /**
  * A test document's right values, one box per field of the set's document type (tables are not scored), and its tags.
  * For a new one, the file too. Empty boxes are not tested.
  */
-export function ItemDialog({ item, fields, onSave, onClose }: {
+export function ItemDialog({ item, fields, onSave, onClose, onRead }: {
   item: TestSetItem | null; fields: { key: string; label: string }[];
+  /** Reads the chosen file with the default engines and gives its values by field name (to correct, not to type). */
+  onRead?: (file: File) => Promise<Record<string, string>>;
   onSave: (file: File | null, expected: Record<string, string>, tags: string[]) => Promise<void>; onClose: () => void;
 }) {
   const picker = useRef<HTMLInputElement>(null);
@@ -20,6 +23,15 @@ export function ItemDialog({ item, fields, onSave, onClose }: {
     Object.fromEntries(all.map((f) => [f.key, item && item.expected[f.key] !== undefined ? value(item.expected[f.key]) : ""])));
   const [tags, setTags] = useState((item?.tags ?? []).join(", "));
   const [saving, setSaving] = useState(false);
+  const [reading, setReading] = useState(false);
+  const read = async () => {
+    if (!file || !onRead) return;
+    setReading(true);
+    try {
+      const got = await onRead(file);
+      setValues((cur) => Object.fromEntries(Object.entries(cur).map(([k, v]) => [k, v.trim() ? v : got[k] ?? ""])));
+    } catch (e) { reportError(e); } finally { setReading(false); }
+  };
   const filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v && v !== "—"));
   const ready = Object.keys(filled).length > 0 && (item || file);
   const save = async () => {
@@ -35,10 +47,13 @@ export function ItemDialog({ item, fields, onSave, onClose }: {
           <span className="ui-field-label">Document</span>
           <input ref={picker} type="file" hidden accept={READABLE_FILES} aria-label="Choose a document"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
+          <span style={{ display: "flex", gap: 8 }}>
+            <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
+            {onRead && <Button disabled={!file || reading} onClick={read}>{reading ? "Reading…" : "Fill from a reading"}</Button>}
+          </span>
         </div>
       )}
-      <p className="df-muted" style={{ margin: 0 }}>Type each value as it is right. Leave a box empty to not test that field.</p>
+      <p className="df-muted" style={{ margin: 0 }}>Type each value as it is right{onRead && !item ? ", or let Fill from a reading fill the boxes and correct them" : ""}. Leave a box empty to not test that field.</p>
       <div className="df-grid df-g2" style={{ gap: 10 }}>
         {all.map((f) => (
           <Field key={f.key} label={f.label}>{(id) => <TextInput id={id} dir="auto" className="df-num" value={values[f.key] ?? ""}

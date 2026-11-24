@@ -259,7 +259,14 @@ export interface Overview {
   readBy: { label: string; share: number }[];
 }
 
-export interface TestResult { field: string; a: string; aConf: string; b: string; bConf: string; check: string; differs: boolean }
+/** How well a process reads, from its reviewed documents (DocFlow GET /df/flows/{id}/accuracy). Shares are 0-1. */
+export interface Accuracy {
+  documents: number; finished: number; reviewed: number; measured: number; straightThrough: number | null; reviewLevel: number;
+  fields: { name: string; label: string; seen: number; corrected: number; correctedShare: number }[];
+  levels: { level: number; straightThrough: number | null; wrongPassed: number | null; fields: number }[];
+}
+/** key: the field's name (field is its label). */
+export interface TestResult { field: string; key?: string; a: string; aConf: string; b: string; bConf: string; check: string; differs: boolean }
 /** A Test lab run: the field rows, and per engine its time, page confidence, whether it would go to review (or why it could not run). */
 export interface TestRun { rows: TestResult[]; runs: { engine: string; seconds: number; confidence: number | null; review: boolean; readBy: string; error?: string }[] }
 
@@ -354,6 +361,8 @@ export interface DocFlowApi {
   processes(): Promise<ProcessSummary[]>;
   /** Every process with its set-up and activity, in one go (the Overview table). */
   processTable(): Promise<ProcessRow[]>;
+  /** How well a process reads: corrections per field, straight-through share, what each review level would do. */
+  accuracy(processId: string): Promise<Accuracy>;
   /** The newest documents of a process, at most limit (200 by default). */
   documents(processId: string, limit?: number): Promise<DocumentRow[]>;
   addDocuments(files: File[], processId: string | "auto", folder: string): Promise<{ processId: string }>;
@@ -699,6 +708,13 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
+  async accuracy(_processId: string): Promise<Accuracy> {
+    return { documents: 120, finished: 110, reviewed: 40, measured: 480, straightThrough: 0.64, reviewLevel: 0.85,
+      fields: [{ name: "vat_amount", label: "VAT amount", seen: 40, corrected: 6, correctedShare: 0.15 }, { name: "supplier_name", label: "Supplier", seen: 40, corrected: 3, correctedShare: 0.075 },
+        { name: "invoice_number", label: "Invoice number", seen: 40, corrected: 1, correctedShare: 0.025 }],
+      levels: [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99].map((level, i) => ({ level, straightThrough: 0.95 - i * 0.08, wrongPassed: Math.max(0, 0.06 - i * 0.007), fields: 400 - i * 30 })) };
+  }
+
   async documents(processId: string, limit = 200) { return copy(this.documentsData.filter((d) => d.processId === processId).slice(0, limit)); }
   async addDocuments(files: File[], processId: string | "auto") {
     const target = processId === "auto" ? "smart-inbox" : processId;
