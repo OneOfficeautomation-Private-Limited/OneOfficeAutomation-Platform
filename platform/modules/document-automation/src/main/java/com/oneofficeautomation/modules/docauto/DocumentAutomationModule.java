@@ -90,6 +90,8 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         ctx.agentRoute("docflow/results", docflow::resultsForBot);
         ctx.callbackRoute("docflow-callback/start-bot", docflow::startBot);
         ctx.callbackRoute("docflow-callback/events", docflow::event);
+        ctx.callbackRoute("docflow-callback/send-mail", docflow::sendMail);
+        ctx.callbackRoute("docflow-callback/secret", docflow::deliverySecret);
         int rs = ctx.intSetting("docflow_review_sync_seconds"), rm = ctx.intSetting("docflow_mail_poll_seconds");
         ctx.every(Duration.ofSeconds(10), Duration.ofSeconds(rs <= 0 ? 20 : Math.max(5, rs)), docflow::syncReviews);
         ctx.every(Duration.ofSeconds(15), Duration.ofSeconds(rm <= 0 ? 30 : Math.max(10, rm)), docflow::pollMail);

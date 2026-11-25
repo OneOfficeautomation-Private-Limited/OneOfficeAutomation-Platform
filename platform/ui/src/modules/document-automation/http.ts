@@ -170,11 +170,21 @@ function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow
 }
 
 /** Where a delivery points, by kind: the bot to start, the webhook address, or the folder / Excel path. */
-const targetOf = (d: DfDelivery) => String((d.type === "start_bot" ? d.params.bot : d.type === "webhook" ? d.params.url : d.params.path) ?? "");
+const targetOf = (d: DfDelivery) => d.type === "email" ? ((d.params.to as string[] | undefined) ?? []).join(", ")
+  : d.type === "cloud_storage" ? String(d.params.bucket ?? d.params.container ?? d.params.url ?? "")
+  : String((d.type === "start_bot" ? d.params.bot : d.type === "webhook" ? d.params.url : d.params.path) ?? "");
+/** The settings of e-mail and cloud storage deliveries beyond their target, as the dialog edits them. */
+const EXTRA_KEYS = ["subject", "message", "provider", "region", "endpoint", "prefix", "accessKey", "secretRef", "files"];
 const paramsOf = (d: Delivery, old?: DfDelivery): Record<string, unknown> => {
   const keep = { ...(old?.params ?? {}) };
   if (d.type === "start_bot") return { ...keep, bot: d.target, pool: d.pool ?? "" };
   if (d.type === "webhook") return { ...keep, url: d.target, method: d.method ?? "POST", headers: d.headers ?? {} };
+  if (d.type === "email") return { ...keep, ...(d.extra ?? {}), to: d.target.split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
+  if (d.type === "cloud_storage") {
+    const provider = String(d.extra?.provider ?? "azure_blob");
+    const target = provider === "s3" ? { bucket: d.target } : provider === "azure_blob" ? { container: d.target } : { url: d.target };
+    return { ...Object.fromEntries(Object.entries(keep).filter(([k]) => !["bucket", "container", "url"].includes(k))), ...(d.extra ?? {}), provider, ...target };
+  }
   return { ...keep, path: d.target, ...(d.type === "folder" ? { searchablePdf: !!d.searchablePdf, saveText: !!d.saveText } : {}) };
 };
 const checkOf = (r: DfRule): Check => ({
@@ -585,6 +595,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
         ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}),
         ...(d.type === "folder" ? { searchablePdf: !!d.params.searchablePdf, saveText: !!d.params.saveText } : {}),
+        ...(d.type === "email" || d.type === "cloud_storage" ? { extra: Object.fromEntries(EXTRA_KEYS.filter((k) => d.params[k] !== undefined).map((k) => [k, d.params[k]])) } : {}),
         ...(d.type === "webhook" ? { method: (String(d.params.method ?? "POST").toUpperCase() as Delivery["method"]), headers: (d.params.headers ?? {}) as Record<string, string> } : {}) })),
     };
     const seen = new Set<string>();

@@ -370,6 +370,18 @@ public final class DocFlowProxy {
         }
         if (!(flow.get("deliveries") instanceof List<?> list)) return changed ? JsonLite.write(flow).getBytes(StandardCharsets.UTF_8) : in;
         for (Object o : list) {
+            // e-mail and cloud storage deliveries act as the person who sets them up: the mail goes out from here, and a
+            // storage key is a vault secret that person may use (read here at delivery time, never kept by DocFlow)
+            if (o instanceof Map<?, ?> out && ("email".equals(out.get("type")) || "cloud_storage".equals(out.get("type")))) {
+                Map<String, Object> d = (Map<String, Object>) out;
+                Map<String, Object> p = d.get("params") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
+                String ref = String.valueOf(p.getOrDefault("secretRef", "")).trim();
+                if (!ref.isEmpty()) vaultAccess(u.username(), u.role(), ref);
+                p.put("requestedBy", u.username());
+                d.put("params", p);
+                changed = true;
+                continue;
+            }
             if (!(o instanceof Map<?, ?> raw) || !"start_bot".equals(raw.get("type"))) continue;
             Map<String, Object> d = (Map<String, Object>) raw;
             Map<String, Object> p = d.get("params") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
@@ -927,6 +939,51 @@ public final class DocFlowProxy {
         documentValues(named, doc.get("fields")).forEach((k, v) -> { if (declared.contains(k)) inputs.put(k, v); });
         String pool = b.get("pool") instanceof String s && !s.isBlank() ? s : null;
         return ctx.startRun(by, (String) user.get("role"), bot, null, pool, inputs, "docflow:" + doc.getOrDefault("flowId", ""), ip, 0, null, pool == null ? by : null, null);
+    }
+
+    /**
+     * DocFlow's e-mail delivery: the mail goes out through Settings > Mail, to addresses and people (user names, role:,
+     * team:) the delivery names, as the person who set the delivery up (who must still be an active user).
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> sendMail(HttpExchange ex, String ip) throws IOException {
+        fromDocFlow(ex);
+        Map<String, Object> b = ctx.jsonBody(ex);
+        String by = activeUser(b);
+        List<String> people = new ArrayList<>();
+        if (b.get("to") instanceof List<?> l) for (Object o : l) if (o != null && !String.valueOf(o).isBlank()) people.add(String.valueOf(o).trim());
+        List<String> to = new ArrayList<>(people.stream().filter(p -> p.contains("@")).toList());
+        to.addAll(ctx.addressesOf(people.stream().filter(p -> !p.contains("@")).toList()));
+        if (to.isEmpty()) throw new OoaException("CR.BAD_INPUT", "The delivery names nobody with a mail address", "Add addresses, or people with a mail address, to the delivery.");
+        List<ModuleContext.MailAttachment> files = new ArrayList<>();
+        long total = 0;
+        if (b.get("attachments") instanceof List<?> l) for (Object o : l) {
+            if (!(o instanceof Map<?, ?> a)) continue;
+            byte[] bytes = Base64.getDecoder().decode(String.valueOf(a.get("base64")));
+            total += bytes.length;
+            if (total > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The attachments are larger than the Largest upload setting allows");
+            files.add(new ModuleContext.MailAttachment(String.valueOf(a.get("name")), String.valueOf(a.get("contentType")), bytes));
+        }
+        ctx.sendMail(to, String.valueOf(b.getOrDefault("subject", "Document Automation")), String.valueOf(b.getOrDefault("body", "")), files);
+        ctx.audit(by, "docflow.mail", "mail", String.valueOf(b.getOrDefault("subject", "")), Map.of("to", to, "files", files.size()), "ok", ip);
+        return Map.of("sent", to.size());
+    }
+
+    /** A vault secret a DocFlow delivery uses (a storage key), for the person who set the delivery up, and audited. */
+    Map<String, Object> deliverySecret(HttpExchange ex, String ip) throws IOException {
+        fromDocFlow(ex);
+        Map<String, Object> b = ctx.jsonBody(ex);
+        String by = activeUser(b), ref = String.valueOf(b.getOrDefault("ref", "")).trim();
+        String value = secret(by, ref);
+        ctx.audit(by, "vault.use", "credential", ref, Map.of("for", "Document Automation delivery"), "ok", ip);
+        return Map.of("value", value == null ? "" : value);
+    }
+
+    private String activeUser(Map<String, Object> b) {
+        String by = String.valueOf(b.getOrDefault("requestedBy", ""));
+        if (ctx.db().one("SELECT username FROM users WHERE username = ? AND enabled = TRUE", by) == null)
+            throw new OoaException("CR.FORBIDDEN", "The person who set up this delivery (" + by + ") is not an active user", "Open the process and save its delivery again.");
+        return by;
     }
 
     // ------------------------------------------------------------------ which DocFlow

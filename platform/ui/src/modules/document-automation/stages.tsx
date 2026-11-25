@@ -21,8 +21,11 @@ export const DELIVERY_KIND: Record<DeliveryType, { label: string; target: string
   excel: { label: "Excel register", target: "Excel file", placeholder: "D:\\AP\\invoices.xlsx" },
   folder: { label: "Folder", target: "Folder", placeholder: "\\\\fileserver\\ap\\processed" },
   webhook: { label: "Webhook", target: "Address", placeholder: "https://erp.example.com/hooks/invoice" },
-  start_bot: { label: "Start a bot", target: "Bot", placeholder: "Finance/Post invoice to ERP" },
+  start_bot: { label: "Start an agent (SFTP, ERP, SharePoint and more)", target: "Agent", placeholder: "Finance/Post invoice to ERP" },
+  email: { label: "E-mail", target: "To", placeholder: "ap@example.com, role:finance" },
+  cloud_storage: { label: "Cloud storage (S3, Azure Blob, a web address)", target: "Bucket", placeholder: "invoices" },
 };
+const FILES: [string, string][] = [["original", "The document"], ["json", "The results (JSON)"], ["markdown", "The text and tables (Markdown)"]];
 
 /** The document states a delivery can be sent on, in plain words. */
 const SEND_ON: [string, string][] = [
@@ -317,9 +320,11 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
             value={d.target} placeholder={kind.placeholder} file={d.type === "excel" ? "register.xlsx" : undefined} processId={processId}
             hint={d.type === "folder" ? "Each document's values and file go in a folder named after its status (success, validated...)." : "One sheet per document type, a row for each document."}
             onChange={(v) => setD({ ...d, target: v })} />
-        : <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
+        : <Field label={d.type === "cloud_storage" ? ({ s3: "Bucket", azure_blob: "Container address", http_put: "Address ({file} is the file name)" } as Record<string, string>)[String(d.extra?.provider ?? "azure_blob")] : kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
             {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
           </Field>}
+      {d.type === "start_bot" && <p className="df-small" style={{ margin: 0 }}>Use an agent for SFTP, an ERP, SharePoint or any other system: it gets the document and its values, and uses its own steps and vault credentials.</p>}
+      {(d.type === "email" || d.type === "cloud_storage") && <OutSettings d={d} setD={setD} />}
       {d.type === "folder" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={!!d.searchablePdf} onChange={(e) => setD({ ...d, searchablePdf: e.target.checked })} />
         Also save a searchable PDF (its text can be searched and copied)</label>}
@@ -351,6 +356,40 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
       </fieldset>
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.target.checked })} />On</label>
     </Dialog>
+  );
+}
+
+/** The settings of an e-mail or a cloud storage delivery: subject, or where and with which key; and the files sent. */
+function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) {
+  const x = d.extra ?? {};
+  const set = (k: string, v: unknown) => setD({ ...d, extra: { ...x, [k]: v } });
+  const files = (x.files as string[] | undefined) ?? ["original", "json"];
+  const text = (k: string, label: string, placeholder = "", hint?: string) => (
+    <Field label={label} hint={hint}>{(id) => <TextInput id={id} value={String(x[k] ?? "")} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} />}</Field>);
+  const provider = String(x.provider ?? "azure_blob");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {d.type === "email" ? <div className="df-grid df-g2">
+        {text("subject", "Subject", "{process}: {file} ({status})", "{process}, {file}, {status} and {type} are filled in.")}
+        {text("message", "Message (optional)", "Please find the invoice attached.")}
+      </div> : <>
+        <Field label="Where">{(id) => <Select id={id} value={provider} onChange={(e) => set("provider", e.target.value)}
+          options={[{ value: "azure_blob", label: "Azure Blob container (address and SAS)" }, { value: "s3", label: "Amazon S3 or S3-compatible (MinIO, Wasabi, R2...)" },
+            { value: "http_put", label: "A web address that takes uploads" }]} />}</Field>
+        <div className="df-grid df-g3">
+          {provider === "s3" && <>{text("region", "Region", "eu-central-1")}{text("endpoint", "Endpoint (optional)", "https://minio.example.com", "Empty: Amazon S3.")}{text("accessKey", "Access key id", "AKIA...")}</>}
+          {text("prefix", "Folder in it (optional)", "invoices/2026")}
+          {text("secretRef", provider === "s3" ? "Secret key (vault)" : provider === "azure_blob" ? "SAS token (vault)" : "Authorization header (vault, optional)", "folder/credential/attribute",
+            "A vault reference you may use; the value is read at delivery time and never stored with the process.")}
+        </div>
+      </>}
+      <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+        <legend style={{ fontWeight: 600, padding: 0, marginBottom: 6 }}>Send these files</legend>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>{FILES.map(([k, label]) => (
+          <label key={k} style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={files.includes(k)}
+            onChange={(e) => set("files", e.target.checked ? [...files, k] : files.filter((f) => f !== k))} />{label}</label>))}</div>
+      </fieldset>
+    </div>
   );
 }
 

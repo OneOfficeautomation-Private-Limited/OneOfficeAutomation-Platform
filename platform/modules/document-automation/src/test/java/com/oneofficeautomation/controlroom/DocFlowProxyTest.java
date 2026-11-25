@@ -367,6 +367,38 @@ class DocFlowProxyTest {
         assertEquals(Map.of("document_id", "doc9", "invoice_number", "INV-9"), JsonLite.parse((String) run.get("inputs")));
     }
 
+    HttpResponse<String> callbackOf(String route, String body) throws Exception {
+        return HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/docflow-callback/" + route)).header("Authorization", "Bearer svc-123").header("X-OOA-Tenant", "default")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** O6 (25 Nov 2026): e-mail deliveries go out through Settings > Mail; storage keys come from the vault, for the delivery's author only. */
+    @Test void docFlowSendsMailAndReadsDeliverySecretsThroughTheCommandCenter() throws Exception {
+        HttpResponse<String> mail = callbackOf("send-mail", "{\"requestedBy\":\"admin\",\"to\":[\"ap@example.com\"],\"subject\":\"AP: inv.pdf\",\"body\":\"total: 5\","
+                + "\"attachments\":[{\"name\":\"inv.json\",\"contentType\":\"application/json\",\"base64\":\"e30=\"}]}");
+        assertTrue(mail.body().contains("MAIL.NOT_SET_UP"), "reached the mail service (not set up in this test): " + mail.body());
+        assertEquals(403, callbackOf("send-mail", "{\"requestedBy\":\"ghost\",\"to\":[\"a@example.com\"]}").statusCode());
+        HttpResponse<String> nobody = callbackOf("send-mail", "{\"requestedBy\":\"admin\",\"to\":[]}");
+        assertTrue(nobody.body().contains("nobody with a mail address"), nobody.body());
+
+        HttpResponse<String> secret = callbackOf("secret", "{\"requestedBy\":\"admin\",\"ref\":\"docflow/service/token\"}");
+        assertEquals(200, secret.statusCode(), secret.body());
+        assertEquals("svc-123", ((Map<?, ?>) JsonLite.parse(secret.body())).get("value"));
+        assertNotNull(cr.db.one("SELECT seq FROM audit WHERE action = 'vault.use' AND object_id = 'docflow/service/token'"));
+        ControlRoom.User admin = cr.session(token);
+        cr.createLocker(admin, "private", "Not for the author", "role:viewer", null);
+        assertEquals(403, callbackOf("secret", "{\"requestedBy\":\"admin\",\"ref\":\"private/key/value\"}").statusCode());
+        // a storage delivery is stamped with its author, who must be allowed to use its vault secret
+        String store = "{\"name\":\"AP\",\"deliveries\":[{\"type\":\"cloud_storage\",\"params\":{\"provider\":\"azure_blob\",\"container\":\"https://acct.blob.core.windows.net/in\",\"secretRef\":\"SECRET\"}}]}";
+        seen.clear();
+        assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", store.replace("SECRET", "docflow/service/token")).statusCode());
+        assertTrue(got("PUT", "/api/docs/v1/df/flows/ap").get("body").contains("\"requestedBy\":\"admin\""));
+        HttpResponse<String> denied = call("PUT", "/api/docflow/df/flows/ap", store.replace("SECRET", "private/key/value"));
+        assertEquals(403, denied.statusCode(), denied.body());
+        assertEquals(401, HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/docflow-callback/secret")).header("Authorization", "Bearer nope")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"requestedBy\":\"admin\",\"ref\":\"docflow/service/token\"}")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
+
     @Test void attachmentsAreReadFromARawMessage() {
         String raw = "From: a@example.com\r\nSubject: Invoices\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n"
                 + "--outer\r\nContent-Type: multipart/alternative; boundary=\"inner\"\r\n\r\n"
