@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import type { DayCount, DocFlowApi } from "../api";
 import { Chip, Kpi, Loading, useLoad } from "../ui";
@@ -7,7 +8,8 @@ const READ_BY = [BLUE, "#8b6ae8", "#4b5565", "transparent"];
 
 /** Overview, Dashboard: charts only, across every process, and what needs attention. */
 export function Dashboard({ api }: { api: DocFlowApi }) {
-  const [data] = useLoad(() => Promise.all([api.overview(), api.processTable()]), [api]);
+  const [days, setDays] = useState(14);
+  const [data] = useLoad(() => Promise.all([api.overview(days), api.processTable()]), [api, days]);
   if (!data) return <Loading />;
   const [o, processes] = data;
   const month = processes.reduce((n, p) => n + p.month, 0);
@@ -28,7 +30,9 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
     <div className="df-grid df-g3">
       <Card label="Documents per day" span>
         <div className="df-head-row">
-          <b>Documents per day, last 14 days</b><span className="df-grow" />
+          <b>Documents per day, last</b>
+          <select className="ui-input ui-select" aria-label="Days shown" value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ width: "auto" }}>
+            {[7, 14, 30, 90].map((n) => <option key={n} value={n}>{n} days</option>)}</select><span className="df-grow" />
           <span className="df-legend"><span className="df-swatch" style={{ background: BLUE }} />Straight through</span>
           <span className="df-legend"><span className="df-swatch" style={{ background: AMBER }} />Reviewed by a person</span>
         </div>

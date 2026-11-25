@@ -44,12 +44,14 @@ export function LanguagesPanel({ api }: { api: DocFlowApi }) {
   const [q, setQ] = useState("");
   const [show, setShow] = useState<"all" | "offered" | "installed" | "missing">("all");
   const [saved, setSaved] = useState(false);
+  const [own, setOwn] = useState("");
   useEffect(() => { if (all) setChosen(all.filter((l) => l.offered).map((l) => l.code)); }, [all]);
   if (!all) return <Loading />;
 
   const was = all.filter((l) => l.offered).map((l) => l.code);
   const dirty = JSON.stringify(was) !== JSON.stringify(chosen);
-  const rows = all.filter((l) => matches(q, l.name, l.code) && (show === "all" || (show === "offered" ? chosen.includes(l.code)
+  const known = [...all, ...chosen.filter((c) => !all.some((l) => l.code === c)).map((c) => ({ code: c, name: c, engines: [], installed: false, offered: true }))];
+  const rows = known.filter((l) => matches(q, l.name, l.code) && (show === "all" || (show === "offered" ? chosen.includes(l.code)
     : show === "installed" ? l.installed : !l.installed)));
   const save = async () => {
     try { await api.saveOfferedLanguages(chosen); setSaved(true); reload(); } catch (e) { reportError(e); }
@@ -85,6 +87,12 @@ export function LanguagesPanel({ api }: { api: DocFlowApi }) {
           </tbody>
         </table>
         {!rows.length && <div className="df-empty">No language matches these filters.</div>}
+      </div>
+      <div className="df-head-row df-pad" style={{ paddingTop: 8, paddingBottom: 0, gap: 8 }}>
+        <input className="ui-input" style={{ width: 160 }} aria-label="Another language code" placeholder="Code, e.g. sw or km" value={own}
+          onChange={(e) => setOwn(e.target.value.trim())} />
+        <Button disabled={!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(own) || chosen.includes(own)} onClick={() => { setSaved(false); setChosen([...chosen, own]); setOwn(""); }}>Offer this code</Button>
+        <span className="df-small">A language not in the list: its ISO code (Tesseract's own code works too).</span>
       </div>
       <p className="df-small df-pad" style={{ margin: 0 }}>To read a language that is not installed, add its Tesseract language data (tessdata) on the DocFlow server, or install PaddleOCR.</p>
     </section>

@@ -20,7 +20,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     steps: [
       "Read the numbers at the top: today, straight through, waiting, failed.",
       "Click an item under Needs attention to go where action is needed.",
-      "Compare the last 14 days, and the straight-through rate per day.",
+      "Compare the days (7, 14, 30 or 90), and the straight-through rate per day.",
       "See which process has a review backlog or failures. Click its name to open it.",
       "Cloud cost shows when cloud opt-in is on.",
     ],

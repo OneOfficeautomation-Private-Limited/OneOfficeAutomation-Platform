@@ -69,7 +69,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
     } catch (e) { reportError(e); } finally { setSaving(false); }
   };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); void finish("approve"); } };
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); void finish("approve"); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });

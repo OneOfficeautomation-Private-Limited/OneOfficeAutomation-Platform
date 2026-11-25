@@ -217,9 +217,9 @@ export class HttpDocFlowApi implements DocFlowApi {
     return this.flowsCache;
   }
 
-  async overview(): Promise<Overview> {
+  async overview(days = 14): Promise<Overview> {
     const [o, costs, usage, prov] = await Promise.all([
-      this.call<{ totals: Stats; review: number; overdue: number; deliveryFailures: number; pagesThisMonth?: number; creditsThisMonth?: number }>("GET", "/df/overview"),
+      this.call<{ totals: Stats; review: number; overdue: number; deliveryFailures: number; pagesThisMonth?: number; creditsThisMonth?: number }>("GET", `/df/overview?days=${days}`),
       this.call<DfCosts>("GET", "/costs"),
       this.call<{ k: string; pages: number | null; credits: number | null }[]>("GET", "/usage?groupBy=provider_id").catch(() => []),
       this.call<{ providers: DfProvider[] }>("GET", "/providers").catch(() => ({ providers: [] as DfProvider[] })),
@@ -238,7 +238,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       cloudOptIn: costs.cloudOptIn,
       today: today?.total ?? 0, straightThrough: pct(t.stpRate) ?? 0, waiting: o.review, overdue: o.overdue, failed: t.byStatus.failed ?? 0,
       pagesThisMonth: o.pagesThisMonth ?? t.pages, cloudCost: Math.round((o.creditsThisMonth ?? t.credits ?? 0) * 100) / 100,
-      days: lastDays(t.daily, todayKey).map((d) => ({ label: d.day.slice(8), straight: d.stp, reviewed: d.human })),
+      days: lastDays(t.daily, todayKey, days).map((d) => ({ label: new Date(d.day + "T00:00:00").toLocaleDateString(undefined, days > 31 ? { month: "short", day: "numeric" } : { day: "numeric" }), straight: d.stp, reviewed: d.human })),
       alerts,
       // exact shares (one decimal) so the bar adds up; the dashboard writes a share under 1% as "<1%"
       readBy: ocr.map((u) => ({ label: ENGINE_NAMES[u.k] ?? u.k, share: pages ? Math.round(1000 * (u.pages ?? 0) / pages) / 10 : 0 })),

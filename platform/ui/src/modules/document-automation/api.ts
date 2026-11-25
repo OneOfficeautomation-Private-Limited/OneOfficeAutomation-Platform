@@ -370,7 +370,8 @@ export interface DocFlowApi {
    * client has none: the Command Center takes the tenant from the address the person signed in at.
    */
   setTenant?(tenant: string): void;
-  overview(): Promise<Overview>;
+  /** days: how many days the per-day chart covers (14 by default). */
+  overview(days?: number): Promise<Overview>;
   processes(): Promise<ProcessSummary[]>;
   /** Every process with its set-up and activity, in one go (the Overview table). */
   processTable(): Promise<ProcessRow[]>;
@@ -716,7 +717,7 @@ export class SampleApi implements DocFlowApi {
   setTenant(tenant: string) { this.tenant = tenant; }
   private claude: ClaudeModels = { model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" };
 
-  async overview() { return { ...copy(OVERVIEW), cloudOptIn: this.routing.cloudOptIn }; }
+  async overview(_days = 14) { return { ...copy(OVERVIEW), cloudOptIn: this.routing.cloudOptIn }; }
   async processes() { return copy(this.processesData); }
   async processTable(): Promise<ProcessRow[]> {
     const name = (id: string) => ENGINES.flatMap((o) => o.engines).find((e) => e.id === id)?.name ?? id;
