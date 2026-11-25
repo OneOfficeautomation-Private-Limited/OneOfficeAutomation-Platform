@@ -287,6 +287,10 @@ export class HttpDocFlowApi implements DocFlowApi {
     });
   }
 
+  async resplit(documentId: string, parts: { pages: number[]; docType: string | null }[]): Promise<void> {
+    await this.call("POST", `/df/documents/${encodeURIComponent(documentId)}/split`, { parts });
+  }
+
   async addTeachingExample(docTypeId: string, documentId: string): Promise<void> {
     await this.call("POST", `/df/doctypes/${encodeURIComponent(docTypeId)}/examples`, { documentId });
   }

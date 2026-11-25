@@ -452,6 +452,8 @@ export interface DocFlowApi {
   testSets(docType?: string): Promise<TestSet[]>;
   /** A test set with its items. */
   testSet(id: string): Promise<TestSet>;
+  /** Split a scanned batch again: the pages of each part and its type (null: recognise it). */
+  resplit(documentId: string, parts: { pages: number[]; docType: string | null }[]): Promise<void>;
   /** Teaching examples of a document type: add an approved document, or remove one. */
   addTeachingExample(docTypeId: string, documentId: string): Promise<void>;
   removeTeachingExample(docTypeId: string, documentId: string): Promise<void>;
@@ -726,6 +728,7 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
+  async resplit(_d: string, _p: { pages: number[]; docType: string | null }[]) { /* sample screens split nothing */ }
   async addTeachingExample(_t: string, _d: string) { /* sample screens keep no examples */ }
   async removeTeachingExample(_t: string, _d: string) { /* sample screens keep no examples */ }
 

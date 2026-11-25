@@ -5,6 +5,7 @@ import { folderLabel } from "./dialogs";
 import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad } from "./ui";
 import { UploadFiles } from "./upload";
 import { AccuracyCard } from "./accuracy";
+import { SplitDialog } from "./splitDialog";
 
 const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split from a batch" };
 
@@ -15,6 +16,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
   const [data, reload] = useLoad(() => Promise.all([api.processes(), api.documents(processId, limit)]), [api, processId, limit]);
   // columns of values read: the invoice ones by default; any field the documents have can be shown instead
   const [columns, setColumns] = useState<string[] | null>(null);
+  const [splitting, setSplitting] = useState<{ id: string; name: string; pages: number } | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | DocStatus>("all");
   const [source, setSource] = useState<"all" | Source>("all");
@@ -100,13 +102,17 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
                   <td><ConfidenceBar value={d.confidence} /></td>
                   <td className="df-right">
                     {d.status === "review" ? <a className="ui-btn ui-btn-secondary" href={"#/review/" + d.id}>Review</a>
-                      : d.status === "failed" ? <Button>Retry</Button> : <Button kind="plain">Open</Button>}
+                      : d.status === "failed" ? <Button>Retry</Button>
+                      : d.status === "split" ? <Button kind="plain" onClick={() => setSplitting({ id: d.id, name: d.name, pages: parseInt(d.pages, 10) || 1 })}>Change the split</Button>
+                      : <Button kind="plain">Open</Button>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {!rows.length && <div className="df-empty">No document matches these filters. <button type="button" className="df-link" onClick={clear}>Clear filters</button></div>}
+          {splitting && <SplitDialog api={api} documentId={splitting.id} name={splitting.name} pages={splitting.pages}
+            onClose={() => setSplitting(null)} onDone={() => { setSplitting(null); reload(); }} />}
           {docs.length >= limit && <div className="df-empty"><button type="button" className="df-link" onClick={() => setLimit(limit + 500)}>Show older documents</button></div>}
         </div>
       </section>
