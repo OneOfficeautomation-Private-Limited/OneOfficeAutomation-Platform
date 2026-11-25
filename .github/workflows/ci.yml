@@ -285,25 +285,41 @@ jobs:
     if: github.ref == 'refs/heads/master' || contains(needs.changes.outputs.modules, 'one-chat')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # OneChat's repository is private and CI's own token reads only this one: a repository secret ONECHAT_CHECKOUT_TOKEN
+      # (a fine-grained token with Contents: read on OneOfficeAutomation-OneChat) lets this job check it out. Without it
+      # the job says so and skips the live test, so the rest of CI is not held up.
+      HAS_ONECHAT_TOKEN: ${{ secrets.ONECHAT_CHECKOUT_TOKEN != '' }}
     steps:
+      - name: No OneChat checkout token
+        if: env.HAS_ONECHAT_TOKEN != 'true'
+        working-directory: .
+        run: echo "::warning title=OneChat live test skipped::Add the repository secret ONECHAT_CHECKOUT_TOKEN (Contents read on OneOfficeAutomation-OneChat) to run Studio's assistant against OneChat's model server."
       - uses: actions/checkout@v4
+        if: env.HAS_ONECHAT_TOKEN == 'true'
       - name: Which OneChat this release is tested with
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         id: pin
         run: echo "ref=$(sed -n 's/^model_server_ref=//p' modules/one-chat/src/main/resources/onechat-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         with:
           repository: OneOfficeautomation-Private-Limited/OneOfficeAutomation-OneChat
           ref: ${{ steps.pin.outputs.ref }}
+          token: ${{ secrets.ONECHAT_CHECKOUT_TOKEN }}
           path: onechat
       - uses: actions/setup-java@v4
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
       - uses: actions/setup-python@v5
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         with:
           python-version: "3.12"
       - name: Start OneChat's model server (fake model, with a token)
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         working-directory: onechat/rpa model
         run: |
           pip install -q jsonschema
@@ -318,13 +334,14 @@ jobs:
           done
           cat "$RUNNER_TEMP/onechat.log"; exit 1
       - name: One CommandCenter against OneChat
+        if: env.HAS_ONECHAT_TOKEN == 'true'
         run: |
           chmod +x gradlew
           ./gradlew :one-chat:test --tests "*OneChatModelLiveTest*" --console=plain -Pooa.test.onechat=http://127.0.0.1:8765 "-Pooa.test.onechat.token=$ONECHAT_TOKEN"
           # the tests skip themselves without a OneChat: make sure they really ran
           grep -q 'skipped="0"' modules/one-chat/build/test-results/test/TEST-com.oneofficeautomation.controlroom.OneChatModelLiveTest.xml
       - name: OneChat's log
-        if: always()
+        if: always() && env.HAS_ONECHAT_TOKEN == 'true'
         run: tail -n 100 "$RUNNER_TEMP/onechat.log" || true
       - name: Test reports
         if: failure()

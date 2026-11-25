@@ -68,7 +68,8 @@ class AgentWritesTest {
         assertEquals(List.of("denied", "ok", "failed", "not_found"), a.stream().map(r -> r.get("result")).toList());
         String ok = JsonLite.write(a.get(1));
         assertTrue(ok.contains("agent:PC-1 for carl") && ok.contains(runCarl) && ok.contains("Ops/Reset.flow.json"), ok);
-        assertFalse(ok.contains("2500"), "the value is not in the Audit Trail");
+        // the details only: the row's time can contain "2500" by chance (SQL Server keeps 7 digits of seconds)
+        assertFalse(String.valueOf(a.get(1).get("details")).contains("2500"), "the value is not in the Audit Trail");
     }
 
     @Test @Order(2)

@@ -291,7 +291,8 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
   available** set to **Show the error**, the chat says so and nothing runs.
 - **CI:** the job named `onechat` (S5c, 25 Nov 2026) checks out OneChat at `model_server_ref`, starts its model
   server with its fake model and a token, and runs `OneChatModelLiveTest`: the model check, Studio's assistant with
-  each mode, and the training feedback. When OneChat builds the `/api/chat/v1` service, the same job starts it at
+  each mode, and the training feedback. It needs the repository secret `ONECHAT_CHECKOUT_TOKEN` (read access to
+  OneChat's private repository); without it the job warns and skips. When OneChat builds the `/api/chat/v1` service, the same job starts it at
   `ref` and runs the contract tests against it as well. OneChat's repository runs its own contract test against a
   stand-in for the callback routes.
 - **Upgrade order:** OneChat first, then the platform. You approve each release, as with DocFlow.
