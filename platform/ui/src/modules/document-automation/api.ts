@@ -784,14 +784,14 @@ export class SampleApi implements DocFlowApi {
     return { limited: roots.length > 0, roots, outside };
   }
   async folderRoots() { return this.sampleRoots(this.allowed); }
-  async folderList(path: string, _q?: string): Promise<FolderListing> {
+  async folderList(path: string, q = ""): Promise<FolderListing> {
     const root = parseFolderList(this.allowed).find((r) => inFolder(path, r.path));
     if (!root) throw new Error(`'${path}' is not one of the folders processes may use`);
     if (!(path in this.tree)) throw new Error(`Folder not found: ${path}`);
     const atRoot = path === root.path;
     return { path, name: atRoot ? root.name : path.slice(path.lastIndexOf("\\") + 1), root, parent: atRoot ? null : path.slice(0, path.lastIndexOf("\\")),
       access: "ok", waiting: this.waiting[path] ?? 0, watchedBy: this.watched[path] ?? [], truncated: false,
-      folders: this.tree[path].map((n) => { const p = path + "\\" + n; return { name: n, path: p, waiting: this.waiting[p] ?? 0, watchedBy: this.watched[p] ?? [] }; }) };
+      folders: this.tree[path].filter((n) => !q || n.toLowerCase().includes(q.toLowerCase())).map((n) => { const p = path + "\\" + n; return { name: n, path: p, waiting: this.waiting[p] ?? 0, watchedBy: this.watched[p] ?? [] }; }) };
   }
   async folderCreate(path: string, name: string) {
     await this.folderList(path);

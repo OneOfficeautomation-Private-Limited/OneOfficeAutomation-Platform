@@ -139,7 +139,9 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
               {text("host", "Mail server", email.kind === "pop3" ? "pop.example.com" : "imap.example.com")}
               {text("port", "Port", email.kind === "pop3" ? "995" : "993")}
               <Field label="Connection">{(id) => <Select id={id} value={email?.ssl === false ? "plain" : "ssl"} onChange={(e) => setEmail({ ssl: e.target.value === "ssl" })}
-                options={[{ value: "ssl", label: "Encrypted (SSL/TLS, usually port 993)" }, { value: "plain", label: "Not encrypted, or STARTTLS (usually port 143)" }]} />}</Field>
+                options={email.kind === "pop3"
+                  ? [{ value: "ssl", label: "Encrypted (SSL/TLS, usually port 995)" }, { value: "plain", label: "Not encrypted (usually port 110)" }]
+                  : [{ value: "ssl", label: "Encrypted (SSL/TLS, usually port 993)" }, { value: "plain", label: "Not encrypted, or STARTTLS (usually port 143)" }]} />}</Field>
               {text("username", "User name", "invoices@example.com")}
               {secret("password_ref", "Password", "mail/invoices/password")}
               {email.kind !== "pop3" ? text("mail_folder", "Folder", "INBOX") : <p className="df-small" style={{ margin: 0 }}>POP3 reads the inbox only; messages are never deleted.</p>}
@@ -325,13 +327,18 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
           options={(Object.keys(DELIVERY_KIND) as DeliveryType[]).map((k) => ({ value: k, label: DELIVERY_KIND[k].label }))} />}</Field>
         <Field label="Name (optional)">{(id) => <TextInput id={id} value={d.name} placeholder={kind.label} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
       </div>
+      {d.type === "cloud_storage" && <Field label="Where">{(id) => <Select id={id} value={String(d.extra?.provider ?? "azure_blob")}
+        onChange={(e) => setD({ ...d, extra: { ...(d.extra ?? {}), provider: e.target.value } })}
+        options={[{ value: "azure_blob", label: "Azure Blob container (address and SAS)" }, { value: "s3", label: "Amazon S3 or S3-compatible (MinIO, Wasabi, R2...)" },
+          { value: "http_put", label: "A web address that takes uploads" }]} />}</Field>}
       {d.type === "folder" || d.type === "excel"
         ? <FolderField key={d.type} api={api} label={kind.target} title={d.type === "excel" ? "Choose the folder for the Excel file" : "Choose the folder for results"}
             value={d.target} placeholder={kind.placeholder} file={d.type === "excel" ? "register.xlsx" : undefined} processId={processId}
             hint={d.type === "folder" ? "Each document's values and file go in a folder named after its status (success, validated...)." : "One sheet per document type, a row for each document."}
             onChange={(v) => setD({ ...d, target: v })} />
         : <Field label={d.type === "cloud_storage" ? ({ s3: "Bucket", azure_blob: "Container address", http_put: "Address ({file} is the file name)" } as Record<string, string>)[String(d.extra?.provider ?? "azure_blob")] : kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
-            {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
+            {(id) => <TextInput id={id} value={d.target} onChange={(e) => setD({ ...d, target: e.target.value })}
+              placeholder={d.type === "cloud_storage" ? ({ s3: "invoices", azure_blob: "https://account.blob.core.windows.net/invoices", http_put: "https://files.example.com/upload/{file}" } as Record<string, string>)[String(d.extra?.provider ?? "azure_blob")] : kind.placeholder} />}
           </Field>}
       {d.type === "start_bot" && <p className="df-small" style={{ margin: 0 }}>Use an agent for SFTP, an ERP, SharePoint or any other system: it gets the document and its values, and uses its own steps and vault credentials.</p>}
       {(d.type === "email" || d.type === "cloud_storage") && <OutSettings d={d} setD={setD} />}
@@ -383,10 +390,7 @@ function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) 
         {text("subject", "Subject", "{process}: {file} ({status})", "{process}, {file}, {status} and {type} are filled in.")}
         {text("message", "Message (optional)", "Please find the invoice attached.")}
       </div> : <>
-        <Field label="Where">{(id) => <Select id={id} value={provider} onChange={(e) => set("provider", e.target.value)}
-          options={[{ value: "azure_blob", label: "Azure Blob container (address and SAS)" }, { value: "s3", label: "Amazon S3 or S3-compatible (MinIO, Wasabi, R2...)" },
-            { value: "http_put", label: "A web address that takes uploads" }]} />}</Field>
-        <div className="df-grid df-g3">
+        <div className={`df-grid ${provider === "s3" ? "df-g3" : "df-g2"}`}>
           {provider === "s3" && <>{text("region", "Region", "eu-central-1")}{text("endpoint", "Endpoint (optional)", "https://minio.example.com", "Empty: Amazon S3.")}{text("accessKey", "Access key id", "AKIA...")}</>}
           {text("prefix", "Folder in it (optional)", "invoices/2026")}
           {text("secretRef", provider === "s3" ? "Secret key (vault)" : provider === "azure_blob" ? "SAS token (vault)" : "Authorization header (vault, optional)", "folder/credential/attribute",

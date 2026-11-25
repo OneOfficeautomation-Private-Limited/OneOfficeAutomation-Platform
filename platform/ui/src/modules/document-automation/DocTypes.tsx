@@ -249,7 +249,7 @@ function FieldDialog({ value, taken, onClose, onSave }: { value: DocTypeField | 
       footer={<><Button onClick={onClose}>Cancel</Button>
         <Button kind="primary" disabled={!f.label.trim() || badRegex || (f.method === "pick" && !choiceList.length)} onClick={done}>Save</Button></>}>
       <div className="df-grid df-g2">
-        <Field label="Name" hint={`Saved as ${key}`}>{(id) => <TextInput id={id} value={f.label} placeholder="Invoice number" onChange={(e) => setF({ ...f, label: e.target.value })} />}</Field>
+        <Field label="Name" hint={f.label.trim() ? `Saved as ${key}` : "In any language, such as Invoice number"}>{(id) => <TextInput id={id} value={f.label} placeholder="Invoice number" onChange={(e) => setF({ ...f, label: e.target.value })} />}</Field>
         <Field label="Type" hint={TYPE_HINT[f.type]}>{(id) => <Select id={id} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as FieldType, writeAs: "" })}
           options={TYPES.map((v) => ({ value: v, label: v }))} />}</Field>
       </div>

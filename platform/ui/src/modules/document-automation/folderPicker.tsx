@@ -99,7 +99,7 @@ export function FolderPicker({ api, title, start, processId, onClose, onPick }: 
   const ask = (path: string) => { latest.current = path; void api.folderList(path).then((l) => { if (latest.current === path) setChosen(l); }, () => undefined); };
 
   const open = async (path: string, pick?: string) => {
-    setBusy(true); setProblem("");
+    setBusy(true); setProblem(""); setFind("");
     try {
       const l = await api.folderList(path);
       setHere(l);
