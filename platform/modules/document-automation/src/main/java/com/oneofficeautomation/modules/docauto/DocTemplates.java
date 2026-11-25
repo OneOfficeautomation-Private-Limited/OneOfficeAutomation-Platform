@@ -57,7 +57,7 @@ public final class DocTemplates implements ModuleContext.TemplatePart {
     /** A document type as a template carries it: its fields and checks, without what it learned from the company's documents. */
     public static Map<String, Object> portableType(Map<String, Object> type) {
         Map<String, Object> t = new LinkedHashMap<>(type);
-        for (String k : List.of("learning", "createdAt", "updatedAt", "version", "usedBy", "learnedCount")) t.remove(k);
+        for (String k : List.of("learning", "examples", "createdAt", "updatedAt", "version", "usedBy", "learnedCount")) t.remove(k);   // examples: the company's own documents
         return t;
     }
 

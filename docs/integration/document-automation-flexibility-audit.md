@@ -153,7 +153,7 @@ Resume: read this section, continue at the first batch not Done.
 | 1 | Bugs B1-B15 | Done |
 | 2 | Country rules as optional packs R1-R16 | Done |
 | 3 | Languages, numbers, dates L1-L11 | Done (L8: CSS is logical; the app has no right-to-left UI language yet) |
-| 4 | Other options O1-O19, fixed values (section 4), strict rules S1-S13 | In progress (done: O4, O5, O11, O12, O13, S2, S3, S4, S5, S6, S7, S11) |
-| 5 | Cloud-inspired ideas C1-C18 | In progress (done: C1, C2, C3, C11, C14; C10 field types) |
-| 6 | Unit tests: UT Document Automation in One CommandCenter, new cases, Java/UI tests, DocFlow suite | Not started |
+| 4 | Other options, fixed values, strict rules | Done except: O6 more delivery kinds (email, SFTP, cloud storage), O7 route or notify when a check fails, O10 Gmail/POP3 inboxes, O19 own privacy profile, S9 switching off upload, roles per permission in code, folder picker cap of 300, agents' list of finished documents scans the newest 500 |
+| 5 | Cloud-inspired ideas C1-C18 | Done (C10: the field kinds exist; mapping cloud engines' check boxes and signatures to them is left) |
+| 6 | Unit tests | Done: DocFlow 260 pass (test_global_flex.py 30 cases); platform module tests pass; DocFlowLiveTest 15/15 against the branch's DocFlow (the UT Document Automation agent's cases through a running agent's routes); UI 542 pass (globalFlex.test.tsx 13). The UT agent itself still runs only in One CommandCenter with a runner |
 | Later | DA-2 to DA-7 phases (keys, events, engines, volume, Helm, regions), Entra client ID | Each its own phase per document-layer-plan.md |

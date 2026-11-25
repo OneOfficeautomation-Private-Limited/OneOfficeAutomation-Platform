@@ -766,6 +766,27 @@ class DocFlowProxyTest {
         }
     }
 
+    /** 25 Nov 2026: one list of readable files everywhere (XML e-invoices too), and a plain reason when a file is not one. */
+    @Test @SuppressWarnings("unchecked")
+    void assistantsSendXmlEInvoicesAndHearWhyAFileIsRefused() {
+        ControlRoom.User admin = cr.session(token);
+        McpServer s = cr.modules.service(McpServer.class);
+        flowsJson = "[{\"id\":\"ap-invoices\",\"name\":\"AP invoices\",\"folder\":\"\",\"status\":\"live\"}]";
+        try {
+            seen.clear();
+            Map<String, Object> sent = tool(s, admin, "documents_send", Map.of("process", "AP invoices", "file_name", "INV-7.xml",
+                    "content_base64", Base64.getEncoder().encodeToString("<Invoice/>".getBytes(StandardCharsets.UTF_8))));
+            assertEquals(false, sent.get("isError"), String.valueOf(sent));
+            assertTrue(got("POST", "/api/docs/v1/df/flows/ap-invoices/documents").get("body").contains("Content-Type: application/xml"));
+            Map<String, Object> refused = tool(s, admin, "documents_send", Map.of("process", "AP invoices", "file_name", "notes.docx", "content_base64", "JVBERg=="));
+            String text = String.valueOf(((Map<String, Object>) ((List<Object>) refused.get("content")).get(0)).get("text"));
+            assertTrue(text.contains("XML e-invoices") && text.contains("Send the document as one of these files"), text);
+            assertFalse(text.contains("service is running"), "a file type is not a service problem");
+        } finally { flowsJson = "[]"; }
+        assertFalse(DocTemplates.portableType(Map.of("id", "t", "name", "T", "examples", List.of("doc1"))).containsKey("examples"),
+                "a template never carries the company's own documents");
+    }
+
     @Test @SuppressWarnings("unchecked")
     void assistantsReviewOnlyWhatThePersonMayReview() throws Exception {
         ControlRoom.User admin = cr.session(token);

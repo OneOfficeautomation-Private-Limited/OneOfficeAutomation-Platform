@@ -236,6 +236,49 @@ Then open the drafts in Document Automation, add an email inbox or watched folde
 ONEOFFICEAUTOMATION's own catalogue can carry processes the same way. Templates do not carry triggers: create those
 after installing.
 
+## 8a. For every country: own values, own rules (DocFlow 3.3, November 2026)
+
+Document Automation makes no country the default. Country rules are choices, and every list takes an own value.
+
+- **Document types.** The built-in types (invoice, credit note, purchase order, delivery note, receipt, bank statement,
+  ID document, utility bill, contract, **Other document**) carry labels in many languages and no national patterns. A
+  type may set how its numeric dates are written (day, month or year first) and its decimal mark; the server settings
+  `DOCAUTO_DATE_ORDER` and `DOCAUTO_DECIMAL_MARK` are the defaults. Field names may be written in any script.
+- **Fields.** Kinds: text, date, date and time, amount, number, percentage, yes/no, ticked, signed, choice, several
+  choices, e-mail, phone, address, table, group. Each field has *What it is* (plain words AI reading follows), *How it
+  is read* (copy as printed, work it out, pick a choice), choices with their meanings and *Keep other values too*, what a
+  failed format check does (send to review, only note it, ignore) and *Write it as* (the format in results and files).
+- **When no type fits.** Per process: send to review, keep it as an Other document, or reject it. A process that reads
+  one type can check each file really is that type (its recognition words).
+- **E-invoices.** *Read e-invoice data first* reads the standards a process chooses: UBL (Peppol, EN 16931, XRechnung
+  UBL, ZATCA...), CII (Factur-X, ZUGFeRD, XRechnung CII), and QR codes of ZATCA, India GST, the Swiss QR-bill and SEPA
+  payments. Credit notes go to a credit note type when the process has one.
+- **Checks.** *Tax check* with country presets (EU, UK, Germany, France, India GST, Saudi Arabia, UAE, Australia,
+  Singapore, Canada, Japan...) and own rates and tax id formats; *Format of a field*; *Date check*; thresholds with
+  not, between and outside. In arithmetic checks `value_or(field, 0)` counts a missing field as 0.
+- **Personal data.** Masked before cloud AI by kind (`DOCAUTO_PII_PATTERNS`: e-mails, IBANs, cards, phones and national
+  ids of many countries), plus own patterns (`DOCAUTO_PII_EXTRA`).
+- **Money.** Prices in any currency (`DOCAUTO_PRICE_CURRENCY`, `DOCAUTO_PRICE_RATE`) and own contract prices
+  (`DOCAUTO_PRICES`). A process may have a **monthly budget** for cloud and AI reading; once it is reached the process
+  reads on this server until the month ends.
+- **Limits and timings** are settings: largest upload, most pages, folder look and settle times, the processed folder's
+  name, web address timeout, teaching samples, reviewer corrections remembered; in One CommandCenter, how often reviews
+  and process mailboxes are looked at, and a DocFlow address with a path (behind a reverse proxy).
+
+## 8b. Reading better without training (ideas from AWS, Google and Azure)
+
+- **Improve with AI** (test set page): from what the last run read wrong, AI reading proposes clearer field
+  instructions; apply the ones you want and run the test again (like blueprint instruction optimisation in Amazon
+  Bedrock Data Automation).
+- **Fill from a reading** when adding a test document: the engine fills the right values, you correct them.
+- **Teach the type with it** (Review, on an approved document): its right values guide AI reading of that type.
+- **How well it reads** (process page): share needing no person, fields reviewers correct most, and for each review
+  level how many fields go straight through and how many wrong values would slip by.
+- **Change the split** of a scanned batch (process page), **an engine per document type**, folder deliveries that also
+  save a **searchable PDF** or the **text and tables as Markdown** for Knowledge bases.
+- Review stays in One CommandCenter's Task inbox: it does not depend on a cloud review service (Amazon A2I stopped
+  taking new customers in July 2026).
+
 ## 9. Troubleshooting
 
 | You see | Do |
