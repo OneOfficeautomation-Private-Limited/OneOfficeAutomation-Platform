@@ -983,7 +983,8 @@ public final class DocFlowProxy {
             if (!(o instanceof Map<?, ?> a)) continue;
             byte[] bytes = Base64.getDecoder().decode(String.valueOf(a.get("base64")));
             total += bytes.length;
-            if (total > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The attachments are larger than the Largest upload setting allows");
+            if (total > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The attachments are larger than the Largest upload setting allows",
+                    "Send fewer files with the e-mail delivery (for example the data only, not the original), or raise Largest upload in Administration > Settings.");
             files.add(new ModuleContext.MailAttachment(String.valueOf(a.get("name")), String.valueOf(a.get("contentType")), bytes));
         }
         ctx.sendMail(to, String.valueOf(b.getOrDefault("subject", "Document Automation")), String.valueOf(b.getOrDefault("body", "")), files);
