@@ -47,10 +47,10 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
         <Chip tone={p.state === "live" ? "ok" : "mute"}>{p.state === "live" ? `Live · version ${p.version}` : "Draft"}</Chip>
         <span className="df-grow" />
         <a className="ui-btn ui-btn-secondary" href={"#/processes/" + encodeURIComponent(p.id)}>Process settings</a>
-        <Button kind="primary" onClick={() => document.getElementById("df-add-files")?.click()}>Add documents</Button>
+        {p.sources.includes("upload") && <Button kind="primary" onClick={() => document.getElementById("df-add-files")?.click()}>Add documents</Button>}
       </div>
 
-      <UploadFiles api={api} process={p} inbox={p.id === INBOX_ID} inputId="df-add-files" onAdded={reload} />
+      {p.sources.includes("upload") && <UploadFiles api={api} process={p} inbox={p.id === INBOX_ID} inputId="df-add-files" onAdded={reload} />}
 
       <div className="df-card df-pad df-grid df-g4">
         <div><div className="df-small">Document type</div>{p.docType}</div>

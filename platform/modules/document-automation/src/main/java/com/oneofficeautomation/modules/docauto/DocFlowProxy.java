@@ -781,11 +781,20 @@ public final class DocFlowProxy {
                 Set<String> taken = new HashSet<>();
                 for (Map<String, Object> r : ctx.db().query("SELECT document_id FROM docflow_collected WHERE process_id = ? AND collector = ?", flow.get("id"), collector))
                     taken.add(String.valueOf(r.get("document_id")));
-                HttpResponse<byte[]> r = send("GET", "df/flows/" + java.net.URLEncoder.encode(String.valueOf(flow.get("id")), StandardCharsets.UTF_8) + "/documents",
-                        "limit=500", null, null, "Command Center");
-                if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+                // the wanted statuses, newest first, a page of 500 at a time until enough are found: older documents
+                // that were never collected are listed too (up to 20,000 looked at in one call)
+                String statuses = java.net.URLEncoder.encode(String.join(",", new TreeSet<>(wanted)), StandardCharsets.UTF_8);
+                List<Object> found = new ArrayList<>();
+                for (int offset = 0; offset < 20_000; offset += 500) {
+                    HttpResponse<byte[]> r = send("GET", "df/flows/" + java.net.URLEncoder.encode(String.valueOf(flow.get("id")), StandardCharsets.UTF_8) + "/documents",
+                            "limit=500&offset=" + offset + "&status=" + statuses, null, null, "Command Center");
+                    if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+                    List<Object> page = (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
+                    for (Object o : page) if (includeCollected || !taken.contains(String.valueOf(((Map<String, Object>) o).get("id")))) found.add(o);
+                    if (page.size() < 500 || found.size() >= limit) break;
+                }
                 List<Object> rows = new ArrayList<>();
-                for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
+                for (Object o : found) {
                     Map<String, Object> d = (Map<String, Object>) o;
                     String id = String.valueOf(d.get("id"));
                     if (!wanted.contains(String.valueOf(d.get("status"))) || (!includeCollected && taken.contains(id))) continue;

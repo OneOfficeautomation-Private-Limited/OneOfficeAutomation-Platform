@@ -38,7 +38,7 @@ interface DfFlow {
   classify: { mode: "single" | "auto"; split: boolean; minScore?: number; whenNoType?: "review" | "other" | "reject"; checkType?: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string; monthlyBudget?: number | null; extractionByType?: Record<string, string> };
   review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number> }; rules: DfRule[];
   deliveries: DfDelivery[];
-  intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[] }; updatedAt: string;
+  intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[]; upload?: boolean }; updatedAt: string;
   stats?: Stats; docTypeNames?: string[];
 }
 interface DfFlag { rule: string; type: string; action: string; message: string; field?: string | null }
@@ -272,7 +272,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: (by.failed ?? 0) + (by.invalid ?? 0),
       done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
       lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
-      sources: ["upload", ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
+      sources: [...(f.intake.upload === false ? [] : ["upload" as const]), ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
       deliversTo: f.deliveries.filter((d) => d.enabled).map((d) => d.name || d.type),
     };
   }
@@ -368,7 +368,7 @@ export class HttpDocFlowApi implements DocFlowApi {
   async folderRoots(): Promise<FolderRoots> {
     try { return await this.call<FolderRoots>("GET", "/df/folders"); } catch { return NO_FOLDER_LIST; }
   }
-  folderList(path: string): Promise<FolderListing> { return this.call<FolderListing>("GET", `/df/folders?path=${encodeURIComponent(path)}`); }
+  folderList(path: string, q = ""): Promise<FolderListing> { return this.call<FolderListing>("GET", `/df/folders?path=${encodeURIComponent(path)}${q ? "&q=" + encodeURIComponent(q) : ""}`); }
   folderCreate(path: string, name: string): Promise<FolderListing> { return this.call<FolderListing>("POST", "/df/folders", { path, name }); }
   folderPreview(list: string): Promise<FolderRoots> { return this.call<FolderRoots>("POST", "/df/folders/preview", { folders: list }); }
   async allowedFolders(): Promise<string | null> {
@@ -414,7 +414,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const f = await this.call<DfFlow>("POST", "/df/flows", {
       name: p.name, folder: p.folder, docTypes: p.docType === ANY_TYPE ? [] : [p.docType],
       ...(p.docType === ANY_TYPE ? { classify: { mode: "auto", split: true } } : {}),
-      intake: { inputFolder: p.watchedFolder ?? "", pollSeconds: p.pollSeconds ?? 30 },
+      intake: { inputFolder: p.watchedFolder ?? "", pollSeconds: p.pollSeconds ?? 30, upload: p.upload !== false },
     });
     this.flowsCache = null;
     return { id: f.id };
@@ -590,7 +590,7 @@ export class HttpDocFlowApi implements DocFlowApi {
         whenNoType: f.classify.whenNoType ?? "review", checkType: !!f.classify.checkType,
         extraction: f.engine.extractionProvider, monthlyBudget: f.engine.monthlyBudget ?? null, extractionByType: { ...(f.engine.extractionByType ?? {}) }, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
         email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
-        einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
+        einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], upload: f.intake.upload !== false, fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
       },
       deliveries: f.deliveries.map((d) => ({ id: d.id, type: d.type, name: d.name, enabled: d.enabled, on: d.on, target: targetOf(d),
         ...(d.type === "start_bot" ? { pool: String(d.params.pool ?? "") } : {}),
@@ -611,7 +611,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const s = d.settings;
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
       ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
-      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [] },
+      intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [], upload: s.upload !== false },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split, whenNoType: s.whenNoType ?? "review", checkType: !!s.checkType },
       engine: { ...cur.engine, extractionProvider: s.extraction, monthlyBudget: s.monthlyBudget ?? null, extractionByType: s.extractionByType ?? {} },
       review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds },

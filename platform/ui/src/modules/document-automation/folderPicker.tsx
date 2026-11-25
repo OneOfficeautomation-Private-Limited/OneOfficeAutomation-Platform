@@ -95,6 +95,7 @@ export function FolderPicker({ api, title, start, processId, onClose, onPick }: 
   const [naming, setNaming] = useState<string | null>(null);
   const said = (e: unknown) => setProblem(e instanceof Error ? e.message : String(e));
   const latest = useRef("");   // the folder last selected: an older answer must not show its access
+  const [find, setFind] = useState("");
   const ask = (path: string) => { latest.current = path; void api.folderList(path).then((l) => { if (latest.current === path) setChosen(l); }, () => undefined); };
 
   const open = async (path: string, pick?: string) => {
@@ -177,6 +178,8 @@ export function FolderPicker({ api, title, start, processId, onClose, onPick }: 
               ? <b key={c.path} aria-current="location">{c.name}</b>
               : <span key={c.path}><button type="button" className="df-link" onClick={() => void open(c.path)}>{c.name}</button><span className="df-small" aria-hidden="true"> › </span></span>)}</nav>
           </div>
+          {here && <input className="ui-input" aria-label="Find a folder by name" placeholder="Find a folder by name" value={find}
+            onChange={(e) => { const v = e.target.value; setFind(v); void api.folderList(here.path, v).then((l) => setHere(l), () => undefined); }} />}
           <div className="df-folder-list">
             <table className="df-table">
               <thead><tr><th>Folder</th><th>Files waiting</th><th>Watched by</th><th><span className="sr-only">Open</span></th></tr></thead>
@@ -191,7 +194,7 @@ export function FolderPicker({ api, title, start, processId, onClose, onPick }: 
               </tbody>
             </table>
             {here && !here.folders.length && <p className="df-empty" style={{ margin: 8 }}>No folders inside. Use this folder, or make a new one.</p>}
-            {here?.truncated && <p className="df-small" style={{ margin: 8 }}>Only the first 300 folders are shown.</p>}
+            {here?.truncated && <p className="df-small" style={{ margin: 8 }}>Only the first {here.shownMax ?? 300} folders are shown: search above to find the one you want.</p>}
           </div>
           <p className="df-small" style={{ margin: 0 }}>Choose a folder, then Use this folder; double-click, or ›, opens it. Files waiting: PDF, image and XML files that would be read straight away.</p>
         </div>

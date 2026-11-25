@@ -91,7 +91,9 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
       <Field label="Check the folder every">
         {(id) => <ChoiceOrOwn id={id} value={s.pollSeconds} onChange={(v) => set({ pollSeconds: Math.round(v) })} options={POLL_SECONDS} label={duration} unit="seconds" min={5} />}
       </Field>
-      <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Upload is always on. Agents send documents with the "Send document to process" action.</p>
+      <label style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={s.upload !== false} onChange={(e) => set({ upload: e.target.checked })} />
+        People may upload documents here (agents send them with the "Send document to process" action either way)</label>
     </div>
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
       <button type="button" role="switch" className="df-switch" aria-checked={s.einvoiceFirst} aria-labelledby="df-einvoice-label"

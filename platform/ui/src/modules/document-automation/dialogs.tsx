@@ -44,12 +44,13 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   const [path, setPath] = useState("");
   const [every, setEvery] = useState("30");
   const [mail, setMail] = useState(false);
+  const [upload, setUpload] = useState(true);
   const [bot, setBot] = useState(false);
   const valid = name.trim() && docType && (!watch || path.trim());
 
   const create = async () => {
     const r = await api.createProcess({ name: name.trim(), docType, folder, watchedFolder: watch ? path.trim() : undefined,
-      pollSeconds: Number(every), email: mail, fromBot: bot });
+      pollSeconds: Number(every), email: mail, fromBot: bot, upload });
     setName(""); setWatch(false); setMail(false); setBot(false); setPath("");
     onCreated(r.id + (mail ? "/intake" : ""));
   };
@@ -97,8 +98,8 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
       <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <legend style={{ fontWeight: 700, padding: 0, marginBottom: 8 }}>How documents come in</legend>
         <div className="df-way" style={{ background: "var(--ui-soft)" }}>
-          <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked disabled /><span><b>Upload</b>
-            <span className="df-small" style={{ display: "block" }}>On the process page and in its step 2: drop files or choose them. Always on.</span></span></label>
+          <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={upload} onChange={(e) => setUpload(e.target.checked)} /><span><b>Upload</b>
+            <span className="df-small" style={{ display: "block" }}>On the process page and in its step 2: drop files or choose them.</span></span></label>
         </div>
         <div className={`df-way${watch ? " is-on" : ""}`}>
           <label style={{ display: "flex", gap: 10 }}><input type="checkbox" checked={watch} onChange={(e) => setWatch(e.target.checked)} /><span><b>Watched folder</b><Hint about="Watched folder" text={HINTS.watchedFolder} />

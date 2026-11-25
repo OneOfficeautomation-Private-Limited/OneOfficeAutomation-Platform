@@ -145,6 +145,8 @@ export interface ProcessSettings {
   einvoiceFirst: boolean;
   /** The e-invoice standards read (EInvoiceStandard ids); empty: every one DocFlow knows. */
   einvoiceStandards?: string[];
+  /** People may add documents on the screens (on by default); agents, e-mail and folders are not affected. */
+  upload?: boolean;
   /** Stricter (or looser) review thresholds for single fields: {field name: 0–1}, over fieldConfidence. */
   fieldThresholds: Record<string, number>;
 }
@@ -331,7 +333,7 @@ export interface FolderRoots { limited: boolean; roots: FolderRoot[]; outside: {
 export interface FolderEntry { name: string; path: string; waiting: number; watchedBy: FolderUse[] }
 export interface FolderListing {
   path: string; name: string; root: { name: string; path: string }; parent: string | null;
-  access: FolderAccess; waiting: number; watchedBy: FolderUse[]; folders: FolderEntry[]; truncated: boolean;
+  access: FolderAccess; waiting: number; watchedBy: FolderUse[]; folders: FolderEntry[]; truncated: boolean; shownMax?: number;
 }
 export const NO_FOLDER_LIST: FolderRoots = { limited: false, roots: [], outside: [] };
 
@@ -365,7 +367,7 @@ export function inFolder(path: string, folder: string): boolean {
 /** email: the person will set up the inbox next (in the builder's step 2, Document ingestion). */
 /** docType ANY_TYPE: the process recognises each document's type itself (every type DocFlow has). */
 export const ANY_TYPE = "*any";
-export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
+export interface NewProcess { name: string; docType: string; folder: string; upload?: boolean; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
   /**
@@ -398,7 +400,8 @@ export interface DocFlowApi {
   /** DA-1: the folders processes may use; NO_FOLDER_LIST when none are listed or DocFlow is older than 3.2.0. */
   folderRoots(): Promise<FolderRoots>;
   /** The folders inside one of them (never files). */
-  folderList(path: string): Promise<FolderListing>;
+  /** q: only folders whose name has these words. */
+  folderList(path: string, q?: string): Promise<FolderListing>;
   /** A new folder inside one of them; returns it. */
   folderCreate(path: string, name: string): Promise<FolderListing>;
   /** What a list being edited would give, saving nothing (administrators). */
@@ -781,7 +784,7 @@ export class SampleApi implements DocFlowApi {
     return { limited: roots.length > 0, roots, outside };
   }
   async folderRoots() { return this.sampleRoots(this.allowed); }
-  async folderList(path: string): Promise<FolderListing> {
+  async folderList(path: string, _q?: string): Promise<FolderListing> {
     const root = parseFolderList(this.allowed).find((r) => inFolder(path, r.path));
     if (!root) throw new Error(`'${path}' is not one of the folders processes may use`);
     if (!(path in this.tree)) throw new Error(`Folder not found: ${path}`);
