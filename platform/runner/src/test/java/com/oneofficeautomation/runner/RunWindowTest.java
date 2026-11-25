@@ -25,6 +25,21 @@ class RunWindowTest {
         assertNull(RunWindow.Options.from(Map.of("show", false)));
     }
 
+    @Test void noWindowOnALinuxRunnerWithoutADisplay() {
+        assertFalse(RunWindow.hasDisplay("Linux", Map.of()), "headless Linux (CI, a server runner): no window");
+        assertFalse(RunWindow.hasDisplay("Linux", Map.of("DISPLAY", " ")));
+        assertTrue(RunWindow.hasDisplay("Linux", Map.of("DISPLAY", ":0")));
+        assertTrue(RunWindow.hasDisplay("Linux", Map.of("WAYLAND_DISPLAY", "wayland-0")));
+        assertTrue(RunWindow.hasDisplay("Windows 11", Map.of()));
+        assertTrue(RunWindow.hasDisplay("Mac OS X", Map.of()));
+    }
+
+    @Test void openNeverStopsTheRunWhenTheWindowCannotBeShown() {
+        if (RunWindow.available()) return;   // a desktop: the window would really open
+        assertNull(RunWindow.open("A", flow(), new EventSink.ListSink(), new java.util.concurrent.atomic.AtomicBoolean(),
+                new java.util.concurrent.atomic.AtomicBoolean(), () -> true, a -> a, RunWindow.Options.DEFAULT));
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> flow() {
         return (Map<String, Object>) JsonLite.parse("""

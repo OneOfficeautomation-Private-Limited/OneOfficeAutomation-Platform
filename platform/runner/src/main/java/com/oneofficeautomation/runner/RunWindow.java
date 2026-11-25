@@ -48,10 +48,24 @@ public final class RunWindow {
         }
     }
 
-    /** True when a desktop window can be shown (not headless, and not switched off with OOA_NO_RUN_WINDOW). */
+    /**
+     * True when a desktop window can be shown: not headless, a display to show it on, and not switched off with
+     * OOA_NO_RUN_WINDOW. Runners start the run's worker with java.awt.headless=false, so on Linux without a display
+     * isHeadless() alone still says yes; the display variables are checked too.
+     */
     public static boolean available() {
-        return !GraphicsEnvironment.isHeadless() && System.getenv("OOA_NO_RUN_WINDOW") == null;
+        return !GraphicsEnvironment.isHeadless() && System.getenv("OOA_NO_RUN_WINDOW") == null
+                && hasDisplay(System.getProperty("os.name", ""), System.getenv());
     }
+
+    /** Windows and macOS always have a desktop to draw on; other systems need DISPLAY (X11) or WAYLAND_DISPLAY. */
+    static boolean hasDisplay(String osName, Map<String, String> env) {
+        String os = osName.toLowerCase(Locale.ROOT);
+        if (os.startsWith("windows") || os.startsWith("mac")) return true;
+        return !isBlank(env.get("DISPLAY")) || !isBlank(env.get("WAYLAND_DISPLAY"));
+    }
+
+    private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     /** Command display names from the installed toolkits ("ooa.excel/open" to "Open"), for the window's line text. */
     public static Function<String, String> names(List<Map<String, Object>> manifests) {
@@ -70,8 +84,10 @@ public final class RunWindow {
                                  BooleanSupplier done, Function<String, String> names, Options options) {
         if (!available()) return null;
         RunWindow[] w = new RunWindow[1];
+        // AWT that cannot start throws errors (AWTError, HeadlessException, a missing native library), not only
+        // exceptions: the run carries on without the window
         try { SwingUtilities.invokeAndWait(() -> w[0] = new RunWindow(agent, flow, sink, pause, cancel, done, names, options == null ? Options.DEFAULT : options)); }
-        catch (Exception e) { return null; }
+        catch (Throwable e) { return null; }
         return w[0];
     }
 
