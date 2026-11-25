@@ -139,6 +139,35 @@ describe("One Chat page", () => {
     expect(s.calls.length).toBe(asked);
   });
 
+  it("hears a finished run on the stream at once, without waiting to ask (S5c)", async () => {
+    const opened: { url: string; listeners: Record<string, () => void>; closed: boolean }[] = [];
+    class FakeEventSource {
+      listeners: Record<string, () => void> = {};
+      closed = false;
+      onopen: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(readonly url: string) { opened.push(this as never); setTimeout(() => this.onopen?.(), 0); }
+      addEventListener(type: string, f: () => void) { this.listeners[type] = f; }
+      close() { this.closed = true; }
+    }
+    const before = (globalThis as { EventSource?: unknown }).EventSource;
+    (globalThis as { EventSource?: unknown }).EventSource = FakeEventSource;
+    try {
+      const history = [{ role: "user", text: "go" }, { role: "assistant", text: "Started.", kind: "started", run_id: "r1" },
+        { role: "assistant", text: "Post invoices finished.", kind: "run_success", run_id: "r1" }];
+      const s = server([{ body: { session_id: "s1", reply: "Started.", kind: "started", run_id: "r1" } }], history);
+      show(s.api, { pollMs: 60000 });
+      expect(opened[0].url).toBe("/api/chat/stream");
+      type("go");
+      expect(await screen.findByText("Started.")).toBeTruthy();
+      expect(screen.queryByText("Post invoices finished.")).toBeNull();
+      await act(async () => { opened[0].listeners["run_ended"](); });
+      expect(await screen.findByText("Post invoices finished.", undefined, { timeout: 2000 })).toBeTruthy();
+      cleanup();
+      expect(opened[0].closed).toBe(true);
+    } finally { (globalThis as { EventSource?: unknown }).EventSource = before; }
+  });
+
   it("keeps the chat while the person visits other pages, and New chat starts over", async () => {
     const s = server([{ body: { session_id: "s1", reply: "Which customer?", kind: "ask" } }, { body: { session_id: "s9", reply: "Hi.", kind: "ask" } }]);
     show(s.api);

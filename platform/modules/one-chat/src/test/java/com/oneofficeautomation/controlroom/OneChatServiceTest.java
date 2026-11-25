@@ -147,6 +147,7 @@ class OneChatServiceTest {
                 } else if (m.equals("GET") && path.endsWith("/memory")) {
                     send(ex, 200, Map.of("notes", List.of(Map.of("id", "n1", "note", "I work in Accounts Payable", "created", "2026-11-20T09:00:00Z"))));
                 } else if (m.equals("DELETE") && path.contains("/memory")) send(ex, 200, Map.of("ok", true));
+                else if (m.equals("DELETE") && path.startsWith("people/")) send(ex, 200, Map.of("ok", true));
                 else send(ex, 404, Map.of("error", Map.of("code", "NOT_FOUND", "message", "no route " + path)));
             } catch (Exception e) { send(ex, 500, Map.of("error", Map.of("code", "STANDIN", "message", String.valueOf(e)))); }
         });
@@ -775,6 +776,59 @@ class OneChatServiceTest {
     @SuppressWarnings("unchecked")
     String firstStatus() throws Exception {
         return String.valueOf(((List<Map<String, Object>>) json(call("GET", "/api/onechat/model-check", null, adminToken)).get("connections")).get(0).get("status"));
+    }
+
+    @Test void aDeletedPersonIsForgottenByTheService() throws Exception {
+        tokenOf("leaver", "bot_runner");
+        cr.deleteUser(admin, "leaver", null);
+        Map<String, Object> sent = null;
+        for (int i = 0; i < 300 && sent == null; i++) {
+            sent = received.stream().filter(r -> "DELETE".equals(r.get("method")) && "people/leaver".equals(r.get("path"))).findFirst().orElse(null);
+            if (sent == null) Thread.sleep(100);
+        }
+        assertNotNull(sent, "the service was asked to forget the deleted person: " + received);
+        assertEquals("Bearer " + SERVICE_TOKEN, sent.get("Authorization"));
+        assertEquals("default", sent.get("X-OOA-Tenant"));
+        assertNull(sent.get("X-OOA-Person"), "One CommandCenter asks as itself: the person is gone");
+        for (int i = 0; i < 100 && db.one("SELECT seq FROM audit WHERE action = ? AND object_id = ?", "onechat.person_forgotten", "leaver") == null; i++) Thread.sleep(100);
+        assertNotNull(db.one("SELECT seq FROM audit WHERE action = ? AND object_id = ?", "onechat.person_forgotten", "leaver"), "recorded in the Audit Trail");
+        int before = (int) received.stream().filter(r -> "people/leaver".equals(r.get("path"))).count();
+        Thread.sleep(8000);
+        assertEquals(before, (int) received.stream().filter(r -> "people/leaver".equals(r.get("path"))).count(), "asked once only");
+    }
+
+    @Test void theStreamTellsThePageWhenItsRunEnds() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder(URI.create(base + "/api/chat/stream")).header("Authorization", "Bearer " + janeToken).GET().build();
+        HttpResponse<java.util.stream.Stream<String>> r = HTTP.send(req, HttpResponse.BodyHandlers.ofLines());
+        assertEquals(200, r.statusCode());
+        assertTrue(r.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"), r.headers().toString());
+        var lines = r.body().iterator();
+        assertEquals("retry: 5000", lines.next());
+        Instant now = Instant.now();
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, requested_by, source, created, finished, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "run_stream_1", ChatTest.AGING, 1, device, "success", "jane", "chat", now, now.plusMillis(5), false, false);
+        String event = null, data = null, id = null;
+        long until = System.currentTimeMillis() + 15000;
+        while (System.currentTimeMillis() < until && lines.hasNext()) {
+            String l = lines.next();
+            if (l.startsWith("id: ")) id = l.substring(4);
+            if (l.equals("event: run_ended")) event = l;
+            if (event != null && l.startsWith("data: ")) { data = l.substring(6); break; }
+        }
+        assertNotNull(event, "a run_ended event arrived");
+        assertTrue(data.contains("run_stream_1") && data.contains("success"), data);
+        assertTrue(id != null && id.matches("t\\d+"), "an id to pick up from: " + id);
+        int anon = call("GET", "/api/chat/stream", null, "not-a-token").statusCode();
+        assertTrue(anon == 401 || anon == 403, "signed-in people only: " + anon);
+    }
+
+    @Test void aStreamPicksUpFromItsLastEventId() {
+        Instant now = Instant.parse("2026-11-25T12:00:00Z");
+        assertEquals(now, com.oneofficeautomation.modules.chat.ChatStreamAccess.start(null, now));
+        assertEquals(now.minusSeconds(30), com.oneofficeautomation.modules.chat.ChatStreamAccess.start("t" + now.minusSeconds(30).toEpochMilli(), now));
+        assertEquals(now.minus(java.time.Duration.ofMinutes(15)), com.oneofficeautomation.modules.chat.ChatStreamAccess.start("t1", now), "at most 15 minutes back");
+        assertEquals(now, com.oneofficeautomation.modules.chat.ChatStreamAccess.start("t" + now.plusSeconds(60).toEpochMilli(), now), "never from the future");
+        assertEquals(now, com.oneofficeautomation.modules.chat.ChatStreamAccess.start("nonsense", now));
     }
 
     @Test void anUnreadableSigningKeyIsReplaced() {

@@ -87,7 +87,10 @@ public final class OneChatModule implements CommandCenterModule {
         ctx.publicRoute("onechat-callback", callbacks::handle);
         // POST /api/chat {session_id?, message, lang} sends a message; GET /api/chat/{session} reads that chat's messages;
         // both go to the engine chosen in Settings (the built-in one, or the OneChat service)
+        ChatStream stream = new ChatStream(ctx, callbacks);
         ctx.route("chat", (ex, u, m, route, ip) -> {
+            // S5c: GET /api/chat/stream, server-sent events for the One Chat page (contract section 6)
+            if (m.equals("GET") && route.equals("stream")) { stream.serve(ex, u); return; }
             boolean viaService = service.chosen();
             if (m.equals("POST") && route.isEmpty()) {
                 Map<String, Object> b = ctx.jsonBody(ex);

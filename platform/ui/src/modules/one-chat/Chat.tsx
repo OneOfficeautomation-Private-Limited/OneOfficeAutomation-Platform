@@ -93,6 +93,25 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
     } finally { setBusy(false); input.current?.focus(); }
   }, [api, busy, session]);
 
+  // S5c: the stream (GET /api/chat/stream) says at once when a run of the person's ends or their request is decided;
+  // while it is open the page checks only every 30 seconds, as a safety net (contract section 6)
+  const [streaming, setStreaming] = useState(false);
+  const [heard, setHeard] = useState(0);
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+    const es = new EventSource(api.base + "chat/stream");
+    es.onopen = () => setStreaming(true);
+    es.onerror = () => setStreaming(false);
+    const refresh = () => setHeard((n) => n + 1);
+    es.addEventListener("run_ended", refresh);
+    es.addEventListener("approval_decided", refresh);
+    return () => es.close();
+  }, [api]);
+  useEffect(() => {
+    if (!heard || !session) return;
+    api.chatHistory(session).then((all) => setMessages((m) => all.length > m.length ? all : m), () => { /* the chat expired */ });
+  }, [api, heard, session]);
+
   // while a run or an approval from this chat is open, pick up what One CommandCenter adds (finished, failed, approved)
   useEffect(() => {
     if (!session || busy || !waiting(messages)) return;
@@ -101,9 +120,9 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
         const all = await api.chatHistory(session);
         if (all.length > messages.length) setMessages(all);
       } catch { /* the chat expired; the next message starts a new one */ }
-    }, pollMs);
+    }, streaming ? Math.max(pollMs, 30000) : pollMs);
     return () => clearInterval(id);
-  }, [api, session, busy, messages, pollMs]);
+  }, [api, session, busy, messages, pollMs, streaming]);
 
   // S4: the person's kept chats, to reopen one (kept as long as Settings > AI assistants > One Chat > Keep chats for
   // says); read only when the person opens the list

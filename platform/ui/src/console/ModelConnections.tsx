@@ -133,6 +133,7 @@ function ConnectionForm({ api, c, onClose, onSaved }: { api: CrApi; c: ModelConn
     description: c?.description ?? "", roles: (c?.allowed_roles ?? []).join(", "), monthly: c?.monthly_tokens ? String(c.monthly_tokens) : "", perMinute: c?.calls_per_minute ? String(c.calls_per_minute) : "",
     perRun: c?.calls_per_run ? String(c.calls_per_run) : "", analyzer: c?.pii_analyzer_url ?? "", check: c?.content_check === "moderation" ? "moderation" : "none" });
   const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null);
+  const [preset, setPreset] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
@@ -153,7 +154,8 @@ function ConnectionForm({ api, c, onClose, onSaved }: { api: CrApi; c: ModelConn
         <Button kind="danger" onClick={() => api.deleteModelConnection(c!.name).then(() => onSaved("Deleted the model connection " + c!.name + "."), (e) => setError(message(e)))}>Delete</Button>
         <Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button></div>}
       <h3 className="cc-log-title">Model</h3>
-      {!c && <Field label="Start from">{(id) => <Select id={id} value="" onChange={(e) => { const p = PRESETS.find((x) => x.id === e.target.value);
+      {!c && <Field label="Start from">{(id) => <Select id={id} value={preset} onChange={(e) => { const p = PRESETS.find((x) => x.id === e.target.value);
+        setPreset(e.target.value);
         if (p) setV({ ...v, ...p.fill, name: v.name || (p.id === "onechat" ? "onechat-flow" : v.name) }); }}
         options={[{ value: "", label: "Fill in yourself" }, ...PRESETS.map((p) => ({ value: p.id, label: p.label }))]} />}</Field>}
       {v.provider === "openai_compatible" && /^ooa-(flow-)?assistant/.test(v.model) && <p className="st-muted" role="note">A OneChat model: it only writes agent steps,

@@ -246,6 +246,11 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
 
   A dropped stream reconnects and picks up where it stopped (`Last-Event-ID`). Where a proxy blocks streams, the page
   checks every 30 seconds instead.
+  **Built 25 Nov 2026 (S5c)** for the One Chat page: `run_ended` `{run_id, status, source}`, `approval_decided`
+  `{task_id, outcome}` and `new_task` `{task_id, title}`. Event ids are `t` + epoch milliseconds, and a reconnect picks
+  up to 15 minutes back. Each stream ends after 10 minutes and the page reconnects. `chat_reply` waits for the
+  service, because the built-in engine answers at once. Studio's assistant also answers at once, so its panel needs
+  no stream.
 - **To OneChat:** `POST /api/chat/v1/events` sends `run_ended` (`{run_id, status, results, session_id}`) and
   `approval_decided` (`{task_id, decision, comment, approver}`), each with a fresh person token. Each event has an id,
   so OneChat ignores repeats. One CommandCenter retries, waiting longer each time, for up to an hour.
@@ -260,7 +265,11 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
 - **Every OneChat record carries the tenant id and the user name.** On premises the tenant is `default`.
 - **How long chats are kept:** an administrator's setting (section 10). Today's built-in engine drops a chat after 8
   hours unused.
-- **A deleted person:** One CommandCenter calls `DELETE people/{username}`.
+- **A deleted person:** One CommandCenter calls `DELETE people/{username}`, as itself: the service token and the
+  tenant, no person token. Built 25 Nov 2026 (S5c): each `user.delete` in the Audit Trail is queued once and retried
+  for up to 7 days, also while the built-in engine is chosen. A 404 counts as done. It is recorded as
+  `onechat.person_forgotten`, or `onechat.person_not_forgotten` after 7 days. If someone of the same name was added
+  again since, nothing is sent.
 - **A customer who leaves (SaaS):** their data is exported, then removed, through the `tenants/{id}` routes, as part
   of the region's steps for removing a tenant.
 - **Secrets:** credential inputs are never asked for in chat (as today), and masking is applied in One CommandCenter
@@ -280,8 +289,11 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
 - **Version check:** Settings > AI assistants shows OneChat's version and whether it is compatible. With an
   incompatible OneChat, the built-in engine answers with a note saying so (section 15). With **When OneChat is not
   available** set to **Show the error**, the chat says so and nothing runs.
-- **CI:** a job named `onechat` starts the real service at `ref` and runs the platform's contract tests against it.
-  OneChat's repository runs its own contract test against a stand-in for the callback routes.
+- **CI:** the job named `onechat` (S5c, 25 Nov 2026) checks out OneChat at `model_server_ref`, starts its model
+  server with its fake model and a token, and runs `OneChatModelLiveTest`: the model check, Studio's assistant with
+  each mode, and the training feedback. When OneChat builds the `/api/chat/v1` service, the same job starts it at
+  `ref` and runs the contract tests against it as well. OneChat's repository runs its own contract test against a
+  stand-in for the callback routes.
 - **Upgrade order:** OneChat first, then the platform. You approve each release, as with DocFlow.
 
 ## 9. The built-in engine (C)

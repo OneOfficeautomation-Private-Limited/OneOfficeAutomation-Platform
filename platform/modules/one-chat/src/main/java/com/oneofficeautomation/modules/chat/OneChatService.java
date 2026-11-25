@@ -405,16 +405,76 @@ public final class OneChatService {
                 id, username, session, JsonLite.write(e), 0, now(), now());
     }
 
+    /** How long One CommandCenter keeps asking the service to forget a deleted person (S5c), and keeps the done mark. */
+    static final Duration FORGET_FOR = Duration.ofDays(7);
+
+    /**
+     * A deleted person's chats and notes go from the service too (S5c, contract section 7: DELETE people/{username}).
+     * People deleted in the last FORGET_FOR (the Audit Trail's user.delete) are queued once each (id forget-SEQ); each is
+     * sent with the service token and the tenant, no person token, until the service says done (200, or 404: nothing
+     * kept), retried with the same waits as events for up to FORGET_FOR. Runs whenever the service has a token, also
+     * while the built-in engine is chosen, since the service may still hold their chats from before.
+     */
+    void forgetDeletedPeople() {
+        if (token().isEmpty()) return;
+        Instant now = now();
+        for (Map<String, Object> a : ctx.db().query("SELECT seq, ts, object_id FROM audit WHERE action = ? AND result = ? AND ts >= ?", "user.delete", "ok", now.minus(FORGET_FOR))) {
+            String id = "forget-" + a.get("seq"), name = String.valueOf(a.get("object_id"));
+            if (ctx.db().one("SELECT id FROM onechat_events WHERE id = ?", id) != null) continue;
+            ctx.db().update("INSERT INTO onechat_events (id, username, session_id, payload, attempts, next_try, created) VALUES (?,?,?,?,?,?,?)",
+                    id, name, null, JsonLite.write(Map.of("type", "forget_person", "username", name)), 0, now, now);
+        }
+        if (paused()) return;
+        for (Map<String, Object> e : ctx.db().query("SELECT id, username, attempts, created FROM onechat_events WHERE id LIKE ? AND attempts >= 0 AND next_try <= ? ORDER BY created LIMIT ?", "forget-%", now, 20)) {
+            String id = String.valueOf(e.get("id")), name = String.valueOf(e.get("username"));
+            int attempts = ((Number) e.get("attempts")).intValue() + 1;
+            // someone of the same name was added again since: their new chats are not the deleted person's to remove
+            boolean done = ctx.activeUser(name) != null;
+            if (!done) {
+                try { systemCall("DELETE", "people/" + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8)); done = true; }
+                catch (OoaException ex) { done = "ONECHAT.NOT_FOUND".equals(ex.code()); }
+            }
+            if (done) {
+                // kept (attempts -1) so the same deletion is not queued again, until it is older than FORGET_FOR
+                ctx.db().update("UPDATE onechat_events SET attempts = -1 WHERE id = ?", id);
+                ctx.audit("system", "onechat.person_forgotten", "user", name, Map.of(), "ok", null);
+            } else if (instant(e.get("created"), now).isBefore(now.minus(FORGET_FOR))) {
+                ctx.db().update("UPDATE onechat_events SET attempts = -1 WHERE id = ?", id);
+                ctx.audit("system", "onechat.person_not_forgotten", "user", name, Map.of("attempts", attempts), "failed", null);
+            } else ctx.db().update("UPDATE onechat_events SET attempts = ?, next_try = ? WHERE id = ?", attempts,
+                    now.plusSeconds(BACKOFF[Math.min(attempts - 1, BACKOFF.length - 1)]), id);
+        }
+        ctx.db().update("DELETE FROM onechat_events WHERE id LIKE ? AND created < ?", "forget-%", now.minus(FORGET_FOR.plusDays(1)));
+    }
+
+    /** A request as One CommandCenter itself (no person): the service token and the tenant only. 404 is ONECHAT.NOT_FOUND. */
+    private void systemCall(String method, String path) {
+        Map<String, Object> v = version();
+        if (!Boolean.TRUE.equals(v.get("compatible"))) throw new OoaException("ONECHAT.NOT_AVAILABLE", String.valueOf(v.get("message")), "Tried again later.");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/chat/v1/" + path)).timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer " + token()).header("X-OOA-Tenant", tokens.tenant()).header("X-OOA-Area", "system")
+                .method(method, HttpRequest.BodyPublishers.noBody()).build();
+        int status;
+        try { status = http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode(); }
+        catch (IOException e) { failed("not answering: " + e.getMessage()); throw new OoaException("ONECHAT.UNREACHABLE", "The OneChat service is not answering", "Tried again later."); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ONECHAT.UNREACHABLE", "Interrupted", "Tried again later."); }
+        if (status == 404) throw new OoaException("ONECHAT.NOT_FOUND", "The OneChat service keeps nothing for that", "Nothing to do.");
+        if (status >= 500) { failed("HTTP " + status); throw new OoaException("ONECHAT.FAILED", "The OneChat service failed: HTTP " + status, "Tried again later."); }
+        if (status >= 400) throw new OoaException("ONECHAT.ERROR", "The OneChat service answered HTTP " + status, "An operator checks the OneChat service.");
+        succeeded();
+    }
+
     /** Sends the events that are due (on One CommandCenter's clock, on the cluster's leader); retries, then drops after an hour. */
     @SuppressWarnings("unchecked")
     void deliverEvents() {
         Instant now = now();
+        forgetDeletedPeople();
         if (!chosen()) {
             // the built-in engine is chosen again: events nobody will collect go after an hour
-            ctx.db().update("DELETE FROM onechat_events WHERE created < ?", now.minus(Duration.ofHours(1)));
+            ctx.db().update("DELETE FROM onechat_events WHERE created < ? AND id NOT LIKE ?", now.minus(Duration.ofHours(1)), "forget-%");
             return;
         }
-        for (Map<String, Object> e : ctx.db().query("SELECT id, username, session_id, payload, attempts, created FROM onechat_events WHERE next_try <= ? ORDER BY created LIMIT ?", now, 50)) {
+        for (Map<String, Object> e : ctx.db().query("SELECT id, username, session_id, payload, attempts, created FROM onechat_events WHERE next_try <= ? AND id NOT LIKE ? ORDER BY created LIMIT ?", now, "forget-%", 50)) {
             String id = String.valueOf(e.get("id"));
             Instant created = instant(e.get("created"), now);
             User u = ctx.activeUser(String.valueOf(e.get("username")));

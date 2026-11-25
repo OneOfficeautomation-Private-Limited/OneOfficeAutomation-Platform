@@ -35,6 +35,8 @@ subprojects {
         for (k in listOf("ooa.test.db", "ooa.test.db.user", "ooa.test.db.password")) project.findProperty(k)?.let { systemProperty(k, it) }
         // -Pooa.test.docflow=http://127.0.0.1:8085 (+ .token, .port, .samples) runs DocFlowLiveTest against a real DocFlow
         for (k in listOf("ooa.test.docflow", "ooa.test.docflow.token", "ooa.test.docflow.port", "ooa.test.docflow.samples")) project.findProperty(k)?.let { systemProperty(k, it) }
+        // -Pooa.test.onechat=http://127.0.0.1:8765 (+ .token) runs OneChatModelLiveTest against OneChat's real model server (S5c)
+        for (k in listOf("ooa.test.onechat", "ooa.test.onechat.token")) project.findProperty(k)?.let { systemProperty(k, it) }
         // temp files of tests go to build/tmp/<task>-files, emptied before each run and by clean, never to the user's
         // Temp folder (27,215 folders had piled up there by 1 Nov 2026)
         val testTemp = layout.buildDirectory.dir("tmp/$name-files").get().asFile

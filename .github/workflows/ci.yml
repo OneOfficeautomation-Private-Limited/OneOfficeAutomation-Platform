@@ -6,6 +6,9 @@
 #   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
 #   docflow      Linux: Document Automation against the real DocFlow service (oneoffice-docauto at the ref pinned in
 #                docflow-compat.properties): proxy routes, an upload, the review queue and a "Start a bot" callback
+#   onechat      Linux: Studio's assistant against OneChat's real model server (OneOfficeAutomation-OneChat at the commit
+#                pinned in onechat-compat.properties, model_server_ref, with its fake model): the model check, each mode,
+#                and the training feedback (S5c); runs when One Chat changed, and always on master
 #   headless     Linux (every push) and macOS (master): a Command Center and a headless runner end to end, the runner and
 #                SDK tests and the shared conformance cases, so runners for API, data and browser-free work run there (R14)
 #   native       Linux and Windows: the native executable (GraalVM), checked against the Java program (Q13)
@@ -274,6 +277,61 @@ jobs:
         with:
           name: test-reports-docflow
           path: platform/modules/document-automation/build/reports/tests/
+          retention-days: 7
+
+  onechat:
+    name: Studio's assistant with OneChat's model server (Linux)
+    needs: changes
+    if: github.ref == 'refs/heads/master' || contains(needs.changes.outputs.modules, 'one-chat')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Which OneChat this release is tested with
+        id: pin
+        run: echo "ref=$(sed -n 's/^model_server_ref=//p' modules/one-chat/src/main/resources/onechat-compat.properties | tr -d '\r')" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: OneOfficeautomation-Private-Limited/OneOfficeAutomation-OneChat
+          ref: ${{ steps.pin.outputs.ref }}
+          path: onechat
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start OneChat's model server (fake model, with a token)
+        working-directory: onechat/rpa model
+        run: |
+          pip install -q jsonschema
+          TOKEN="ci-$(openssl rand -hex 16)"
+          echo "::add-mask::$TOKEN"
+          echo "ONECHAT_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          nohup python -I assistant/app.py --platform "$GITHUB_WORKSPACE" --fake-model --port 8765 --token "$TOKEN" \
+            --data-dir "$RUNNER_TEMP/onechat-data" > "$RUNNER_TEMP/onechat.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8765/ready && echo && echo "OneChat is up" && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/onechat.log"; exit 1
+      - name: One CommandCenter against OneChat
+        run: |
+          chmod +x gradlew
+          ./gradlew :one-chat:test --tests "*OneChatModelLiveTest*" --console=plain -Pooa.test.onechat=http://127.0.0.1:8765 "-Pooa.test.onechat.token=$ONECHAT_TOKEN"
+          # the tests skip themselves without a OneChat: make sure they really ran
+          grep -q 'skipped="0"' modules/one-chat/build/test-results/test/TEST-com.oneofficeautomation.controlroom.OneChatModelLiveTest.xml
+      - name: OneChat's log
+        if: always()
+        run: tail -n 100 "$RUNNER_TEMP/onechat.log" || true
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-onechat
+          path: platform/modules/one-chat/build/reports/tests/
           retention-days: 7
 
   python:

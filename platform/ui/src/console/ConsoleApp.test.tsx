@@ -2418,6 +2418,21 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "toolkits/publishers/acme" }));
   });
 
+  it("fills in a new connection from the OneChat flow assistant preset and keeps the choice shown (S6)", async () => {
+    const { api } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    await screen.findByRole("navigation", { name: "One CommandCenter" });
+    await go("Model Connections");
+    await screen.findByRole("table", { name: "Model connections list" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Create connection" })[0]);
+    const d = await screen.findByRole("dialog", { name: "Create model connection" });
+    fireEvent.change(within(d).getByLabelText("Start from"), { target: { value: "onechat" } });
+    expect((within(d).getByLabelText("Start from") as HTMLSelectElement).value).toBe("onechat");
+    expect((within(d).getByLabelText("Model or deployment") as HTMLInputElement).value).toBe("ooa-flow-assistant");
+    expect((within(d).getByLabelText("Provider") as HTMLSelectElement).value).toBe("openai_compatible");
+    expect(within(d).getByRole("note").textContent).toContain("A OneChat model");
+  });
+
   it("shows the AI pages: model connections with budget and test, a prompt skill saved as a new version, AI governance by model and agent", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "skills.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
