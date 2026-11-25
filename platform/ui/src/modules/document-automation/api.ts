@@ -120,7 +120,7 @@ export interface Delivery { id: string; type: DeliveryType; name: string; enable
  * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.
  */
 export interface EmailInbox {
-  enabled: boolean; kind: "email" | "outlook"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
+  enabled: boolean; kind: "email" | "outlook" | "gmail" | "pop3"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
   mailbox?: string; tenant_id?: string; client_id?: string; client_secret_ref?: string; mail_folder?: string;
   from_contains?: string; subject_contains?: string; interval_seconds?: number;
   /** DA-1: read with "Sign in with Microsoft": the sign-in's id, and the account Microsoft confirmed (set by the server). */

@@ -239,6 +239,9 @@ public final class Modules {
         public MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) {
             return new ImapMailSource(host, port, ssl, user, password, folder, timeoutMillis);
         }
+        public MailSource pop3Mailbox(String host, int port, boolean ssl, String user, String password, int timeoutMillis) {
+            return new Pop3MailSource(host, port, ssl, user, password, timeoutMillis);
+        }
         public MailSource graphMailbox(String tenantId, String clientId, String clientSecret, String mailbox, String folder) throws IOException {
             return new GraphMailSource(null, mailbox, folder, GraphMailSource.clientCredentialsToken(null, tenantId, clientId, clientSecret));
         }

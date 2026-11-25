@@ -109,7 +109,8 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
       {email?.enabled && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "10px 0 0 24px" }}>
           <Field label="Mailbox kind">{(id) => <Select id={id} value={email.kind} onChange={(e) => setEmail({ kind: e.target.value as EmailInbox["kind"] })}
-            options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "email", label: "IMAP (any other mail server)" }]} />}</Field>
+            options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "gmail", label: "Gmail or Google Workspace" },
+              { value: "email", label: "IMAP (any other mail server)" }, { value: "pop3", label: "POP3 (servers without IMAP)" }]} />}</Field>
           {email.kind === "outlook" ? (<>
             <MicrosoftAccount api={api} account={email.ms_account} signedIn={!!email.ms_signin}
               onSignedIn={(id, account) => setEmail({ ms_signin: id, ms_account: account, tenant_id: "", client_id: "", client_secret_ref: "" })}
@@ -124,15 +125,22 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
               {text("client_id", "Application (client) id")}
               {secret("client_secret_ref", "Client secret", "m365/app/secret")}
             </div>}
-          </>) : (
+          </>) : email.kind === "gmail" ? (
             <div className="df-grid df-g2">
-              {text("host", "Mail server", "imap.example.com")}
-              {text("port", "Port", "993")}
+              <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Read over IMAP at Google with an app password (Google account, Security, App passwords; 2-step verification must be on). A Google Workspace administrator may need to allow IMAP.</p>
+              {text("username", "Gmail address", "invoices@example.com")}
+              {secret("password_ref", "App password", "mail/gmail/app-password")}
+              {text("mail_folder", "Label", "INBOX")}
+            </div>
+          ) : (
+            <div className="df-grid df-g2">
+              {text("host", "Mail server", email.kind === "pop3" ? "pop.example.com" : "imap.example.com")}
+              {text("port", "Port", email.kind === "pop3" ? "995" : "993")}
               <Field label="Connection">{(id) => <Select id={id} value={email?.ssl === false ? "plain" : "ssl"} onChange={(e) => setEmail({ ssl: e.target.value === "ssl" })}
                 options={[{ value: "ssl", label: "Encrypted (SSL/TLS, usually port 993)" }, { value: "plain", label: "Not encrypted, or STARTTLS (usually port 143)" }]} />}</Field>
               {text("username", "User name", "invoices@example.com")}
               {secret("password_ref", "Password", "mail/invoices/password")}
-              {text("mail_folder", "Folder", "INBOX")}
+              {email.kind !== "pop3" ? text("mail_folder", "Folder", "INBOX") : <p className="df-small" style={{ margin: 0 }}>POP3 reads the inbox only; messages are never deleted.</p>}
             </div>
           )}
           <AdvancedToggle open={typeRef} onToggle={() => setTypeRef(!typeRef)}

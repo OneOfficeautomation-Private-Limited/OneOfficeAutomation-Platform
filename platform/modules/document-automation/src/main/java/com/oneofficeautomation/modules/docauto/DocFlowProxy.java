@@ -361,7 +361,7 @@ public final class DocFlowProxy {
         // an email inbox reads the mailbox's vault secret as the person who sets it up (who must be its consumer)
         if (flow.get("intake") instanceof Map<?, ?> intake && intake.get("email") instanceof Map<?, ?> raw && !raw.isEmpty()) {
             Map<String, Object> email = (Map<String, Object>) raw;
-            if ("email".equals(email.get("kind")) && email.get("host") instanceof String host && !host.isBlank()) ctx.checkHost(host, "The mail server");
+            if (List.of("email", "pop3", "gmail").contains(String.valueOf(email.get("kind"))) && email.get("host") instanceof String host && !host.isBlank()) ctx.checkHost(host, "The mail server");
             String ref = String.valueOf(email.getOrDefault("kind", "").equals("outlook") ? email.getOrDefault("client_secret_ref", "") : email.getOrDefault("password_ref", ""));
             if (Boolean.TRUE.equals(email.get("enabled")) && !ref.isBlank()) vaultAccess(u.username(), u.role(), ref);
             if ("outlook".equals(email.get("kind"))) checkMicrosoftSignIn(u, route, email);
@@ -612,8 +612,12 @@ public final class DocFlowProxy {
             return ctx.graphMailbox(String.valueOf(email.get("tenant_id")), String.valueOf(email.get("client_id")),
                     secret(by, String.valueOf(email.get("client_secret_ref"))), (String) email.get("mailbox"), (String) email.getOrDefault("mail_folder", "inbox"));
         }
-        String host = String.valueOf(email.getOrDefault("host", ""));
+        // Gmail and Google Workspace: IMAP at Google with an app password (or the account's own IMAP settings)
+        String host = "gmail".equals(email.get("kind")) && String.valueOf(email.getOrDefault("host", "")).isBlank() ? "imap.gmail.com" : String.valueOf(email.getOrDefault("host", ""));
         ctx.checkHost(host, "The mail server");
+        if ("pop3".equals(email.get("kind")))
+            return ctx.pop3Mailbox(host, email.get("port") instanceof Number p ? p.intValue() : 995, !Boolean.FALSE.equals(email.get("ssl")),
+                    String.valueOf(email.get("username")), secret(by, String.valueOf(email.get("password_ref"))), 30_000);
         return ctx.imapMailbox(host, email.get("port") instanceof Number p ? p.intValue() : 993, !Boolean.FALSE.equals(email.get("ssl")),
                 String.valueOf(email.get("username")), secret(by, String.valueOf(email.get("password_ref"))), String.valueOf(email.getOrDefault("mail_folder", "INBOX")), 30_000);
     }

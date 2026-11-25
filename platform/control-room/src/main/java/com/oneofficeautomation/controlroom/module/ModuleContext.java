@@ -202,6 +202,9 @@ public interface ModuleContext {
     /** A mailbox over IMAP (as email triggers read it). */
     MailSource imapMailbox(String host, int port, boolean ssl, String user, String password, String folder, int timeoutMillis) throws IOException;
 
+    /** A mailbox over POP3 (servers that offer POP3 only): read, never changed. */
+    MailSource pop3Mailbox(String host, int port, boolean ssl, String user, String password, int timeoutMillis) throws IOException;
+
     /** A Microsoft 365 mailbox through Microsoft Graph, signed in as an app with a client secret. */
     MailSource graphMailbox(String tenantId, String clientId, String clientSecret, String mailbox, String folder) throws IOException;
 
