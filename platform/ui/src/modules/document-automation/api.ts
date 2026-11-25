@@ -248,6 +248,8 @@ export interface DocType {
   description?: string;
   /** How numeric dates of this type are written (DMY, MDY, YMD) and its decimal mark ("." or ","); "" = the server's setting. */
   dateOrder?: string; decimalMark?: string;
+  /** Teaching examples: approved documents whose right values AI reading sees (document ids). */
+  examples?: string[];
 }
 
 /** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */
@@ -450,6 +452,9 @@ export interface DocFlowApi {
   testSets(docType?: string): Promise<TestSet[]>;
   /** A test set with its items. */
   testSet(id: string): Promise<TestSet>;
+  /** Teaching examples of a document type: add an approved document, or remove one. */
+  addTeachingExample(docTypeId: string, documentId: string): Promise<void>;
+  removeTeachingExample(docTypeId: string, documentId: string): Promise<void>;
   /** Improve with AI: clearer instructions for the fields the test run (the last one by default) read wrong. */
   improveInstructions(setId: string, runId?: string): Promise<Improvement>;
   createTestSet(name: string, docType: string, description?: string): Promise<TestSet>;
@@ -721,6 +726,9 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
+  async addTeachingExample(_t: string, _d: string) { /* sample screens keep no examples */ }
+  async removeTeachingExample(_t: string, _d: string) { /* sample screens keep no examples */ }
+
   async improveInstructions(_setId: string): Promise<Improvement> {
     return { runId: "r1", docType: "supplier-invoice", engine: "Claude", proposals: [{ name: "vat_amount", label: "VAT amount", current: "",
       proposed: "The tax amount on the totals line labelled VAT, not the tax rate and not a line item's tax.", wrong: 2, examples: [{ right: "6,257.13", read: "15" }] }] };

@@ -195,6 +195,13 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           {!t.fields.length && <div className="df-empty">No fields yet. Add them, or use Teach from samples.</div>}
           {t.fields.length > 0 && !fields.length && <div className="df-empty">No field matches these filters.</div>}
         </div>
+        {t.fields.length > 25 && <div className="df-note df-info" style={{ margin: "8px 16px 0" }}>
+          {t.fields.length} fields: AI reading is most accurate with up to about 25 fields at a time. Consider two document types, or a table field for repeating values.</div>}
+        {t.id && (t.examples?.length ?? 0) > 0 && <div className="df-pad" style={{ paddingTop: 8, paddingBottom: 0 }}>
+          <span className="df-small">Teaching examples (approved documents AI reading learns from): </span>
+          {(t.examples ?? []).map((d) => <span key={d} className="df-learned">{d.slice(0, 8)}<button type="button" className="df-link" aria-label={`Stop using ${d} as an example`}
+            onClick={() => api.removeTeachingExample(t.id, d).then(() => setDraft({ ...t, examples: (t.examples ?? []).filter((x) => x !== d) }), reportError)}>×</button></span>)}
+        </div>}
         <div className="df-pad" style={{ paddingTop: 8, paddingBottom: 10 }}>
           <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="the pattern behind each check, field names and labels learned from reviews" />
         </div>

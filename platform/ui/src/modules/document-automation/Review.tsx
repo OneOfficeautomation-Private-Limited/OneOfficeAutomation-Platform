@@ -118,7 +118,8 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
               : task.status === "failed" ? <Chip tone="bad">{task.reviewedBy ? "Rejected by " + task.reviewedBy : "Failed"}</Chip>
               : <Chip tone="mute">Processing</Chip>}
             {task.status === "done" && task.reviewedBy && task.docTypeId &&
-              <AddToTestSet key={task.documentId} api={api} documentId={task.documentId} docTypeId={task.docTypeId} docType={task.docType} />}</div>
+              <AddToTestSet key={task.documentId} api={api} documentId={task.documentId} docTypeId={task.docTypeId} docType={task.docType} />}
+            {task.status === "done" && task.reviewedBy && task.docTypeId && <TeachButton api={api} docTypeId={task.docTypeId} documentId={task.documentId} docType={task.docType} />}</div>
           <div className="df-muted">{task.processName} · {task.docType} · came in {task.cameIn} · {task.status === "review" ? <><b className="df-text-warn">due in {task.dueIn}</b> ({task.targetHours} h target)</> : <>{task.targetHours} h review target</>}</div>
         </div>
         <span className="df-grow" />
@@ -240,4 +241,12 @@ function Where({ place, grid }: { place?: Place; grid?: boolean }) {
     : place?.groundedBy === "einvoice-xml" ? "From the e-invoice XML" : "";
   if (!text) return null;
   return <span className={`df-small${place?.grounded === false ? " df-text-warn" : ""}`} style={grid ? { gridColumn: "2 / -1" } : { display: "block", marginTop: 4 }}>{text}</span>;
+}
+
+/** Teach the type with it: an approved document becomes a teaching example; AI reading sees its right values. */
+function TeachButton({ api, docTypeId, documentId, docType }: { api: DocFlowApi; docTypeId: string; documentId: string; docType: string }) {
+  const [done, setDone] = useState(false);
+  if (done) return <span className="df-small" role="status">A teaching example of {docType}</span>;
+  return <Button kind="plain" title={`AI reading of ${docType} sees this document's approved values as an example`}
+    onClick={() => api.addTeachingExample(docTypeId, documentId).then(() => setDone(true), reportError)}>Teach {docType} with it</Button>;
 }
