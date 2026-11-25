@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, Icon } from "../../../components";
 import type { Combo, DocFlowApi, SetRun, TestSetItem } from "../api";
 import { Chip, Empty, FilterBar, Loading, reportError, useLoad } from "../ui";
+import { ImproveDialog } from "./ImproveDialog";
 import { ItemDialog } from "./ItemDialog";
 import { RunDialog } from "./RunDialog";
 import { RunResults } from "./RunResults";
@@ -23,6 +24,7 @@ export function SetDetail({ api, setId }: { api: DocFlowApi; setId: string }) {
   const [editing, setEditing] = useState<TestSetItem | "new" | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [improving, setImproving] = useState(false);
   const shownId = runId ?? runs?.[0]?.id ?? null;
   const run = usePolledRun(api, setId, shownId, () => { reloadRuns(); reload(); });
   if (!data) return <Loading />;
@@ -59,6 +61,7 @@ export function SetDetail({ api, setId }: { api: DocFlowApi; setId: string }) {
         </div>
         <span className="df-grow" />
         <Button kind="plain" onClick={() => setDeleting(true)}>Delete set</Button>
+        <Button disabled={!(runs?.length) || run?.status === "running"} title="Clearer field instructions from what the last run read wrong" onClick={() => setImproving(true)}>Improve with AI</Button>
         <Button kind="run" icon="play" disabled={!items.length || run?.status === "running"} onClick={() => setChoosing(true)}>Run test</Button>
       </div>
 
@@ -69,6 +72,8 @@ export function SetDetail({ api, setId }: { api: DocFlowApi; setId: string }) {
 
       {editing && <ItemDialog item={editing === "new" ? null : editing} fields={fields} onSave={saveItem} onClose={() => setEditing(null)}
         onRead={async (file) => Object.fromEntries((await api.runTest(file, set.docType, "auto", null)).rows.filter((r) => r.key && r.a !== "—").map((r) => [r.key!, r.a]))} />}
+      {improving && <ImproveDialog api={api} setId={set.id} runId={shownId ?? undefined} onClose={() => setImproving(false)}
+        onApplied={() => { setImproving(false); reload(); setChoosing(true); }} />}
       {choosing && <RunDialog ocr={choices.ocr} extraction={choices.extraction} onRun={start} onClose={() => setChoosing(false)} />}
       <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete test set?" width={440}
         footer={<><Button onClick={() => setDeleting(false)}>Cancel</Button><Button kind="danger" onClick={drop}>Delete</Button></>}>

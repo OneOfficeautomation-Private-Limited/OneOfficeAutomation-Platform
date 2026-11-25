@@ -269,6 +269,11 @@ export interface Accuracy {
   fields: { name: string; label: string; seen: number; corrected: number; correctedShare: number }[];
   levels: { level: number; straightThrough: number | null; wrongPassed: number | null; fields: number }[];
 }
+/** Improve with AI: clearer field instructions proposed from what a test run read wrong (nothing saved yet). */
+export interface Improvement {
+  runId: string; docType: string; engine?: string;
+  proposals: { name: string; label: string; current: string; proposed: string; wrong: number; examples: { right: unknown; read: unknown }[] }[];
+}
 /** key: the field's name (field is its label). */
 export interface TestResult { field: string; key?: string; a: string; aConf: string; b: string; bConf: string; check: string; differs: boolean }
 /** A Test lab run: the field rows, and per engine its time, page confidence, whether it would go to review (or why it could not run). */
@@ -445,6 +450,8 @@ export interface DocFlowApi {
   testSets(docType?: string): Promise<TestSet[]>;
   /** A test set with its items. */
   testSet(id: string): Promise<TestSet>;
+  /** Improve with AI: clearer instructions for the fields the test run (the last one by default) read wrong. */
+  improveInstructions(setId: string, runId?: string): Promise<Improvement>;
   createTestSet(name: string, docType: string, description?: string): Promise<TestSet>;
   updateTestSet(id: string, name: string, description: string): Promise<TestSet>;
   deleteTestSet(id: string): Promise<void>;
@@ -714,6 +721,11 @@ export class SampleApi implements DocFlowApi {
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };
     }));
   }
+  async improveInstructions(_setId: string): Promise<Improvement> {
+    return { runId: "r1", docType: "supplier-invoice", engine: "Claude", proposals: [{ name: "vat_amount", label: "VAT amount", current: "",
+      proposed: "The tax amount on the totals line labelled VAT, not the tax rate and not a line item's tax.", wrong: 2, examples: [{ right: "6,257.13", read: "15" }] }] };
+  }
+
   async processSpend(_processId: string) { return { spend: 12.4, budget: null, currency: "USD", localOnly: false }; }
 
   async accuracy(_processId: string): Promise<Accuracy> {

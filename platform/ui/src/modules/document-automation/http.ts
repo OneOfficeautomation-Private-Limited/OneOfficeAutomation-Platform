@@ -3,7 +3,7 @@ import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
-  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy,
+  type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
 } from "./api";
@@ -285,6 +285,10 @@ export class HttpDocFlowApi implements DocFlowApi {
         overdue: queue.filter((q) => q.flowId === f.id && q.overdue).length, lastAt: last?.created_at ?? null,
       };
     });
+  }
+
+  async improveInstructions(setId: string, runId?: string): Promise<Improvement> {
+    return this.call<Improvement>("POST", `/df/testsets/${encodeURIComponent(setId)}/improve`, { runId: runId ?? null });
   }
 
   async processSpend(processId: string) {
