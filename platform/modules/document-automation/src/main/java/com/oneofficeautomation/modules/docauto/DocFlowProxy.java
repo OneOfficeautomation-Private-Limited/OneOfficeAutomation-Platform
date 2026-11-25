@@ -368,6 +368,15 @@ public final class DocFlowProxy {
             email.put("requestedBy", u.username());
             changed = true;
         }
+        // a check that tells people mails as the person who set it up
+        if (flow.get("rules") instanceof List<?> rules) for (Object o : rules) {
+            if (!(o instanceof Map<?, ?> raw) || !"notify".equals(raw.get("action"))) continue;
+            Map<String, Object> r = (Map<String, Object>) raw;
+            Map<String, Object> p = r.get("params") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
+            p.put("requestedBy", u.username());
+            r.put("params", p);
+            changed = true;
+        }
         if (!(flow.get("deliveries") instanceof List<?> list)) return changed ? JsonLite.write(flow).getBytes(StandardCharsets.UTF_8) : in;
         for (Object o : list) {
             // e-mail and cloud storage deliveries act as the person who sets them up: the mail goes out from here, and a

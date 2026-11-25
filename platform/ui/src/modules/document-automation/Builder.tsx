@@ -164,7 +164,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                   ...[...new Set(design.checks.map((c) => c.kind))].map((k) => ({ value: k, label: k }))]} />
                 <FilterSelect label="On / off" value={onOff} onChange={setOnOff} options={[{ value: "all", label: "All" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
                 <FilterSelect label="If it fails" value={fails} onChange={setFails} options={[{ value: "all", label: "Any action" },
-                  ...(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => ({ value: k, label: IF_FAILS[k] }))]} />
+                  ...(Object.keys(IF_FAILS) as Check["ifFails"][]).filter((k) => k !== "route" && k !== "notify").map((k) => ({ value: k, label: IF_FAILS[k] }))]} />
               </FilterBar>
               <div className="df-table-wrap">
                 <table className="df-table" style={{ minWidth: 720 }}>
@@ -177,7 +177,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                         <td className="df-muted">{c.test}</td>
                         <td><select className="ui-input ui-select" aria-label={`If ${c.name} fails`} value={c.ifFails} style={{ minWidth: 170 }}
                           onChange={(e) => setCheck(c.id, { ifFails: e.target.value as Check["ifFails"] })}>
-                          {(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => <option key={k} value={k}>{IF_FAILS[k]}</option>)}
+                          {(Object.keys(IF_FAILS) as Check["ifFails"][]).filter((k) => k === c.ifFails || (k !== "route" && k !== "notify")).map((k) => <option key={k} value={k}>{IF_FAILS[k]}</option>)}
                         </select></td>
                         <td className="df-right" style={{ whiteSpace: "nowrap" }}>
                           <Button kind="plain" onClick={() => setEditCheck(c)}>Edit</Button>
@@ -229,7 +229,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
         </div>
       )}
 
-      {editCheck && <CheckDialog key={editCheck === "new" ? "new" : editCheck.id} open value={editCheck === "new" ? null : editCheck} design={design} tables={tables}
+      {editCheck && <CheckDialog key={editCheck === "new" ? "new" : editCheck.id} open value={editCheck === "new" ? null : editCheck} design={design} tables={tables} processes={processes ?? []}
         onClose={() => setEditCheck(null)}
         onSave={(c) => { change({ checks: design.checks.some((x) => x.id === c.id) ? design.checks.map((x) => x.id === c.id ? c : x) : [...design.checks, c] }); setEditCheck(null); }} />}
       {editDelivery && <DeliveryDialog key={editDelivery === "new" ? "new" : editDelivery.id} open value={editDelivery === "new" ? null : editDelivery} api={api} processId={design.id}

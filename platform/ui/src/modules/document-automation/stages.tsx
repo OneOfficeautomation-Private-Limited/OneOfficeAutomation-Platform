@@ -9,7 +9,7 @@ import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type 
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
-export const IF_FAILS = { review: "Send to review", reject: "Reject", warn: "Warn only" } as const;
+export const IF_FAILS = { review: "Send to review", reject: "Reject", warn: "Warn only", route: "Send to another process", notify: "Tell people, and go on" } as const;
 
 const EXTRACTION = [
   { value: "auto", label: "Default engine (Engines page)" }, { value: "builtin-rules", label: "Rules extractor (free, on this server)" },
@@ -395,8 +395,8 @@ function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) 
 
 const OPS = [[">", "more than"], [">=", "at least"], ["<", "less than"], ["<=", "at most"], ["==", "exactly"], ["!=", "not"], ["between", "between"], ["outside", "outside"]];
 
-export function CheckDialog({ open, value, design, tables, onClose, onSave }:
-  { open: boolean; value: Check | null; design: ProcessDesign; tables: RefTable[]; onClose: () => void; onSave: (c: Check) => void }) {
+export function CheckDialog({ open, value, design, tables, processes = [], onClose, onSave }:
+  { open: boolean; value: Check | null; design: ProcessDesign; tables: RefTable[]; processes?: { id: string; name: string }[]; onClose: () => void; onSave: (c: Check) => void }) {
   const [c, setC] = useState<Check>(() => value ?? { id: newId("c"), on: true, name: "", kind: "", test: "", ifFails: "review", type: "threshold", params: { field: "total", op: ">", value: 50000 } });
   const p = c.params;
   const setP = (patch: Record<string, unknown>) => setC({ ...c, params: { ...p, ...patch } });
@@ -431,7 +431,7 @@ export function CheckDialog({ open, value, design, tables, onClose, onSave }:
       case "duplicate": case "required": return ((p.fields as string[] | undefined) ?? []).length > 0;
       default: return true;
     }
-  })();
+  })() && (c.ifFails !== "route" || !!p.routeTo) && (c.ifFails !== "notify" || ((p.notify as string[] | undefined) ?? []).length > 0);
   const save = () => {
     const params = c.type === "threshold" ? { ...p, value: parseAmount(p.value), ...(p.value2 !== undefined && p.value2 !== "" ? { value2: parseAmount(p.value2) } : {}) } : p;
     onSave({ ...c, params, name: c.name.trim() || RULE_KIND[c.type], kind: RULE_KIND[c.type], test: ruleTest(c.type, params) });
@@ -503,6 +503,12 @@ export function CheckDialog({ open, value, design, tables, onClose, onSave }:
       )}
       <Field label="If it fails">{(id) => <Select id={id} value={c.ifFails} onChange={(e) => setC({ ...c, ifFails: e.target.value as Check["ifFails"] })}
         options={(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => ({ value: k, label: IF_FAILS[k] }))} />}</Field>
+      {c.ifFails === "route" && <Field label="Send it to" hint="The document is read again there, as a new document; here it is closed with the reason.">
+        {(id) => <Select id={id} value={String(p.routeTo ?? "")} onChange={(e) => setP({ routeTo: e.target.value })}
+          options={[{ value: "", label: "Choose a process" }, ...processes.filter((x) => x.id !== design.id).map((x) => ({ value: x.id, label: x.name }))]} />}</Field>}
+      {c.ifFails === "notify" && <Field label="Tell" hint="Mail addresses or people (user names, role:, team:), comma separated. Sent through Settings > Mail.">
+        {(id) => <TextInput id={id} value={((p.notify as string[] | undefined) ?? []).join(", ")} placeholder="cfo@example.com, role:finance"
+          onChange={(e) => setP({ notify: e.target.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean) })} />}</Field>}
     </Dialog>
   );
 }

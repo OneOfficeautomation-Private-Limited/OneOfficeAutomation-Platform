@@ -102,7 +102,7 @@ export function modelName(id: string): string {
 
 /** DocFlow's kinds of check (rules); `params` are DocFlow's own settings for that kind. */
 export type RuleType = "duplicate" | "lookup" | "ksa_vat" | "tax" | "threshold" | "required" | "expression" | "pattern" | "date_range";
-export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn"; type: RuleType; params: Record<string, unknown> }
+export interface Check { id: string; on: boolean; name: string; kind: string; test: string; ifFails: "review" | "reject" | "warn" | "route" | "notify"; type: RuleType; params: Record<string, unknown> }
 export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot" | "email" | "cloud_storage";
 /** Where results go. target: the folder or Excel path, the webhook address, or the bot to start. */
 /** method and headers: a web address delivery's HTTP method (POST by default) and its own headers (an API key header...). */
