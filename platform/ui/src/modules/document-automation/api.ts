@@ -109,7 +109,9 @@ export type DeliveryType = "excel" | "folder" | "webhook" | "start_bot";
 export interface Delivery { id: string; type: DeliveryType; name: string; enabled: boolean; target: string; on: string[]; pool?: string;
   method?: "POST" | "PUT" | "PATCH"; headers?: Record<string, string>;
   /** Folder deliveries: also save a searchable PDF (the text read is under the page images, so it can be searched and copied). */
-  searchablePdf?: boolean }
+  searchablePdf?: boolean;
+  /** Folder deliveries: also save the document's text and tables as Markdown (for search and Knowledge bases). */
+  saveText?: boolean }
 /**
  * A process's email inbox, read by the Command Center: IMAP (kind "email") or Microsoft 365 (kind "outlook"), as email
  * triggers. Secrets are vault references (folder/credential/attribute). Keys are DocFlow's, as stored.

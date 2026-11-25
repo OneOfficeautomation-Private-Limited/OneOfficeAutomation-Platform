@@ -323,6 +323,9 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
       {d.type === "folder" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={!!d.searchablePdf} onChange={(e) => setD({ ...d, searchablePdf: e.target.checked })} />
         Also save a searchable PDF (its text can be searched and copied)</label>}
+      {d.type === "folder" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={!!d.saveText} onChange={(e) => setD({ ...d, saveText: e.target.checked })} />
+        Also save the text and tables as a Markdown file (a Knowledge base can index this folder)</label>}
       {d.type === "webhook" && <div className="df-grid" style={{ gridTemplateColumns: "1fr 3fr", gap: 12 }}>
         <Field label="Method">{(id) => <Select id={id} value={d.method ?? "POST"} onChange={(e) => setD({ ...d, method: e.target.value as Delivery["method"] })}
           options={["POST", "PUT", "PATCH"].map((m) => ({ value: m, label: m }))} />}</Field>
