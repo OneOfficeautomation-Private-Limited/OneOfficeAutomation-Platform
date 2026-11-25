@@ -23,8 +23,13 @@ import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
  * and how it is trusted (section 2), whether it is a version this release works with (section 8), passing the One
  * Chat page's and Studio's requests to it with the person token (sections 1 to 4), and telling it what happened
  * (section 6: run_ended, approval_decided, kept in onechat_events and retried for up to an hour). Chosen with Settings
- * > AI assistants > One Chat > Chat engine; the built-in engine stays the default, and a service that does not answer
- * is never silently replaced by it.
+ * > AI assistants > One Chat > Chat engine; the built-in engine stays the default.
+ *
+ * <p>OneChat is optional (S6, 25 Nov 2026; contract section 15). When the service is not set up, not answering, a
+ * version this release does not work with, or failing with a server error, One Chat and Studio's assistant fall back
+ * to the built-in engine and say so in a notice (Settings: onechat_fallback = builtin, the default; off shows the
+ * error instead). After {@link #TRIP_AFTER} failures in a row the service is not asked for onechat_pause_seconds (a
+ * circuit breaker), so people do not each wait for a service that is down.
  */
 public final class OneChatService {
     /** The OneChat this release is built and tested with: contract, pinned, minimum, ref (onechat-compat.properties). */
@@ -43,6 +48,14 @@ public final class OneChatService {
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).build();
     private volatile Map<String, Object> lastVersion;
     private volatile Instant lastVersionAt = Instant.EPOCH;
+    /** Failures in a row before the service is paused (the circuit breaker opens). */
+    static final int TRIP_AFTER = 3;
+    /** The codes that mean "the service cannot answer now" (fall back), as opposed to a refusal of this request. */
+    static final Set<String> UNAVAILABLE = Set.of("ONECHAT.NOT_AVAILABLE", "ONECHAT.UNREACHABLE", "ONECHAT.PAUSED", "ONECHAT.FAILED");
+    private int failuresInRow;
+    private volatile Instant pausedUntil = Instant.EPOCH;
+    private volatile String lastFailure;
+    private volatile Instant lastFailureAt;
 
     OneChatService(ModuleContext ctx, PersonTokens tokens) { this.ctx = ctx; this.tokens = tokens; }
 
@@ -61,6 +74,58 @@ public final class OneChatService {
     }
 
     boolean chosen() { return "service".equals(String.valueOf(ctx.setting("chat_engine")).trim()); }
+
+    static void defineFallback(ModuleContext ctx) {
+        ctx.defineSetting("onechat_fallback", "builtin", (v, saas) -> {
+            if (!v.equals("builtin") && !v.equals("off")) throw new OoaException("CR.BAD_INPUT", "When OneChat is not available is builtin or off");
+        });
+        ctx.defineSetting("onechat_pause_seconds", 300, (v, saas) -> {
+            int n;
+            try { n = Integer.parseInt(v.trim()); } catch (NumberFormatException e) { n = -1; }
+            if (n < 30 || n > 3600) throw new OoaException("CR.BAD_INPUT", "Pause OneChat after failures is from 30 to 3600 seconds");
+        });
+    }
+
+    /** Whether One Chat and Studio's assistant fall back to the built-in engine when the service cannot answer. */
+    boolean fallsBack() { return !"off".equals(String.valueOf(ctx.setting("onechat_fallback")).trim()); }
+
+    /** Whether the service is paused after failures in a row (the circuit breaker is open). */
+    boolean paused() { return pausedUntil.isAfter(Instant.now()); }
+
+    /** Whether this error means "the service cannot answer now" (fall back), not a refusal of the request itself. */
+    static boolean unavailable(OoaException e) { return UNAVAILABLE.contains(e.code()); }
+
+    /** The notice shown with an answer the built-in engine gave because the service could not. */
+    String fallbackNotice() {
+        return "The OneChat service is not available just now, so the built-in assistant answered. Chats and notes kept by OneChat are not used here.";
+    }
+
+    /** A failure of the service (not answering, timed out, server error): after TRIP_AFTER in a row it is paused. */
+    synchronized void failed(String why) {
+        lastFailure = why;
+        lastFailureAt = Instant.now();
+        if (++failuresInRow < TRIP_AFTER) return;
+        failuresInRow = 0;
+        pausedUntil = Instant.now().plusSeconds(Math.max(30, ctx.intSetting("onechat_pause_seconds")));
+        recheck();
+        ctx.audit("system", "onechat.paused", "service", baseUrl(), Map.of("until", pausedUntil.toString(), "error", why), "failed", null);
+    }
+
+    /** The service answered: the count of failures starts again. */
+    synchronized void succeeded() { failuresInRow = 0; }
+
+    /** Ends a pause at once (Settings > Check again, or the settings changed). */
+    synchronized void resume() { failuresInRow = 0; pausedUntil = Instant.EPOCH; recheck(); }
+
+    /** The breaker's state for Settings: paused_until, last_failure, last_failure_at, fallback. */
+    Map<String, Object> health() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("fallback", fallsBack() ? "builtin" : "off");
+        m.put("paused_until", paused() ? pausedUntil.toString() : null);
+        m.put("last_failure", lastFailure);
+        m.put("last_failure_at", lastFailureAt == null ? null : lastFailureAt.toString());
+        return m;
+    }
 
     /**
      * The service's address. On premises: Settings, then OOA_ONECHAT_URL (the platform's containers), then
@@ -173,6 +238,9 @@ public final class OneChatService {
     /** One request to the service as this person: the service token, tenant, person token, area and language. */
     @SuppressWarnings("unchecked")
     Map<String, Object> call(String method, String path, Object body, User u, String area, String session, String lang, String ip, int timeoutSeconds) {
+        if (paused())
+            throw new OoaException("ONECHAT.PAUSED", "The OneChat service failed several times in a row; it is asked again after " + pausedUntil,
+                    "An operator checks the OneChat service; Settings > AI assistants > One Chat > Check again asks it at once.");
         Map<String, Object> v = version();
         if (!Boolean.TRUE.equals(v.get("compatible")))
             throw new OoaException("ONECHAT.NOT_AVAILABLE", String.valueOf(v.get("message")), "An administrator checks Settings > AI assistants > One Chat > Engine, or chooses the built-in engine.");
@@ -185,12 +253,20 @@ public final class OneChatService {
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)); }
         catch (IOException e) {
             recheck();
+            failed(e instanceof java.net.http.HttpTimeoutException ? "timed out" : "not answering: " + e.getMessage());
             ctx.audit("system", "onechat.unreachable", "service", baseUrl(), Map.of("error", String.valueOf(e.getMessage())), "failed", null);
             throw new OoaException("ONECHAT.UNREACHABLE", "The OneChat service is not answering", "Try again in a moment; if it keeps happening, an operator checks the OneChat service.");
         } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ONECHAT.UNREACHABLE", "Interrupted", "Try again."); }
         Object parsed;
         try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (RuntimeException e) { parsed = Map.of(); }
         Map<String, Object> m = parsed instanceof Map<?, ?> pm ? (Map<String, Object>) pm : Map.of("items", parsed);
+        if (r.statusCode() >= 500) {
+            // a server error: the service cannot answer now (counted, and One Chat falls back)
+            Map<String, Object> e = m.get("error") instanceof Map<?, ?> em ? (Map<String, Object>) em : Map.of();
+            failed("HTTP " + r.statusCode());
+            throw new OoaException("ONECHAT.FAILED", "The OneChat service failed: " + e.getOrDefault("message", "HTTP " + r.statusCode()), "Try again in a moment; if it keeps happening, an operator checks the OneChat service.");
+        }
+        succeeded();
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map<?, ?> em ? (Map<String, Object>) em : Map.of();
             throw new OoaException("ONECHAT.ERROR", "The OneChat service answered: " + e.getOrDefault("message", "HTTP " + r.statusCode()), (String) e.get("hint"));
@@ -207,6 +283,8 @@ public final class OneChatService {
             Map<String, Object> r = call("POST", "messages", body, u, "chat", session, lang, ip, ctx.intSetting("chat_timeout_seconds") + 30);
             return toPage(r, session);
         } catch (OoaException e) {
+            // the service cannot answer now: the caller lets the built-in engine answer (S6), unless fallback is off
+            if (unavailable(e) && fallsBack()) throw e;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("session_id", session);
             m.put("kind", "error");

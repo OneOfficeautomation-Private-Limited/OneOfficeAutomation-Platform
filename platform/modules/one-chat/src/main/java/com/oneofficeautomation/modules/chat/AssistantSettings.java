@@ -184,7 +184,7 @@ public final class AssistantSettings {
     }
 
     /** Model connections named in a setting must exist (a list, or one name). */
-    private static void checkConnections(ModuleContext ctx, String v, boolean list) {
+    static void checkConnections(ModuleContext ctx, String v, boolean list) {
         if (v.isEmpty()) return;
         List<String> names = list ? names(v) : List.of(v.trim());
         for (String n : names)

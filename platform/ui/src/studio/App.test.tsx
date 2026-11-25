@@ -138,7 +138,7 @@ function fakeServer() {
   routes["GET record/progress"] = () => ({ recording: true, count: 1 });
   routes["GET deps"] = () => ({ bots: [{ path: "Finance/lookup.flow.json", step: "s3" }], scripts: [], skills: [], files: [{ name: "data/rates.csv", missing: true }],
     usedBy: [{ path: "Finance/lookup.flow.json" }] });
-  routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection });
+  routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection, ...(b.mode ? { mode: b.mode } : {}) });
     return { notes: "Logs a greeting.", steps: [{ id: "x1", action: "core/log", args: { message: "Hello $who" } }], variables: [{ name: "who", type: "String" }] }; };
   // One CommandCenter agent repository: one agent, checked out by nobody; the fake account's password is "letmein"
   let cr: any = { connected: false, url: "http://cc.example:8720", user: null };
@@ -1761,6 +1761,25 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Generate steps" })); });
     expect(created).toContainEqual(expect.objectContaining({ assistant: "Greet someone" }));
     expect(within(dialog).getByText("Logs a greeting.")).toBeTruthy();
+  });
+
+  it("offers Auto, Fast, Smart and Ultra for a OneChat model and sends the mode chosen (S6, design A)", async () => {
+    const { api, created } = fakeServer();
+    await act(async () => { await api.saveModelConnections({ default: "gpt", connections: [{ name: "gpt", provider: "openai", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" },
+      { name: "flow", provider: "openai_compatible", model: "ooa-flow-assistant", base_url: "http://127.0.0.1:8765/v1" }] }); });
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
+    const dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
+    await within(dialog).findByLabelText("Model Connection");
+    expect(within(dialog).queryByRole("radiogroup", { name: "How hard it works" })).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Model Connection"), { target: { value: "flow" } });
+    const modes = within(dialog).getByRole("radiogroup", { name: "How hard it works" });
+    expect(within(modes).getByRole("radio", { name: "Auto" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(modes).getByRole("radio", { name: "Smart" }));
+    fireEvent.change(within(dialog).getByLabelText("What should the agent do?"), { target: { value: "Greet someone" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Generate steps" })); });
+    expect(created).toContainEqual({ assistant: "Greet someone", connection: "flow", mode: "smart" });
   });
 
   it("runs a script on its own and shows what it printed, and copies it as an agent step", async () => {

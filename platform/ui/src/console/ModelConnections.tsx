@@ -39,6 +39,15 @@ const PAGE_HELP: HelpTopic = { title: "Model Connections", about: "Named connect
     { name: "Actions (⋯)", text: "Edit, test the connection, copy its name to choose it on an AI step, or delete it. "
       + "AI steps that use a deleted connection fail until another is chosen." },
   ] };
+/**
+ * Starting points for a new connection (S6, 25 Nov 2026): OneChat's flow assistant, the model server in the OneChat
+ * repository that writes agent steps for Studio's assistant (contract section 16). Only fills in the form.
+ */
+const PRESETS: { id: string; label: string; fill: { provider: string; model: string; base: string; key: string; description: string } }[] = [
+  { id: "onechat", label: "OneChat flow assistant", fill: { provider: "openai_compatible", model: "ooa-flow-assistant", base: "http://127.0.0.1:8765/v1",
+    key: "onechat/model/token", description: "OneChat flow assistant: writes agent steps for Studio's assistant. Not for other AI steps." } },
+];
+
 const providerName = (p: string) => PROVIDERS.find(([k]) => k === p)?.[1] ?? p;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const pct = (c: ModelConnection) => c.monthly_tokens ? Math.min(100, Math.round(100 * (c.tokens_this_month ?? 0) / c.monthly_tokens)) : 0;
@@ -144,6 +153,11 @@ function ConnectionForm({ api, c, onClose, onSaved }: { api: CrApi; c: ModelConn
         <Button kind="danger" onClick={() => api.deleteModelConnection(c!.name).then(() => onSaved("Deleted the model connection " + c!.name + "."), (e) => setError(message(e)))}>Delete</Button>
         <Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button></div>}
       <h3 className="cc-log-title">Model</h3>
+      {!c && <Field label="Start from">{(id) => <Select id={id} value="" onChange={(e) => { const p = PRESETS.find((x) => x.id === e.target.value);
+        if (p) setV({ ...v, ...p.fill, name: v.name || (p.id === "onechat" ? "onechat-flow" : v.name) }); }}
+        options={[{ value: "", label: "Fill in yourself" }, ...PRESETS.map((p) => ({ value: p.id, label: p.label }))]} />}</Field>}
+      {v.provider === "openai_compatible" && /^ooa-(flow-)?assistant/.test(v.model) && <p className="st-muted" role="note">A OneChat model: it only writes agent steps,
+        so keep it out of the default connection. Studio's assistant offers Auto, Fast, Smart and Ultra for it; give the server's token in the vault.</p>}
       <div className="cc-grid2">
         <Field label="Name">{(id) => <TextInput id={id} value={v.name} disabled={!!c} placeholder="company-gpt" onChange={set("name")} />}</Field>
         <Field label="Provider">{(id) => <Select id={id} value={v.provider} onChange={set("provider")} options={PROVIDERS.map(([value, label]) => ({ value, label }))} />}</Field>

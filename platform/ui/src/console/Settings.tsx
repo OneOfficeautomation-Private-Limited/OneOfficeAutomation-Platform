@@ -11,6 +11,7 @@ import { modulePart } from "../modules/pages";
 const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: string) => void }>("allowed-folders");
 // S5: the OneChat service's version and whether it works with this release (One Chat tab of AI assistants)
 const OneChatStatus = modulePart<{ api: CrApi; engine: string }>("onechat-status");
+const OneChatModelStatus = modulePart<{ api: CrApi }>("onechat-model-status");
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -184,14 +185,21 @@ const SECTIONS: Section[] = [
         { title: "Limits and privacy", settings: [
           { key: "studio_ktokens_per_person", label: "Tokens per person", hint: "0 = only the Model Connection's own budget.", unit: "thousand a month", kind: "number", min: 0, max: 100000 },
           { key: "studio_timeout_seconds", label: "Wait for an answer", hint: "30 to 600.", unit: "seconds", kind: "number", min: 30, max: 600 },
-          { key: "studio_mask_pii", label: "Mask personal data before the model", hint: "Names, e-mail addresses and numbers in the request are hidden from the model and put back in the answer.", kind: "check" }] }] },
+          { key: "studio_mask_pii", label: "Mask personal data before the model", hint: "Names, e-mail addresses and numbers in the request are hidden from the model and put back in the answer.", kind: "check" },
+          { key: "studio_onechat_mode", label: "How hard a OneChat model works", hint: "Where Studio's dialog starts; builders change it for each request.", kind: "select",
+            options: [["auto", "Auto: picks for each request"], ["fast", "Fast"], ["smart", "Smart"], ["ultra", "Ultra: several answers, up to 3 minutes"]] },
+          { key: "studio_fallback_connection", label: "If the OneChat model fails, try", hint: "Another Model Connection answers instead, with a note saying so. Empty: Studio shows the error.", kind: "pick", source: "connections", empty: "No other connection" },
+          { key: "studio_training_feedback", label: "Send results to the OneChat model for training", hint: "Only for a OneChat model connection: the request as typed, the suggested steps, and whether the person inserted them. Off by default.", kind: "check" }] }] },
     { id: "chat", title: "One Chat", mark: "C", colour: "#7c3aed", note: "Every setting below applies to both engines: the built-in one and the OneChat service.",
       groups: [
         { title: "Engine", settings: [
           { key: "chat_engine", label: "Chat engine", hint: "OneChat service: messages go to it, and it acts only through One CommandCenter, as the person. It also answers Studio's assistant.", kind: "seg",
             options: [["builtin", "Built in"], ["service", "OneChat service"]] },
           { key: "onechat_url", label: "OneChat address", hint: "Empty: OOA_ONECHAT_URL, then http://127.0.0.1:8086.", kind: "text", placeholder: "http://127.0.0.1:8086" },
-          { key: "onechat_token_ref", label: "Service token", hint: VAULT_REF + " Empty: OOA_ONECHAT_TOKEN.", kind: "text", placeholder: "onechat/service/token" }] },
+          { key: "onechat_token_ref", label: "Service token", hint: VAULT_REF + " Empty: OOA_ONECHAT_TOKEN.", kind: "text", placeholder: "onechat/service/token" },
+          { key: "onechat_fallback", label: "When OneChat is not available", hint: "Built-in engine: it answers, with a note saying so. Show the error: nothing answers until OneChat is back.", kind: "seg",
+            options: [["builtin", "Built-in engine answers"], ["off", "Show the error"]] },
+          { key: "onechat_pause_seconds", label: "Pause OneChat after 3 failures", hint: "30 to 3600. It is not asked during the pause; Check again ends it.", unit: "seconds", kind: "number", min: 30, max: 3600 }] },
         ...assistantGroups("chat_", "chat_connection", [
         { key: "chat_mode", label: "How chat understands requests", hint: "Rules need no model; the AI model is asked only when the rules are unsure.", kind: "select",
           options: [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]] },
@@ -473,8 +481,9 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
                     {n > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{n}</span>}</span> }; })}>
                 <TabPanel value={tab.id}>
                   {tab.note && <p className="cc-set-note">{tab.note}</p>}
+                  {tab.id === "studio" && OneChatModelStatus && "chat_engine" in (saved ?? {}) && <OneChatModelStatus api={api} />}
                   {tab.id === "chat" && OneChatStatus && "chat_engine" in (saved ?? {}) &&
-                    <OneChatStatus key={[saved?.chat_engine, saved?.onechat_url, saved?.onechat_token_ref].join("|")} api={api} engine={String(saved?.chat_engine ?? "builtin")} />}
+                    <OneChatStatus key={[saved?.chat_engine, saved?.onechat_url, saved?.onechat_token_ref, saved?.onechat_fallback].join("|")} api={api} engine={String(saved?.chat_engine ?? "builtin")} />}
                   {tab.groups.map((g) => { const list = g.settings.filter(has); return list.length > 0 && <Fragment key={g.title}>
                     <div className="cc-set-group">{g.title}<HelpButton topic={helpOf(tab.title + ": " + g.title, list)} /></div>
                     {list.map(row)}

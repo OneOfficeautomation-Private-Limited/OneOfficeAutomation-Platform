@@ -345,7 +345,13 @@ Model Connections, as before.
 When an administrator has chosen the **OneChat service** as One Chat's engine (Settings › AI assistants › One Chat ›
 Engine), the service answers Studio's assistant too, with the agent open in Studio as context. It works for
 development only: it may read Studio's commands, check steps and see the agents you may call, and it calls models with
-the settings above. Studio still checks what it suggests.
+the settings above. Studio still checks what it suggests. When the service can't answer, the Studio assistant's own
+Model Connection answers instead, and the notes start with a sentence saying so.
+
+A **OneChat model** can also be one of your Model Connections: an OpenAI-compatible connection whose model is
+`ooa-flow-assistant` (Auto), `ooa-flow-assistant-fast`, `-smart` or `-ultra`. Settings › AI assistants › Studio
+assistant shows whether that model was built for this release's actions. With **Send results to the OneChat model for
+training** on (off by default), Studio tells it whether the builder inserted or discarded each suggestion.
 
 ## 10. Good practice: masking, budgets, testing
 

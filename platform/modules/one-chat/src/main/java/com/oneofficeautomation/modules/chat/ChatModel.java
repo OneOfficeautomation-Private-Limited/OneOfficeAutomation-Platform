@@ -46,6 +46,12 @@ public final class ChatModel {
      */
     Map<String, Object> call(User u, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose,
                              double temperature, int maxTokens, boolean maskPii, int timeoutSeconds, String recordedAs) {
+        return call(u, connection, null, messages, tools, purpose, temperature, maxTokens, maskPii, timeoutSeconds, recordedAs);
+    }
+
+    /** As above, with another model name on the same connection (S6: OneChat's mode, such as ooa-flow-assistant-smart); null keeps the connection's. */
+    Map<String, Object> call(User u, String connection, String modelName, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose,
+                             double temperature, int maxTokens, boolean maskPii, int timeoutSeconds, String recordedAs) {
         Map<String, Object> connections = ctx.modelConnectionsFor(ctx.rolesOf(u.username(), u.role()));
         @SuppressWarnings("unchecked") List<Map<String, Object>> list = (List<Map<String, Object>>) connections.get("connections");
         if (list.isEmpty()) throw new OoaException("AI.NO_CONNECTION", "No One Model Connection is available to you", "An administrator adds one in One Model Connections, or allows your role on one.");
@@ -67,7 +73,7 @@ public final class ChatModel {
         services.put("vault", vault);
         ActionContext ctx = new ActionContext(null, "chat", null, work, new HashMap<>(), services, new AtomicBoolean(), List::of, null);
         try {
-            return AiBridge.call(ctx, new AiBridge.Settings(name, null, null, null, null, temperature, maxTokens, maskPii, null, null, timeoutSeconds), messages, tools, purpose);
+            return AiBridge.call(ctx, new AiBridge.Settings(name, null, modelName, null, null, temperature, maxTokens, maskPii, null, null, timeoutSeconds), messages, tools, purpose);
         } finally {
             recordGovernance(u, work.resolve("ai-governance.jsonl"), recordedAs);
             try (var files = Files.walk(work)) { files.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete()); } catch (IOException ignored) { }

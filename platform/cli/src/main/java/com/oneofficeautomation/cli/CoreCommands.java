@@ -12,6 +12,9 @@ final class CoreCommands {
     static void add(OoaCli c) {
         c.command("manifest", "Print the toolkit manifests (what Studio shows for each command).", a -> Ooa.manifest(a.has("summary")))
             .flag("--summary", "One line per toolkit: its id, version and actions.");
+        c.command("catalog", "Print the action catalog other programs read, such as OneChat (JSON Lines with a checksum).",
+                a -> Ooa.catalog(a.get("out")))
+            .opt("--out", "FILE", "Write it to this file instead (docs/reference/action-catalog.jsonl in the repository).");
         c.command("validate", "Check automation files against the flow schema and the toolkits' commands.",
                 a -> Ooa.validate(a.pos().toArray(String[]::new)))
             .param("FLOW", "Automation files (*.flow.json).", "1..*");

@@ -79,6 +79,7 @@ public final class OneChatModule implements CommandCenterModule {
         ctx.provide(Chat.class, chat);
         // S5: the OneChat service, when Settings > AI assistants > One Chat > Engine chooses it
         OneChatService.define(ctx);
+        OneChatService.defineFallback(ctx);
         PersonTokens tokens = new PersonTokens(ctx);
         OneChatService service = new OneChatService(ctx, tokens);
         ChatModel models = new ChatModel(ctx, ctx.dataDir());
@@ -98,28 +99,50 @@ public final class OneChatModule implements CommandCenterModule {
                 if (text.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Type a message", "Type what you want in a sentence.");
                 if (text.length() > 4000) throw new OoaException("CR.BAD_INPUT", "The message is too long (at most 4,000 characters)", "Shorten the message.");
                 String answerIn = chat.settings().language(u, "chat");
-                ctx.sendJson(ex, 200, service.message(u, (String) b.get("session_id"), text, answerIn != null ? answerIn : (String) b.get("lang"), ip));
+                try {
+                    ctx.sendJson(ex, 200, service.message(u, (String) b.get("session_id"), text, answerIn != null ? answerIn : (String) b.get("lang"), ip));
+                } catch (OoaException e) {
+                    // S6: the service cannot answer now; the built-in engine answers, with a notice (never silently)
+                    if (!OneChatService.unavailable(e)) throw e;
+                    Map<String, Object> r = new java.util.LinkedHashMap<>(chat.message(u, null, text, (String) b.get("lang"), ip));
+                    r.put("engine", "builtin");
+                    r.put("notice", service.fallbackNotice());
+                    ctx.sendJson(ex, 200, r);
+                }
             } else if (m.equals("GET") && route.isEmpty()) {
                 // S4: the person's chats, newest first, for One Chat's Your chats
-                ctx.sendJson(ex, 200, Map.of("chats", viaService ? service.chats(u) : chat.chats(u)));
+                ctx.sendJson(ex, 200, Map.of("chats", viaService ? orBuiltin(service, () -> service.chats(u), () -> chat.chats(u)) : chat.chats(u)));
             } else if (m.equals("GET") && !route.isEmpty() && !route.contains("/")) {
-                ctx.sendJson(ex, 200, Map.of("session_id", route, "messages", viaService ? service.history(u, route) : chat.history(u, route)));
+                ctx.sendJson(ex, 200, Map.of("session_id", route, "messages",
+                        viaService ? orBuiltin(service, () -> service.history(u, route), () -> chat.history(u, route)) : chat.history(u, route)));
             } else throw ModuleContext.notFound("The route /api/chat/" + route);
         });
         // GET /api/onechat/version: the OneChat service's version and whether it works with this release (Settings)
+        // GET /api/onechat/model-check: whether OneChat model servers behind Model Connections fit this release (S6)
+        OneChatModelCheck.define(ctx);
+        OneChatModelCheck modelCheck = new OneChatModelCheck(ctx);
         ctx.route("onechat", (ex, u, m, route, ip) -> {
+            if (m.equals("GET") && route.equals("model-check")) {
+                ctx.require(u, "settings.manage", "check the OneChat model servers");
+                ctx.sendJson(ex, 200, modelCheck.check(u));
+                return;
+            }
             if (!(m.equals("GET") && route.equals("version"))) throw ModuleContext.notFound("The route /api/onechat/" + route);
             ctx.require(u, "settings.manage", "see the OneChat service's version");
-            if ("1".equals(ctx.query(ex).get("fresh"))) service.recheck();
+            if ("1".equals(ctx.query(ex).get("fresh"))) service.resume();
             Map<String, Object> v = new java.util.LinkedHashMap<>(service.version());
             v.put("engine", service.chosen() ? "service" : "builtin");
             v.put("url", service.baseUrl());
+            // S6: the circuit breaker and the fallback, and which engine answers right now
+            v.putAll(service.health());
+            boolean serviceAnswers = service.chosen() && !service.paused() && Boolean.TRUE.equals(v.get("compatible"));
+            v.put("answering", !service.chosen() || serviceAnswers ? (service.chosen() ? "service" : "builtin") : service.fallsBack() ? "builtin" : "none");
             ctx.sendJson(ex, 200, v);
         });
 
         // the AI assistants' settings (S2): Settings > AI assistants, My account > AI assistants, Studio's assistant
         AssistantSettings.define(ctx);
-        StudioAssistant studio = new StudioAssistant(chat.settings(), models, service);
+        StudioAssistant studio = new StudioAssistant(chat.settings(), models, service, modelCheck);
         // GET me: the person's own choices and what is allowed; PUT me/{chat|studio}: save them; GET options: what an
         // administrator may choose from; POST studio/complete: Studio's assistant while Studio is signed in
         ctx.route("assistants", (ex, u, m, route, ip) -> {
@@ -138,6 +161,16 @@ public final class OneChatModule implements CommandCenterModule {
                 ctx.require(u, "settings.manage", "see the AI assistants' choices");
                 ctx.sendJson(ex, 200, chat.settings().options());
             } else if (m.equals("POST") && route.equals("studio/complete")) ctx.sendJson(ex, 200, studio.complete(ctx, u, ctx.jsonBody(ex), ip));
+            else if (m.equals("GET") && route.equals("studio/info")) {
+                // S6 (design A): whether Studio's dialog offers OneChat's modes, and the one it starts on
+                ctx.require(u, "repo.checkin", "use Studio's assistant");
+                ctx.sendJson(ex, 200, studio.info(ctx, u));
+            }
+            else if (m.equals("POST") && route.equals("studio/feedback")) {
+                // S6: what the person did with the suggestion, to the OneChat model that made it (only when Settings allow it)
+                ctx.require(u, "repo.checkin", "use Studio's assistant");
+                ctx.sendJson(ex, 200, modelCheck.feedback(u, chat.settings().effective(u, "studio").connection(), ctx.jsonBody(ex)));
+            }
             else throw ModuleContext.notFound("The route /api/assistants/" + route);
         });
         // people deleted since: their own choices go too
@@ -165,6 +198,18 @@ public final class OneChatModule implements CommandCenterModule {
                 return chat.decided(task, u, outcome, comment, ip);
             }
         });
+    }
+
+    /**
+     * The service's answer, or the built-in engine's when the service cannot answer now and fallback is on (S6). A
+     * refusal of the request itself (ONECHAT.ERROR) is shown as it is.
+     */
+    static <T> T orBuiltin(OneChatService service, java.util.function.Supplier<T> viaService, java.util.function.Supplier<T> builtin) {
+        try { return viaService.get(); }
+        catch (OoaException e) {
+            if (OneChatService.unavailable(e) && service.fallsBack()) return builtin.get();
+            throw e;
+        }
     }
 
     /** My account's notes when the OneChat service keeps them: the service's list (or none, with why, when it does not answer). */

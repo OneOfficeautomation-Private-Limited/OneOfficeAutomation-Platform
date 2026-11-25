@@ -285,6 +285,10 @@ public final class StudioServer {
             connectors(ex, method, route.substring("connectors".length()));
         } else if (method.equals("POST") && route.equals("assistant/build")) {
             sendJson(ex, 200, assistantBuild((Map<String, Object>) body(ex)));
+        } else if (method.equals("GET") && route.equals("assistant/info")) {
+            sendJson(ex, 200, assistantInfo());
+        } else if (method.equals("POST") && route.equals("assistant/feedback")) {
+            sendJson(ex, 200, assistantFeedback((Map<String, Object>) body(ex)));
         } else if (method.equals("GET") && route.equals("deps")) {
             sendJson(ex, 200, dependencies(query(ex).getOrDefault("path", "")));
         } else if (method.equals("POST") && route.equals("condition/test")) {
@@ -871,10 +875,53 @@ public final class StudioServer {
      * before OneAgentStudio shows it for review.
      */
     @SuppressWarnings("unchecked")
+    /**
+     * What the person did with the assistant's suggestion (inserted or discarded), passed to One CommandCenter, which
+     * sends it to the OneChat model that made it when its Settings allow (S6). On its own Studio sends nothing.
+     */
+    /**
+     * What the assistant dialog needs (S6, design A): signed in, One CommandCenter's answer (whether its Studio assistant
+     * uses a OneChat model, and the mode to start on); on its own, nothing (the dialog looks at the chosen connection).
+     */
+    Map<String, Object> assistantInfo() {
+        if (cr == null || !cr.connected()) return Map.of("via", "studio");
+        try {
+            Map<String, Object> r = new LinkedHashMap<>(cr.call("GET", "assistants/studio/info", null, true));
+            r.put("via", "cc");
+            return r;
+        } catch (OoaException e) { return Map.of("via", "cc"); }
+    }
+
+    /** OneChat's model name for a mode on one of Studio's own connections, or null when it is not a OneChat model (S6). */
+    @SuppressWarnings("unchecked")
+    String oneChatModel(String connection, String mode) {
+        if (mode == null || mode.isBlank()) return null;
+        String m = mode.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!List.of("auto", "fast", "smart", "ultra").contains(m)) throw new OoaException("ASSISTANT.BAD_MODE", "How hard it works is auto, fast, smart or ultra", "Pick Auto, Fast, Smart or Ultra.");
+        try {
+            Path f = ws.root.resolve("model-connections.json");
+            if (!Files.isRegularFile(f)) return null;
+            Map<String, Object> all = (Map<String, Object>) json.parse(Files.readString(f));
+            String name = connection == null || connection.isBlank() || connection.equals("default") ? String.valueOf(all.get("default")) : connection;
+            for (Object o : (List<Object>) all.getOrDefault("connections", List.of()))
+                if (o instanceof Map<?, ?> c && name.equals(c.get("name")) && "openai_compatible".equals(c.get("provider"))
+                        && String.valueOf(c.get("model")).matches("ooa-(flow-)?assistant.*"))
+                    return m.equals("auto") ? "ooa-flow-assistant" : "ooa-flow-assistant-" + m;
+        } catch (java.io.IOException | RuntimeException e) { return null; }
+        return null;
+    }
+
+    Map<String, Object> assistantFeedback(Map<String, Object> req) {
+        if (cr == null || !cr.connected()) return Map.of("sent", false, "reason", "not_signed_in");
+        try { return cr.call("POST", "assistants/studio/feedback", req, true, java.time.Duration.ofSeconds(20)); }
+        catch (OoaException e) { return Map.of("sent", false, "reason", e.getMessage()); }
+    }
+
     Map<String, Object> assistantBuild(Map<String, Object> req) {
         String prompt = String.valueOf(req.getOrDefault("prompt", "")).trim();
         if (prompt.isEmpty()) throw new OoaException("ASSISTANT.EMPTY", "Describe what the agent should do", "Describe what the agent should do in a sentence or two.");
         String connection = String.valueOf(req.getOrDefault("connection", "default"));
+        String mode = req.get("mode") == null ? null : String.valueOf(req.get("mode"));
         StringBuilder catalog = new StringBuilder();
         for (Map<String, Object> m : registry.allManifests())
             for (Object ao : (List<Object>) m.getOrDefault("actions", List.of())) {
@@ -906,8 +953,9 @@ public final class StudioServer {
                 + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
-        String text = viaCommandCenter(system, user, flow);
-        if (text == null) text = locally(system, user, connection);
+        String[] notice = {null};
+        String text = viaCommandCenter(system, user, flow, mode, notice);
+        if (text == null) text = locally(system, user, connection, oneChatModel(connection, mode));
         int a = text.indexOf('{'), b = text.lastIndexOf('}');
         if (a < 0 || b <= a) throw new OoaException("ASSISTANT.NOT_JSON", "The model did not answer with steps", "Rephrase the request and try again.");
         Map<String, Object> answer;
@@ -928,7 +976,9 @@ public final class StudioServer {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("variables", answer.getOrDefault("variables", List.of()));
         out.put("steps", answer.getOrDefault("steps", List.of()));
-        out.put("notes", answer.getOrDefault("notes", ""));
+        String notes = String.valueOf(answer.getOrDefault("notes", ""));
+        // S6: One CommandCenter's note when OneChat could not answer and the Studio assistant's own model did
+        out.put("notes", notice[0] == null ? notes : notes.isBlank() ? notice[0] : notice[0] + " " + notes);
         out.put("problems", validator().validate(check));
         return out;
     }
@@ -938,11 +988,15 @@ public final class StudioServer {
      * its model, creativity, length, instructions and skills, with the person's own choices (Settings > AI assistants >
      * Studio assistant). Null when Studio is on its own, or when that One CommandCenter has no such settings yet.
      */
-    private String viaCommandCenter(String system, String user, Map<String, Object> flow) {
+    private String viaCommandCenter(String system, String user, Map<String, Object> flow, String mode, String[] notice) {
         if (cr == null || !cr.connected()) return null;
         try {
             // the open agent goes too: the OneChat service (when One CommandCenter uses it) gets it as context (S5)
-            return String.valueOf(cr.call("POST", "assistants/studio/complete", Map.of("system", system, "prompt", user, "agent", flow), true, java.time.Duration.ofSeconds(330)).getOrDefault("text", ""));
+            Map<String, Object> body = new LinkedHashMap<>(Map.of("system", system, "prompt", user, "agent", flow));
+            if (mode != null && !mode.isBlank()) body.put("mode", mode);
+            Map<String, Object> r = cr.call("POST", "assistants/studio/complete", body, true, java.time.Duration.ofSeconds(330));
+            if (r.get("notice") != null) notice[0] = String.valueOf(r.get("notice"));
+            return String.valueOf(r.getOrDefault("text", ""));
         } catch (OoaException e) {
             // an older One CommandCenter, without the AI assistants settings: Studio's own connections answer, as before
             if (e.code().endsWith("NOT_FOUND") || e.code().endsWith("HTTP_404")) return null;
@@ -951,18 +1005,26 @@ public final class StudioServer {
     }
 
     /** Studio on its own: one Prompt step on this computer with Studio's own Model Connection. */
-    private String locally(String system, String user, String connection) {
+    private String locally(String system, String user, String connection, String modelName) {
         Map<String, Object> run = new LinkedHashMap<>();
         run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "OneAgentStudio assistant");
         // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
         run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
                 Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));
         run.put("steps", List.of(Map.of("id", "ask", "action", "ooa.genai/prompt", "out", Map.of("text", "answer"),
-                "args", Map.of("prompt", "$request", "system", "$instructions", "connection", connection, "temperature", java.math.BigDecimal.ZERO, "max_tokens", java.math.BigDecimal.valueOf(4000), "mask_pii", false))));
+                "args", stepArgs(connection, modelName))));
         RunResult r = runner(new EventSink.ListSink()).run(run, Map.of("request", user, "instructions", system), new Runner.RunOptions().maxRunSeconds(300));
         if (!r.ok()) throw new OoaException(String.valueOf(r.error().getOrDefault("code", "ASSISTANT.FAILED")), "The assistant could not answer: " + r.error().get("message"),
                 (String) r.error().get("suggestedFix"));
         return String.valueOf(r.outputs().get("answer"));
+    }
+
+    /** The Prompt step's settings; a OneChat model's mode goes in as its model name (S6). */
+    private static Map<String, Object> stepArgs(String connection, String modelName) {
+        Map<String, Object> a = new LinkedHashMap<>(Map.of("prompt", "$request", "system", "$instructions", "connection", connection, "temperature", java.math.BigDecimal.ZERO,
+                "max_tokens", java.math.BigDecimal.valueOf(4000), "mask_pii", false));
+        if (modelName != null) a.put("model", modelName);
+        return a;
     }
 
     /** What a bot uses (child bots, agent tools, scripts, AI Skills, files) and which bots use it. */

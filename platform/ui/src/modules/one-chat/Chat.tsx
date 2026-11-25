@@ -86,7 +86,7 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
       const r = await api.chat(session, t, lang());
       setSession(r.session_id);
       setMessages((m) => [...m, { role: "assistant", text: r.reply, kind: r.kind, run_id: r.run_id, task_id: r.task_id, confirmation: r.confirmation,
-        rows: r.rows, columns: r.columns, page: r.page }]);
+        rows: r.rows, columns: r.columns, page: r.page, notice: r.notice }]);
     } catch (e) {
       if (code(e) === "CR.NOT_FOUND") setSession(null);   // the chat expired on the server: the next message starts a new one
       setMessages((m) => [...m, { role: "assistant", text: message(e), kind: "error" }]);
@@ -138,6 +138,7 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
           {messages.map((m, i) => (
             <div key={i} className={`cc-chat-msg is-${m.role}${m.kind === "error" ? " is-error" : ""}`}>
               {/* replies come already in the person's language, and what people type stays as typed */}
+              {m.notice && <p className="cc-chat-notice" role="note">{m.notice}</p>}
               {m.kind === "confirm" && m.confirmation ? <ConfirmCard m={m} open={m === last && !busy} onAnswer={send} />
                 : m.kind === "awaiting_approval" ? <div className="cc-chat-card is-approval" role="group" aria-label="Waiting for approval">
                     <span className="cc-chat-text" data-no-i18n="">{m.text}</span><span className="cc-chat-pill is-wait">Waiting for approval</span></div>

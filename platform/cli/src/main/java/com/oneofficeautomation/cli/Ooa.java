@@ -369,6 +369,18 @@ public final class Ooa {
         return 0;
     }
 
+    /** The action catalog (ActionCatalog, contract section 17): printed, or written to a file with "
+" line ends. */
+    static int catalog(String out) throws java.io.IOException {
+        String text = com.oneofficeautomation.sdk.ActionCatalog.jsonl(FirstPartyPackages.registry().allManifests());
+        if (out == null) System.out.print(text);
+        else {
+            Files.writeString(Path.of(out), text, java.nio.charset.StandardCharsets.UTF_8);
+            System.out.println("Wrote " + out + ": " + text.lines().count() + " lines.");
+        }
+        return 0;
+    }
+
     @SuppressWarnings("unchecked")
     static int validate(String[] files) throws Exception {
         FlowValidator v = new FlowValidator(FirstPartyPackages.registry(), schemaValidator());

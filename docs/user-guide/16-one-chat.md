@@ -150,11 +150,14 @@ Open **Settings › AI assistants**, tab **One Chat**. The tab has its own **Sav
 | **Chat engine** | **Built in** (the default) or **OneChat service**, a separate service installed beside One CommandCenter. With the service, messages, chats and remembered notes go to it, and it acts only through One CommandCenter, as the person, under every setting on this tab |
 | **OneChat address** | Empty: `OOA_ONECHAT_URL`, then `http://127.0.0.1:8086` |
 | **Service token** | A vault reference to the token OneChat and One CommandCenter share. Empty: `OOA_ONECHAT_TOKEN` |
+| **When OneChat is not available** | **Built-in engine answers** (the default): the built-in engine answers, and the answer carries a note saying so. **Show the error**: One Chat says what is wrong and nothing answers |
+| **Pause OneChat after 3 failures** | After three failures in a row, OneChat isn't asked for this long (300 seconds by default) |
 
 The line under the tab's note shows the engine in use and the service's state: **Works with this release**, **Newer,
 same contract**, **Too old**, **Other contract**, **Not answering** or **Not set up**. **Check again** asks the
-service at once. When the service is chosen but not working, One Chat says so and runs nothing; it never switches to
-the built-in engine on its own.
+service at once, and ends a pause. When the service is chosen but not working, the built-in engine answers, and each
+answer carries a note saying so. The line shows **answering now: built in**, and a pause if there is one. With
+**Show the error**, One Chat says what is wrong and runs nothing instead.
 
 Whichever engine answers, One CommandCenter decides what waits for a yes or an approval (section 3), checks each yes
 itself (the same person and chat, the same inputs, within 10 minutes, once), and records every run and change in the
@@ -251,7 +254,8 @@ inputs the agent does not declare are dropped.
 | "I couldn't get an answer from the AI model …" | The model connection failed or is not set | An administrator checks the connection, or sets the role to rules mode |
 | "That confirmation expired …" | The yes came more than 10 minutes after the summary | Ask again |
 | An R3 request never starts | Nobody has approved it yet | Ask an approver to look at their **Task inbox** |
-| "The OneChat service at … is not answering" | The OneChat service is chosen but stopped or unreachable | An operator starts OneChat or checks **OneChat address**; an administrator can choose **Built in** meanwhile |
+| "The OneChat service is not available just now, so the built-in assistant answered" | OneChat is stopped, unreachable, failing, paused or the wrong version | Nothing for people to do. An operator checks OneChat; the status line in Settings says why |
+| "The OneChat service at … is not answering" | As above, with **When OneChat is not available** set to **Show the error** | An operator starts OneChat or checks **OneChat address**; an administrator can choose **Built in** meanwhile |
 | "OneChat … is older than …" | The OneChat installed is older than this release needs | Upgrade OneChat first, then the platform |
 
 ## Related guides

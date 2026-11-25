@@ -1249,3 +1249,8 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-tool-label { font-size: 12.5px; }
 :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-prop-section { font-size: 12px; color: var(--ui-text); }
 :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-tool-text, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-seg-btn { height: var(--ui-h); }
+
+/* S6 (design A): OneChat's mode in the assistant dialog, chosen per request */
+.st-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.st-mode-row > span:first-child { font-weight: 600; }
+.st-seg-btn.is-on { background: #e3edfb; color: #174ba6; font-weight: 700; }

@@ -2,6 +2,8 @@
 
 **Status: draft, 20 Nov 2026. Nothing on this page is built yet.** Updated the same day: three assistant options only,
 no tray app or desktop chat window, administration in One Chat, and assistant settings (section 10).
+**Updated 25 Nov 2026 (S6):** OneChat is optional and the platform falls back when it can't answer (section 15).
+OneChat's repository today has a flow-writing model server, which plugs in as a Model Connection (section 16).
 
 The assistant becomes a separate component, the same way Document Automation's DocFlow is. **OneChat** is a Python
 service with its own database, built by its own developer in the repository
@@ -276,7 +278,8 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
   - `minimum`: the oldest version that still works;
   - `ref`: the git tag CI tests against.
 - **Version check:** Settings > AI assistants shows OneChat's version and whether it is compatible. With an
-  incompatible OneChat, the chat says so and nothing runs.
+  incompatible OneChat, the built-in engine answers with a note saying so (section 15). With **When OneChat is not
+  available** set to **Show the error**, the chat says so and nothing runs.
 - **CI:** a job named `onechat` starts the real service at `ref` and runs the platform's contract tests against it.
   OneChat's repository runs its own contract test against a stand-in for the callback routes.
 - **Upgrade order:** OneChat first, then the platform. You approve each release, as with DocFlow.
@@ -288,8 +291,9 @@ was planned for a tray app and a desktop chat window; both were dropped on 20 No
 - **Built in** is today's engine (`platform/conversation`). In Studio, it is today's Agent assistant, with the
   person's own model connections. Studio also uses it when it isn't signed in to One CommandCenter.
 - **The default stays Built in** until OneChat passes the contract tests in CI and you approve the switch.
-- **When OneChat is chosen but not answering:** the chat says so and operators get an alert. There is no silent
-  switch to the built-in engine, so people never get different behaviour without knowing.
+- **When OneChat is chosen but can't answer:** the built-in engine answers, with a note on the answer saying so,
+  and operators see the failure in Settings and the audit log (section 15). The switch is never silent. With **When
+  OneChat is not available** set to **Show the error**, the chat says what is wrong instead.
 - **Today's settings keep their meaning with both engines:** `chat_mode`, `chat_mode_by_role`, `chat_connection`,
   `chat_runner` and `chat_approvers`. They move into Settings > AI assistants > One Chat.
 - **The assistant settings in section 10 apply to both engines.**
@@ -410,3 +414,93 @@ start it.
 7. **Test against the platform's stand-in:**
    `platform/modules/one-chat/src/test/java/com/oneofficeautomation/controlroom/OneChatServiceTest.java` shows each
    request One CommandCenter sends and each answer it expects.
+
+## 15. OneChat is optional (S6, 25 Nov 2026)
+
+The platform must keep working when OneChat is missing, down, slow, the wrong version or broken. Five rules:
+
+| # | Rule | How the platform keeps it |
+| --- | --- | --- |
+| R1 | **Optional.** The platform starts, runs and passes its tests without OneChat | The engine is `builtin` by default. Modules are found at start, so the kernel runs without `one-chat` (ArchitectureTest keeps the kernel free of module code). Studio uses its own Model Connection when One CommandCenter has no assistant routes |
+| R2 | **One doorway.** Only `platform/modules/one-chat` talks to the OneChat service, and only a Model Connection talks to OneChat's model server | No other module names OneChat. ModuleMapTest enforces module boundaries |
+| R3 | **Fallback with a notice.** When the service can't answer, the built-in engine does, and says so | `onechat_fallback` = `builtin` (default) or `off`. "Can't answer" means: not set up, not answering, timed out, a version this release doesn't work with, a paused service, or a server error (HTTP 5xx). A refusal of the request itself (HTTP 4xx) is shown as it is. The One Chat page shows the answer's `notice`. Studio's notes start with it. The fallback answer starts a new built-in chat, because OneChat's chats and notes are not used there |
+| R4 | **Circuit breaker.** After 3 failures in a row, the service is paused for `onechat_pause_seconds` (default 300, 30 to 3600) | During the pause nobody waits for the service, the built-in engine answers, and events wait in the outbox. Settings shows the pause and the last failure. **Check again** ends the pause at once. The pause is recorded in the audit log as `onechat.paused` |
+| R5 | **Contract only.** No shared code or libraries | The routes in this page and [onechat-api.yaml](onechat-api.yaml), and the version pin in section 8 |
+
+`GET /api/onechat/version` (administrators) also returns `answering` (`service`, `builtin`, or `none` when the
+service can't answer and fallback is off), `fallback`, `paused_until`, `last_failure` and `last_failure_at`.
+
+## 16. OneChat's model server (`studio-assistant/v1`)
+
+OneChat's repository today (25 Nov 2026) contains a **flow-writing model** with its own server, not yet the
+`/api/chat/v1` service of sections 1 to 14. It plugs in **as a Model Connection**, so it needs nothing from the
+service routes:
+
+- **Routes (OpenAI-compatible):**
+  - `POST /v1/chat/completions` takes Studio's request and answers with Studio's `{variables, steps, notes}`, already
+    checked against the flow rules.
+  - `GET /v1/models` lists the model names.
+  - `GET /api/assistant/v1/admin/version` returns `{version, contract: "studio-assistant/v1", model_step,
+    catalog_actions, catalog_sha256, schema_sha256}`.
+  - `POST /v1/feedback` takes a person's verdict on a flow, for training.
+- **Model names pick how hard it works:**
+  - `ooa-flow-assistant`: Auto.
+  - `ooa-flow-assistant-fast`, `-smart` and `-ultra`.
+  - `ooa-assistant`: the server's default.
+- **Trust:** a bearer token, kept as the connection's key (vault or environment variable), like any other connection.
+  Plain HTTP only on the same machine or a private network.
+- **Model calls go through the platform.** Studio calls it through `ooa.genai/prompt`, so masking, budgets and the call
+  record apply. OneChat's own escalation to a cloud model must stay **off** in OOA installations (decision 2). The
+  platform's choice of a second connection takes its place.
+- **Mode per request (design A, chosen 25 Nov 2026):** when Studio's assistant uses a OneChat model, its dialog
+  offers **Auto, Fast, Smart and Ultra**. It starts on the company's choice (`studio_onechat_mode`, default `auto`),
+  and builders can change it for each request. The mode goes to OneChat as the model name, on the same connection, so
+  masking, budgets and the call record stay as they are. Signed in, Studio asks `GET /api/assistants/studio/info` for
+  `{onechat_model, mode}` and sends `mode` with `POST /api/assistants/studio/complete`. On its own, Studio looks at
+  its own chosen connection.
+- **Fallback:** **If the OneChat model fails, try** (`studio_fallback_connection`, empty by default) names another
+  connection. It answers when the OneChat model fails or doesn't answer, and the suggestion's notes say so. A reached
+  budget is never passed on to the fallback. Empty: Studio shows the error and the person can pick another connection.
+- **Connection preset:** in One Model Connections, **Start from › OneChat flow assistant** fills in the
+  OpenAI-compatible provider, model `ooa-flow-assistant`, address `http://127.0.0.1:8765/v1` and the vault reference
+  `onechat/model/token`.
+- **Upgrades:** the model has its own versions. A new model ships when it beats the current one on a frozen test set
+  that includes real flows, with the catalog and flow-rule hashes of the platform release it was built for.
+- **Built for which release:** the version route should also return `platform_catalog_sha256`: the `sha256` from
+  the header of the action catalog it was built from (section 17). Settings > AI assistants > Studio assistant shows,
+  for each OneChat connection (`GET /api/onechat/model-check`, administrators), one of these states:
+  - **Built for this release.**
+  - **Built for another release:** the catalog or the flow rules differ. The flow rules are compared as written and
+    with `\n` line ends.
+  - **Catalog not stated:** the field is missing.
+  - **Other contract.**
+  - **Not answering.**
+
+  This is information only: Studio checks every suggested step anyway.
+- **Feedback for training:** with **Send results to the OneChat model for training** on (`studio_training_feedback`,
+  off by default), One CommandCenter sends `POST /v1/feedback` `{request, verdict: inserted|discarded, flow:
+  {variables, steps}, note}` to the OneChat connection that Studio's assistant used. It sends nothing to other
+  connections, and nothing when Studio is not signed in. A failure never reaches the person.
+
+Later, when OneChat builds the `/api/chat/v1` service, Studio's assistant can use the Studio area of section 3 instead.
+The model server can stay as one of the models that service uses, through `POST model`.
+
+## 17. The action catalog feed (S6, 25 Nov 2026)
+
+Each release publishes its actions in a plain, stable file, so OneChat never falls behind. On 25 Nov 2026 OneChat's
+own catalog was missing 133 of the release's 1,439 actions, because it was built by reading the toolkit reference
+pages.
+
+- **Where:**
+  - `docs/reference/action-catalog.jsonl` in the platform repository, at the release's tag.
+  - `ooa catalog` prints the same file for the installed release. `ooa catalog --out FILE` writes it.
+  - A test (`ActionCatalogTest`) fails when the file is out of date.
+- **Shape:** JSON Lines.
+  - The first line is the header: `{"format": "ooa-action-catalog/v1", "entries": N, "sha256": "..."}`.
+  - Each later line is one entry in canonical JSON (keys sorted, no spaces), sorted by kind (action, condition,
+    loop_type) and then by id.
+  - An entry is `{id, kind, toolkit_id, toolkit, name, description, inputs: [{name, type, required, label?,
+    description?, default?, enum?}], outputs: [{name, type, description?}]}`.
+- **Checksum:** `sha256` is the SHA-256 (hex) of the entry lines joined with `\n`, with no newline at the end,
+  encoded as UTF-8. OneChat reports it as `platform_catalog_sha256` (section 16).
+- **The format only grows:** new fields may be added. Removing or renaming a field needs `ooa-action-catalog/v2`.

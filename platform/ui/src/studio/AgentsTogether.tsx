@@ -213,24 +213,36 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
   const [printing, setPrinting] = useState(false);
   // signed in to One CommandCenter: its Studio assistant settings answer, and no connection of Studio's is needed
   const [viaCc, setViaCc] = useState(false);
+  // S6 (design A, 25 Nov 2026): a OneChat model works Auto, Fast, Smart or Ultra, chosen for each request
+  const [ccOneChat, setCcOneChat] = useState(false);
+  const [mode, setMode] = useState("auto");
+  useEffect(() => { Promise.resolve().then(() => api.assistantInfo()).then((i) => { setCcOneChat(!!i?.onechat_model); if (i?.mode) setMode(i.mode); }, () => setCcOneChat(false)); }, [api]);
+  const chosen = conns?.connections.find((c) => c.name === connection);
+  const oneChat = viaCc ? ccOneChat : !!chosen && chosen.provider === "openai_compatible" && /^ooa-(flow-)?assistant/.test(chosen.model ?? "");
   useEffect(() => { api.modelConnections().then((c) => { setConns(c); setConnection(c.default || c.connections[0]?.name || ""); }, () => setConns({ default: "", connections: [] }));
     Promise.resolve().then(() => api.crStatus()).then((s) => setViaCc(!!s?.connected), () => setViaCc(false)); }, [api]);
   const text = tab === "explain" ? explainAgent(flow, packages) : "";
   const generate = async () => {
     if (!prompt.trim()) { setError("Describe what the agent should do."); return; }
     setBusy(true); setError(null); setProposal(null);
-    try { setProposal(await api.assistantBuild(prompt, connection, flow)); }
+    try { setProposal(await api.assistantBuild(prompt, connection, flow, oneChat ? mode : undefined)); }
     catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
+  // S6: what the person did with the suggestion goes to One CommandCenter (it decides whether OneChat hears it); never blocks
+  const tell = (verdict: "inserted" | "discarded") => {
+    if (!viaCc || !proposal || !prompt.trim()) return;
+    Promise.resolve().then(() => api.assistantFeedback(prompt, verdict, proposal)).catch(() => {});
+  };
+  const close = () => { tell("discarded"); onClose(); };
   const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...innerLists(s).flatMap((l) => flat(l))]);
   return (
-    <Dialog open onClose={onClose} title="Agent assistant" width={720}
-      footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />
+    <Dialog open onClose={close} title="Agent assistant" width={720}
+      footer={<><Button kind="secondary" onClick={close}>Close</Button><span className="st-bar-fill" />
         {tab === "explain" && <Button kind="secondary" onClick={() => { navigator.clipboard?.writeText(text).catch(() => {}); }}>Copy</Button>}
         {tab === "explain" && <Button kind="secondary" onClick={() => saveDocx(flow, packages)}>Word (.docx)</Button>}
         {tab === "explain" && <Button kind="secondary" onClick={() => setPrinting(true)}>Print or PDF</Button>}
-        {tab === "build" && proposal && <Button kind="primary" onClick={() => onInsert(proposal)}>Insert into the agent</Button>}
+        {tab === "build" && proposal && <Button kind="primary" onClick={() => { tell("inserted"); onInsert(proposal); }}>Insert into the agent</Button>}
         {tab === "build" && !proposal && (viaCc || !!conns?.connections.length) && <Button kind="primary" icon="spark" onClick={generate} disabled={busy}>{busy ? "Thinking…" : "Generate steps"}</Button>}</>}>
       <div className="st-seg" role="tablist" aria-label="Assistant">
         {([["build", "Build from a description"], ["explain", "Explain this agent"]] as const).map(([k, l]) =>
@@ -244,7 +256,15 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
           : conns.connections.length ? <Field label="Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
               options={conns.connections.map((c) => ({ value: c.name, label: c.name + " (" + c.provider + (c.model ? ", " + c.model : "") + ")" }))} />}</Field>
           : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a Model Connection</Button> first.</div>}
-        {busy && <p className="st-muted" role="status">Thinking… this can take up to a minute.</p>}
+        {oneChat && <div className="st-mode-row">
+          <span id="st-mode-label">How hard it works</span>
+          <div className="st-seg" role="radiogroup" aria-labelledby="st-mode-label">
+            {([["auto", "Auto"], ["fast", "Fast"], ["smart", "Smart"], ["ultra", "Ultra"]] as const).map(([k, l]) =>
+              <button key={k} type="button" role="radio" aria-checked={mode === k} className={"st-seg-btn" + (mode === k ? " is-on" : "")} onClick={() => setMode(k)}>{l}</button>)}
+          </div>
+          <span className="st-muted">Auto picks for each request. Ultra tries several answers and can take up to 3 minutes.</span>
+        </div>}
+        {busy && <p className="st-muted" role="status">Thinking… this can take up to {oneChat && mode === "ultra" ? "3 minutes" : "a minute"}.</p>}
         {error && <p className="st-error" role="alert">{error}</p>}
         {proposal && <>
           {proposal.notes && <p>{proposal.notes}</p>}

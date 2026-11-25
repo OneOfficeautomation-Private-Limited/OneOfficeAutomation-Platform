@@ -328,7 +328,13 @@ export class StudioApi {
   addToRepository(b: { repository: string; application: string; screen: string; name: string; description?: string; object: unknown; replace?: boolean }) {
     return this.call<ObjectRef>("POST", "objects/add", b);
   }
-  assistantBuild(prompt: string, connection: string, flow: Flow) { return this.call<Proposal>("POST", "assistant/build", { prompt, connection, flow }); }
+  assistantBuild(prompt: string, connection: string, flow: Flow, mode?: string) { return this.call<Proposal>("POST", "assistant/build", { prompt, connection, flow, ...(mode ? { mode } : {}) }); }
+  /** S6: signed in, whether One CommandCenter's Studio assistant uses a OneChat model and the mode it starts on. */
+  assistantInfo() { return this.call<{ via: "cc" | "studio"; onechat_model?: boolean; mode?: string; connection?: string | null }>("GET", "assistant/info"); }
+  /** S6: what the person did with a suggestion; One CommandCenter passes it to the OneChat model only when its Settings allow. */
+  assistantFeedback(request: string, verdict: "inserted" | "discarded", p: Proposal) {
+    return this.call<{ sent: boolean; reason?: string }>("POST", "assistant/feedback", { request, verdict, variables: p.variables ?? [], steps: p.steps ?? [] });
+  }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
   saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }

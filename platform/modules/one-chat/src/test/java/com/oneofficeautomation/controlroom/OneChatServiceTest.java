@@ -27,8 +27,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * One Chat with the OneChat service (S5, 20 Nov 2026; docs/integration/one-chat-contract.md), against a stand-in
- * OneChat: the engine settings are checked; the service's version is checked and an incompatible or silent service is
- * never replaced by the built-in engine; messages, chats and notes go to the service with the service token, the
+ * OneChat: the engine settings are checked; the service's version is checked, and an incompatible or silent service is
+ * replaced by the built-in engine with a notice (S6; or an error when fallback is off), with a circuit breaker after
+ * failures in a row; messages, chats and notes go to the service with the service token, the
  * tenant, the area, the language and a five-minute person token; and the service's callbacks check the service token,
  * the tenant and the person token, keep each area to its list (Studio: development only), follow the assistant's
  * settings and the person's permissions as they are now, and call models with the area's settings and limits.
@@ -40,7 +41,10 @@ class OneChatServiceTest {
     Db db; ControlRoom cr; ControlRoomServer server; ControlRoom.User admin, olga; ModuleContext ctx; PersonTokens tokens;
     HttpServer model, standin; String base, adminToken, janeToken, valToken, bobToken, device;
     volatile String standinVersion = "1.0.0", standinContract = "v1";
-    volatile boolean eventsFail;
+    volatile boolean eventsFail, messagesFail;
+    volatile Map<String, Object> modelServerVersion = Map.of();
+    final List<Object> feedbackReceived = new CopyOnWriteArrayList<>();
+    final List<String> modelsAsked = new CopyOnWriteArrayList<>();
     final List<Map<String, Object>> received = new CopyOnWriteArrayList<>();
     java.util.function.Function<String, String> envBefore;
 
@@ -65,14 +69,32 @@ class OneChatServiceTest {
         // a stand-in OpenAI-compatible model
         model = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         model.createContext("/v1/chat/completions", ex -> {
-            ex.getRequestBody().readAllBytes();
+            Object asked = JsonLite.parse(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String modelName = asked instanceof Map<?, ?> am ? String.valueOf(am.get("model")) : "";
+            modelsAsked.add(modelName);
+            // a OneChat model asked to work Ultra fails here (S6: the fallback connection answers)
+            if (modelName.equals("ooa-flow-assistant-ultra")) { send(ex, 500, Map.of("error", Map.of("message", "out of memory"))); return; }
             send(ex, 200, Map.of("choices", List.of(Map.of("message", Map.of("role", "assistant", "content", "Which vendor do you mean?"))),
                     "usage", Map.of("prompt_tokens", 50, "completion_tokens", 9)));
+        });
+        // the same stand-in as a OneChat model server: its version route (S6)
+        model.createContext("/api/assistant/v1/admin/version", ex -> {
+            ex.getRequestBody().readAllBytes();
+            if (!"Bearer flow-key".equals(ex.getRequestHeaders().getFirst("Authorization"))) { send(ex, 401, Map.of("error", "token")); return; }
+            send(ex, 200, modelServerVersion);
+        });
+        model.createContext("/v1/feedback", ex -> {
+            feedbackReceived.add(JsonLite.parse(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            send(ex, "Bearer flow-key".equals(ex.getRequestHeaders().getFirst("Authorization")) ? 200 : 401, Map.of("ok", true));
         });
         model.start();
         String url = "http://127.0.0.1:" + model.getAddress().getPort() + "/v1";
         for (String name : List.of("company", "other"))
             cr.platform.saveModelConnection(admin, Map.of("name", name, "provider", "openai_compatible", "model", name + "-model", "base_url", url), null);
+        cr.createLocker(admin, "ai", "AI keys", "user:admin", null);
+        cr.setCredential(admin, "ai", "flow", "key", "flow-key", null);
+        cr.platform.saveModelConnection(admin, Map.of("name", "flowbot", "provider", "openai_compatible", "model", "ooa-flow-assistant-smart", "base_url", url,
+                "key_ref", "ai/flow/key"), null);
         db.update("INSERT INTO prompt_skills (name, description, definition, version, shared, template, created, updated, updated_by, owner) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 "tone", "How to word answers", JsonLite.write(Map.of("system", "Use the customer's name.", "prompt", "Be brief.")), 1, true, false, Instant.now(), Instant.now(), "admin", "admin");
         db.update("INSERT INTO prompt_skills (name, description, definition, version, shared, template, created, updated, updated_by, owner) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -106,6 +128,8 @@ class OneChatServiceTest {
                     Map<?, ?> who = (Map<?, ?>) JsonLite.parse(callback("GET", "person", null, SERVICE_TOKEN, (String) seen.get("X-OOA-Tenant"), (String) seen.get("X-OOA-Person")).body());
                     send(ex, 200, Map.of("session_id", "st1", "messages", List.of(Map.of("role", "assistant", "kind", "proposal", "text", "Here are the steps.",
                             "proposal", Map.of("steps", List.of(), "notes", "for " + who.get("username"))))));
+                } else if (m.equals("POST") && path.equals("messages") && messagesFail) {
+                    send(ex, 500, Map.of("error", Map.of("code", "BROKEN", "message", "the model crashed")));
                 } else if (m.equals("POST") && path.equals("events")) {
                     if (eventsFail) send(ex, 503, Map.of("error", Map.of("code", "BUSY", "message", "busy")));
                     else send(ex, 200, Map.of("ok", true));
@@ -137,7 +161,9 @@ class OneChatServiceTest {
     @AfterEach void reset() {
         cr.platform.updateSettings(admin, Map.of("chat_engine", "service", "chat_tool_agents", "always", "chat_tool_read", "always", "chat_tool_admin_read", "never",
                 "chat_tool_admin_change", "never", "chat_tool_admin_high", "never", "chat_skills", "", "chat_ktokens_per_person", 0, "onechat_url", ""), null);
+        cr.platform.updateSettings(admin, Map.of("onechat_fallback", "builtin", "onechat_pause_seconds", 300), null);
         eventsFail = false;
+        messagesFail = false;
         standinVersion = "1.0.0";
         standinContract = "v1";
         fresh();
@@ -219,7 +245,7 @@ class OneChatServiceTest {
         cr.platform.updateSettings(admin, Map.of("onechat_url", "", "onechat_token_ref", ""), null);
     }
 
-    @Test void theVersionIsCheckedAndAnIncompatibleServiceIsNeverReplacedSilently() throws Exception {
+    @Test void theVersionIsCheckedAndAnIncompatibleServiceIsReplacedWithANotice() throws Exception {
         Map<String, Object> v = json(call("GET", "/api/onechat/version?fresh=1", null, adminToken));
         assertEquals("compatible", v.get("status"), v.toString());
         assertEquals("1.0.0", v.get("version"));
@@ -234,18 +260,33 @@ class OneChatServiceTest {
         assertEquals("older", older.get("status"));
         assertEquals(false, older.get("compatible"));
 
+        assertEquals("builtin", older.get("answering"), "S6: the built-in engine answers meanwhile");
+
         int before = received.size();
         Map<String, Object> r = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
-        assertEquals("error", r.get("kind"), "an incompatible OneChat: the chat says so");
-        assertTrue(String.valueOf(r.get("reply")).contains("older than 1.0.0"), String.valueOf(r.get("reply")));
+        assertEquals("builtin", r.get("engine"), "an incompatible OneChat: the built-in engine answers");
+        assertTrue(String.valueOf(r.get("notice")).contains("built-in assistant answered"), "never silently: " + r);
+        assertNotEquals("error", r.get("kind"), String.valueOf(r));
         assertEquals(before, received.size(), "nothing reached the service");
+
+        // with fallback off, the chat says what is wrong instead
+        cr.platform.updateSettings(admin, Map.of("onechat_fallback", "off"), null);
+        Map<String, Object> off = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
+        assertEquals("error", off.get("kind"), "fallback off: the chat says so");
+        assertTrue(String.valueOf(off.get("reply")).contains("older than 1.0.0"), String.valueOf(off.get("reply")));
+        assertEquals("none", json(call("GET", "/api/onechat/version?fresh=1", null, adminToken)).get("answering"));
 
         cr.platform.updateSettings(admin, Map.of("onechat_url", "http://127.0.0.1:1"), null);
         Map<String, Object> down = json(call("GET", "/api/onechat/version?fresh=1", null, adminToken));
         assertEquals("unreachable", down.get("status"));
         Map<String, Object> r2 = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
         assertEquals("error", r2.get("kind"));
-        assertTrue(String.valueOf(r2.get("reply")).contains("not answering"), "no silent switch to the built-in engine: " + r2.get("reply"));
+        assertTrue(String.valueOf(r2.get("reply")).contains("not answering"), String.valueOf(r2.get("reply")));
+        cr.platform.updateSettings(admin, Map.of("onechat_fallback", "builtin"), null);
+        Map<String, Object> r3 = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
+        assertEquals("builtin", r3.get("engine"), "a OneChat that is down: the built-in engine answers");
+        assertNotNull(r3.get("notice"));
+        assertEquals(200, call("GET", "/api/chat", null, janeToken).statusCode(), "Your chats still opens: the built-in engine's chats");
 
         assertEquals(403, call("GET", "/api/onechat/version", null, valToken).statusCode(), "only administrators see the service's version");
         var env = OneChatService.env;
@@ -595,6 +636,145 @@ class OneChatServiceTest {
         assertEquals("Design steps for agents.", context.get("instructions"));
         assertEquals(Map.of("name", "Draft"), context.get("agent"));
         assertEquals(403, call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "s", "prompt", "p")), valToken).statusCode(), "builders only");
+    }
+
+    // ---- S6: OneChat is optional ----
+
+    @Test void failuresInARowPauseTheServiceAndTheBuiltInEngineAnswers() throws Exception {
+        assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("onechat_fallback", "maybe"), null));
+        assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("onechat_pause_seconds", 5), null));
+        messagesFail = true;
+        for (int i = 0; i < 3; i++) {
+            Map<String, Object> r = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
+            assertEquals("builtin", r.get("engine"), "a server error: the built-in engine answers (" + i + ")");
+            assertNotNull(r.get("notice"));
+        }
+        Map<String, Object> v = json(call("GET", "/api/onechat/version", null, adminToken));
+        assertNotNull(v.get("paused_until"), "three failures in a row pause the service: " + v);
+        assertEquals("HTTP 500", v.get("last_failure"));
+        assertEquals("builtin", v.get("answering"));
+        int before = received.size();
+        Map<String, Object> r = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
+        assertEquals("builtin", r.get("engine"));
+        assertEquals(before, received.size(), "a paused service is not asked");
+
+        // Check again ends the pause, and a working service answers again
+        messagesFail = false;
+        assertNull(json(call("GET", "/api/onechat/version?fresh=1", null, adminToken)).get("paused_until"));
+        Map<String, Object> back = json(call("POST", "/api/chat", JsonLite.write(Map.of("message", "hello")), janeToken));
+        assertNull(back.get("engine"), "the service answers again: " + back);
+        assertTrue(String.valueOf(back.get("reply")).startsWith("Hello jane"), String.valueOf(back.get("reply")));
+    }
+
+    @Test void studioFallsBackToItsOwnModelWhenTheServiceIsDown() throws Exception {
+        cr.platform.updateSettings(admin, Map.of("onechat_url", "http://127.0.0.1:1", "studio_connection", "company"), null);
+        String bobToken = (String) cr.login("bob", "Passw0rd-bob-2026", null).get("token");
+        HttpResponse<String> r = call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "Design steps.", "prompt", "Read a file")), bobToken);
+        assertEquals(200, r.statusCode(), r.body());
+        assertEquals("builtin", json(r).get("engine"));
+        assertEquals("Which vendor do you mean?", json(r).get("text"), "the Studio assistant's own Model Connection answered");
+        assertTrue(String.valueOf(json(r).get("notice")).contains("not available"));
+        cr.platform.updateSettings(admin, Map.of("onechat_fallback", "off"), null);
+        assertNotEquals(200, call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "Design steps.", "prompt", "Read a file")), bobToken).statusCode(),
+                "fallback off: Studio shows the error");
+        cr.platform.updateSettings(admin, Map.of("studio_connection", ""), null);
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void theModelCheckComparesOneChatsCatalogWithThisRelease() throws Exception {
+        var envBefore2 = com.oneofficeautomation.modules.chat.OneChatModelCheck.env;
+        try {
+            com.oneofficeautomation.modules.chat.OneChatModelCheck.env = k -> "OOA_TEST_FLOW_KEY".equals(k) ? "flow-key" : null;
+            String ours = String.valueOf(com.oneofficeautomation.sdk.ActionCatalog.header(FirstPartyPackages.registry().allManifests()).get("sha256"));
+            modelServerVersion = Map.of("version", "0.4.0", "contract", "studio-assistant/v1", "model_step", 2000, "catalog_actions", 1374);
+            Map<String, Object> r = json(call("GET", "/api/onechat/model-check", null, adminToken));
+            List<Map<String, Object>> list = (List<Map<String, Object>>) r.get("connections");
+            assertEquals(List.of("flowbot"), list.stream().map(c -> c.get("connection")).toList(), "only OneChat's model names are checked");
+            assertEquals("catalog_unknown", list.get(0).get("status"), String.valueOf(list.get(0)));
+            assertEquals(ours, ((Map<String, Object>) r.get("catalog")).get("sha256"));
+
+            modelServerVersion = Map.of("version", "0.5.0", "contract", "studio-assistant/v1", "platform_catalog_sha256", ours);
+            assertEquals("compatible", firstStatus());
+            modelServerVersion = Map.of("version", "0.5.0", "contract", "studio-assistant/v1", "platform_catalog_sha256", "0".repeat(64));
+            assertEquals("built_for_another_release", firstStatus());
+            // the flow rules are compared when they are on the class path (One CommandCenter's: adapters-jackson; not this module's tests)
+            if (((Map<String, Object>) r.get("catalog")).get("schema_sha256") != null) {
+                modelServerVersion = Map.of("version", "0.5.0", "contract", "studio-assistant/v1", "platform_catalog_sha256", ours, "schema_sha256", "1".repeat(64));
+                assertEquals("built_for_another_release", firstStatus(), "other flow rules");
+            }
+            modelServerVersion = Map.of("version", "2.0.0", "contract", "studio-assistant/v2");
+            assertEquals("wrong_contract", firstStatus());
+            cr.setCredential(admin, "ai", "flow", "key", "wrong-key", null);
+            assertEquals("unreachable", firstStatus(), "with another key the server refuses");
+            cr.setCredential(admin, "ai", "flow", "key", "flow-key", null);
+            assertEquals(403, call("GET", "/api/onechat/model-check", null, valToken).statusCode(), "administrators only");
+        } finally { com.oneofficeautomation.modules.chat.OneChatModelCheck.env = envBefore2; }
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void studioResultsReachTheOneChatModelOnlyWhenAllowed() throws Exception {
+        var envBefore3 = com.oneofficeautomation.modules.chat.OneChatModelCheck.env;
+        String bobToken = (String) cr.login("bob", "Passw0rd-bob-2026", null).get("token");
+        String body = JsonLite.write(Map.of("request", "Read a file", "verdict", "inserted", "variables", List.of(), "steps", List.of(Map.of("id", "a1", "action", "core/set"))));
+        try {
+            com.oneofficeautomation.modules.chat.OneChatModelCheck.env = k -> "OOA_TEST_FLOW_KEY".equals(k) ? "flow-key" : null;
+            cr.platform.updateSettings(admin, Map.of("studio_connection", "flowbot"), null);
+            assertEquals(Map.of("sent", false, "reason", "off"), json(call("POST", "/api/assistants/studio/feedback", body, bobToken)), "off by default");
+            cr.platform.updateSettings(admin, Map.of("studio_training_feedback", 1), null);
+            assertEquals(Map.of("sent", true), json(call("POST", "/api/assistants/studio/feedback", body, bobToken)));
+            Map<String, Object> got = (Map<String, Object>) feedbackReceived.get(feedbackReceived.size() - 1);
+            assertEquals("inserted", got.get("verdict"));
+            assertEquals("Read a file", got.get("request"));
+            assertEquals(1, ((List<?>) ((Map<String, Object>) got.get("flow")).get("steps")).size());
+            cr.platform.updateSettings(admin, Map.of("studio_connection", "company"), null);
+            assertEquals(Map.of("sent", false, "reason", "not_onechat"), json(call("POST", "/api/assistants/studio/feedback", body, bobToken)), "only to a OneChat model");
+            assertEquals(400, call("POST", "/api/assistants/studio/feedback", JsonLite.write(Map.of("request", "x", "verdict", "maybe")), bobToken).statusCode());
+            assertEquals(403, call("POST", "/api/assistants/studio/feedback", body, valToken).statusCode(), "builders only");
+        } finally {
+            com.oneofficeautomation.modules.chat.OneChatModelCheck.env = envBefore3;
+            cr.platform.updateSettings(admin, Map.of("studio_connection", "", "studio_training_feedback", 0), null);
+        }
+    }
+
+    @Test
+    void studioGivesAOneChatModelTheModeAndFallsBackWhenItFails() throws Exception {
+        String bobToken = (String) cr.login("bob", "Passw0rd-bob-2026", null).get("token");
+        try {
+            cr.platform.updateSettings(admin, Map.of("chat_engine", "builtin", "studio_connection", "flowbot"), null);
+            assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("studio_onechat_mode", "turbo"), null));
+            assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("studio_fallback_connection", "nope"), null));
+            Map<String, Object> info = json(call("GET", "/api/assistants/studio/info", null, bobToken));
+            assertEquals(true, info.get("onechat_model"), String.valueOf(info));
+            assertEquals("auto", info.get("mode"));
+
+            String req = JsonLite.write(Map.of("system", "Design steps.", "prompt", "Read a file", "mode", "smart"));
+            assertEquals(200, call("POST", "/api/assistants/studio/complete", req, bobToken).statusCode());
+            assertEquals("ooa-flow-assistant-smart", modelsAsked.get(modelsAsked.size() - 1), "the mode goes in as OneChat's model name");
+            assertEquals(200, call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "s", "prompt", "p")), bobToken).statusCode());
+            assertEquals("ooa-flow-assistant", modelsAsked.get(modelsAsked.size() - 1), "no mode: the company's (auto)");
+            assertEquals(400, call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "s", "prompt", "p", "mode", "turbo")), bobToken).statusCode());
+
+            String ultra = JsonLite.write(Map.of("system", "s", "prompt", "p", "mode", "ultra"));
+            assertNotEquals(200, call("POST", "/api/assistants/studio/complete", ultra, bobToken).statusCode(), "no fallback connection: the error");
+            cr.platform.updateSettings(admin, Map.of("studio_fallback_connection", "company"), null);
+            HttpResponse<String> r = call("POST", "/api/assistants/studio/complete", ultra, bobToken);
+            assertEquals(200, r.statusCode(), r.body());
+            assertEquals("fallback", json(r).get("engine"));
+            assertTrue(String.valueOf(json(r).get("notice")).contains("company"), r.body());
+            assertEquals("company-model", modelsAsked.get(modelsAsked.size() - 1), "the fallback connection's own model");
+
+            cr.platform.updateSettings(admin, Map.of("studio_connection", "company"), null);
+            assertEquals(false, json(call("GET", "/api/assistants/studio/info", null, bobToken)).get("onechat_model"));
+            assertEquals(200, call("POST", "/api/assistants/studio/complete", req, bobToken).statusCode());
+            assertEquals("company-model", modelsAsked.get(modelsAsked.size() - 1), "another model ignores the mode");
+        } finally {
+            cr.platform.updateSettings(admin, Map.of("studio_connection", "", "studio_fallback_connection", "", "studio_onechat_mode", "auto"), null);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    String firstStatus() throws Exception {
+        return String.valueOf(((List<Map<String, Object>>) json(call("GET", "/api/onechat/model-check", null, adminToken)).get("connections")).get(0).get("status"));
     }
 
     @Test void anUnreadableSigningKeyIsReplaced() {
