@@ -142,3 +142,57 @@ describe("the screens", () => {
     expect(await within(intake).findByText(/Standards read: all that DocFlow knows/)).toBeTruthy();
   });
 });
+
+
+describe("the leftovers (25 Nov 2026)", () => {
+  it("adds an e-mail delivery and a cloud storage delivery with a vault key", async () => {
+    start(); await go("#/processes/supplier-invoices-ksa/deliver");
+    fireEvent.click(await screen.findByRole("button", { name: "Add delivery" }));
+    let d = await screen.findByRole("dialog", { name: "Add delivery" });
+    fireEvent.change(within(d).getByLabelText("Send results to"), { target: { value: "email" } });
+    fireEvent.change(within(d).getByLabelText("To"), { target: { value: "ap@example.com, role:finance" } });
+    fireEvent.change(within(d).getByLabelText(/^Subject/), { target: { value: "{process}: {file}" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Save" }));
+    expect(screen.getByText(/E-mail · ap@example.com, role:finance/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add delivery" }));
+    d = await screen.findByRole("dialog", { name: "Add delivery" });
+    fireEvent.change(within(d).getByLabelText("Send results to"), { target: { value: "cloud_storage" } });
+    fireEvent.change(within(d).getByLabelText("Where"), { target: { value: "s3" } });
+    fireEvent.change(within(d).getByLabelText("Bucket"), { target: { value: "invoices" } });
+    fireEvent.change(within(d).getByLabelText(/^Region/), { target: { value: "eu-central-1" } });
+    fireEvent.change(within(d).getByLabelText(/^Secret key \(vault\)/), { target: { value: "store/s3/secret" } });
+    fireEvent.click(within(d).getByRole("checkbox", { name: "The text and tables (Markdown)" }));
+    fireEvent.click(within(d).getByRole("button", { name: "Save" }));
+    expect(screen.getByText(/Cloud storage \(S3, Azure Blob, a web address\) · invoices/)).toBeTruthy();
+  });
+
+  it("sends a document that fails a check to another process, or tells people", async () => {
+    start(); await go("#/processes/supplier-invoices-ksa/checks");
+    fireEvent.click(within(await screen.findByRole("region", { name: "Validation" })).getByRole("button", { name: "Add check" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add check" });
+    fireEvent.change(within(dialog).getByLabelText("If it fails"), { target: { value: "route" } });
+    const save = within(dialog).getByRole("button", { name: "Save" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    const to = within(dialog).getByLabelText(/^Send it to/) as HTMLSelectElement;
+    fireEvent.change(to, { target: { value: to.options[1].value } });
+    expect(save.disabled).toBe(false);
+    fireEvent.change(within(dialog).getByLabelText("If it fails"), { target: { value: "notify" } });
+    expect(save.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText(/^Tell/), { target: { value: "cfo@example.com" } });
+    expect(save.disabled).toBe(false);
+  });
+
+  it("reads Gmail with an app password and POP3 inboxes", async () => {
+    start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "gmail" } });
+    expect(within(intake).getByLabelText(/^Gmail address/)).toBeTruthy();
+    expect(within(intake).queryByLabelText(/^Mail server/)).toBeNull();
+    fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "pop3" } });
+    expect((within(intake).getByLabelText(/^Port/) as HTMLInputElement).placeholder).toBe("995");
+    expect(within(intake).getByText(/POP3 reads the inbox only/)).toBeTruthy();
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /People may upload documents here/ }));
+    expect((within(intake).getByRole("checkbox", { name: /People may upload documents here/ }) as HTMLInputElement).checked).toBe(false);
+  });
+});
