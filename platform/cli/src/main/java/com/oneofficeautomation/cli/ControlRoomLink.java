@@ -130,6 +130,9 @@ final class ControlRoomLink {
 
     Map<String, Object> repo(String q) { return call("GET", "repo?q=" + enc(q == null ? "" : q), null, true); }
 
+    /** The repository's folders, empty ones too (the Public tab's tree and count, as the console's). */
+    Map<String, Object> folders() { return call("GET", "repo/folders", null, true); }
+
     /** Whether the agent at this repository path has a live (production) version already. */
     boolean hasLiveVersion(String repoPath) {
         if (!(repo(repoPath).get("bots") instanceof List<?> bots)) return false;

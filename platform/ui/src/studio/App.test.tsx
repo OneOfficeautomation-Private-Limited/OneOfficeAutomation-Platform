@@ -1837,7 +1837,9 @@ describe("new Studio", () => {
     expect(within(versions).getByText("Reads the totals")).toBeTruthy();
     expect(within(versions).getByText(/live/).closest("tr")!.textContent).toContain("v1");
     fireEvent.click(within(versions).getAllByRole("button", { name: "Close" }).pop()!);
-    await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Check out" })); });
+    // fix list 27 Nov, leftover 2: Check out is in the row's ⋮, as the console's Public list
+    fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Check out(?! a version)/ })); });
     expect(created).toContainEqual({ checkout: "Finance/Invoice intake.flow.json" });
     expect(await screen.findByText(/Checked out v2 into your workspace: Finance\/Invoice intake.flow.json/)).toBeTruthy();   // the same folder path
     expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy();
@@ -1852,8 +1854,8 @@ describe("new Studio", () => {
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
     expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Finance/Invoice intake.flow.json");
-    expect(within(row).getByRole("button", { name: "Open my copy" })).toBeTruthy();
     fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Open my copy/ })).toBeTruthy();   // in the row's ⋮ since 27 Nov
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Undo check-out…" }));
     const ask = await screen.findByRole("dialog", { name: "Undo check-out of Finance/Invoice intake?" });
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Undo check-out" })); });

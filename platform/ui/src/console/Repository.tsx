@@ -81,9 +81,13 @@ const HELP_AGENT: HelpTopic = { title: "Agent",
       + "make versions live." },
   ] };
 
+/** Where the Private tab opens: Create > Agent, or an agent's Edit (check out), Clone or Copy to Private. */
+export type PrivateGo = { startNew?: boolean; request?: { act: "checkout" | "clone" | "copy"; path: string } };
+
 export function Repository({ api, user, onNotice, studio = false, onPrivate }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; studio?: boolean;
-  /** Opens the Private tab in this page (fix list 27 Nov, item 3b); true opens Create > Agent there. */
-  onPrivate?: (startNew?: boolean) => void }) {
+  /** Opens the Private tab in this page (fix list 27 Nov, item 3b): with startNew, Create > Agent there; with a request,
+   *  an agent's Edit (check out), Clone or Copy to Private. */
+  onPrivate?: (go?: PrivateGo) => void }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
   const [folders, setFolders] = useState<RepoFolder[]>([]);
   const [requests, setRequests] = useState<{ requests: ProductionRequest[]; approval_on: boolean }>({ requests: [], approval_on: false });
@@ -94,11 +98,13 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   const [show, setShow] = useState("");
   const [dialog, setDialog] = useState<Dlg>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [atTop, setAtTop] = useState(0);   // agents in no folder: counted on Agents too (fix list 27 Nov: 194 here, 195 in Studio)
   const can = (p: string) => user.permissions.includes(p);
   const load = useCallback(async () => {
     try {
       const [a, f, r] = await Promise.all([api.repo(folder), api.repoFolders(), api.productionRequests("pending").catch(() => ({ requests: [], approval_on: false }))]);
       setAgents(a); setFolders(f); setRequests(r); setError(null);
+      if (!folder) setAtTop(a.filter((x) => !x.path.includes("/")).length);
     } catch (e) { setError(message(e)); }
   }, [api, folder]);
   useEffect(() => { load(); }, [load]);
@@ -132,7 +138,7 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
   const [choosingCols, setChoosingCols] = useState(false);
   const kids = (p: string) => folders.filter((f) => folderOf(f.path) === p).sort((a, b) => a.path.localeCompare(b.path));
-  const total = (p: string) => folders.filter((f) => !p || f.path === p || f.path.startsWith(p + "/")).reduce((n, f) => n + f.agents, 0);
+  const total = (p: string) => folders.filter((f) => !p || f.path === p || f.path.startsWith(p + "/")).reduce((n, f) => n + f.agents, p ? 0 : atTop);
   const isOpen = (p: string) => opened.includes(p) || folder === p || folder.startsWith(p + "/");
   const toggle = (p: string) => setOpened(opened.includes(p) ? opened.filter((x) => x !== p) : [...opened, p]);
   const node = (f: RepoFolder, depth: number): ReactNode => {
@@ -176,7 +182,7 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   };
   const create = [
     ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
-    ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { if (onPrivate) onPrivate(true); else location.href = "../studio/#private/new"; } }] : []),
+    ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { if (onPrivate) onPrivate({ startNew: true }); else location.href = "../studio/#private/new"; } }] : []),
   ];
   const folderMenu = [
     ...(can("repo.checkin") ? [{ key: "sub", label: "New subfolder", onSelect: () => setDialog({ kind: "folder", parent: folder }) },
@@ -189,6 +195,7 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
     return (
       <section className="st-page cc-home cc-explorer" aria-label={"Agents: " + agentName(a.path)}>
         <AgentView key={a.path} api={api} user={user} a={a} folders={folders} approvalOn={requests.approval_on} studio={studio} onClose={() => setDialog(null)}
+          onStudio={onPrivate ? (act) => onPrivate({ request: { act, path: a.path } }) : undefined}
           onFolder={(f) => { setDialog(null); setFolder(f); }} onRun={() => setDialog({ kind: "run", a, from: "agent" })} onDone={done} />
         {dialog.kind === "run" && <RunAgent api={api} a={a} onClose={() => setDialog({ kind: "agent", a })} onDone={done} />}
       </section>
@@ -292,8 +299,9 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
 }
 
 /** One agent: what it is, its inputs and outputs, what it calls and who calls it, recent runs, and its versions. */
-function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolder, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean; studio: boolean;
-  onClose: () => void; onFolder: (folder: string) => void; onRun: () => void; onDone: (m: string) => void }) {
+function AgentView({ api, user, a, folders, approvalOn, studio, onStudio, onClose, onFolder, onRun, onDone }: { api: CrApi; user: CrUser; a: RepoAgent; folders: RepoFolder[]; approvalOn: boolean; studio: boolean;
+  /** Edit, Clone or Copy to Private on this page's Private tab (fix list 27 Nov, leftover 1); without it, Studio's own page. */
+  onStudio?: (act: "checkout" | "clone" | "copy") => void; onClose: () => void; onFolder: (folder: string) => void; onRun: () => void; onDone: (m: string) => void }) {
   const [tab, setTab] = useState<"steps" | "about" | "versions" | "runs" | "deps" | "findings">("steps");
   const [shownVersion, setShownVersion] = useState<string>("latest");
   const [flow, setFlow] = useState<FlowStep[] | null>(null);
@@ -364,10 +372,11 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   // as AA (item 21, 9 Nov 2026): the repository is for running and versions. Copies and clones are made in the
   // builder's Private workspace (OneAgentStudio); moving a single agent here is for administrators.
   const toStudio = (act: "checkout" | "clone" | "copy") => "../studio/#public/" + act + "/" + encodeURIComponent(a.path);
+  const goStudio = (act: "checkout" | "clone" | "copy") => { if (onStudio) onStudio(act); else location.href = toStudio(act); };
   const more = [
     ...(studio && can("repo.checkin") ? [
-      { key: "copy", label: "Copy to Private…", description: "A new agent of your own, in OneAgentStudio", onSelect: () => { location.href = toStudio("copy"); } },
-      { key: "clone", label: "Clone to Private", description: "A read-only copy to look at; it follows the repository", onSelect: () => { location.href = toStudio("clone"); } }] : []),
+      { key: "copy", label: "Copy to Private…", description: "A new agent of your own, in OneAgentStudio", onSelect: () => goStudio("copy") },
+      { key: "clone", label: "Clone to Private", description: "A read-only copy to look at; it follows the repository", onSelect: () => goStudio("clone") }] : []),
     ...(can("repo.production") && editable ? [{ key: "move", label: "Move…", description: "Administrators: to another folder of the repository", onSelect: () => { setText(folderOf(a.path)); setAsk({ kind: "move" }); } }] : []),
     ...(a.locked_by && (a.locked_by === user.username || can("repo.production")) ? [{ key: "undo", label: "Undo check-out", onSelect: () => { api.undoCheckout(a.path).then(() => onDone("Undid the check-out of " + agentName(a.path) + "."), fail); } }] : []),
     ...(can("repo.delete") && editable ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => { setText(""); setAsk({ kind: "delete" }); } }] : []),
@@ -388,6 +397,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
         <span className="ov-fill" />
         {can("runs.start") && a.production_version && kind === "Workflow" && <a className="ui-btn ui-btn-secondary cc-btn-link" href="#/workflows">Start in Workflow</a>}
         {studio && can("repo.checkin") && <a className="ui-btn ui-btn-secondary cc-btn-link" href={toStudio("checkout")}
+          onClick={(e) => { if (onStudio) { e.preventDefault(); onStudio("checkout"); } }}
           title={a.locked_by && a.locked_by !== user.username ? "Checked out by " + a.locked_by + ": OneAgentStudio offers Clone or Copy to Private instead" : "Check this agent out to your Private workspace in OneAgentStudio, change it there, then check it in"}>Edit</a>}
         {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
         {more.length > 0 && <RowMenu label={"More for " + agentName(a.path)} items={more} />}

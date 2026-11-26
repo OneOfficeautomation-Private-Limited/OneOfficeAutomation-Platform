@@ -90,8 +90,8 @@ export function showInList(api: object, path: string) {
   v.selected = [path];
 }
 
-export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onPublic, startNew = false, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode;
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, publicCount = "", onPublic, startNew = false, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; publicCount?: string;
     /** Inside the console's Agents page (fix list 27 Nov, item 3b): its Public tab is the console's own page, so this page shows Private only. */
     onPublic?: () => void; startNew?: boolean; repo?: RepoHooks;
     onRepoLink?: (r: RepoRequest) => void; onOpen: (n: WorkspaceNode) => void;
@@ -319,6 +319,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} /><PageIntro k={isPublic ? "studio:agents-public" : "studio:agents-private"} />
         {!isPublic && <span className="cc-list-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
           : agentCount(everything(tree).filter((n) => n.type === "bot").length) + " · " + folderCount(everything(tree).filter((n) => n.type === "folder").length) + " in your workspace"}</span>}
+        {isPublic && publicCount && <span className="cc-list-count">{publicCount}</span>}
         <span className="ov-fill" />
         {!isPublic && <>
           {/* 14 Nov usability round, item 16 kept: New folder and Upload one click from the page, now in Manage ▾ as the console's */}

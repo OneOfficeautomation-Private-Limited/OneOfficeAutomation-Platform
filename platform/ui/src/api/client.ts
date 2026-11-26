@@ -358,6 +358,11 @@ export class StudioApi {
   }
   crDisconnect() { return this.call<CrStatus>("POST", "cr/disconnect"); }
   /** The repository's agents (matching q), and which workspace file is the private copy of which repository agent. */
+  /** The repository's folders, empty ones too; an older One CommandCenter without them gives none. */
+  async crFolders(): Promise<string[]> {
+    const r = await this.call<{ folders?: { path: string }[] }>("GET", "cr/folders").catch(() => ({ folders: [] as { path: string }[] }));
+    return (r.folders ?? []).map((f) => f.path).filter(Boolean);
+  }
   async crRepo(q = "") { const r = await this.call<{ bots?: RepoAgent[]; mapping?: Record<string, string> }>("GET", "cr/repo?q=" + encodeURIComponent(q)); return { agents: r.bots ?? [], mapping: r.mapping ?? {} }; }
   async crVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "cr/versions?path=" + encodeURIComponent(path))).versions ?? []; }
   crCheckout(path: string, version?: number) {

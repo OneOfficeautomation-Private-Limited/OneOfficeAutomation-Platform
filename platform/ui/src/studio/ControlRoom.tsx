@@ -63,11 +63,11 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
 }
 
 /** The repository's folders as a tree, from the agents' paths (the root is "Agents", as on the Private tab). */
-function folderTree(paths: string[]): TreeNode {
+function folderTree(paths: string[], folders: string[] = []): TreeNode {
   const root: TreeNode = { id: "", label: "Agents", children: [] };
-  for (const p of paths) {
+  for (const p of [...paths.map(folderOf), ...folders]) {
     let at = root;
-    const parts = folderOf(p).split("/").filter(Boolean);
+    const parts = p.split("/").filter(Boolean);
     parts.forEach((name, i) => {
       const id = parts.slice(0, i + 1).join("/");
       let next = at.children!.find((c) => c.id === id);
@@ -121,9 +121,11 @@ export function CopyToPrivate({ api, path, onClose, onCopied }: { api: StudioApi
 const publicViews = new WeakMap<object, { folder: string; expanded: string[] }>();
 const publicViewOf = (api: object) => { let v = publicViews.get(api); if (!v) { v = { folder: "", expanded: [""] }; publicViews.set(api, v); } return v; };
 
-export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOpenLocal, request, onRequestDone, onNotice, onError }:
+export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOpenLocal, request, onRequestDone, onCount, onNotice, onError }:
   { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean, version?: number) => Promise<void>;
     onOpenLocal: (local: string, note: string) => Promise<void>; request?: RepoRequest | null; onRequestDone?: () => void;
+    /** The count line for the page's header, as the console's Public tab: "195 agents · 23 folders". */
+    onCount?: (text: string) => void;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const [q, setQ] = useState("");
   const [list, setList] = useState<{ agents: RepoAgent[]; mapping: Record<string, string> } | null>(null);
@@ -150,7 +152,16 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
   const [deep, setDeep] = usePersistent("public.subfolders", true);
   const [choosingCols, setChoosingCols] = useState(false);
-  const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path)), [list]);
+  // the repository's own folders too, so an empty folder shows and counts as on the console's Public tab (fix list 27 Nov)
+  const [repoFolders, setRepoFolders] = useState<string[]>([]);
+  useEffect(() => { if (status.connected) api.crFolders().then(setRepoFolders, () => setRepoFolders([])); }, [api, status.connected, list]);
+  const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path), repoFolders), [list, repoFolders]);
+  useEffect(() => {
+    if (!list || q.trim()) return;
+    const folders = (n: TreeNode): number => (n.children ?? []).reduce((k, c) => k + 1 + folders(c), 0);
+    const n = list.agents.length, f = folders(tree);
+    onCount?.(n + (n === 1 ? " agent" : " agents") + " · " + f + (f === 1 ? " folder" : " folders"));
+  }, [list, tree]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!status.connected) return;
     const t = setTimeout(() => { api.crRepo(q.trim()).then((r) => { setList(r); setFailed(null); }, (e) => setFailed(message(e))); }, q ? 250 : 0);
@@ -208,15 +219,20 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   };
   return (
     <div className="st-cr">
-      <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
-        <span className="st-items-count" aria-live="polite">{list ? agents.length + (agents.length === 1 ? " agent" : " agents") : ""}</span>
-        {!status.sameServer && <span className="st-items-count" title={status.url ?? undefined}>Signed in as {me}</span>}
-        <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
-        <label className={"cc-chip-check" + (deep ? " is-on" : "")}><input type="checkbox" checked={deep} onChange={(e) => setDeep(e.target.checked)} /> Include subfolders</label>
-        <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
-        <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>
-        {status.sameServer ? <span className="st-muted">Signed in through One CommandCenter</span>
-          : <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of One CommandCenter."); } catch (e) { onError(e); } }}>Sign out</Button>}
+      {/* fix list 27 Nov, leftover 2: the console's list tools (search, Include subfolders, then Columns and Refresh on the right) */}
+      <div className="cc-list-tools cc-pane-tools">
+        <div className="cc-list-filters" role="group" aria-label="Filters">
+          <span className="cc-list-search"><input className="ui-input" type="search" aria-label="Search the agent repository" placeholder={"Search in " + (here.id ? here.label : "Agents")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
+          <label className={"cc-chip-check" + (deep ? " is-on" : "")}><input type="checkbox" checked={deep} onChange={(e) => setDeep(e.target.checked)} /> Include subfolders</label>
+          <span className="cc-list-count" aria-live="polite">{list ? agents.length + (agents.length === 1 ? " agent" : " agents") + " shown" : ""}</span>
+        </div>
+        <div className="cc-list-right" role="toolbar" aria-label="Agent Repository">
+          {status.sameServer ? <span className="st-muted">Signed in through One CommandCenter</span>
+            : <><span className="st-muted" title={status.url ?? undefined}>Signed in as {me}</span>
+              <Button kind="plain" onClick={async () => { try { onStatus(await api.crDisconnect()); setList(null); onNotice("Signed out of One CommandCenter."); } catch (e) { onError(e); } }}>Sign out</Button></>}
+          <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
+          <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>
+        </div>
       </div>
       {failed && <p className="st-cr-error" role="alert">{failed}</p>}
       <div className="st-page-body">
@@ -242,9 +258,10 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
                     {q && <td>{folderOf(a.path)}</td>}
                     {shownCols.map((c) => <td key={c.key} className={c.key === "changed" ? "st-col-changed" : undefined}>{cell(c.key, a, mine)}</td>)}
                     <td className="st-cr-row-acts">
-                      {(!a.locked_by || mine) && <Button kind="secondary" onClick={async () => { try { await onCheckOut(a.path, local, mine); reload(); } catch (e) { onError(e); } }}>
-                        {mine ? "Open my copy" : "Check out"}</Button>}
+                      {/* the row's actions in its ⋮, as the console's Public list (fix list 27 Nov, leftover 2) */}
                       <Menu label={nameOf(a.path) + " menu"} align="end" items={[
+                        ...(!a.locked_by || mine ? [{ key: "checkout", label: mine ? "Open my copy" : "Check out", description: mine ? "Your checked-out copy, in your workspace" : "To change it in your Private workspace, then check it in",
+                          onSelect: async () => { try { await onCheckOut(a.path, local, mine); reload(); } catch (e) { onError(e); } } }] : []),
                         { key: "versions", label: "Versions", onSelect: async () => { try { setVersions({ agent: a, list: await api.crVersions(a.path) }); } catch (e) { onError(e); } } },
                         ...(!local ? [{ key: "clone", label: "Clone (read-only)", description: "A copy to look at; it follows the repository", onSelect: () => clone(a.path) }] : []),
                         { key: "copy", label: "Copy to Private…", description: "A new agent of your own, from the latest version", onSelect: () => setCopying(a.path) },

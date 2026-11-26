@@ -23,7 +23,7 @@ import { Queues } from "./Queues";
 import { Roles } from "./Roles";
 import { Schedules } from "./Schedules";
 import { Settings } from "./Settings";
-import { Repository } from "./Repository";
+import { Repository, type PrivateGo } from "./Repository";
 import { Teams } from "./Teams";
 import { Templates } from "./Templates";
 import { Toolkits } from "./Toolkits";
@@ -72,7 +72,11 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   // with an agent, a run or a person shown (it used to stay on that view, which felt stuck)
   const [visit, setVisit] = useState(0);
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); setAgentsTab("public"); setVisit((n) => n + 1); };
-  const openPrivate = (startNew = false) => { location.hash = "/automation/private" + (startNew ? "/new" : ""); setAgentsTab(startNew ? "new" : "private"); };
+  const [repoRequest, setRepoRequest] = useState<PrivateGo["request"] | null>(null);   // an agent's Edit, Clone or Copy to Private
+  const openPrivate = (go: PrivateGo = {}) => {
+    location.hash = "/automation/private" + (go.startNew ? "/new" : "");
+    setAgentsTab(go.startNew ? "new" : "private"); setRepoRequest(go.request ?? null);
+  };
   const openPublic = () => { location.hash = "/automation"; setAgentsTab("public"); };
   useEffect(() => { const on = () => { setPageState(pageOf(location.hash)); setAgentsTab(agentsTabOf(location.hash)); }; addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
@@ -182,7 +186,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "connections" && <ModelConnections api={api} user={user} onNotice={setNotice} />}
           {page === "automation" && (agentsTab !== "public" && studio && user.permissions.includes("repo.checkin")
             ? <Suspense fallback={<p className="st-pad">Loading your workspace…</p>}>
-                <StudioApp api={studioApi} embedded={{ onPublic: openPublic, onEditing: setEditing, startNew: agentsTab === "new" }} /></Suspense>
+                <StudioApp api={studioApi} embedded={{ onPublic: openPublic, onEditing: setEditing, startNew: agentsTab === "new", request: repoRequest ?? undefined }} /></Suspense>
             : <Repository api={api} user={user} onNotice={setNotice} studio={studio} onPrivate={openPrivate} />)}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
           </Fragment></PageRetry.Provider>

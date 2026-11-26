@@ -67,7 +67,7 @@ function agentsTab(): "public" | "private" {
  * menu of its own: the console's are used, the editor's name and Save / Run / Check in sit in a bar above the open
  * items, and the console's menu folds while something is open (onEditing). On another computer Studio runs on its own.
  */
-export type Embedded = { onPublic: () => void; onEditing: (open: boolean) => void; startNew?: boolean };
+export type Embedded = { onPublic: () => void; onEditing: (open: boolean) => void; startNew?: boolean; request?: RepoRequest };
 
 export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embedded }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
@@ -385,6 +385,11 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
     setNotice(note);
   };
   const [repoLink, setRepoLink] = useState<RepoRequest | null>(null);   // the console agent page's Edit, Clone or Copy to Private
+  // in the console the Public list is the console's, so the agent repository's part that carries out Edit, Clone and
+  // Copy to Private runs out of sight, from the first such request on (its Copy dialog still shows)
+  const [repoHost, setRepoHost] = useState(false);
+  const [publicCount, setPublicCount] = useState("");   // the Public tab's count line, in the page's header
+  useEffect(() => { if (embedded?.request) { setRepoLink(embedded.request); setRepoHost(true); } }, [embedded?.request]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [copyingClone, setCopyingClone] = useState<string | null>(null);   // Copy to Private from a read-only clone
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
   const loadStates = useCallback(() => { api.crStates().then((r) => setRepoStates(r.states), () => setRepoStates({})); }, [api]);
@@ -703,13 +708,16 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
               ? <Automation view={view} tree={tree} onPublic={embedded?.onPublic} startNew={embedded?.startNew}
-                  publicView={embedded ? undefined : <PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal}
+                  publicCount={publicCount}
+                  publicView={embedded ? undefined : <PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal} onCount={setPublicCount}
                     request={repoLink} onRequestDone={() => setRepoLink(null)} onNotice={setNotice} onError={fail} />} onRepoLink={setRepoLink} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </MainTag>
         {!embedded && <HelpPanel page={active ?? view} links={!active ? <HelpLinks k={"studio:agents-" + agentsTab()} long /> : undefined} />}
+        {embedded && repoHost && <div hidden><PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal}
+          request={repoLink} onRequestDone={() => setRepoLink(null)} onNotice={setNotice} onError={fail} /></div>}
         {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
         {copyingClone && <CopyToPrivate api={api} path={copyingClone} onClose={() => setCopyingClone(null)}
           onCopied={(local, note) => { setCopyingClone(null); openLocal(local, note).catch(fail); }} />}

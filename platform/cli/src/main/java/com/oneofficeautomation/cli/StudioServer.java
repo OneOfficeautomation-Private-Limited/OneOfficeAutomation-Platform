@@ -346,6 +346,7 @@ public final class StudioServer {
             else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"), (String) b.get("code"), Boolean.TRUE.equals(b.get("accepted")))); }
             else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
+            else if (method.equals("GET") && r.equals("folders")) sendJson(ex, 200, cr.folders());
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
             else if (method.equals("POST") && r.equals("checkout")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkout((String) b.get("path"), b.get("version"), json)); }
             else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
