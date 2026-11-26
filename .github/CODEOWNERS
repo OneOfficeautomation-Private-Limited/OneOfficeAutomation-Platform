@@ -23,7 +23,6 @@
 /platform/vendor-tools/** @VirupakshaPrabhu
 /docs/reference/toolkits/** @VirupakshaPrabhu
 /platform/customer-setup/** @VirupakshaPrabhu
-/platform/modules/testing/** @VirupakshaPrabhu
 /platform/toolkits/devops/** @VirupakshaPrabhu
 /platform/toolkits/google/** @VirupakshaPrabhu
 /platform/adapters-jackson/** @VirupakshaPrabhu
@@ -39,7 +38,6 @@
 /platform/toolkits/cloud-data/** @VirupakshaPrabhu
 /platform/toolkits/enterprise/** @VirupakshaPrabhu
 /platform/modules/orchestration/** @VirupakshaPrabhu
-/platform/ui/src/modules/testing/** @VirupakshaPrabhu
 /platform/ui/src/modules/insights/** @VirupakshaPrabhu
 /platform/ui/src/modules/low-code/** @VirupakshaPrabhu
 /platform/ui/src/modules/one-chat/** @VirupakshaPrabhu

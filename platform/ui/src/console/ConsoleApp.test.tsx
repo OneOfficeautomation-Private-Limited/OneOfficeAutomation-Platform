@@ -673,7 +673,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
     // the service it uses: its version against the one this release is tested with
     const service = await screen.findByRole("generic", { name: "Document Automation service" });
-    expect(within(service).getByText("DocFlow 3.2.0")).toBeTruthy();
+    expect(await within(service).findByText("DocFlow 3.2.0")).toBeTruthy();   // it loads after the card
     // the start screen (item 15): each area opens at its own address in the module's pages, and the first steps
     const areas = screen.getByRole("navigation", { name: "Document Automation areas" });
     expect(within(areas).getByRole("link", { name: /^Inbox/ }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");

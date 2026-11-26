@@ -388,44 +388,6 @@ jobs:
             --set masterKey.existingSecret=mk --set replicaCount=2 > /dev/null
           if helm template t oneofficeautomation --set replicaCount=2 > /dev/null 2>&1; then echo "two replicas without a database must be refused"; exit 1; fi
 
-  ci-plugins:
-    name: CI plug-ins (GitHub Action against a stand-in)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Start a stand-in of the test-set API (and wait until it answers)
-        run: |
-          python deploy/ci/github-action/stub_server.py 8799 > "$RUNNER_TEMP/stub.log" 2>&1 &
-          echo "stand-in pid $!"
-          python - <<'PY'
-          import socket, sys, time
-          for i in range(120):
-              try:
-                  socket.create_connection(("127.0.0.1", 8799), 1).close(); print("stand-in answers"); sys.exit(0)
-              except OSError:
-                  time.sleep(0.5)
-          sys.exit("the stand-in did not answer in 60 s")
-          PY
-      - name: The stand-in's log (when a step failed)
-        if: failure()
-        run: |
-          { cat "$RUNNER_TEMP/stub.log"; ps aux | grep -i [s]tub_server; ss -ltnp 2>/dev/null | grep 8799; } | while IFS= read -r l; do echo "::warning title=stand-in::$l"; done
-          true
-      - name: A test set whose cases all pass
-        uses: ./platform/deploy/ci/github-action
-        with: { url: "http://127.0.0.1:8799", token: test-key, test-set: tset_pass, pool: pool_ci, timeout-minutes: "2" }
-      # The action's script is run directly for the failing set: continue-on-error on a step that uses a composite
-      # action no longer keeps the job green on current runners, so the exit code is checked here instead.
-      - name: A test set with a failing case (the action's script must exit non-zero)
-        env: { OOA_URL: "http://127.0.0.1:8799", OOA_TOKEN: test-key, OOA_SET: tset_fail, OOA_RUNNER: "", OOA_POOL: "", OOA_TIMEOUT: "2", GITHUB_OUTPUT: "${{ runner.temp }}/failing-set.out" }
-        run: |
-          if bash deploy/ci/github-action/run-test-set.sh; then echo "::error::The failing test set did not fail the step"; exit 1; fi
-          grep -qx "passed=1" "$GITHUB_OUTPUT" && grep -qx "total=2" "$GITHUB_OUTPUT" || { echo "::error::Unexpected results:"; cat "$GITHUB_OUTPUT"; exit 1; }
-          echo "The failing set failed the step, as it should (1 of 2 cases passed)."
-
   headless:
     name: Headless runner (${{ matrix.os }})
     strategy:
