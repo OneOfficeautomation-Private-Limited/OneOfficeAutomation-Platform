@@ -4,6 +4,7 @@ import { Button, Dialog, Field, HelpButton, Menu, Select, TextInput, type HelpTo
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Platform > Templates (review round, 26 Nov 2026; until then Build > Agent Templates), built as AA's Bot Store
@@ -166,13 +167,13 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   return (
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tpl-title">
       <header className="cc-list-head">
-        <h1 id="cc-tpl-title">Templates</h1>
+        <PageTitle id="cc-tpl-title" name="Templates" />
         <HelpButton topic={HELP} /><PageIntro k="page:templates" />
         {data && <span className="cc-list-count">{all.length} template{all.length === 1 ? "" : "s"}{repo.length ? " · " + installed + " installed" : ""} · {folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage.length > 0 && <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />}
         {create.length > 0 && <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       {data?.problem && <p className="st-alert">{data.problem}</p>}
       <div className="cc-explorer-body">

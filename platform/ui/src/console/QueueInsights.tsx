@@ -3,6 +3,7 @@ import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
 import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Operational Insights > Work queue insights, as UiPath's queue monitoring and Queues SLA, Blue Prism's work queue
@@ -82,9 +83,9 @@ export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: C
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-qi-title">
       <header className="cc-list-head">
-        <h1 id="cc-qi-title">{title ?? "Work queue insights"}</h1>
+        <PageTitle id="cc-qi-title" name={title ?? "Work queue insights"} />
         <HelpButton topic={HELP} /><PageIntro k="page:operations" />
-      </header>
+      </header><PageTabs />
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

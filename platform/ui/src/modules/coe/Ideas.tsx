@@ -5,6 +5,7 @@ import type { Idea, IdeaList } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Build > Automation ideas (gap G65, after UiPath's Automation Hub): anyone signed in suggests a process to automate
@@ -65,12 +66,12 @@ export function Ideas({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ideas-title">
       <header className="cc-list-head">
-        <h1 id="cc-ideas-title">Automation ideas</h1>
+        <PageTitle id="cc-ideas-title" name="Automation ideas" />
         <HelpButton topic={HELP} /><PageIntro k="page:ideas" />
-        {data && <span className="cc-list-count">{data.ideas.length}</span>}
+        {data && <span className="cc-list-count">{data.ideas.length + (data.ideas.length === 1 ? " idea" : " ideas")}</span>}
         <span className="ov-fill" />
-        <Button kind="primary" onClick={() => setEditing("new")}>Suggest an idea</Button>
-      </header>
+        <Button kind="primary" onClick={() => setEditing("new")}>Create idea</Button>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

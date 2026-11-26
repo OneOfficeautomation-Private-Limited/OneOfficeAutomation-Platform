@@ -56,7 +56,7 @@ describe("Event subscriptions page", () => {
     const { api, calls } = server();
     render(<HelpProvider><EventSubscriptions api={api} onNotice={() => {}} /></HelpProvider>);
     await screen.findByText("Runs to ServiceNow");
-    fireEvent.click(screen.getByRole("button", { name: "New subscription" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create subscription" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Queue events" } });
     fireEvent.change(within(dialog).getByLabelText("Receiver address"), { target: { value: "https://ipaas.example.com/in" } });

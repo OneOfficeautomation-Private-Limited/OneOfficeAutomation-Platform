@@ -5,6 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { ROLE_NAMES, roleName } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
@@ -190,12 +191,12 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-users-title">
       <header className="cc-list-head">
-        <h1 id="cc-users-title">Users</h1>
+        <PageTitle id="cc-users-title" name="Users" />
         <HelpButton topic={HELP} /><PageIntro k="page:users" />
         {people && <span className="cc-list-count">{people.length} {people.length === 1 ? "person" : "people"} · {active} active{locked ? " · " + locked + " locked" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setDialog({ kind: "create" })}>Create user</Button>
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

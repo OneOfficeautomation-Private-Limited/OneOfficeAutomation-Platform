@@ -4,6 +4,7 @@ import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type Help
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { roleName } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
@@ -212,12 +213,12 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-roles-title">
       <header className="cc-list-head">
-        <h1 id="cc-roles-title">Roles</h1>
+        <PageTitle id="cc-roles-title" name="Roles" />
         <HelpButton topic={HELP} /><PageIntro k="page:roles" />
         {data && <span className="cc-list-count">{builtins} built-in · {data.roles.length - builtins} custom</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setPage({ role: null })}>Create role</Button>
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

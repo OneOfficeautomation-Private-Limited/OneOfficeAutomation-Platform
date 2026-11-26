@@ -8,6 +8,7 @@ import { FormField } from "../../console/Inbox";
 import { PageIntro } from "../../shell/PageIntro";
 import { WorkflowDiagram, type StepState } from "./WorkflowDiagram";
 import type { Step } from "./flow";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Run > Workflow runs (review round, 26 Nov 2026; until then Build > Workflow), built as AA's Requests and UiPath
@@ -86,12 +87,12 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   return (
     <section className={"st-page cc-home cc-list" + (dialog?.kind === "run" ? " has-run" : "")} aria-labelledby="cc-wf-title">
       <header className="cc-list-head">
-        <h1 id="cc-wf-title">Workflow runs</h1>
+        <PageTitle id="cc-wf-title" name="Workflow runs" />
         <HelpButton topic={HELP} /><PageIntro k="page:workflows" />
         {runs && <span className="cc-list-count">{count("progress")} in progress</span>}
         <span className="ov-fill" />
         {user.permissions.includes("runs.start") && <Button kind="primary" onClick={() => setDialog({ kind: "start" })}>Start a workflow</Button>}
-      </header>
+      </header><PageTabs />
       <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Workflow runs">
         {(["progress", "finished"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={!quick && tab === t} onClick={() => { setTab(t); setQuick(""); }}>
           {t === "progress" ? "In progress" : "Finished"}{runs && <span className="ov-cnt">{count(t)}</span>}</button>)}

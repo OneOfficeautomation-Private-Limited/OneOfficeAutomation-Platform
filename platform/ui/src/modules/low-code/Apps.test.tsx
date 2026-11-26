@@ -43,7 +43,7 @@ describe("Apps", () => {
   it("opens an app, waits for its required field, runs its button and shows the agent's outputs", async () => {
     const { api, calls } = server();
     render(<HelpProvider><Apps api={api} user={person([])} onNotice={() => {}} /></HelpProvider>);
-    expect(screen.queryByRole("button", { name: "New app" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create app" })).toBeNull();
     fireEvent.click(await screen.findByText("Refunds"));
     expect(await screen.findByText("Ask for a refund")).toBeTruthy();
     expect(await screen.findByText("Globex")).toBeTruthy();
@@ -59,7 +59,7 @@ describe("Apps", () => {
   it("lets app makers make an app from components", async () => {
     const { api, calls } = server();
     render(<HelpProvider><Apps api={api} user={person(["apps.manage"])} onNotice={() => {}} /></HelpProvider>);
-    fireEvent.click(await screen.findByRole("button", { name: "New app" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create app" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Requests" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Text" }));

@@ -3,6 +3,7 @@ import type { CrApi, CrPerson, CrUser, LicenseInfo, LicenseUsage, Runner } from 
 import { Button, HelpButton, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Licenses, built as AA's Licenses page (checked against AA's docs, UiPath's licence allocation and
@@ -109,13 +110,13 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-lic-title">
       <header className="cc-list-head">
-        <h1 id="cc-lic-title">Licenses</h1>
+        <PageTitle id="cc-lic-title" name="Licenses" />
         <HelpButton topic={HELP} /><PageIntro k="page:licenses" />
         {lic && <span className={"cc-pill is-" + stateCls}><span className="cc-pill-dot" />{stateText}</span>}
         {lic?.expires && <span className="cc-list-count">Valid until {lic.expires}{lic.days_left !== undefined && lic.days_left >= 0 ? " · " + lic.days_left + " days left" : ""}</span>}
         <span className="ov-fill" />
         <RefreshButton onClick={load} />
-      </header>
+      </header><PageTabs />
       <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Licenses">
         {([["overview", "Overview"], ["allocation", "Allocation"], ["usage", "Usage"]] as const).map(([t, l]) =>
           <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{l}</button>)}

@@ -1051,3 +1051,20 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-setup-cmd { display: block; padding: 6px 10px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-selected); font: 12.5px Consolas, "Courier New", monospace;
   overflow-x: auto; white-space: pre; max-width: 100%; }
 .cc-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+/* Fix list 27 Nov 2026, items 3d and 3e (board B1): the menu entry's pages are the one tab row, under the header, in the
+   tabs' look; inside such a page its own views are a switch at the start of its tools, not a second tab row */
+.ov-tab[aria-current="page"] { border-bottom-color: var(--ui-accent); font-weight: 600; }
+.cc-group-tabs.ov-tabs { flex: none; }
+.cc-main.cc-in-group .st-page .ov-tabs:not(.cc-group-tabs):not(.cc-agent-tabs) { display: inline-flex; align-self: flex-start; width: fit-content; max-width: calc(100% - 32px); height: auto;
+  margin: 10px 16px 0; padding: 0; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); overflow-x: auto; background: var(--ui-bg); }
+.cc-main.cc-in-group .st-page .ov-tabs:not(.cc-group-tabs):not(.cc-agent-tabs) .ov-tab { padding: 5px 12px; border: 0; border-left: 1px solid var(--ui-field); border-radius: 0; }
+.cc-main.cc-in-group .st-page .ov-tabs:not(.cc-group-tabs):not(.cc-agent-tabs) .ov-tab:first-child { border-left: 0; }
+.cc-main.cc-in-group .st-page .ov-tabs:not(.cc-group-tabs):not(.cc-agent-tabs) .ov-tab[aria-selected="true"],
+.cc-main.cc-in-group .st-page .ov-tabs:not(.cc-group-tabs):not(.cc-agent-tabs) .ov-tab[aria-current="page"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
+/* the same switch for a page's own views drawn with the shared Tabs (Data store) */
+.cc-main.cc-in-group .st-page > .ui-tabs > .ui-tab-list, .cc-main.cc-in-group .st-page > .ui-tabs > .ui-tab-row > .ui-tab-list { display: inline-flex; width: fit-content; max-width: calc(100% - 32px);
+  margin: 10px 16px 0; padding: 0; gap: 0; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); overflow-x: auto; background: var(--ui-bg); }
+.cc-main.cc-in-group .st-page > .ui-tabs .ui-tab-list > .ui-tab { padding: 5px 12px; border: 0; border-left: 1px solid var(--ui-field); border-radius: 0; margin: 0; }
+.cc-main.cc-in-group .st-page > .ui-tabs .ui-tab-list > .ui-tab:first-child { border-left: 0; }
+.cc-main.cc-in-group .st-page > .ui-tabs .ui-tab-list > .ui-tab[data-state="active"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; box-shadow: none; }

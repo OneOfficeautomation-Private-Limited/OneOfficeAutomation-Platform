@@ -5,6 +5,7 @@ import type { CustomDashboard, DashMail, DashWidget, WidgetData } from "./consol
 import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Dashboards, rebuilt from today's console with AA's Bot Insight custom dashboards and UiPath
@@ -114,11 +115,11 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-db-title">
       <header className="cc-list-head">
-        <h1 id="cc-db-title">{title ?? "Dashboards"}</h1>
+        <PageTitle id="cc-db-title" name={title ?? "Dashboards"} />
         <HelpButton topic={HELP} /><PageIntro k="page:business" />
         <span className="ov-fill" />
         {design && <Button kind="primary" onClick={() => setEditing({ d: null })}>New dashboard</Button>}
-      </header>
+      </header><PageTabs />
       {tabs}
       {error && <p className="st-alert" role="alert">{error}</p>}
       {list && !list.length && <p className="st-muted cc-pad">No dashboards yet. Make one, or start from a ready-made one with New dashboard.</p>}

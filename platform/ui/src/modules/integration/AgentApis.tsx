@@ -5,6 +5,7 @@ import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, r
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Run > Start agents > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
@@ -81,12 +82,12 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   return (
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-apis-title">
       <header className="cc-list-head">
-        <h1 id="cc-apis-title">Agent APIs</h1>
+        <PageTitle id="cc-apis-title" name="Agent APIs" />
         <HelpButton topic={HELP} /><PageIntro k="page:apitasks" />
         {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">

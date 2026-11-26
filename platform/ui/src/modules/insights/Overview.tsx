@@ -5,6 +5,7 @@ import type { AlertRule, Operations } from "./consoleApi";
 import { HelpButton, type HelpTopic } from "../../components";
 import { rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Overview: how agents, runners, queues and AI connections are doing now, on one screen, as
@@ -32,7 +33,7 @@ const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, w
     { name: "Latest runs", text: "The last few runs, as in Agent Activity. Click a run to open it." },
     { name: "Runners, Upcoming runs, Work queues, AI use", text: "A card each with the main figure; View all opens its own full page." },
     { name: "Set up next", text: "Things not set up yet, such as work queues, model connections, alert rules or minutes saved, with a link to do it." },
-    { name: "New alert rule", text: "Opens Alerts with a new rule ready to fill in. It needs the Manage alert rules permission." },
+    { name: "Create alert rule", text: "Opens Alerts with a new rule ready to fill in. It needs the Manage alert rules permission." },
   ] };
 const PERIODS: [string, string, string][] = [["1", "24 hours", "24h"], ["7", "7 days", "7d"]];
 export const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
@@ -156,7 +157,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
   return (
     <section className="st-page cc-home ov" aria-labelledby="cc-ov-title">
       <header className="ov-head">
-        <h1 id="cc-ov-title">Overview</h1>
+        <PageTitle id="cc-ov-title" name="Overview" />
         <HelpButton topic={HELP} /><PageIntro k="page:insights" />
         <span className="ov-fill" />
         {at && <span className="ov-meta" role="status">Updated {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
@@ -164,8 +165,8 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
           <button key={v} type="button" aria-pressed={days === v} onClick={() => setDays(v)}>{l}</button>)}</span>
         <button type="button" className="ov-icon-btn" aria-label="Refresh" title="Refresh" onClick={load}>
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
-        {can("alerts.manage") && <a className="ui-btn ui-btn-primary" href="#/alerts?new=1">New alert rule</a>}
-      </header>
+        {can("alerts.manage") && <a className="ui-btn ui-btn-primary" href="#/alerts?new=1">Create alert rule</a>}
+      </header><PageTabs />
       {error && <p className="st-alert" role="alert">{error}</p>}
 
       {figs.length > 0 && <div className="ov-panel ov-figs" role="group" aria-label="Figures" style={{ gridTemplateColumns: `repeat(${figs.length}, minmax(0, 1fr))` }}>

@@ -4,6 +4,7 @@ import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type He
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { varRef } from "../studio/variables";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
@@ -75,12 +76,12 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-glob-title">
       <header className="cc-list-head">
-        <h1 id="cc-glob-title">Shared Global values</h1>
+        <PageTitle id="cc-glob-title" name="Shared Global values" />
         <HelpButton topic={HELP} /><PageIntro k="page:globals" />
         {list && <span className="cc-list-count">{list.length} shared value{list.length === 1 ? "" : "s"} · {list.filter((g) => g.changeable).length} people may change</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "edit", g: null })}>Create value</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">

@@ -15,6 +15,7 @@ import { logFields } from "../studio/flowEdit";
 import { SuspendedRuns } from "./SuspendedRuns";
 import { PageIntro } from "../shell/PageIntro";
 import { errorLink } from "../components/errorLink";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Run > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
@@ -299,13 +300,13 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   return (
     <section className={"st-page cc-home cc-list" + (details ? " has-run" : "")} aria-labelledby="cc-act-title">
       <header className="cc-list-head">
-        <h1 id="cc-act-title">Agent Activity</h1>
+        <PageTitle id="cc-act-title" name="Agent Activity" />
         <HelpButton topic={HELP} /><PageIntro k="page:activity" />
         {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {f.period === "dates" ? "between the chosen dates" : "in the " + periodWords}
           {byOutcome.map(([n, l]) => " · " + n + " " + l).join("")}</span>}
         {summary && tab === "progress" && <span className="cc-list-count">{summary.running} running · {summary.queued} waiting for a runner</span>}
         <span className="ov-fill" />
-      </header>
+      </header><PageTabs />
       {summary && <div className="cc-sums" role="group" aria-label="Summary">
         <button type="button" className="cc-sum" onClick={() => go("progress", { status: "running" })}><strong>{summary.running}</strong><span>Running now</span></button>
         <button type="button" className="cc-sum" onClick={() => go("progress", { status: "queued" })}><strong>{summary.queued}</strong><span>Waiting for a runner</span></button>

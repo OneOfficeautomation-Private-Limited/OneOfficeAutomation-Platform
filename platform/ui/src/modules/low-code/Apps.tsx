@@ -5,6 +5,7 @@ import type { AppComponent, AppDefinition, AppEmbed, AppInfo } from "./consoleAp
 import { AgentInputs, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError, vaultRefsFrom } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Build > Apps (gap G67, after UiPath Apps): low-code apps that business people use in the console. An app is pages of
@@ -45,12 +46,12 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-apps-title">
       <header className="cc-list-head">
-        <h1 id="cc-apps-title">Apps</h1>
+        <PageTitle id="cc-apps-title" name="Apps" />
         <HelpButton topic={HELP} /><PageIntro k="page:apps" />
-        {list && <span className="cc-list-count">{list.length}</span>}
+        {list && <span className="cc-list-count">{list.length + (list.length === 1 ? " app" : " apps")}</span>}
         <span className="ov-fill" />
-        {maker && <Button kind="primary" onClick={() => setEditing("new")}>New app</Button>}
-      </header>
+        {maker && <Button kind="primary" onClick={() => setEditing("new")}>Create app</Button>}
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools"><div className="cc-list-filters" /><div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div></div>
       <div className="cc-list-panel">

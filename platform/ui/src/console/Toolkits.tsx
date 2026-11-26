@@ -3,6 +3,7 @@ import type { CrApi, CrUser, Toolkit } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Agent ToolKits, built as AA's Packages (checked against AA's docs, UiPath's libraries and feeds, and Blue
@@ -29,7 +30,7 @@ const HELP: HelpTopic = { title: "Agent ToolKits",
     { name: "Open", text: "Opens the toolkit's own page with the agents that use it and its details. Clicking the row does the same." },
     { name: "Switch off… and Switch on", text: "In the row's ⋯ menu. While a toolkit is off, agents that use it cannot be checked in or run; you are asked "
       + "first when agents use it. The core toolkit is always on. Needs permission to manage toolkits." },
-    { name: "Upload toolkit", text: "Installs a toolkit jar built with the toolkit SDK and signed by a trusted publisher. Older versions stay installed for "
+    { name: "Create toolkit", text: "Installs a toolkit jar built with the toolkit SDK and signed by a trusted publisher. Older versions stay installed for "
       + "agents that need them." },
     { name: "Trusted publishers", text: "The publishers whose signatures are accepted on uploaded toolkits, with their public keys. Stop trusting one to "
       + "refuse its new uploads." },
@@ -81,14 +82,14 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-tk-title">
       <header className="cc-list-head">
-        <h1 id="cc-tk-title">Agent ToolKits</h1>
+        <PageTitle id="cc-tk-title" name="Agent ToolKits" />
         <HelpButton topic={HELP} /><PageIntro k="page:toolkits" />
         {list && <span className="cc-list-count">{list.length} toolkit{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on · {list.filter((t) => t.custom).length} your own</span>}
         <span className="ov-fill" />
         {manage && <>          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>
           <Button kind="secondary" onClick={() => setDialog({ kind: "versions" })}>Your toolkit versions</Button>
-          <Button kind="primary" onClick={() => setDialog({ kind: "upload" })}>Upload toolkit</Button></>}
-      </header>
+          <Button kind="primary" onClick={() => setDialog({ kind: "upload" })}>Create toolkit</Button></>}
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">

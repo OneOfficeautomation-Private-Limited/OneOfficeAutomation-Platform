@@ -5,6 +5,7 @@ import type { KnowledgeBase } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Build > Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter. An indexing agent fills and refreshes a
@@ -35,12 +36,12 @@ export function KnowledgeBases({ api, user, onNotice }: { api: CrApi; user: CrUs
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-kb-title">
       <header className="cc-list-head">
-        <h1 id="cc-kb-title">Knowledge bases</h1>
+        <PageTitle id="cc-kb-title" name="Knowledge bases" />
         <HelpButton topic={HELP} /><PageIntro k="page:knowledge" />
-        {list && <span className="cc-list-count">{list.length}</span>}
+        {list && <span className="cc-list-count">{list.length + (list.length === 1 ? " knowledge base" : " knowledge bases")}</span>}
         <span className="ov-fill" />
-        {manage && <Button kind="primary" onClick={() => setEditing("new")}>New knowledge base</Button>}
-      </header>
+        {manage && <Button kind="primary" onClick={() => setEditing("new")}>Create knowledge base</Button>}
+      </header><PageTabs />
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-list-tools"><div className="cc-list-filters" /><div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div></div>
       <div className="cc-list-panel">

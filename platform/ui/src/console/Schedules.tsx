@@ -4,6 +4,7 @@ import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButt
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Run > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
@@ -153,13 +154,13 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sched-title">
       <header className="cc-list-head">
-        <h1 id="cc-sched-title">Schedules</h1>
+        <PageTitle id="cc-sched-title" name="Schedules" />
         <HelpButton topic={HELP} /><PageIntro k="page:schedules" />
         {list && <span className="cc-list-count">{list.length} schedule{list.length === 1 ? "" : "s"} · {enabled} enabled</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "calendars" })}>Holiday calendars</Button>
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create schedule</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

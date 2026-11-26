@@ -59,7 +59,7 @@ describe("Automation ideas page", () => {
     fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "votes" } });
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows[0].textContent).toContain("Post supplier invoices");
-    fireEvent.click(screen.getByRole("button", { name: "Suggest an idea" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create idea" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByLabelText("Status")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("What should be automated"), { target: { value: "Close tickets" } });

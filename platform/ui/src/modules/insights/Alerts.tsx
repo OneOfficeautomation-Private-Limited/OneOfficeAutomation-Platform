@@ -5,6 +5,7 @@ import type { AlertRule } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
@@ -46,7 +47,7 @@ const HELP: HelpTopic = { title: "Alerts", about: "Rules that watch runs, runner
     { name: "Severity, Rule", text: "Show only critical or warning alerts, or only the alerts of one rule. Clear filters goes back to the open alerts." },
     { name: "Acknowledge", text: "Select open alerts and acknowledge them to say someone is on it; your name is shown with them." },
     { name: "Sent to", text: "Whose task inbox the alert went to, which e-mail addresses got it, and whether the webhook was called." },
-    { name: "New alert rule", text: "Choose what to watch for, in which agent, runner, work queue or model connection (or any), "
+    { name: "Create alert rule", text: "Choose what to watch for, in which agent, runner, work queue or model connection (or any), "
       + "the limit that counts and the severity. It needs the Manage alert rules permission." },
     { name: "Tell", text: "In a rule: people or roles get it in their task inbox (role:NAME or user:NAME), e-mail addresses by mail, "
       + "and a webhook address as JSON, for example for Teams or Slack." },
@@ -124,11 +125,11 @@ export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; u
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
       <header className="cc-list-head">
-        <h1 id="cc-al-title">{tab === "rules" ? "Alert rules" : "Alerts"}</h1>
+        <PageTitle id="cc-al-title" name={tab === "rules" ? "Alert rules" : "Alerts"} />
         <HelpButton topic={HELP} /><PageIntro k={tab === "rules" ? "page:alert-rules" : "page:alerts"} />
         <span className="ov-fill" />
-        {manage && <Button kind="primary" onClick={() => setEditing("new")}>New alert rule</Button>}
-      </header>
+        {manage && <Button kind="primary" onClick={() => setEditing("new")}>Create alert rule</Button>}
+      </header><PageTabs />
       <p className="cc-list-count cc-al-count">{tab === "alerts"
         ? <>{open != null && <>{open} open · </>}<a href="#/alert-rules">{rules ? rules.length + " rule" + (rules.length === 1 ? "" : "s") : "Alert rules"} ›</a></>
         : <>{rules && <>{rules.length} rule{rules.length === 1 ? "" : "s"} · </>}<a href="#/alerts">{open != null ? open + " open alert" + (open === 1 ? "" : "s") : "Alerts"} ›</a></>}</p>

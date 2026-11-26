@@ -528,7 +528,7 @@ describe("rebuilt One CommandCenter console", () => {
     const here = await screen.findByRole("navigation", { name: "You are here" });
     expect(here.textContent).toBe("Build›Agents");
     await go("Status");
-    expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview", level: 1 })).toBeTruthy();   // the menu entry's name (27 Nov 2026, board B1)
     expect(screen.getByText("Welcome, Asha Admin. Here is what your agents have been doing.")).toBeTruthy();
     const figures = await screen.findByRole("group", { name: "Figures" });
     expect(within(figures).getByRole("list", { name: "Runs · last 24 hours" })).toBeTruthy();   // round 2 item 1: two labelled strips
@@ -559,8 +559,8 @@ describe("rebuilt One CommandCenter console", () => {
     expect(all).toEqual(["Agents", "Document Automation", "Apps", "AI building blocks", "Ideas",
       "Install and set up",
       "Agent Activity", "Workflow runs", "Start agents", "Work queues", "Task inbox", "Runners", "One Chat",
-      "People", "Security", "Connections", "Shared data", "Toolkits", "Platform",
-      "Overview", "Operations", "Business", "Alerts", "AI usage"]);
+      "People", "Security", "Connections", "Shared data", "Agent ToolKits", "Platform",
+      "Overview", "Operations", "Business", "Alerts", "AI governance"]);
     fireEvent.click(within(menu).getByRole("button", { name: "Monitor" }));   // the open one folds from its heading too
     expect(entries()).toEqual([]);
     expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
@@ -650,7 +650,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).queryByRole("button", { name: "People" })).toBeNull();   // Users, Roles, Teams: not for a viewer
     fireEvent.click(within(menu).getByRole("button", { name: "Monitor" }));   // Status (Home's figures) is open to everyone, as Home was
     expect(within(menu).getByRole("button", { name: "Overview" })).toBeTruthy();
-    expect(within(menu).queryByRole("button", { name: "AI usage" })).toBeNull();
+    expect(within(menu).queryByRole("button", { name: "AI governance" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Build" }));
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // now in Build (26 Nov 2026)
     expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
@@ -816,7 +816,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(upcoming).getByText("Next: Nightly invoices")).toBeTruthy();
     expect(within(more).getByRole("link", { name: /^Runners/ }).getAttribute("href")).toBe("#/runner-status");
     expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
-    expect(screen.getByRole("link", { name: "New alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
+    expect(screen.getByRole("link", { name: "Create alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
     // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it
     fireEvent.click(screen.getByRole("button", { name: "7 days" }));
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7"))).toBe(true));
@@ -835,7 +835,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Alerts as UiPath's monitoring alerts: open alerts acknowledged, rules turned off, tested, made for a work queue and deleted", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "alerts.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Alerts");
+    await go("Open alerts");
     const list = await screen.findByRole("table", { name: "Alerts list" });
     const alert = await within(list).findByRole("link", { name: "Invoice intake failed: EXCEL.NOT_FOUND No such file" });
     expect(alert.getAttribute("href")).toBe("#/activity?run=r3");
@@ -854,7 +854,7 @@ describe("rebuilt One CommandCenter console", () => {
 
     // item 12: the rules are their own page
     fireEvent.click(screen.getByRole("link", { name: /rules? ›$/ }));
-    expect(await screen.findByRole("heading", { name: "Alert rules", level: 1 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Alerts", level: 1 })).toBeTruthy();   // the entry's name; Alert rules is its tab
     const rules = await screen.findByRole("table", { name: "Alert rules" });
     expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
     expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
@@ -867,7 +867,7 @@ describe("rebuilt One CommandCenter console", () => {
     await menu("Any failure", "Turn off");
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "alert-rules/ar1", body: { enabled: false } }));
 
-    fireEvent.click(screen.getByRole("button", { name: "New alert rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create alert rule" }));
     const d = await screen.findByRole("dialog", { name: "New alert rule" });
     fireEvent.change(within(d).getByLabelText("Name"), { target: { value: "Queue late" } });
     fireEvent.change(within(d).getByLabelText("Watch for"), { target: { value: "queue_overdue" } });
@@ -894,7 +894,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Operations as AA's operational dashboards: figures against the period before, when runs start, failure reasons, CSVs and an agent's statistics", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Operations");
+    await go("Runs");
     const figs = await screen.findByRole("group", { name: "Figures" });
     expect(await within(figs).findByText("Runs · +150% on before")).toBeTruthy();
     // AA's order: all runs, succeeded, in progress, failed, stopped
@@ -960,7 +960,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Runner capacity as Blue Prism's utilisation views: time in use, waits, each runner with its pools, when runners are busy, advice when short", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Operations");
+    await go("Runs");
     fireEvent.click(within(await screen.findByRole("tablist", { name: "Operations" })).getByRole("tab", { name: "Runners" }));
     expect(location.hash).toBe("#/operations?tab=runners");
     const figs = (await screen.findByText("Online now · of 2 switched on")).closest("[role=group]") as HTMLElement;   // AA's Devices dashboard: online, offline, scheduled
@@ -993,7 +993,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Work queue insights as UiPath's queue monitoring: waiting, overdue and at risk, speed, runners needed against the pool, and advice", async () => {
     const { api } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
-    await go("Operations");
+    await go("Runs");
     fireEvent.click(within(await screen.findByRole("tablist", { name: "Operations" })).getByRole("tab", { name: "Work queues" }));
     const figs = (await screen.findByText("Finished · 60% completed · last 7 days")).closest("[role=group]") as HTMLElement;
     expect(within(figs).getByText("14")).toBeTruthy();
@@ -1089,7 +1089,7 @@ describe("rebuilt One CommandCenter console", () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
     await go("Business");
-    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Dashboards" }));
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Business dashboards" }));
     expect(await screen.findByRole("article", { name: "Amount paid" })).toBeTruthy();
     expect(location.hash).toBe("#/business?tab=dashboards&dashboard=db1");   // a link to this dashboard
     fireEvent.keyDown(screen.getByRole("button", { name: "More for Finance" }), { key: "Enter" });
@@ -1171,7 +1171,7 @@ describe("rebuilt One CommandCenter console", () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
     await go("Business");
-    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Dashboards" }));
+    fireEvent.click(within(await screen.findByRole("tablist", { name: "Business" })).getByRole("tab", { name: "Business dashboards" }));
     expect(await screen.findByText("Yours · shared with role:viewer")).toBeTruthy();
     expect(within(await screen.findByRole("article", { name: "Amount paid" })).getByText("1,200")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Runs per day: from 3 (2026-10-29) to 5 (2026-10-30)" })).toBeTruthy();
@@ -1329,13 +1329,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(document.querySelector(".cc-top .st-brand") as HTMLElement).getByAltText("ONEOFFICEAUTOMATION")).toBeTruthy();
     expect(document.querySelector(".cc-top .st-company")!.textContent).toBe("OneOfficeAutomation");
     await go("Users");
-    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Users"));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›People›Users"));   // section › menu entry › page (27 Nov 2026)
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });
     // 26 Nov 2026: Users, Roles and Teams are one entry, People, with the three pages as tabs above the page
     expect(within(menu).getByRole("button", { name: "People" }).getAttribute("aria-current")).toBe("page");
     const people = screen.getByRole("navigation", { name: "People" });
     fireEvent.click(within(people).getByRole("button", { name: "Roles" }));
-    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Roles"));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›People›Roles"));
     // item 2: the section of the page on screen folds from its heading like the others, and opens again when a page in it is chosen
     const adminHead = within(menu).getByRole("button", { name: "Manage" });
     fireEvent.click(adminHead);
@@ -1381,7 +1381,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(agent.getAttribute("href")).toBe("#/automation?q=Invoice%20intake");
     fireEvent.change(search, { target: { value: "audit" } });
     fireEvent.click(within(screen.getByRole("group", { name: "Search results" })).getByRole("button", { name: /^Audit Trail/ }));
-    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Audit Trail"));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Security›Audit Trail"));
     location.hash = "";
   });
 
@@ -2346,7 +2346,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("keeps mail accounts once: health and details, Test now, the vendor from the address, the password from the vault, rules and Not matched (MA-3)", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Connections");
+    await go("App connections");
     const list = await screen.findByRole("table", { name: "Mail accounts" });
     expect(within(list).getByText("Working")).toBeTruthy();
     const detail = screen.getByRole("complementary", { name: "Mail account AP invoices mailbox" });
@@ -2394,7 +2394,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows Connections with settings and vault references, and creates one by its toolkit's inputs", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Connections");
+    await go("App connections");
     fireEvent.click(await screen.findByRole("tab", { name: "Toolkit connections" }));   // MA-3: mail accounts come first
     const list = await screen.findByRole("table", { name: "Connections list" });
     expect(await within(list).findByText("password → snow/api/password")).toBeTruthy();

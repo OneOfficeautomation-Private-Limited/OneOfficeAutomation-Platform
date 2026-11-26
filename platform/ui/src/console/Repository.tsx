@@ -10,6 +10,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { ShareTemplate } from "./ShareTemplate";
 import { HelpLinks } from "../shell/HelpLinks";
 import { varRef } from "../studio/variables";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
@@ -205,13 +206,13 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   return (
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-repo-title">
       <header className="cc-list-head">
-        <h1 id="cc-repo-title">Agents</h1>
+        <PageTitle id="cc-repo-title" name="Agents" />
         <HelpButton topic={HELP} /><PageIntro k="page:automation" />
         {agents && <span className="cc-list-count">{total("")} agent{total("") === 1 ? "" : "s"} · {folders.length} folder{folders.length === 1 ? "" : "s"}{toDecide ? " · " + toDecide + " to approve" : ""}</span>}
         <span className="ov-fill" />
         <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
         {create.length > 0 && <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />}
-      </header>
+      </header><PageTabs />
       {/* AA's one Automation page: Public (agents checked in, to run) and Private (a developer's own workspace,
           for people who build agents); everyone sees the same page, only what they may open differs */}
       <div className="ov-tabs cc-ins-tabs" role="tablist" aria-label="Where">

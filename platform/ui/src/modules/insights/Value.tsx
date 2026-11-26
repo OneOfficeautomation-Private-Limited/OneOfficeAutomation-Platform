@@ -5,6 +5,7 @@ import type { ValueReport, ValueRow } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Value, as AA's Center of Excellence dashboard and UiPath Insights' Business ROI (checked
@@ -101,9 +102,9 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
       <header className="cc-list-head">
-        <h1 id="cc-val-title">{title ?? "Value"}</h1>
+        <PageTitle id="cc-val-title" name={title ?? "Value"} />
         <HelpButton topic={HELP} /><PageIntro k="page:business" />
-      </header>
+      </header><PageTabs />
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

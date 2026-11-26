@@ -6,6 +6,7 @@ import { ROLE_NAMES } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 import { modulePart } from "../modules/pages";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /** Document Automation's "Folders processes may use" (its module part), under that section when the module is installed. */
 const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: string) => void }>("allowed-folders");
@@ -428,12 +429,12 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-settings-title">
       <header className="cc-list-head">
-        <h1 id="cc-settings-title">Settings</h1>
+        <PageTitle id="cc-settings-title" name="Settings" />
         <HelpButton topic={PAGE_HELP} /><PageIntro k="page:settings" />
         <span className="cc-list-count">For everyone · each section saves on its own · every change goes to the Audit Trail</span>
         <span className="ov-fill" />
         <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       {!saved && !error && <p className="cc-none" role="status">Loading…</p>}
       {saved && (text ? <div className="cc-set cc-set-full">

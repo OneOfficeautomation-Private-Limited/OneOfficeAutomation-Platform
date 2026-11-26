@@ -12,6 +12,7 @@ import { Operations } from "./Operations";
 import { QueueInsights } from "../../console/QueueInsights";
 import { Value } from "./Value";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Operational Insights, item 7 step 1 (1 Nov 2026, design A on the canvas). AA splits Bot Insight into Operations and
@@ -23,7 +24,7 @@ import { PageIntro } from "../../shell/PageIntro";
 type Tab = { id: string; label: string; perm: string };
 const OPERATIONS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "trends", label: "Trends", perm: "analytics.view" }, { id: "runners", label: "Runners", perm: "analytics.view" },
   { id: "queues", label: "Work queues", perm: "queues.view" }, { id: "audit", label: "Audit", perm: "audit.view" }];
-const BUSINESS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }];
+const BUSINESS: Tab[] = [{ id: "agents", label: "Agents", perm: "analytics.view" }, { id: "value", label: "Value", perm: "analytics.view" }, { id: "dashboards", label: "Business dashboards", perm: "analytics.view" }];
 const tabInAddress = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("tab");
 
 /** The tab in the address, among those the person may see (the first when none or another is named). */
@@ -47,7 +48,7 @@ export function OperationsPage({ api, user }: { api: CrApi; user: CrUser }) {
   const tabs = OPERATIONS.filter((t) => can(t.perm));
   const [tab, go] = useTab("operations", tabs);
   const strip = <TabStrip label="Operations" tabs={tabs} current={tab} onTab={go}
-    extra={can("audit.view") ? <a className="ov-tab cc-ins-out" href="#/governance" title="Opens AI governance: AI calls, tokens and cost">AI usage ↗</a> : null} />;
+    extra={can("audit.view") ? <a className="ov-tab cc-ins-out" href="#/governance" title="Opens AI governance: AI calls, tokens and cost">AI governance ↗</a> : null} />;
   if (tab === "runners") return <Capacity api={api} user={user} title="Operations" tabs={strip} />;
   if (tab === "queues") return <QueueInsights api={api} user={user} title="Operations" tabs={strip} />;
   if (tab === "audit") return <AuditFiguresTab api={api} title="Operations" tabs={strip} />;
@@ -116,11 +117,11 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ins-title">
       <header className="cc-list-head">
-        <h1 id="cc-ins-title">{title}</h1>
+        <PageTitle id="cc-ins-title" name={title} />
         <HelpButton topic={HELP_AUDIT} /><PageIntro k="page:operations" />
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => { location.hash = trail(); }}>Open in Audit Trail</Button>
-      </header>
+      </header><PageTabs />
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

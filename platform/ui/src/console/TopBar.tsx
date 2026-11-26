@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, Environment } from "../api/cr";
 import { Icon, is, keyOf, Menu } from "../components";
 import { CompanyName, TopBrand } from "../shell/TopBrand";
-import { canSee, MENU_SECTIONS } from "../shell/menu";
+import { canSee, groupOf, MENU_SECTIONS } from "../shell/menu";
 import { helpLinks } from "../shell/helpCatalogue";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
 import { ApiKeysDialog } from "./ApiKeys";
@@ -21,9 +21,16 @@ export function Breadcrumb({ user, page, onPage }: { user: CrUser; page: string;
   const sec = MENU_SECTIONS.find((s) => s.pages.some((p) => p.id === page));
   const label = sec?.pages.find((p) => p.id === page)?.label;
   if (!sec || !label) return null;
+  // fix list 27 Nov, item 3d (board B1): section › menu entry › page, as the menu reads; an entry of one page is named once
+  const group = groupOf(page);
+  const shown = group ? sec.pages.filter((p) => group.pages.includes(p.id) && canSee(p, { permissions: user.permissions, leadsTeam: user.leads_team })) : [];
+  const home = group ? MENU_SECTIONS.find((s) => s.id === group.section) ?? sec : sec;
   return <nav aria-label="You are here" className="cc-here">
-    <button type="button" onClick={() => onPage(sec.pages.find((p) => canSee(p, user))?.id ?? "home")}>{sectionName(sec.label)}</button>
-    <span aria-hidden="true">›</span><span aria-current="page">{label}</span>
+    <button type="button" onClick={() => onPage(home.pages.find((p) => canSee(p, user))?.id ?? "home")}>{sectionName(home.label)}</button>
+    <span aria-hidden="true">›</span>
+    {group && shown.length > 1 ? <><button type="button" onClick={() => onPage(shown[0].id)}>{group.label}</button>
+      <span aria-hidden="true">›</span><span aria-current="page">{label}</span></>
+      : <span aria-current="page">{group?.label ?? label}</span>}
   </nav>;
 }
 

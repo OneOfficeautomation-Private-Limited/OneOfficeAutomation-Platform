@@ -4,6 +4,7 @@ import { HelpButton, TextInput, type HelpTopic, PageError } from "../../componen
 import { RefreshButton } from "../../console/ListParts";
 import { time, trouble } from "./Overview";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Runner status (item 11, docs/research/input-help-check.md): every runner on its own page, not
@@ -35,12 +36,11 @@ export function RunnerStatus({ api }: { api: CrApi }) {
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-rs-title">
       <header className="cc-list-head">
-        <h1 id="cc-rs-title">Runner status</h1>
+        <PageTitle id="cc-rs-title" name="Runner status" />
         <HelpButton topic={HELP} /><PageIntro k="page:runner-status" />
         {runners && <span className="cc-list-count">{online} of {all.filter((d) => d.status !== "disabled").length} online · {attention} need{attention === 1 ? "s" : ""} attention</span>}
         <span className="ov-fill" />
-        <a className="ui-btn ui-btn-secondary" href="#/devices">Runner Machines</a>
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

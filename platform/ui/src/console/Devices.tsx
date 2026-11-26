@@ -4,6 +4,7 @@ import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePers
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { modulePart } from "../modules/pages";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /** Auto-scaling a pool, when the runner-management module is installed. */
 /** Who registered a runner; "self:<name>" is a person who connected their own computer (My devices, round 3 item 9 B3). */
@@ -71,7 +72,7 @@ const HELP: HelpTopic = { title: "Runner Machines", about: "Machines running the
   + "A runner is online when it checked in during the last minute; the list refreshes every 15 seconds. "
   + "Click a runner to see its details, health, logs and screen.",
   items: [
-    { name: "Register a runner", text: "Creates a one-time key, valid for 24 hours, and shows the command to run on the new runner machine. "
+    { name: "Create runner", text: "Creates a one-time key, valid for 24 hours, and shows the command to run on the new runner machine. "
       + "Tick Temporary runner for VDI or pooled desktops; they are removed by themselves after a time without contact. "
       + "It needs the Manage runners permission." },
     { name: "Search in", text: "Choose the field the search box looks in, such as the runner name, nickname, platform or default users." },
@@ -168,13 +169,13 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-dev-title">
       <header className="cc-list-head">
-        <h1 id="cc-dev-title">Runner Machines</h1>
+        <PageTitle id="cc-dev-title" name="Runner Machines" />
         <HelpButton topic={HELP} /><PageIntro k="page:devices" />
         {runners && <span className="cc-list-count">{runners.length} runner{runners.length === 1 ? "" : "s"} · {online} of {runners.length} online · {pools.length} pool{pools.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
-        {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Register a runner</Button>}
+        {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Create runner</Button>}
         {tab === "pools" && can("pools.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "pool", pool: null })}>New runner pool</Button>}
-      </header>
+      </header><PageTabs />
       <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Runner Machines">
         {(["runners", "pools"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>
           {t === "runners" ? "Runners" : "Runner pools"}{runners && <span className="ov-cnt">{t === "runners" ? runners.length : pools.length}</span>}</button>)}

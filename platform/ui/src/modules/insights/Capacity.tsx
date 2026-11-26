@@ -5,6 +5,7 @@ import type { Capacity as CapacityData } from "./consoleApi";
 import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Operational Insights > Runner capacity, as Blue Prism Hub's utilisation heatmap and FTE comparison and AA's Devices
@@ -87,9 +88,9 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-cap-title">
       <header className="cc-list-head">
-        <h1 id="cc-cap-title">{title ?? "Runner capacity"}</h1>
+        <PageTitle id="cc-cap-title" name={title ?? "Runner capacity"} />
         <HelpButton topic={HELP} /><PageIntro k="page:operations" />
-      </header>
+      </header><PageTabs />
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

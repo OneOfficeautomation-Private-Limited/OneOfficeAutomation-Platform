@@ -4,6 +4,7 @@ import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory,
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
@@ -183,14 +184,14 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-vault-title">
       <header className="cc-list-head">
-        <h1 id="cc-vault-title">Credential vault</h1>
+        <PageTitle id="cc-vault-title" name="Credential vault" />
         <HelpButton topic={HELP} /><PageIntro k="page:credentials" />
         {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}{expired ? " · " + expired + " expired" : ""}{soon ? " · " + soon + " expiring soon" : ""}</span>}
         <span className="ov-fill" />
         {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
         {tab === "folders" && (can("lockers.manage") || can("lockers.own")) && <Button kind="primary" onClick={() => setDialog({ kind: "create-folder" })}>Create vault folder</Button>}
         {tab === "credentials" && canCreateCredential && <Button kind="primary" onClick={() => setDialog({ kind: "create-credential" })}>Create credential</Button>}
-      </header>
+      </header><PageTabs />
       <div className="ov-tabs cc-list-tabs" role="tablist" aria-label="Credential vault">
         {([["credentials", "Credentials", rows.length], ["folders", "Vault folders", folders?.length ?? 0], ["requests", "My requests", requests.length]] as const).map(([t, l, n]) =>
           <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>{l}{folders && <span className="ov-cnt">{n}</span>}</button>)}

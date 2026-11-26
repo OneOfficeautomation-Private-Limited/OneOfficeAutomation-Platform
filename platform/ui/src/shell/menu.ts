@@ -26,7 +26,7 @@ export const KERNEL_SECTIONS: MenuSection[] = [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
     { id: "teams", label: "Teams", perm: "teams.manage|team_lead" },
     { id: "credentials", label: "Credential vault" }, { id: "audit", label: "Audit Trail", perm: "audit.view" },
-    { id: "savedconn", label: "Connections", perm: "globals.view" }, { id: "connections", label: "Model Connections", perm: "connections.manage" },
+    { id: "savedconn", label: "App connections", perm: "globals.view" }, { id: "connections", label: "Model Connections", perm: "connections.manage" },
     { id: "globals", label: "Shared Global values", perm: "globals.view" },
     { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }, { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
@@ -66,13 +66,13 @@ export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-security", label: "Security", icon: "shield", section: "manage", pages: ["credentials", "policies", "audit"] },
   { id: "g-connections", label: "Connections", icon: "globe", section: "manage", pages: ["savedconn", "connections"] },
   { id: "g-data", label: "Shared data", icon: "db", section: "manage", pages: ["globals", "data"] },
-  { id: "g-toolkits", label: "Toolkits", icon: "sliders", section: "manage", pages: ["toolkits"] },
+  { id: "g-toolkits", label: "Agent ToolKits", icon: "sliders", section: "manage", pages: ["toolkits"] },
   { id: "g-platform", label: "Platform", icon: "gear", section: "manage", pages: ["settings", "licenses", "templates", "events"] },
   { id: "g-overview", label: "Overview", icon: "chart", section: "monitor", pages: ["status", "insights"] },
   { id: "g-operations", label: "Operations", icon: "sliders", section: "monitor", pages: ["operations", "runner-status"] },
   { id: "g-business", label: "Business", icon: "target", section: "monitor", pages: ["business"] },
   { id: "g-alerts", label: "Alerts", icon: "bell", section: "monitor", pages: ["alerts", "alert-rules"] },
-  { id: "g-ai-usage", label: "AI usage", icon: "stars", section: "monitor", pages: ["governance"] },
+  { id: "g-ai-usage", label: "AI governance", icon: "stars", section: "monitor", pages: ["governance"] },
 ];
 /** The group a page is in, or undefined. */
 export const groupOf = (page: string) => MENU_GROUPS.find((g) => g.pages.includes(page));

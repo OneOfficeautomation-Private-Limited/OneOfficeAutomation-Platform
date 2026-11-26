@@ -3,6 +3,7 @@ import type { CrApi, EventSubscription, EventSubscriptionList } from "../api/cr"
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Event subscriptions (gap G38; UiPath's webhooks, and run logs streamed to a log platform such as
@@ -85,12 +86,12 @@ export function EventSubscriptions({ api, onNotice }: { api: CrApi; onNotice: (t
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-events-title">
       <header className="cc-list-head">
-        <h1 id="cc-events-title">Event subscriptions</h1>
+        <PageTitle id="cc-events-title" name="Event subscriptions" />
         <HelpButton topic={HELP} /><PageIntro k="page:events" />
-        {data && <span className="cc-list-count">{data.subscriptions.length}</span>}
+        {data && <span className="cc-list-count">{data.subscriptions.length + (data.subscriptions.length === 1 ? " subscription" : " subscriptions")}</span>}
         <span className="ov-fill" />
-        <Button kind="primary" onClick={() => setEditing("new")}>New subscription</Button>
-      </header>
+        <Button kind="primary" onClick={() => setEditing("new")}>Create subscription</Button>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       {shown && <div className="cc-list-bulk" role="status">
         <span>{shown.what}, shown this once: copy it now.</span>

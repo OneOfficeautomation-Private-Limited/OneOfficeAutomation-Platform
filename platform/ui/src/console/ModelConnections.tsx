@@ -3,6 +3,7 @@ import type { CrApi, CrUser, ModelConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
@@ -80,12 +81,12 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-mc-title">
       <header className="cc-list-head">
-        <h1 id="cc-mc-title">Model Connections</h1>
+        <PageTitle id="cc-mc-title" name="Model Connections" />
         <HelpButton topic={PAGE_HELP} /><PageIntro k="page:connections" />
         {list && <span className="cc-list-count">{list.length} model connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ c: null })}>Create connection</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">

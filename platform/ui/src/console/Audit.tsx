@@ -3,6 +3,7 @@ import type { AuditRecord, CrApi } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Manage > Audit Trail, built as AA's Audit log (checked against AA's docs, UiPath's Audit page and Blue
@@ -228,13 +229,13 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   return (
     <section className={"st-page cc-home cc-list cc-au" + (open ? " has-panel" : "")} aria-labelledby="cc-audit-title">
       <header className="cc-list-head">
-        <h1 id="cc-audit-title">Audit Trail</h1>
+        <PageTitle id="cc-audit-title" name="Audit Trail" />
         <HelpButton topic={HELP} /><PageIntro k="page:audit" />
         {data && <span className="cc-list-count">{data.total} record{data.total === 1 ? "" : "s"} {f.around ? "within 5 minutes of " + hhmm(f.around) : RANGE_WORDS[range]}</span>}
         {check && <span className={"cc-pill is-" + (check.valid ? "success" : "failed")} role="status"><span className="cc-pill-dot" />{check.text}</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={verify}>Check history</Button>
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

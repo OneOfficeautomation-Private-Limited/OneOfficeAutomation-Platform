@@ -7,6 +7,7 @@ import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic, repo
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Monitor > Operations, rebuilt from today's console with AA's Bot Insight operational dashboards, UiPath
@@ -101,11 +102,11 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-op-title">
       <header className="cc-list-head">
-        <h1 id="cc-op-title">Operations</h1>
+        <PageTitle id="cc-op-title" name="Operations" />
         <HelpButton topic={HELP} /><PageIntro k="page:operations" />
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => csv("run_history")}>Run history CSV</Button>
-      </header>
+      </header><PageTabs />
       {tabs}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">

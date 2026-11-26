@@ -3,6 +3,7 @@ import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
 import { StudioApi } from "../api/client";
 import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry, useFullTextOnHover } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
+import { PageFrame } from "../shell/PageFrame";
 import { canSee, FIRST_PAGE, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
 import { MOVED_PAGES } from "../modules/registry";
@@ -142,7 +143,10 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   if (twoStep) return <TwoStepSetup api={api} onDone={(u) => { setTwoStep(false); setUser(u); setNotice("Two-step sign-in is on."); }} />;
 
   const signOut = async () => { try { await api.logout(); } catch { /* already signed out */ } setUser(null); setPage("home"); };
-  const hrefFor = (id: string) => "#/" + id;   // every page is the console's own (the classic console is gone, 13 Nov 2026)
+  const hrefFor = (id: string) => "#/" + id;
+  // a menu entry of several pages (board B1): its pages are the tab row, so a page's own views show as a switch
+  const entry = groupOf(page);
+  const inGroup = !!entry && MENU_SECTIONS.flatMap((s) => s.pages).filter((p) => entry.pages.includes(p.id) && canSee(p, { permissions: user.permissions, leadsTeam: user.leads_team })).length > 1;   // every page is the console's own (the classic console is gone, 13 Nov 2026)
 
   return (
     <div className="st-app cc-app">
@@ -158,9 +162,11 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       <HelpProvider><div className="st-body">
         <CommandMenu sections={user.setup_menu && !hideSetup ? MENU_SECTIONS : MENU_SECTIONS.filter((s) => s.id !== "setup")} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor} editing={editing}
           viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
-        <main className="st-main cc-main" onKeyDown={listKeys}>
+        <main className={"st-main cc-main" + (inGroup ? " cc-in-group" : "")} onKeyDown={listKeys}>
           <Breadcrumb user={user} page={page} onPage={setPage} />
-          <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
+          {/* fix list 27 Nov, items 3d and 3e (board B1): the page's title is its menu entry's name, and the entry's
+              pages are its one tab row under the header (each page draws <PageTitle> and <PageTabs />) */}
+          <PageFrame.Provider value={{ entry: groupOf(page)?.label ?? null, tabs: <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} /> }}>
           <PageRetry.Provider value={() => setReloads((n) => n + 1)}><Fragment key={page + ":" + reloads + ":" + visit}>
           {page === "status" && <Home api={api} user={user} pageHref={hrefFor} />}
           {page === "setup" && <Setup api={api} user={user} setPage={setPage} hidden={hideSetup} setHidden={setHideSetup} />}
@@ -190,6 +196,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
             : <Repository api={api} user={user} onNotice={setNotice} studio={studio} onPrivate={openPrivate} />)}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
           </Fragment></PageRetry.Provider>
+          </PageFrame.Provider>
         </main>
         <HelpPanel page={page} links={<HelpLinks k={"page:" + page} long />} />
       </div></HelpProvider>
@@ -207,10 +214,10 @@ function GroupTabs({ page, user, onPage, hrefFor }: { page: string; user: CrUser
   const pages = MENU_SECTIONS.flatMap((s) => s.pages).filter((p) => group.pages.includes(p.id) && canSee(p, { permissions: user.permissions, leadsTeam: user.leads_team }));
   pages.sort((a, b) => group.pages.indexOf(a.id) - group.pages.indexOf(b.id));
   if (pages.length < 2) return null;
-  return <nav className="cc-group-tabs" aria-label={group.label}>
+  return <nav className="cc-group-tabs ov-tabs cc-ins-tabs" aria-label={group.label}>
     {pages.map((p) => LOCAL.has(p.id)
-      ? <button key={p.id} type="button" className="cc-group-tab" aria-current={p.id === page ? "page" : undefined} onClick={() => onPage(p.id)}>{p.label}</button>
-      : <a key={p.id} className="cc-group-tab" href={hrefFor(p.id)}>{p.label}</a>)}
+      ? <button key={p.id} type="button" className="cc-group-tab ov-tab" aria-current={p.id === page ? "page" : undefined} onClick={() => onPage(p.id)}>{p.label}</button>
+      : <a key={p.id} className="cc-group-tab ov-tab" href={hrefFor(p.id)}>{p.label}</a>)}
   </nav>;
 }
 

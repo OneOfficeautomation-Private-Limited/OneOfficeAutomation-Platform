@@ -4,6 +4,7 @@ import type { CrApi } from "../../api/cr";
 import type { ChatMessage, ChatSummary } from "./consoleApi";
 import { Button, HelpButton, TextInput, type HelpTopic } from "../../components";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Run > One Chat: run agents and check your runs in plain words. Runs start as the person, with their permissions; anything
@@ -139,12 +140,12 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
   return (
     <section className="st-page cc-home cc-list cc-chat-page" aria-labelledby="cc-chat-title">
       <header className="cc-list-head">
-        <h1 id="cc-chat-title">One Chat</h1>
+        <PageTitle id="cc-chat-title" name="One Chat" />
         <HelpButton topic={HELP} /><PageIntro k="page:chat" />
         <span className="ov-fill" />
         <Button aria-expanded={!!past} onClick={togglePast} disabled={busy}>Your chats</Button>
         <Button onClick={() => { resetChat(); setSession(null); setMessages([]); setText(""); input.current?.focus(); }} disabled={busy}>New chat</Button>
-      </header>
+      </header><PageTabs />
       {past && <nav className="cc-chat-history" aria-label="Your chats">
         {past.length === 0 ? <p className="st-muted">No kept chats. Chats are kept as long as your administrator set.</p>
           : <ul>{past.map((c) => <li key={c.id}><button type="button" className="cc-link" onClick={() => reopen(c.id)} aria-current={c.id === session ? "true" : undefined}>

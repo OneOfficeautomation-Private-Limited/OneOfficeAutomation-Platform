@@ -7,6 +7,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 import { AfterReading, EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "./MailAccounts";
 import type { MailAccount, MailConditions } from "../api/cr";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Run > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
@@ -109,12 +110,12 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-trig-title">
       <header className="cc-list-head">
-        <h1 id="cc-trig-title">Triggers</h1>
+        <PageTitle id="cc-trig-title" name="Triggers" />
         <HelpButton topic={HELP} /><PageIntro k="page:triggers" />
         {list && <span className="cc-list-count">{list.length} trigger{list.length === 1 ? "" : "s"} · {listening} listening{errors ? " · " + errors + " with an error" : ""}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create trigger</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

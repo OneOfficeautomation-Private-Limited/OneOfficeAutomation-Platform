@@ -7,6 +7,7 @@ import { HttpDocFlowApi } from "./http";
 import type { DocFlowVersion } from "./consoleApi";
 import { HelpButton, type HelpTopic, PageError } from "../../components";
 import { PageIntro } from "../../shell/PageIntro";
+import { PageTabs, PageTitle } from "../../shell/PageFrame";
 
 /**
  * Build > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
@@ -73,10 +74,10 @@ export function DocumentAutomation({ api, user }: { api: CrApi; user?: CrUser })
   return (
     <section className="st-page cc-home cc-list df-start" aria-labelledby="cc-da-title">
       <header className="cc-list-head">
-        <h1 id="cc-da-title">Document Automation</h1>
+        <PageTitle id="cc-da-title" name="Document Automation" />
         <HelpButton topic={HELP} /><PageIntro k="page:docautomation" />
         {plugin !== undefined && <span className={"cc-pill is-" + (plugin ? "active" : "disabled")}><span className="cc-pill-dot" />{plugin ? "Installed" : "Not installed"}</span>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       {plugin === undefined && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {plugin && <>

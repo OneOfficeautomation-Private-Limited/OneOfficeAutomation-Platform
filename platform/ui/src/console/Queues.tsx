@@ -3,6 +3,7 @@ import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "
 import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, principalLabel, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { PageTabs, PageTitle } from "../shell/PageFrame";
 
 /**
  * Run > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -125,14 +126,14 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
       <header className="cc-list-head">
-        <h1 id="cc-queues-title">Work queues</h1>
+        <PageTitle id="cc-queues-title" name="Work queues" />
         <HelpButton topic={HELP} /><PageIntro k="page:queues" />
         {list && <span className="cc-list-count">{list.length} queue{list.length === 1 ? "" : "s"} · {totals.waiting} item{totals.waiting === 1 ? "" : "s"} waiting{totals.failed ? " · " + totals.failed + " failed" : ""}{totals.overdue ? " · " + totals.overdue + " past the service level" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>
         {can("queues.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import queue</Button>}
         {can("queues.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", queue: null })}>Create work queue</Button>}
-      </header>
+      </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">

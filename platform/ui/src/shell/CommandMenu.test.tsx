@@ -41,6 +41,6 @@ describe("The menu's sections (M1, 13 Nov 2026 round 2)", () => {
       hrefFor={() => undefined} viewer={null} console groups={MENU_GROUPS} />);
     expect(screen.getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("true");   // Agent ToolKits is in Manage > Toolkits (26 Nov 2026)
     expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("button", { name: "Toolkits" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Agent ToolKits" }).getAttribute("aria-current")).toBe("page");
   });
 });
