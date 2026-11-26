@@ -366,6 +366,8 @@ public interface ModuleContext {
         String onReject(Map<String, Object> task);
         /** The task is done: the workflow continues (event is approved, rejected or task_completed). */
         void completed(Map<String, Object> task, String event, Map<String, Object> result, String by, String forcedNext);
+        /** Refuses (OoaException) completing the task this way: a rejection without the reason the step asks for, a second approval by the same person. */
+        default void checkComplete(User u, Map<String, Object> task, String outcome, String comment) { }
     }
 
     /** Checks a definition kept in the repository (a workflow, a form) at check-in; returns the problems ({message, stage}). */

@@ -128,7 +128,9 @@ export type HumanTask = { id: string; title: string; description?: string | null
   claimed_by?: string | null; completed_by?: string | null; created?: string; due?: string | null; completed?: string | null; overdue?: boolean; can_act?: boolean; outcome?: string | null;
   form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string; stage?: string | null; stages?: { id: string; name: string }[];
   /** Where it comes from: its workflow's name and the request's reference. */
-  workflow?: string | null; reference?: string | null };
+  workflow?: string | null; reference?: string | null;
+  /** An approval's own button labels, and whether rejecting needs a reason (the workflow step says; 26 Nov 2026). */
+  approve_label?: string; reject_label?: string; reason_required?: boolean };
 /** A holiday calendar: dates schedules skip, and (gap G34) the weekend agents' working-day steps skip too. */
 export type HolidayCalendar = { name: string; dates: string[]; weekend?: string[]; updated?: string; updated_by?: string };
 /**

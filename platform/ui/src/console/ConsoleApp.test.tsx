@@ -307,14 +307,17 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       { name: "max_amount", value: 1000, changeable: false, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
     if (/^globals\/\w+(\/mine)?$/.test(route)) return ok({ ok: true });
     if (route === "workflows/runs") return ok({ runs: [
-      { id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42", started_by: "vic", created: "2026-10-31T08:00:00Z", updated: "2026-10-31T08:01:00Z" },
+      { id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "approve", stage_name: "Manager approval", reference: "PO-42", started_by: "vic", created: "2026-10-31T08:00:00Z", updated: "2026-10-31T08:01:00Z",
+        waiting_on: "role:admin", waiting_kind: "person", due: "2026-10-31T09:00:00Z", late: true },
       { id: "w2", path: "Finance/Purchase approval.process.json", version: 2, status: "completed", stage: "Pay", reference: "PO-41", started_by: "vic", created: "2026-10-30T08:00:00Z", finished: "2026-10-30T09:00:00Z" },
       { id: "w3", path: "Finance/Purchase approval.process.json", version: 2, status: "failed", stage: "Pay", reference: "PO-40", started_by: "vic", created: "2026-10-29T08:00:00Z", finished: "2026-10-29T08:30:00Z",
         error: { code: "ERP.DOWN", message: "The ERP did not answer" } }] });
-    if (route === "workflows/runs/w1") return ok({ id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42",
-      created: "2026-10-31T08:00:00Z", data: { amount: 1200 }, history: [{ event: "agent_finished", stage: "Check budget", ts: "2026-10-31T08:00:30Z" }, { event: "task_created", stage: "Manager approval", ts: "2026-10-31T08:01:00Z" }],
-      tasks: [{ id: "k1", stage: "Manager approval", kind: "approval", title: "Approve PO-42", assignee: "role:admin", status: "open" }] });
-    if (route === "workflows/runs/w1/cancel") return ok({ ok: true });
+    if (route === "workflows/runs/w1") return ok({ id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "approve", stage_name: "Manager approval", reference: "PO-42",
+      created: "2026-10-31T08:00:00Z", data: { amount: 1200 }, history: [{ event: "agent_finished", stage: "budget", ts: "2026-10-31T08:00:30Z" }, { event: "task_created", stage: "approve", ts: "2026-10-31T08:01:00Z" }],
+      tasks: [{ id: "k1", stage: "approve", kind: "approval", title: "Approve PO-42", assignee: "role:admin", status: "open", due: "2026-10-31T09:00:00Z" }],
+      waiting_on: "role:admin", waiting_kind: "person", due: "2026-10-31T09:00:00Z", late: true,
+      steps: [{ id: "budget", name: "Check budget", type: "bot" }, { id: "approve", name: "Manager approval", type: "approval" }, { id: "pay", name: "Pay", type: "bot" }], children: [] });
+    if (/^workflows\/runs\/w1\/(cancel|remind|reassign|skip)$/.test(route)) return ok({ ok: true, tasks: 1 });
     if (route === "workflows/form") return ok({ form: { fields: [{ id: "amount", type: "number", label: "Amount", required: true }] } });
     if (route === "workflows/start") return ok({ id: "w1", reference: body.reference });
     if (route === "queues") return ok({ queues: [{ id: "q1", name: "Vendor invoices", bot_path: "Finance/Invoice intake.flow.json", pool_id: "p1", max_attempts: 2, sla_minutes: 240,
@@ -553,9 +556,9 @@ describe("rebuilt One CommandCenter console", () => {
       expect(within(menu).getByRole("button", { name: s }).getAttribute("aria-expanded")).toBe("true");
       all.push(...entries());   // opening one closes the one before
     }
-    expect(all).toEqual(["Agents", "Document Automation", "Workflows", "Apps", "AI building blocks", "Ideas",
+    expect(all).toEqual(["Agents", "Document Automation", "Apps", "AI building blocks", "Ideas",
       "Install and set up",
-      "Agent Activity", "Start agents", "Work queues", "Task inbox", "Runners", "One Chat",
+      "Agent Activity", "Workflow runs", "Start agents", "Work queues", "Task inbox", "Runners", "One Chat",
       "People", "Security", "Connections", "Shared data", "Toolkits", "Platform",
       "Overview", "Operations", "Business", "Alerts", "AI usage"]);
     fireEvent.click(within(menu).getByRole("button", { name: "Monitor" }));   // the open one folds from its heading too
@@ -2246,12 +2249,22 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "queues/q1", body: expect.objectContaining({ encrypt_data: true }) }));
   });
 
-  it("shows Workflow as UiPath Maestro's instances: in progress and finished, a run's timeline and tasks, cancel, start with the start form", async () => {
-    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start"] } as typeof admin });
+  it("shows Run > Workflow runs: counts, where each run is and who it waits on, late; a run's steps and diagram; remind, skip, cancel; start with the start form", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "runs.stop"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Workflow");
+    await go("Workflow runs");
     const list = await screen.findByRole("table", { name: "Workflow runs in progress" });
-    expect(await within(list).findByText("Waiting for a person")).toBeTruthy();
+    const row = (await within(list).findByText("PO-42")).closest("tr")!;
+    expect(within(row).getByText("Manager approval")).toBeTruthy();
+    expect(within(row).getByText("admin")).toBeTruthy();   // waiting on, without the role: prefix
+    expect(within(row).getByText("Late")).toBeTruthy();
+    // the counts filter the list
+    const counts = screen.getByRole("group", { name: "Counts" });
+    expect(within(counts).getByRole("button", { name: /Failed/ }).textContent).toContain("1");
+    fireEvent.click(within(counts).getByRole("button", { name: /Failed/ }));
+    expect(await within(screen.getByRole("table", { name: "Finished workflow runs" })).findByText("PO-40")).toBeTruthy();
+    expect(screen.queryByText("PO-41")).toBeNull();
+    fireEvent.click(within(counts).getByRole("button", { name: /Failed/ }));
     expect(within(list).queryByText("PO-41")).toBeNull();
     // a menu per run: Cancel from the list, asked first
     fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for PO-42" }), { key: "Enter" });
@@ -2263,12 +2276,27 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(screen.getByRole("tab", { name: /^Finished/ }));
     expect(await within(screen.getByRole("table", { name: "Finished workflow runs" })).findByText("ERP.DOWN: The ERP did not answer")).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: /^In progress/ }));
-    fireEvent.click(within(list).getByText("PO-42"));
+    fireEvent.click(within(screen.getByRole("table", { name: "Workflow runs in progress" })).getByText("PO-42"));
     const run = await screen.findByRole("dialog", { name: "Workflow run PO-42" });
-    expect(await within(run).findByText("Task given")).toBeTruthy();
-    expect(within(run).getByRole("list", { name: "Stages" })).toBeTruthy();
+    // every step: done, now (late, with who has it), to come
+    const steps = await within(run).findByRole("list", { name: "Steps" });
+    expect(within(steps).getAllByRole("listitem").map((l) => l.className)).toEqual(["cc-wf-step is-done", "cc-wf-step is-now", "cc-wf-step is-todo"]);
+    expect(within(steps).getByText("now · late · admin")).toBeTruthy();
+    fireEvent.click(within(run).getByRole("tab", { name: "Diagram" }));
+    expect(within(run).getByRole("button", { name: "2 Manager approval, Approval, now" })).toBeTruthy();
+    fireEvent.click(within(run).getByRole("tab", { name: /^History/ }));
+    expect(within(run).getByText("Task given")).toBeTruthy();
     fireEvent.click(within(run).getByRole("tab", { name: /^People's tasks/ }));
     expect(within(run).getByText("Approve PO-42")).toBeTruthy();
+    // operators: remind, and skip with a reason
+    await act(async () => { fireEvent.click(within(run).getByRole("button", { name: "Remind" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/runs/w1/remind" }));
+    fireEvent.click(within(run).getByRole("button", { name: "Skip step…" }));
+    const skip = within(run).getByRole("group", { name: "Skip step" });
+    expect((within(skip).getByRole("button", { name: "Skip step" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(skip).getByLabelText(/^Why skip/), { target: { value: "Approved by phone" } });
+    await act(async () => { fireEvent.click(within(skip).getByRole("button", { name: "Skip step" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/runs/w1/skip", body: { reason: "Approved by phone" } }));
     fireEvent.click(within(run).getByRole("button", { name: "Cancel run" }));
     await act(async () => { fireEvent.click(within(run).getAllByRole("button", { name: "Cancel run" }).at(-1)!); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/runs/w1/cancel" }));

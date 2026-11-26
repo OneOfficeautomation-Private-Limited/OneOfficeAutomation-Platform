@@ -9,3 +9,69 @@
 .cc-wf-detail { color: var(--ui-text-2); }
 .cc-wf-track li.is-now .cc-wf-dot { background: var(--ui-running-bg); color: var(--ui-warning-text); border-color: var(--ui-warning-text); }
 .cc-wf-track li.is-bad .cc-wf-dot { background: var(--ui-error-text); border-color: var(--ui-error-text); }
+
+/* The workflow diagram (review round, 26 Nov 2026; design A): Studio's editor and Run > Workflow runs */
+.wfd { display: flex; flex-direction: column; align-items: center; padding: 12px 16px 20px; min-width: max-content; font-size: 13px; color: var(--ui-text); }
+.wfd-cap { padding: 4px 14px; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-bg); font-weight: 600; font-size: 12.5px; }
+.wfd-cap.is-start { border-color: var(--ui-success); color: var(--ui-ok-text); }
+.wfd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+.wfd-list > li { display: flex; flex-direction: column; align-items: center; }
+.wfd-line { display: block; width: 2px; height: 18px; background: var(--ui-text-3); }
+.wfd-first, .wfd-list > li > .wfd-slot { margin: 0; }
+.wfd-slot { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin: 2px 0; padding: 0; border: 1px dashed var(--ui-text-3); border-radius: 50%;
+  background: var(--ui-bg); color: var(--ui-text-2); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; position: relative; }
+.wfd-slot::before, .wfd-slot::after { content: ""; position: absolute; left: 50%; width: 2px; height: 8px; background: var(--ui-text-3); transform: translateX(-1px); }
+.wfd-slot::before { bottom: 100%; } .wfd-slot::after { top: 100%; }
+.wfd-slot:hover, .wfd-slot.is-over { border-style: solid; border-color: var(--ui-accent); color: var(--ui-accent-text); background: var(--ui-selected); }
+.wfd-node { display: flex; flex-direction: column; align-items: center; }
+.wfd-card { position: relative; display: flex; align-items: flex-start; gap: 8px; width: 240px; padding: 7px 10px 7px 14px; border: 1px solid var(--ui-frame-line, #5c6575);
+  border-left: 5px solid var(--wfd-color); border-radius: 8px; background: var(--ui-bg); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wfd-card:disabled { cursor: default; opacity: 1; }
+.wfd-node.is-diamond .wfd-card { border-left-width: 1px; border-color: var(--wfd-color); border-width: 2px; border-radius: 14px; }
+.wfd-node.is-round .wfd-card { border-radius: 18px; }
+.wfd-node.is-end .wfd-card { border-color: var(--ui-success); border-width: 2px; }
+.wfd-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-bar, #1c2840); color: #ffffff; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; }
+.wfd-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.wfd-text strong { font-size: 13px; }
+.wfd-meta { color: var(--ui-text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
+.wfd-warn { position: absolute; top: -8px; right: -8px; width: 18px; height: 18px; border-radius: 50%; background: var(--ui-error-text); color: #ffffff; font-weight: 700; font-size: 12px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.wfd-node.is-selected .wfd-card { outline: 3px solid var(--ui-focus, #7148c9); outline-offset: 2px; }
+.wfd-node.is-target .wfd-card { box-shadow: 0 0 0 3px var(--ui-success); }
+.wfd-node.is-found .wfd-card { background: var(--ui-offer-bg, #fff7d6); }
+.wfd-node.has-problem .wfd-card { border-color: var(--ui-error-text); }
+.wfd-node.st-done .wfd-num { background: var(--ui-success); }
+.wfd-node.st-now .wfd-card { border-color: var(--ui-warning-text); border-width: 2px; background: var(--ui-running-bg); }
+.wfd-node.st-now .wfd-num { background: var(--ui-warning-text); }
+.wfd-node.st-failed .wfd-card { border-color: var(--ui-error-text); background: var(--ui-error-bg); }
+.wfd-node.st-failed .wfd-num { background: var(--ui-error-text); }
+.wfd-node.st-todo .wfd-card, .wfd-node.st-skipped .wfd-card { border-style: dashed; color: var(--ui-text-2); }
+.wfd-node.st-todo .wfd-num, .wfd-node.st-skipped .wfd-num { background: var(--ui-text-3); }
+.wfd-ways { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 520px; }
+.wfd-ways li { padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-bg); font-size: 12px; }
+.wfd-way-label { font-weight: 700; color: var(--ui-text); }
+.wfd-split { display: flex; gap: 18px; margin-top: 10px; padding: 10px 12px 8px; border-top: 2px solid var(--ui-text-3); border-bottom: 2px solid var(--ui-text-3); align-items: flex-start; }
+.wfd-branch { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wfd-branch-name { font-size: 12px; font-weight: 700; padding: 1px 8px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-bg); }
+
+/* Run > Workflow runs (26 Nov 2026): the counts that filter the list, the steps of a run, the operator's actions */
+.cc-wf-counts { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; }
+.cc-wf-count { height: 28px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.cc-wf-count strong { margin-left: 4px; }
+.cc-wf-count.is-bad strong { color: var(--ui-error-text); }
+.cc-wf-count.is-on, .cc-wf-count[aria-pressed="true"] { background: var(--ui-selected); border-color: var(--ui-accent); color: var(--ui-accent-text); font-weight: 600; }
+.cc-wf-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-wf-step { display: grid; grid-template-columns: 26px 1fr; column-gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-bg); }
+.cc-wf-step > .cc-none { grid-column: 2; font-size: 12px; }
+.cc-wf-step .cc-wf-dot { grid-row: span 2; width: 22px; height: 22px; font-size: 11.5px; }
+.cc-wf-step.is-now { border: 2px solid var(--ui-warning-text); }
+.cc-wf-step.is-now .cc-wf-dot { background: var(--ui-running-bg); color: var(--ui-warning-text); border-color: var(--ui-warning-text); }
+.cc-wf-step.is-failed .cc-wf-dot { background: var(--ui-error-text); border-color: var(--ui-error-text); }
+.cc-wf-step.is-todo, .cc-wf-step.is-skipped { border-style: dashed; color: var(--ui-text-2); }
+.cc-wf-step.is-todo .cc-wf-dot, .cc-wf-step.is-skipped .cc-wf-dot { background: var(--ui-text-3); border-color: var(--ui-text-3); }
+.cc-wf-branches { grid-column: 1 / -1; list-style: none; margin: 6px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-wf-branch { display: inline-block; margin-bottom: 4px; font-size: 12px; font-weight: 700; }
+.cc-wf-diagram { overflow: auto; max-height: 60vh; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-soft, #f6f8fb); }
+.cc-wf-act { margin-top: 10px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 6px; }
+.cc-wf-act-buttons { display: flex; justify-content: flex-end; gap: 8px; }

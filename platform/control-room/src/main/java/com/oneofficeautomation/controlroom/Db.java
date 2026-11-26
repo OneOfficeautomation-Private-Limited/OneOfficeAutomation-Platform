@@ -857,9 +857,22 @@ public final class Db implements AutoCloseable {
         "UPDATE license_assignments SET license_type = 'nonproduction_runner' WHERE license_type = 'testing_runner'",
     };
 
+    /**
+     * Version 51 (review round, 26 Nov 2026, workflows): a workflow run may belong to another one (parent_id), as a
+     * branch of its Parallel step (branch: which one) or as its Sub-workflow; wake_at is when a Wait step goes on; a
+     * human task records when it escalated (late: reminded or handed to someone else), once.
+     */
+    private static final String[] SCHEMA_V51 = {
+        "ALTER TABLE workflow_runs ADD COLUMN parent_id VARCHAR(40)",
+        "ALTER TABLE workflow_runs ADD COLUMN branch VARCHAR(400)",
+        "ALTER TABLE workflow_runs ADD COLUMN wake_at TIMESTAMP",
+        "CREATE INDEX workflow_runs_parent ON workflow_runs (parent_id)",
+        "ALTER TABLE human_tasks ADD COLUMN escalated TIMESTAMP",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 50;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47, SCHEMA_V48, SCHEMA_V49, SCHEMA_V50 };
+    public static final int LATEST = 51;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47, SCHEMA_V48, SCHEMA_V49, SCHEMA_V50, SCHEMA_V51 };
 
     /** A feature module's schema version recorded in module_schema (0 when it has none yet). */
     public int moduleVersion(String module) {

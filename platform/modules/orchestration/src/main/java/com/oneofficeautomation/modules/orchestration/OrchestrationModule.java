@@ -46,6 +46,10 @@ public final class OrchestrationModule implements CommandCenterModule {
                 Map<String, Object> b = ctx.jsonBody(ex);
                 out = workflows.start(u, (String) b.get("path"), b.get("data") instanceof Map<?, ?> dm ? (Map<String, Object>) dm : Map.of(), (String) b.get("reference"), ip);
             } else if (m.equals("POST") && seg.length == 3 && seg[0].equals("runs") && seg[2].equals("cancel")) out = workflows.cancel(u, seg[1], ip);
+            // Run > Workflow runs (26 Nov 2026): operators remind, reassign or skip the step a run waits on
+            else if (m.equals("POST") && seg.length == 3 && seg[0].equals("runs") && seg[2].equals("remind")) out = workflows.remind(u, seg[1], ip);
+            else if (m.equals("POST") && seg.length == 3 && seg[0].equals("runs") && seg[2].equals("reassign")) out = workflows.reassign(u, seg[1], (String) ctx.jsonBody(ex).get("to"), ip);
+            else if (m.equals("POST") && seg.length == 3 && seg[0].equals("runs") && seg[2].equals("skip")) out = workflows.skip(u, seg[1], (String) ctx.jsonBody(ex).get("reason"), ip);
             else throw ModuleContext.notFound("The route /api/workflows/" + route);
             ctx.sendJson(ex, 200, out);
         });

@@ -148,14 +148,17 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
 /** A task: its form (or approval, or notice), the workflow's data, a comment, and the actions open to the person. */
 function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: HumanTask; onClose: () => void; onDone: (t: string) => void }) {
-  const fields = (t.kind === "form" ? t.form?.fields ?? [] : []);
-  const [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(fields.filter((x) => x.id).map((x) => [x.id, (t.result ?? {})[x.id] ?? x.default ?? (x.type === "checkbox" ? false : "")])));
+  // a form to fill in; for an approval, the form the workflow shows the approver (read-only, with the run's values)
+  const fields = (t.kind === "form" || t.kind === "approval" ? t.form?.fields ?? [] : []);
+  const readOnly = t.kind === "approval";
+  const [answers, setAnswers] = useState<Record<string, unknown>>(() => Object.fromEntries(fields.filter((x) => x.id).map((x) => [x.id, (t.result ?? {})[x.id] ?? (readOnly ? (t.data ?? {})[x.id] : undefined) ?? x.default ?? (x.type === "checkbox" ? false : "")])));
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const act = !!t.can_act;
-  const missing = fields.filter((x) => x.required && (answers[x.id] === "" || answers[x.id] === undefined)).map((x) => x.label ?? x.id);
+  const missing = readOnly ? [] : fields.filter((x) => x.required && (answers[x.id] === "" || answers[x.id] === undefined)).map((x) => x.label ?? x.id);
   const submit = (outcome: string) => {
     if (outcome !== "rejected" && missing.length) { setError("Fill in: " + missing.join(", ")); return; }
+    if (outcome === "rejected" && t.reason_required && !comment.trim()) { setError("Say why you reject it: this approval asks for a reason."); return; }
     api.completeTask(t.id, outcome, answers, comment).then(() => onDone((OUTCOME[outcome] ?? "Done") + ": " + t.title + "."), (e) => setError(message(e)));
   };
   const claim = (release: boolean) => api.claimTask(t.id, release).then(() => onDone(release ? "Gave back " + t.title + "." : "Took " + t.title + ": others no longer see it as open."), (e) => setError(message(e)));
@@ -188,16 +191,16 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
           <table className="cc-au-kv"><tbody>{data.map(([k, v]) => <tr key={k}><th scope="row">{k}</th><td>{typeof v === "object" ? JSON.stringify(v) : String(v)}</td></tr>)}</tbody></table>
         </section>}
         {fields.length > 0 && <div className="cc-taskform" role="group" aria-label="Form">
-          {fields.map((x) => <FormField key={x.id || x.label} field={x} value={answers[x.id]} disabled={!act} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}
+          {fields.map((x) => <FormField key={x.id || x.label} field={x} value={answers[x.id]} disabled={!act || readOnly} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}
         </div>}
-        {act && t.kind !== "notification" && <Field label="Comment (optional)">{(id) => <TextArea id={id} rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>}
+        {act && t.kind !== "notification" && <Field label={t.kind === "approval" && t.reason_required ? "Comment (needed when you reject)" : "Comment (optional)"}>{(id) => <TextArea id={id} rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>}
         {act && t.status === "open" && t.kind !== "notification" && <p className="cc-none">Take it first if others share this task: they then see it as being worked on.</p>}
       </div>
       {act && <div className="cc-run-foot">
         {t.status === "open" && t.kind !== "notification" && <Button kind="secondary" onClick={() => claim(false)}>Take it</Button>}
         {t.status === "claimed" && <Button kind="secondary" onClick={() => claim(true)}>Give back</Button>}
         <span className="ov-fill" />
-        {t.kind === "approval" ? <><Button kind="danger" onClick={() => submit("rejected")}>Reject</Button><Button kind="primary" onClick={() => submit("approved")}>Approve</Button></>
+        {t.kind === "approval" ? <><Button kind="danger" onClick={() => submit("rejected")}>{t.reject_label || "Reject"}</Button><Button kind="primary" onClick={() => submit("approved")}>{t.approve_label || "Approve"}</Button></>
           : t.kind === "form" ? <Button kind="primary" onClick={() => submit("submitted")}>{t.form?.submitLabel || "Submit"}</Button>
             : <Button kind="primary" onClick={() => submit("done")}>Mark as read</Button>}
       </div>}

@@ -208,7 +208,7 @@ describe("new Studio", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Run" }));
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
     fireEvent.click(within(menu).getByRole("button", { name: "Build" }));
-    for (const entry of ["Document Automation", "Workflows", "Ideas", "Apps", "AI building blocks"]) expect(within(menu).getByText(entry)).toBeTruthy();
+    for (const entry of ["Document Automation", "Ideas", "Apps", "AI building blocks"]) expect(within(menu).getByText(entry)).toBeTruthy();
     for (const gone of ["Forms", "Templates", "Agent Templates", "Agent APIs"]) expect(within(menu).queryByText(gone)).toBeNull();   // tabs on Agents' page
   });
 

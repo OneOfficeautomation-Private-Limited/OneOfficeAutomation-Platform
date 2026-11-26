@@ -25,7 +25,7 @@ export const PAGE_INTROS: Record<string, string> = {
   "page:triggers": "Events that start an agent: a file, an e-mail, a document, a call.",
   "page:upcoming": "Every scheduled run coming up, soonest first.",
   "page:queues": "Work items waiting for agents, how fast they move and what is late.",
-  "page:workflows": "Long processes across agents, people and approvals, stage by stage.",
+  "page:workflows": "Start workflows and follow each run step by step: who it waits on, what is late.",
   "page:globals": "Settings and values every agent can read, kept in one place.",
   "page:data": "Tables of records that agents and apps read and write.",
   "page:savedconn": "Saved sign-ins to other systems that agents connect with.",

@@ -115,6 +115,7 @@ public final class TaskInbox {
         // a stage a feature module owns (One Chat's R3 approvals: never your own request, administrators included)
         ModuleContext.TaskStage moduleStage = cr.modules == null ? null : cr.modules.taskStage(t.get("stage"));
         if (moduleStage != null) moduleStage.checkComplete(u, t);
+        if (t.get("workflow_run_id") != null && workflowTasks() != null) workflowTasks().checkComplete(u, t, outcome, comment);
         Map<String, Object> result = new LinkedHashMap<>();
         String forcedNext = null;
         String out;
