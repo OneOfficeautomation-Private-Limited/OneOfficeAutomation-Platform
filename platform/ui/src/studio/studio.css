@@ -1273,4 +1273,5 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-editbar .st-crumbs .st-crumb-current { color: var(--ui-text); }
 .st-editbar .st-top-actions { margin-left: auto; }
 /* the Agents header, in the console and in Studio: the console's page margin */
-.st-agents-head { padding: 0 16px; }
+.st-agents-head { padding: 0 16px; flex: none; }
+.st-page > .ov-tabs { flex: none; }
