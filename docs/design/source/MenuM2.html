@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Menu M2: group rail + page panel (two levels, nothing scrolls)</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width:1280px;height:800px;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;font-size:13px;color:#17202b;background:#f3f5f8">
+  <header style="height:44px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;background:#0f141d">
+    <div style="display:flex;align-items:center;gap:10px;width:214px"><svg width="34" height="22" viewBox="39 28 157 101" aria-hidden="true"><circle cx="89.5" cy="78.5" r="43.3" fill="none" stroke="#7fb8f0" stroke-width="11"/><circle cx="145.5" cy="78.5" r="43.3" fill="none" stroke="#b79cf5" stroke-width="11"/><path d="M131.3,89.7 A43.3,43.3 0 0 1 107.8,117.7" fill="none" stroke="#7fb8f0" stroke-width="11"/></svg><span style="font-size:15px;font-weight:600;color:#fff">One CommandCenter</span></div>
+    <div style="display:flex;align-items:center;height:28px;width:360px;padding:0 10px;border-radius:6px;background:#fff;color:#353e4c;font-size:12.5px">Search pages and agents</div>
+    <span style="flex:1"></span>
+    <span style="width:28px;height:28px;border:1px solid #4b5565;border-radius:6px"></span><span style="width:28px;height:28px;border:1px solid #4b5565;border-radius:6px"></span><span style="width:28px;height:28px;border-radius:14px;background:#2f6fde"></span>
+  </header>
+<div style="flex:1;display:flex;min-height:0"><nav style="width:72px;flex:none;background:#161c27;padding:4px 0"><div style="height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9fb4d3;font-size:10.5px">⌂<span>Home</span></div><div style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;text-align:center;color:#9fb4d3;"><span style="font-size:15px">▣</span><span>Build</span></div><div style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;text-align:center;background:#24406f;color:#fff;box-shadow:inset 3px 0 0 #4d8dff;"><span style="font-size:15px">◷</span><span>Manage</span></div><div style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;text-align:center;color:#9fb4d3;"><span style="font-size:15px">▤</span><span>Insights</span></div><div style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;text-align:center;color:#9fb4d3;"><span style="font-size:15px">⚙</span><span>Admin</span></div><div style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;text-align:center;color:#9fb4d3;"><span style="font-size:15px">✦</span><span>AI</span></div></nav><div style="width:176px;flex:none;background:#fff;border-right:1px solid #d5dbe4"><div style="padding:10px 14px 6px;font-size:13px;font-weight:700;color:#17202b">Manage</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;background:#e3edfb;color:#174ba6;font-weight:600;box-shadow:inset 3px 0 0 #2f6fde;">Activity</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;color:#17202b;">Runners</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;color:#17202b;">Scheduling</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;color:#17202b;">Work queues</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;color:#17202b;">Shared data</div><div style="height:30px;line-height:30px;padding:0 14px;font-size:13px;color:#17202b;">Credentials</div></div><main style="flex:1;padding:12px 22px;display:flex;flex-direction:column;gap:10px;min-width:0"><div style="font-size:11.5px;color:#353e4c">Manage › Activity</div><h1 style="margin:0;font-size:18px">Activity</h1><div style="flex:1;background:#fff;border:1px solid #d5dbe4;border-radius:6px;padding:12px;color:#353e4c">Page content (item 6 fixes this table)</div><p style="margin:0;font-size:12px;color:#353e4c">M2 (two levels, like Azure or Power Automate): a dark 72 px rail with the five groups (icon + short name), and a white 176 px panel listing the chosen group's pages. Every group is one click, every page two; nothing ever scrolls. The page panel can be folded to leave only the rail.</p></main></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

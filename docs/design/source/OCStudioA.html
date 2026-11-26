@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OneChat A: Mode chosen per request in Studio</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#08507c;font-weight:600}a:hover{color:#063a5a}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; position: relative; font-family: Inter, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 500; color: #0a0a0a; background: #ffffff; overflow: hidden">
+  <header style="height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #1c2840; border-bottom: 3px solid #0b6ba3; color: #ffffff">
+    <strong style="font-size: 14px">One AgentStudio</strong>
+    <span style="color: #c8d1de">Invoice intake</span>
+    <span style="margin-left: auto; color: #ffffff">Signed in to One CommandCenter</span>
+  </header>
+  <div style="display: flex; height: 753px">
+    <aside style="width: 240px; border-right: 1px solid #a9b2c0; padding: 12px; box-sizing: border-box; color: #262626">Actions</aside>
+    <section style="flex: 1; padding: 16px; color: #262626">1  Read invoices.csv<br>2  For each row</section>
+    <aside style="width: 300px; border-left: 1px solid #a9b2c0; padding: 12px; box-sizing: border-box; color: #262626">Properties</aside>
+  </div>
+  <div style="position: absolute; inset: 0; background: rgba(12,18,30,0.45); display: flex; align-items: center; justify-content: center">
+    <div role="dialog" aria-label="Agent assistant" style="width: 720px; background: #ffffff; border: 1px solid #5c6575; border-radius: 8px; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: center; height: 44px; padding: 0 16px; border-bottom: 1px solid #a9b2c0">
+        <strong style="font-size: 15px">Agent assistant</strong>
+        <button type="button" aria-label="Close" style="margin-left: auto; width: 30px; height: 30px; border: 0; background: transparent; font: inherit; font-size: 18px; color: #0a0a0a">×</button>
+      </div>
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+        <div role="tablist" aria-label="Assistant" style="display: flex; gap: 4px; border-bottom: 1px solid #a9b2c0">
+          <button type="button" role="tab" aria-selected="true" style="height: 30px; padding: 0 12px; border: 0; border-bottom: 3px solid #7148c9; background: transparent; font: inherit; font-weight: 700; color: #0a0a0a">Build from a description</button>
+          <button type="button" role="tab" aria-selected="false" style="height: 30px; padding: 0 12px; border: 0; border-bottom: 3px solid transparent; background: transparent; font: inherit; color: #262626">Explain this agent</button>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-weight: 600">What should the agent do?
+          <textarea rows="4" style="font: inherit; font-weight: 500; padding: 8px; border: 1px solid #5c6575; border-radius: 6px; resize: none">Read invoices.csv, and for every row with an amount above 1000 send an e-mail to approvals@company.com with the invoice number.</textarea>
+        </label>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+          <span style="font-weight: 600">How hard it works</span>
+          <div role="radiogroup" aria-label="How hard it works" style="display: inline-flex; border: 1px solid #5c6575; border-radius: 6px; overflow: hidden; height: 30px">
+            <label style="display: inline-flex; align-items: center; padding: 0 12px; background: #e3edfb; color: #174ba6; font-weight: 700"><input type="radio" name="m" checked style="position: absolute; opacity: 0">Auto</label>
+            <label style="display: inline-flex; align-items: center; padding: 0 12px; border-left: 1px solid #a9b2c0"><input type="radio" name="m" style="position: absolute; opacity: 0">Fast</label>
+            <label style="display: inline-flex; align-items: center; padding: 0 12px; border-left: 1px solid #a9b2c0"><input type="radio" name="m" style="position: absolute; opacity: 0">Smart</label>
+            <label style="display: inline-flex; align-items: center; padding: 0 12px; border-left: 1px solid #a9b2c0"><input type="radio" name="m" style="position: absolute; opacity: 0">Ultra</label>
+          </div>
+          <span style="color: #353e4c; font-size: 13px">Auto picks for each request. Ultra tries several answers and takes up to 3 minutes.</span>
+        </div>
+        <p style="margin: 0; padding: 6px 10px; border: 1px solid #a9b2c0; border-radius: 6px; color: #262626; font-size: 13px">Model: <strong>OneChat flow assistant</strong> (company setting). Shown only when Studio's assistant uses a OneChat model.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #a9b2c0">
+        <button type="button" style="height: 30px; padding: 0 14px; border: 1px solid #08507c; border-radius: 6px; background: #ffffff; color: #08507c; font: inherit; font-weight: 600">Close</button>
+        <button type="button" style="margin-left: auto; height: 30px; padding: 0 14px; border: 1px solid #08507c; border-radius: 6px; background: #08507c; color: #ffffff; font: inherit; font-weight: 600">Generate steps</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workflow B: lanes for who does each step</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.lane{position:absolute;left:0;right:0;border-bottom:1px solid #a9b2c0}
+.lane>b{position:absolute;left:0;top:0;bottom:0;width:120px;display:flex;align-items:center;padding:0 10px;box-sizing:border-box;background:#eef2f7;border-right:1px solid #a9b2c0;font-size:13px}
+.node{position:absolute;width:150px;background:#fff;border:1px solid #5c6575;border-radius:8px;padding:6px 10px 6px 12px;box-sizing:border-box;font-size:12px}
+.node b{display:block;font-size:13px}
+.node span{color:#353e4c}
+.bar{position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:8px 0 0 8px}
+.ln{position:absolute;background:#5c6575}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid #a9b2c0;border-radius:14px;background:#fff;font-size:13px}
+.dot{width:10px;height:10px;border-radius:3px}
+.tb{height:28px;padding:0 10px;border:1px solid #a9b2c0;border-radius:5px;background:#fff;display:inline-flex;align-items:center;font-size:13px}
+</style>
+</helmet>
+<div style="width:1280px;height:800px;box-sizing:border-box;position:relative;font-family:Inter,'Segoe UI',sans-serif;font-size:14px;font-weight:500;color:#0a0a0a;background:#fff;overflow:hidden">
+  <header style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#1c2840;border-bottom:3px solid #0b6ba3;color:#fff">
+    <strong>One AgentStudio</strong><span style="color:#c8d1de">Workflows \ Invoice approval.process.json</span>
+    <span style="margin-left:auto;display:flex;gap:8px">
+      <span class="tb" style="background:transparent;color:#fff;border-color:#8b96a8">Check</span>
+      <span class="tb" style="background:transparent;color:#fff;border-color:#8b96a8">Test run…</span>
+      <span class="tb" style="background:#fff;color:#08507c;border-color:#fff;font-weight:700">Save</span>
+    </span>
+  </header>
+  <!-- add bar instead of a side palette -->
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid #a9b2c0;flex-wrap:wrap">
+    <strong style="font-size:13px;margin-right:4px">Add</strong>
+    <span class="chip"><i class="dot" style="background:#2f6fde"></i>Agent task</span>
+    <span class="chip"><i class="dot" style="background:#0f766e"></i>Human task</span>
+    <span class="chip"><i class="dot" style="background:#b45309"></i>Approval</span>
+    <span class="chip"><i class="dot" style="background:#9d174d"></i>Read a document</span>
+    <span class="chip"><i class="dot" style="background:#6d28d9"></i>AI step</span>
+    <span class="chip"><i class="dot" style="background:#7c3aed"></i>Decision</span>
+    <span class="chip"><i class="dot" style="background:#7c3aed"></i>Parallel</span>
+    <span class="chip"><i class="dot" style="background:#64748b"></i>Wait</span>
+    <span class="chip"><i class="dot" style="background:#0e7490"></i>Notification</span>
+    <span class="chip">More ▾</span>
+    <span style="margin-left:auto;display:flex;gap:6px"><span class="tb" style="background:#e3edfb;color:#174ba6;font-weight:700">Lanes</span><span class="tb">Diagram</span></span>
+  </div>
+  <div style="display:flex;height:711px">
+    <section style="flex:1;position:relative;background:#f6f8fb">
+      <div class="lane" style="top:0;height:150px"><b>Requester</b></div>
+      <div class="lane" style="top:150px;height:150px"><b>Agents</b></div>
+      <div class="lane" style="top:300px;height:150px"><b>Managers</b></div>
+      <div class="lane" style="top:450px;height:150px"><b>Finance heads</b></div>
+      <div style="position:absolute;left:10px;bottom:10px;font-size:12px;color:#353e4c">A step's lane is who does it. Drag a step to another lane to give it to them.</div>
+      <!-- steps -->
+      <div class="node" style="left:140px;top:50px;border-color:#15803d"><b>Start</b><span>Form: New invoice</span></div>
+      <div class="ln" style="left:290px;top:74px;width:30px;height:2px"></div><div class="ln" style="left:318px;top:74px;width:2px;height:126px"></div>
+      <div class="node" style="left:320px;top:200px"><i class="bar" style="background:#9d174d"></i><b>Read the invoice</b><span>DocFlow</span></div>
+      <div class="ln" style="left:470px;top:224px;width:30px;height:2px"></div>
+      <div class="node" style="left:500px;top:200px"><i class="bar" style="background:#2f6fde"></i><b>Check vendor</b><span>SAP\Vendor check</span></div>
+      <div class="ln" style="left:650px;top:224px;width:30px;height:2px"></div>
+      <div style="position:absolute;left:690px;top:204px;width:40px;height:40px;transform:rotate(45deg);background:#fff;border:2px solid #7c3aed;border-radius:5px"></div>
+      <span style="position:absolute;left:672px;top:250px;font-size:12px;font-weight:700">Amount?</span>
+      <div class="ln" style="left:709px;top:244px;width:2px;height:106px"></div><div class="ln" style="left:709px;top:194px;width:2px;height:10px"></div>
+      <div class="node" style="left:720px;top:350px"><i class="bar" style="background:#b45309"></i><b>Manager approves</b><span>&gt; 10,000 · 8 h</span></div>
+      <div class="ln" style="left:709px;top:194px;width:250px;height:2px"></div><div class="ln" style="left:957px;top:194px;width:2px;height:306px"></div>
+      <div class="node" style="left:900px;top:500px"><i class="bar" style="background:#b45309"></i><b>Finance head approves</b><span>&gt; 1,00,000 · 2 of 3</span></div>
+      <div class="node" style="left:900px;top:200px;border-style:dashed"><i class="bar" style="background:#2f6fde"></i><b>Post to SAP</b><span>after approval</span></div>
+      <div class="ln" style="left:1050px;top:224px;width:20px;height:2px"></div><div class="ln" style="left:1068px;top:74px;width:2px;height:152px"></div>
+      <div class="node" style="left:900px;top:50px;left:1000px;width:120px;top:20px"><i class="bar" style="background:#0e7490"></i><b>Tell me</b><span>E-mail</span></div>
+    </section>
+    <aside style="width:300px;border-left:1px solid #a9b2c0;padding:12px 14px;box-sizing:border-box;font-size:13px">
+      <strong style="font-size:15px">Who does what</strong>
+      <p style="color:#353e4c;margin:6px 0 10px">Each lane is a person, team or role. Steps take their assignee from the lane unless they say otherwise.</p>
+      <table style="width:100%;border-collapse:collapse">
+        <tr style="text-align:left;border-bottom:1px solid #a9b2c0"><th style="padding:4px 0">Lane</th><th>Is</th><th>Steps</th></tr>
+        <tr><td style="padding:5px 0">Requester</td><td>Who started it</td><td>2</td></tr>
+        <tr><td style="padding:5px 0">Agents</td><td>Pool: Finance</td><td>3</td></tr>
+        <tr><td style="padding:5px 0">Managers</td><td>Requester's manager</td><td>1</td></tr>
+        <tr><td style="padding:5px 0">Finance heads</td><td>Role</td><td>1</td></tr>
+      </table>
+      <p style="margin:12px 0 0;color:#353e4c">Select a step to see its settings here (the same fields as in A).</p>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

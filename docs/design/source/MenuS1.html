@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Menu S1: five sections; Setup as a checklist</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#08507c;font-weight:600}a:hover{color:#063a5a}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; font-family: Inter, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 500; color: #0a0a0a; background: #ffffff; overflow: hidden">
+  <nav aria-label="Main menu" style="width: 236px; flex: none; background: #161c27; display: flex; flex-direction: column; padding: 10px 6px; gap: 2px; box-sizing: border-box">
+    <button type="button" aria-expanded="true" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border: 0; border-radius: 5px; background: #212a3a; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; text-align: left">
+      <span style="width: 18px; height: 18px; border-radius: 4px; background: #b45309; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M12 2v6M5 12H2M22 12h-3M7 7 5 5M17 7l2-2M12 22a6 6 0 1 0 0-12 6 6 0 0 0 0 12z"></path></svg></span>Setup<span style="margin-left: auto; color: #fbbf24; font-size: 11px; letter-spacing: 0; text-transform: none">7 of 11</span></button>
+    <div style="margin: 2px 0 6px 17px; padding-left: 6px; border-left: 1px solid #3a4558">
+      <a href="#" style="display: flex; align-items: center; height: 28px; padding: 0 8px; color: #ffffff; background: #24406f; box-shadow: inset 3px 0 0 #4d8dff; border-radius: 0 5px 5px 0; text-decoration: none; font-size: 13px; font-weight: 700">Install and set up</a>
+    </div>
+    <button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-top: 2px; border: 0; border-radius: 5px; background: #212a3a; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; text-align: left">
+      <span style="width: 18px; height: 18px; border-radius: 4px; background: #2f6fde; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M3 7h7l2 2h9v10H3z"></path></svg></span>Build<span style="margin-left: auto; color: #9aa6b8; font-size: 10px">▸</span></button>
+    <div style="margin: 2px 0 4px 17px; padding-left: 6px; border-left: 1px solid #3a4558; display: flex; flex-direction: column; gap: 1px">
+      <span style="height: 24px; display: flex; align-items: center; padding: 0 8px; color: #c8d1de; font-size: 12.5px">Agents · Document Automation · Workflows · Apps · AI building blocks · Ideas</span>
+    </div>
+    <button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-top: 2px; border: 0; border-radius: 5px; background: #212a3a; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; text-align: left">
+      <span style="width: 18px; height: 18px; border-radius: 4px; background: #0f766e; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M6 4l14 8-14 8z"></path></svg></span>Run<span style="margin-left: auto; color: #9aa6b8; font-size: 10px">▸</span></button>
+    <div style="margin: 2px 0 4px 17px; padding-left: 6px; border-left: 1px solid #3a4558">
+      <span style="display: flex; padding: 3px 8px; color: #c8d1de; font-size: 12.5px; line-height: 1.4">Agent Activity · Scheduling · Work queues · Task inbox · Runners · One Chat</span>
+    </div>
+    <button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-top: 2px; border: 0; border-radius: 5px; background: #212a3a; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; text-align: left">
+      <span style="width: 18px; height: 18px; border-radius: 4px; background: #475569; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg></span>Manage<span style="margin-left: auto; color: #9aa6b8; font-size: 10px">▸</span></button>
+    <div style="margin: 2px 0 4px 17px; padding-left: 6px; border-left: 1px solid #3a4558">
+      <span style="display: flex; padding: 3px 8px; color: #c8d1de; font-size: 12.5px; line-height: 1.4">People · Security · Connections · Shared data · Toolkits · Platform</span>
+    </div>
+    <button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-top: 2px; border: 0; border-radius: 5px; background: #212a3a; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; text-align: left">
+      <span style="width: 18px; height: 18px; border-radius: 4px; background: #0e7490; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg></span>Monitor<span style="margin-left: auto; color: #9aa6b8; font-size: 10px">▸</span></button>
+    <div style="margin: 2px 0 4px 17px; padding-left: 6px; border-left: 1px solid #3a4558">
+      <span style="display: flex; padding: 3px 8px; color: #c8d1de; font-size: 12.5px; line-height: 1.4">Overview · Operations · Business · Alerts · AI usage</span>
+    </div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 24px; background: #1c2840; border-bottom: 3px solid #0b6ba3; color: #ffffff">
+      <span style="font-weight: 700">One CommandCenter</span><span style="margin-left: auto">Administrator</span>
+    </header>
+    <section style="padding: 18px 24px; display: flex; flex-direction: column; gap: 12px; overflow: hidden">
+      <div style="color: #262626; font-size: 12.5px">Setup › Install and set up</div>
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
+        <div style="flex: 1 1 420px">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 700">Install and set up</h1>
+          <p style="margin: 4px 0 0; color: #262626">Follow the steps in order. Each step checks itself; done steps are ticked. Optional steps can be skipped.</p>
+        </div>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #262626"><input type="checkbox">Hide Setup from my menu</label>
+        <button type="button" style="height: 30px; padding: 0 12px; border: 1px solid #08507c; border-radius: 6px; background: #ffffff; color: #08507c; font: inherit; font-weight: 600">Check again</button>
+      </div>
+      <div role="progressbar" aria-valuenow="7" aria-valuemin="0" aria-valuemax="11" aria-label="Steps done" style="height: 8px; background: #e6e9ef; border-radius: 4px; overflow: hidden"><div style="width: 64%; height: 100%; background: #0f766e"></div></div>
+      <ol style="list-style: none; margin: 0; padding: 0; border: 1px solid #a9b2c0; border-radius: 6px">
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd"><span style="font-weight: 700; color: #145c32">✓ 1</span><span><strong>Install One CommandCenter</strong><br><span style="color: #353e4c; font-size: 12.5px">Windows setup, MSI, Linux service or container</span></span><span style="font-size: 12.5px">0.2.0 · Enterprise</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd; background: #f1f3f7"><span style="font-weight: 700; color: #145c32">✓ 2</span><span><strong>Connect the database</strong><br><span style="color: #353e4c; font-size: 12.5px">SQL Server or PostgreSQL for production</span></span><span style="font-size: 12.5px">SQL Server · schema current</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd"><span style="font-weight: 700; color: #7a4a00">3</span><span><strong>Turn on HTTPS and set the public address</strong><br><span style="color: #353e4c; font-size: 12.5px">ooa tls · Manage › Platform › Settings</span></span><span style="font-size: 12.5px">HTTPS off · no public address</span><a href="#" style="justify-self: start">How to</a></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd; background: #f1f3f7"><span style="font-weight: 700; color: #145c32">✓ 4</span><span><strong>Install the licence</strong></span><span style="font-size: 12.5px">Valid to 31 Mar 2027 · 5 seats</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd"><span style="font-weight: 700; color: #145c32">✓ 5</span><span><strong>First administrator and sign-in</strong></span><span style="font-size: 12.5px">Admin set · SSO not set</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd; background: #f1f3f7"><span style="font-weight: 700; color: #145c32">✓ 6</span><span><strong>Install runners on worker machines</strong><br><span style="color: #353e4c; font-size: 12.5px">Download the runner package, register it with a key</span></span><span style="font-size: 12.5px">1 runner online</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd"><span style="font-weight: 700; color: #7a4a00">7</span><span><strong>Studio and the browser extension</strong></span><span style="font-size: 12.5px">For developers' computers</span><button type="button" style="justify-self: start; height: 28px; padding: 0 10px; border: 1px solid #08507c; border-radius: 6px; background: #ffffff; color: #08507c; font: inherit; font-weight: 600">Downloads</button></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd; background: #f1f3f7"><span style="font-weight: 700; color: #145c32">✓ 8</span><span><strong>Connect an AI model</strong></span><span style="font-size: 12.5px">onechat-flow answers</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd"><span style="font-weight: 700; color: #145c32">✓ 9</span><span><strong>Document Automation (DocFlow)</strong> <span style="font-size: 12px; color: #353e4c">optional</span></span><span style="font-size: 12.5px">DocFlow 3.3.1 · compatible</span><span style="padding: 2px 8px; border-radius: 10px; background: #e3f4ea; color: #145c32; font-weight: 700; justify-self: start">Done</span></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #cdd3dd; background: #f1f3f7"><span style="font-weight: 700; color: #7a4a00">10</span><span><strong>OneChat assistant</strong> <span style="font-size: 12px; color: #353e4c">optional</span></span><span style="font-size: 12.5px">Model answers · catalog not stated</span><a href="#" style="justify-self: start">Skip</a></li>
+        <li style="display: grid; grid-template-columns: 34px 1fr 210px 120px; align-items: center; gap: 10px; padding: 7px 12px"><span style="font-weight: 700; color: #7a4a00">11</span><span><strong>Run the sample agent</strong></span><span style="font-size: 12.5px">No sample run yet</span><button type="button" style="justify-self: start; height: 28px; padding: 0 10px; border: 1px solid #08507c; border-radius: 6px; background: #08507c; color: #ffffff; font: inherit; font-weight: 600">Run it</button></li>
+      </ol>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

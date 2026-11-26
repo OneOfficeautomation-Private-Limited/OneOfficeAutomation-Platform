@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workflow A: flow diagram with step palette</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.pal-h{margin:10px 0 4px;font-size:12px;font-weight:700;color:#353e4c;text-transform:uppercase;letter-spacing:.03em}
+.pal-i{display:flex;align-items:center;gap:8px;height:26px;padding:0 6px;border-radius:4px;color:#0a0a0a}
+.pal-i:hover{background:#eef2f7}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.node{position:absolute;width:190px;background:#fff;border:1px solid #5c6575;border-radius:8px;padding:6px 10px;box-sizing:border-box;font-size:13px}
+.node b{display:block;font-size:13px}
+.node span{color:#353e4c;font-size:12px}
+.num{position:absolute;left:-10px;top:-10px;width:20px;height:20px;border-radius:50%;background:#1c2840;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center}
+.bar{position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:8px 0 0 8px}
+.ln{position:absolute;background:#5c6575}
+.lbl{position:absolute;font-size:11px;font-weight:700;padding:1px 6px;border-radius:9px;background:#fff;border:1px solid #a9b2c0}
+.f{display:flex;flex-direction:column;gap:3px;font-weight:600;font-size:13px;margin-bottom:9px}
+.in{height:28px;border:1px solid #5c6575;border-radius:5px;padding:0 8px;display:flex;align-items:center;font-weight:500;background:#fff}
+.tb{height:28px;padding:0 10px;border:1px solid #a9b2c0;border-radius:5px;background:#fff;display:inline-flex;align-items:center;font-size:13px}
+</style>
+</helmet>
+<div style="width:1280px;height:800px;box-sizing:border-box;position:relative;font-family:Inter,'Segoe UI',sans-serif;font-size:14px;font-weight:500;color:#0a0a0a;background:#fff;overflow:hidden">
+  <header style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#1c2840;border-bottom:3px solid #0b6ba3;color:#fff">
+    <strong>One AgentStudio</strong><span style="color:#c8d1de">Workflows \ Invoice approval.process.json</span>
+    <span style="margin-left:auto;display:flex;gap:8px">
+      <span class="tb" style="background:transparent;color:#fff;border-color:#8b96a8">Check</span>
+      <span class="tb" style="background:transparent;color:#fff;border-color:#8b96a8">Test run…</span>
+      <span class="tb" style="background:#fff;color:#08507c;border-color:#fff;font-weight:700">Save</span>
+    </span>
+  </header>
+  <div role="tablist" style="display:flex;gap:2px;padding:0 16px;border-bottom:1px solid #a9b2c0;height:34px;align-items:flex-end">
+    <span style="padding:6px 12px;border-bottom:3px solid #7148c9;font-weight:700">Flow</span>
+    <span style="padding:6px 12px;color:#262626">Start and data</span>
+    <span style="padding:6px 12px;color:#262626">Who does what</span>
+    <span style="padding:6px 12px;color:#262626">Problems <b style="color:#b42318">1</b></span>
+  </div>
+  <div style="display:flex;height:719px">
+    <aside style="width:220px;border-right:1px solid #a9b2c0;padding:10px 12px;box-sizing:border-box;font-size:13px">
+      <div class="in" style="color:#5c6575">Search steps</div>
+      <div class="pal-h">Work</div>
+      <div class="pal-i"><i class="dot" style="background:#2f6fde"></i>Agent task</div>
+      <div class="pal-i"><i class="dot" style="background:#0f766e"></i>Human task (form)</div>
+      <div class="pal-i"><i class="dot" style="background:#b45309"></i>Approval</div>
+      <div class="pal-i"><i class="dot" style="background:#9d174d"></i>Read a document <span style="color:#5c6575">· DocFlow</span></div>
+      <div class="pal-i"><i class="dot" style="background:#6d28d9"></i>AI step <span style="color:#5c6575">· prompt skill</span></div>
+      <div class="pal-i"><i class="dot" style="background:#475569"></i>Sub-workflow</div>
+      <div class="pal-i"><i class="dot" style="background:#0e7490"></i>Notification</div>
+      <div class="pal-h">Paths</div>
+      <div class="pal-i"><i class="dot" style="background:#7c3aed;transform:rotate(45deg)"></i>Decision (if / else if / else)</div>
+      <div class="pal-i"><i class="dot" style="background:#7c3aed"></i>Parallel (split and join)</div>
+      <div class="pal-i"><i class="dot" style="background:#7c3aed;border-radius:50%"></i>Go to a step</div>
+      <div class="pal-h">Waits</div>
+      <div class="pal-i"><i class="dot" style="background:#64748b;border-radius:50%"></i>Wait for a time</div>
+      <div class="pal-i"><i class="dot" style="background:#64748b;border-radius:50%"></i>Wait for an event</div>
+      <div class="pal-h">Finish</div>
+      <div class="pal-i"><i class="dot" style="background:#15803d;border-radius:50%"></i>End (completed / failed / cancelled)</div>
+      <p style="margin:12px 0 0;color:#353e4c;font-size:12px">Drag onto the diagram, or double-click to add after the selected step.</p>
+    </aside>
+    <section style="flex:1;position:relative;background:#f6f8fb;background-image:radial-gradient(#c9d1dc 1px,transparent 1px);background-size:16px 16px">
+      <div style="position:absolute;left:10px;top:10px;display:flex;gap:6px">
+        <span class="tb">Undo</span><span class="tb">Redo</span><span class="tb">Copy</span><span class="tb">Paste</span><span class="tb">Find</span>
+      </div>
+      <!-- flow -->
+      <div class="node" style="left:235px;top:52px;border-color:#15803d"><i class="num">1</i><b>Start</b><span>Form: New invoice · title "Invoice $number$"</span></div>
+      <div class="ln" style="left:329px;top:100px;width:2px;height:24px"></div>
+      <div class="node" style="left:235px;top:124px"><i class="bar" style="background:#9d174d"></i><i class="num">2</i><b>Read the invoice</b><span>DocFlow · Invoices (en, de)</span></div>
+      <div class="ln" style="left:329px;top:172px;width:2px;height:24px"></div>
+      <div class="node" style="left:235px;top:196px"><i class="bar" style="background:#2f6fde"></i><i class="num">3</i><b>Check vendor in SAP</b><span>Agent: SAP\Vendor check · pool Finance</span></div>
+      <div class="ln" style="left:329px;top:244px;width:2px;height:22px"></div>
+      <div style="position:absolute;left:300px;top:266px;width:60px;height:60px;transform:rotate(45deg);background:#fff;border:2px solid #7c3aed;border-radius:6px"></div>
+      <span style="position:absolute;left:276px;top:284px;width:110px;text-align:center;font-size:12px;font-weight:700"><i class="num" style="position:static;display:inline-flex;margin-right:4px">4</i>Amount?</span>
+      <!-- branches -->
+      <div class="ln" style="left:120px;top:342px;width:420px;height:2px"></div>
+      <div class="ln" style="left:329px;top:326px;width:2px;height:16px"></div>
+      <div class="ln" style="left:120px;top:342px;width:2px;height:30px"></div>
+      <div class="ln" style="left:329px;top:342px;width:2px;height:30px"></div>
+      <div class="ln" style="left:538px;top:342px;width:2px;height:30px"></div>
+      <span class="lbl" style="left:60px;top:352px">If &gt; 1,00,000</span>
+      <span class="lbl" style="left:338px;top:352px">Else if &gt; 10,000</span>
+      <span class="lbl" style="left:548px;top:352px">Else</span>
+      <div class="node" style="left:25px;top:376px;outline:3px solid #7148c9;outline-offset:2px"><i class="bar" style="background:#b45309"></i><i class="num">5</i><b>Finance head approves</b><span>2 of 3 · due 24 h · escalates</span></div>
+      <div class="node" style="left:235px;top:376px"><i class="bar" style="background:#b45309"></i><i class="num">6</i><b>Manager approves</b><span>Requester's manager · 8 h</span></div>
+      <div class="node" style="left:445px;top:376px;border-style:dashed"><i class="bar" style="background:#2f6fde"></i><i class="num">7</i><b>Post to SAP</b><span>Agent: SAP\Post invoice</span></div>
+      <div class="ln" style="left:120px;top:424px;width:2px;height:30px"></div>
+      <div class="ln" style="left:329px;top:424px;width:2px;height:30px"></div>
+      <div class="ln" style="left:538px;top:424px;width:2px;height:30px"></div>
+      <div class="ln" style="left:120px;top:454px;width:420px;height:2px"></div>
+      <div class="ln" style="left:329px;top:454px;width:2px;height:24px"></div>
+      <div class="node" style="left:235px;top:478px"><i class="bar" style="background:#0e7490"></i><i class="num">8</i><b>Tell the requester</b><span>E-mail · Teams</span></div>
+      <div class="ln" style="left:329px;top:526px;width:2px;height:24px"></div>
+      <div class="node" style="left:235px;top:550px;border-color:#15803d;border-width:2px"><i class="num">9</i><b>End · Completed</b><span>Message: "Invoice $number$ posted"</span></div>
+      <span class="lbl" style="left:445px;top:430px;color:#b42318;border-color:#b42318">! Agent has a new input: Company code</span>
+      <!-- view tools -->
+      <div style="position:absolute;left:10px;bottom:10px;display:flex;gap:6px"><span class="tb">Fit</span><span class="tb">−</span><span class="tb">100%</span><span class="tb">+</span><span class="tb">Mini map</span><span class="tb">Top to bottom ▾</span></div>
+    </section>
+    <aside style="width:330px;border-left:1px solid #a9b2c0;padding:12px 14px;box-sizing:border-box;font-size:13px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><i class="dot" style="background:#b45309;width:12px;height:12px"></i><strong style="font-size:15px">Approval · step 5</strong></div>
+      <div class="f">Name<div class="in">Finance head approves</div></div>
+      <div class="f">Approvers<div class="in">role: Finance heads&nbsp;<span style="color:#5c6575">(3 people)</span></div></div>
+      <div class="f">Approvals needed
+        <div style="display:flex;border:1px solid #5c6575;border-radius:5px;overflow:hidden;height:28px">
+          <span style="flex:1;display:flex;align-items:center;justify-content:center">Any one</span>
+          <span style="flex:1;display:flex;align-items:center;justify-content:center;border-left:1px solid #a9b2c0;background:#e3edfb;color:#174ba6;font-weight:700">2 of 3</span>
+          <span style="flex:1;display:flex;align-items:center;justify-content:center;border-left:1px solid #a9b2c0">Everyone</span>
+        </div></div>
+      <div style="display:flex;gap:8px"><div class="f" style="flex:1">Due within<div class="in">24 hours</div></div><div class="f" style="flex:1">Then<div class="in">Escalate to CFO ▾</div></div></div>
+      <div class="f">Show to the approver<div class="in">Form: Invoice summary (read-only) ▾</div></div>
+      <div style="display:flex;gap:8px"><div class="f" style="flex:1">Yes button<div class="in">Approve</div></div><div class="f" style="flex:1">No button<div class="in">Reject</div></div></div>
+      <div class="f">If rejected<div class="in">Go to 8 · Tell the requester ▾</div></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" checked>Ask for a reason when rejecting</label>
+      <label style="display:flex;gap:6px;align-items:center;margin-bottom:10px"><input type="checkbox">Hide from the requester when done</label>
+      <div class="f">Notes<div class="in" style="height:40px;align-items:flex-start;padding-top:5px;color:#5c6575">Why this step exists…</div></div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

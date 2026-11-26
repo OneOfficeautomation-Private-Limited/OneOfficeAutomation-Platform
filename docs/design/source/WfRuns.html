@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workflow runs: Run section, live diagram per run</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.m{display:block;padding:5px 12px 5px 24px;font-size:13px;color:#262626}
+.mh{display:block;padding:8px 12px 3px;font-size:12px;font-weight:700;color:#353e4c;text-transform:uppercase}
+td,th{padding:7px 8px;text-align:left;border-bottom:1px solid #d5dbe4;font-size:13px;white-space:nowrap}
+th{font-weight:700;color:#262626;border-bottom:1px solid #a9b2c0}
+.pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:12px;font-weight:700}
+.st{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #a9b2c0;border-radius:6px;margin-bottom:6px;font-size:13px;background:#fff}
+.st i{width:18px;height:18px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-style:normal}
+.tb{height:28px;padding:0 10px;border:1px solid #a9b2c0;border-radius:5px;background:#fff;display:inline-flex;align-items:center;font-size:13px}
+</style>
+</helmet>
+<div style="width:1280px;height:800px;box-sizing:border-box;position:relative;font-family:Inter,'Segoe UI',sans-serif;font-size:14px;font-weight:500;color:#0a0a0a;background:#fff;overflow:hidden;display:flex;flex-direction:column">
+  <header style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#1c2840;border-bottom:3px solid #0b6ba3;color:#fff;flex:none"><strong>One CommandCenter</strong></header>
+  <div style="display:flex;flex:1;min-height:0">
+    <nav style="width:200px;border-right:1px solid #a9b2c0;padding-top:6px;flex:none">
+      <span class="mh">Build</span><span class="mh">Run</span>
+      <span class="m">Agent Activity</span>
+      <span class="m" style="background:#e3edfb;color:#174ba6;font-weight:700;border-left:3px solid #0b6ba3">Workflow runs</span>
+      <span class="m">Task inbox</span>
+      <span class="m">Start agents</span><span class="m">Work queues</span><span class="m">Runners</span><span class="m">One Chat</span>
+      <span class="mh">Manage</span><span class="mh">Monitor</span>
+    </nav>
+    <main style="flex:1;padding:12px 16px;min-width:0">
+      <div style="display:flex;align-items:center;gap:10px"><h1 style="margin:0;font-size:20px">Workflow runs</h1><span style="color:#353e4c;font-size:13px">Start a workflow and follow each run, step by step</span>
+        <span style="margin-left:auto" class="tb">Start a workflow…</span></div>
+      <!-- live counts per step: our own addition -->
+      <div style="display:flex;gap:8px;margin:10px 0">
+        <span class="tb" style="background:#e3edfb;color:#174ba6;font-weight:700">In progress 14</span><span class="tb">Waiting on a person 9</span><span class="tb">Late 2</span><span class="tb">Finished today 31</span><span class="tb">Failed 1</span>
+        <span class="tb" style="margin-left:auto">Workflow: Invoice approval ▾</span>
+      </div>
+      <table style="border-collapse:collapse;width:100%">
+        <tr><th>Reference</th><th>Workflow</th><th>Now at</th><th>Waiting on</th><th>Started</th><th>Due</th></tr>
+        <tr style="background:#eef4fd"><td><b>Invoice 4471</b></td><td>Invoice approval</td><td>5 · Finance head approves</td><td>1 of 2 approvals</td><td>09:12</td><td><span class="pill" style="background:#fdecea;color:#b42318">Late 2 h</span></td></tr>
+        <tr><td>Invoice 4470</td><td>Invoice approval</td><td>6 · Manager approves</td><td>R. Iyer</td><td>08:40</td><td>15:40</td></tr>
+        <tr><td>Invoice 4468</td><td>Invoice approval</td><td>3 · Check vendor in SAP</td><td>Runner FIN-02</td><td>08:31</td><td>–</td></tr>
+        <tr><td>Onboarding 112</td><td>New joiner</td><td>Parallel · 2 of 3 done</td><td>IT desk</td><td>Yesterday</td><td>Fri</td></tr>
+      </table>
+    </main>
+    <aside style="width:380px;border-left:1px solid #a9b2c0;padding:12px 14px;box-sizing:border-box;flex:none;background:#fbfcfe">
+      <div style="display:flex;align-items:center;gap:8px"><strong style="font-size:15px">Invoice 4471</strong><span class="pill" style="background:#fff4e5;color:#8a4b00">Waiting</span><span style="margin-left:auto" class="tb">Cancel run…</span></div>
+      <div role="tablist" style="display:flex;gap:4px;border-bottom:1px solid #a9b2c0;margin:8px 0 10px">
+        <span style="padding:4px 10px;border-bottom:3px solid #7148c9;font-weight:700;font-size:13px">Steps</span><span style="padding:4px 10px;font-size:13px">Diagram</span><span style="padding:4px 10px;font-size:13px">Data</span><span style="padding:4px 10px;font-size:13px">History</span>
+      </div>
+      <div class="st"><i style="background:#15803d">✓</i>1 Start · by A. Rao<span style="margin-left:auto;color:#353e4c">09:12</span></div>
+      <div class="st"><i style="background:#15803d">✓</i>2 Read the invoice · 98% sure<span style="margin-left:auto;color:#353e4c">09:13</span></div>
+      <div class="st"><i style="background:#15803d">✓</i>3 Check vendor in SAP<span style="margin-left:auto;color:#353e4c">09:15</span></div>
+      <div class="st"><i style="background:#15803d">✓</i>4 Amount? → over 1,00,000</div>
+      <div class="st" style="border:2px solid #b45309"><i style="background:#b45309">…</i><div>5 Finance head approves<br><span style="font-size:12px;color:#353e4c">S. Menon approved · 2 waiting · late 2 h</span></div></div>
+      <div style="display:flex;gap:6px;margin:2px 0 10px 26px"><span class="tb">Remind</span><span class="tb">Reassign…</span><span class="tb">Skip step…</span></div>
+      <div class="st" style="color:#5c6575;border-style:dashed"><i style="background:#a9b2c0">7</i>Post to SAP</div>
+      <div class="st" style="color:#5c6575;border-style:dashed"><i style="background:#a9b2c0">8</i>Tell the requester</div>
+      <div class="st" style="color:#5c6575;border-style:dashed"><i style="background:#a9b2c0">9</i>End</div>
+      <p style="font-size:12px;color:#353e4c;margin:8px 0 0">Our additions: late flag from each step's due time, Remind / Reassign / Skip by an administrator (recorded in the audit), and the Diagram tab shows the same flow as Studio, coloured by what happened.</p>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

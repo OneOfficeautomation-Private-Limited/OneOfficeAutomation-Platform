@@ -10,6 +10,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [Architecture](architecture/README.md) | Architects, developers, security reviewers | How is the product built, and why? |
 | [Infrastructure](infrastructure/README.md) | IT, platform and security teams | What do I need, and how do I install, connect, secure, scale, back up and upgrade it? |
 | [Reference](#reference) | Everyone | Every toolkit action and field, and every command-line command |
+| [Design options](design/README.md) | Developers, designers, product owners | What each screen should look like: the options drawn and the one picked |
 
 ## Where to start
 

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console C: densest</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; flex-direction: column; font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #17202b; background: #ffffff">
+  <header style="height: 40px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: #ffffff; border-bottom: 2px solid #1d5fd1">
+    <div style="display: flex; align-items: center; gap: 8px; width: 200px">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect width="22" height="22" rx="4" fill="#0f141d"></rect><path d="M6 11h10M11 6v10" stroke="#4d8dff" stroke-width="2.6" stroke-linecap="round"></path></svg>
+      <span style="font-size: 13px; font-weight: 700">OneOffice <span style="font-weight: 500; color: #353e4c">| Command Center</span></span>
+    </div>
+    <nav aria-label="You are here" style="font-size: 12px; color: #353e4c">Build › <b style="color: #17202b">Automation</b></nav>
+    <span style="flex: 1"></span>
+    <label style="display: flex; align-items: center; height: 26px; width: 280px; padding: 0 8px; border: 1px solid #7d8797; border-radius: 5px; color: #353e4c">Search</label>
+    <button style="height: 26px; padding: 0 8px; border: 0; border-radius: 5px; background: #b42318; color: #ffffff; font: inherit; font-weight: 600">1</button>
+    <button style="height: 26px; padding: 0 8px; border: 1px solid #7d8797; border-radius: 5px; background: #ffffff; color: #17202b; font: inherit">Administrator ▾</button>
+  </header>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav aria-label="Menu" style="width: 204px; flex: none; background: #161c27; color: #ffffff; padding: 6px 0; display: flex; flex-direction: column">
+      <a href="#" style="height: 26px; line-height: 26px; padding: 0 12px; color: #ffffff; text-decoration: none; font-weight: 600">Home</a>
+      <div style="height: 26px; line-height: 26px; margin-top: 6px; padding: 0 12px; background: #1f2737; font-size: 11px; font-weight: 700; letter-spacing: 0.8px">▾ BUILD</div>
+      <a href="#" style="height: 26px; line-height: 26px; padding: 0 12px 0 28px; background: #1d5fd1; color: #ffffff; text-decoration: none; font-weight: 600">Automation</a>
+      <a href="#" style="height: 26px; line-height: 26px; padding: 0 12px 0 28px; color: #c8d1de; text-decoration: none">Ideas</a>
+      <a href="#" style="height: 26px; line-height: 26px; padding: 0 12px 0 28px; color: #c8d1de; text-decoration: none">Apps</a>
+      <div style="height: 26px; line-height: 26px; margin-top: 2px; padding: 0 12px; background: #1f2737; font-size: 11px; font-weight: 700; letter-spacing: 0.8px">▸ MANAGE</div>
+      <div style="height: 26px; line-height: 26px; margin-top: 2px; padding: 0 12px; background: #1f2737; font-size: 11px; font-weight: 700; letter-spacing: 0.8px">▸ OPERATIONAL INSIGHTS</div>
+      <div style="height: 26px; line-height: 26px; margin-top: 2px; padding: 0 12px; background: #1f2737; font-size: 11px; font-weight: 700; letter-spacing: 0.8px">▸ ADMINISTRATION</div>
+      <div style="height: 26px; line-height: 26px; margin-top: 2px; padding: 0 12px; background: #1f2737; font-size: 11px; font-weight: 700; letter-spacing: 0.8px">▸ AI</div>
+    </nav>
+    <main style="flex: 1; min-width: 0; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; background: #f3f5f8">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <h1 style="margin: 0; font-size: 16px; font-weight: 700">Automation</h1>
+        <span style="color: #353e4c">11 items</span>
+        <span style="flex: 1"></span>
+        <button style="height: 26px; padding: 0 10px; border: 1px solid #1d5fd1; border-radius: 5px; background: #ffffff; color: #1d5fd1; font: inherit; font-weight: 600">New folder</button>
+        <button style="height: 26px; padding: 0 10px; border: 0; border-radius: 5px; background: #1d5fd1; color: #ffffff; font: inherit; font-weight: 600">Create ▾</button>
+      </div>
+      <table style="border-collapse: collapse; width: 100%; background: #ffffff; border: 1px solid #d5dbe4">
+        <thead><tr style="height: 26px; background: #eef1f5; text-align: left"><th style="padding: 0 10px">Name</th><th style="padding: 0 10px">Type</th><th style="padding: 0 10px">Status</th><th style="padding: 0 10px">Version</th><th style="padding: 0 10px">Changed</th></tr></thead>
+        <tbody>
+          <tr style="height: 26px; border-top: 1px solid #e3e7ee"><td style="padding: 0 10px">Finance</td><td style="padding: 0 10px; color: #353e4c">Folder</td><td></td><td></td><td style="padding: 0 10px; color: #353e4c">10 Nov 2026</td></tr>
+          <tr style="height: 26px; border-top: 1px solid #e3e7ee"><td style="padding: 0 10px">Invoice posting</td><td style="padding: 0 10px; color: #353e4c">Agent</td><td style="padding: 0 10px; color: #14532d; font-weight: 600">● Production</td><td style="padding: 0 10px">v4</td><td style="padding: 0 10px; color: #353e4c">12 Nov 2026</td></tr>
+          <tr style="height: 26px; border-top: 1px solid #e3e7ee"><td style="padding: 0 10px">Supplier onboarding</td><td style="padding: 0 10px; color: #353e4c">Agent</td><td style="padding: 0 10px; color: #7a3e00; font-weight: 600">● Checked out</td><td style="padding: 0 10px">v2</td><td style="padding: 0 10px; color: #353e4c">11 Nov 2026</td></tr>
+          <tr style="height: 26px; border-top: 1px solid #e3e7ee"><td style="padding: 0 10px">Month-end report</td><td style="padding: 0 10px; color: #353e4c">Agent</td><td style="padding: 0 10px; color: #1e3a6e; font-weight: 600">● New</td><td></td><td style="padding: 0 10px; color: #353e4c">12 Nov 2026</td></tr>
+          <tr style="height: 26px; border-top: 1px solid #e3e7ee"><td style="padding: 0 10px">Refund request form</td><td style="padding: 0 10px; color: #353e4c">Form</td><td></td><td style="padding: 0 10px">v1</td><td style="padding: 0 10px; color: #353e4c">8 Nov 2026</td></tr>
+        </tbody>
+      </table>
+      <p style="margin: 0; color: #353e4c">White top bar with logo, name and breadcrumb on one line; section names sit on a darker band. Text 12 px, rows and buttons 26 px. Most rows per screen, but smallest to read.</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

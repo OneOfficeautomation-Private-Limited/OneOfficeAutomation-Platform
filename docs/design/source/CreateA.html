@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create A: three panes</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 960px; height: 640px; background: #4b5565; display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; font-size: 12.5px; color: #17202b">
+  <div role="dialog" aria-label="Create an agent" style="width: 900px; height: 590px; background: #ffffff; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.35)">
+    <div style="height: 44px; flex: none; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #d5dbe4">
+      <b style="font-size: 15px">Create an agent</b><span style="flex: 1"></span>
+      <button aria-label="Close" style="width: 28px; height: 28px; border: 0; background: transparent; font-size: 18px; color: #353e4c">×</button>
+    </div>
+    <div style="flex: 1; display: flex; min-height: 0">
+      <div style="width: 190px; flex: none; border-right: 1px solid #d5dbe4; padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; background: #f7f8fa">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #353e4c; padding: 0 8px 4px">START FROM</div>
+        <button style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid #7d8797; border-radius: 6px; background: #ffffff; font: inherit; text-align: left"><b>Blank</b><span style="font-size: 11.5px; color: #353e4c">An empty agent</span></button>
+        <button style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 2px solid #1d5fd1; border-radius: 6px; background: #eaf1fd; font: inherit; text-align: left"><b style="color: #174ba6">Template</b><span style="font-size: 11.5px; color: #353e4c">A ready-made start</span></button>
+        <button style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid #7d8797; border-radius: 6px; background: #ffffff; font: inherit; text-align: left"><b>Describe it</b><span style="font-size: 11.5px; color: #353e4c">Assistant drafts it</span></button>
+        <button style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid #7d8797; border-radius: 6px; background: #ffffff; font: inherit; text-align: left"><b>Copy an agent</b><span style="font-size: 11.5px; color: #353e4c">From one you have</span></button>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+        <label style="display: flex; align-items: center; height: 30px; padding: 0 10px; border: 1px solid #7d8797; border-radius: 6px; color: #353e4c">Search 64 templates</label>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <span style="padding: 3px 10px; border-radius: 12px; background: #1d5fd1; color: #ffffff; font-weight: 600">All</span>
+          <span style="padding: 3px 10px; border-radius: 12px; border: 1px solid #7d8797">Finance 12</span>
+          <span style="padding: 3px 10px; border-radius: 12px; border: 1px solid #7d8797">HR 9</span>
+          <span style="padding: 3px 10px; border-radius: 12px; border: 1px solid #7d8797">IT 14</span>
+          <span style="padding: 3px 10px; border-radius: 12px; border: 1px solid #7d8797">Email 8</span>
+          <span style="padding: 3px 10px; border-radius: 12px; border: 1px solid #7d8797">Documents 7</span>
+        </div>
+        <div style="flex: 1; overflow: hidden; border: 1px solid #d5dbe4; border-radius: 6px">
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #e3e7ee"><b style="flex: 1">Read invoices from email</b><span style="color: #353e4c">Finance · 9 steps</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #e3e7ee; background: #eaf1fd; box-shadow: inset 3px 0 0 #1d5fd1"><b style="flex: 1">Post invoices to the ledger</b><span style="color: #353e4c">Finance · 14 steps</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #e3e7ee"><b style="flex: 1">Reconcile bank statement</b><span style="color: #353e4c">Finance · 11 steps</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #e3e7ee"><b style="flex: 1">New starter accounts</b><span style="color: #353e4c">HR · 8 steps</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #e3e7ee"><b style="flex: 1">Reset a password in Active Directory</b><span style="color: #353e4c">IT · 5 steps</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px"><b style="flex: 1">Save attachments to a folder</b><span style="color: #353e4c">Email · 6 steps</span></div>
+        </div>
+        <p style="margin: 0; color: #353e4c">Post invoices to the ledger: reads each invoice, checks the supplier, posts it and mails a summary.</p>
+      </div>
+      <div style="width: 250px; flex: none; border-left: 1px solid #d5dbe4; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+        <label style="font-weight: 600">Name</label>
+        <div style="height: 30px; line-height: 28px; padding: 0 10px; border: 1px solid #7d8797; border-radius: 6px">Post invoices to the ledger</div>
+        <label style="font-weight: 600; margin-top: 4px">Save in</label>
+        <div style="border: 1px solid #7d8797; border-radius: 6px; padding: 4px 0; font-size: 12.5px">
+          <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px"><span style="color: #353e4c">▾</span><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2h5l2 2h7v9H1z" fill="#e8a33d"></path></svg>Bots</div>
+          <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 24px; background: #eaf1fd; box-shadow: inset 3px 0 0 #1d5fd1; font-weight: 600"><span style="color: #353e4c">▾</span><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2h5l2 2h7v9H1z" fill="#e8a33d"></path><path d="M1 5h14v8H1z" fill="#f4c26b"></path></svg>Finance</div>
+          <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 50px"><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2h5l2 2h7v9H1z" fill="#e8a33d"></path></svg>Payables</div>
+          <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 24px"><span style="color: #353e4c">▸</span><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2h5l2 2h7v9H1z" fill="#e8a33d"></path></svg>HR</div>
+          <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 24px"><span style="color: #353e4c">▸</span><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2h5l2 2h7v9H1z" fill="#e8a33d"></path></svg>Mine</div>
+          <div style="height: 26px; line-height: 26px; padding: 0 8px 0 24px; color: #1d5fd1; font-weight: 600">+ New folder here</div>
+        </div>
+        <span style="font-size: 11.5px; color: #353e4c">Bots / Finance / Post invoices to the ledger</span>
+      </div>
+    </div>
+    <div style="height: 50px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-top: 1px solid #d5dbe4; background: #f7f8fa">
+      <span style="color: #353e4c">Esc closes</span><span style="flex: 1"></span>
+      <button style="height: 30px; padding: 0 14px; border: 1px solid #1d5fd1; border-radius: 6px; background: #ffffff; color: #1d5fd1; font: inherit; font-weight: 600">Cancel</button>
+      <button style="height: 30px; padding: 0 14px; border: 0; border-radius: 6px; background: #1d5fd1; color: #ffffff; font: inherit; font-weight: 600">Create and open</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
