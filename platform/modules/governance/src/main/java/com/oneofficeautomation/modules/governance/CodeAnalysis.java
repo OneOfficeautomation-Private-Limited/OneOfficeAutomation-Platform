@@ -81,7 +81,7 @@ public final class CodeAnalysis {
     /** The folders' code analysis policies (set once the module has made both). */
     Policies policies;
 
-    /** The default policy (for folders without their own, Administration > Policies): the defaults with the saved changes, plus enforce_at_checkin. */
+    /** The default policy (for folders without their own, Manage > Policies): the defaults with the saved changes, plus enforce_at_checkin. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> policy() {
         Map<String, Object> saved = Map.of();

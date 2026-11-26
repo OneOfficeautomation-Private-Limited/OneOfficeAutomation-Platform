@@ -8,15 +8,15 @@ import { UI_MODULES, withModules } from "./registry";
 const here = join(process.cwd(), "src", "modules");
 
 describe("the UI module registry", () => {
-  it("finds every module folder and gives the menu the pages in the same order as before the registry", () => {
+  it("finds every module folder and puts each page in its section of the five-section menu (26 Nov 2026)", () => {
     const folders = readdirSync(here, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(here, d.name, "module.ts"))).map((d) => d.name).sort();
     expect(UI_MODULES.map((m) => m.id)).toEqual(folders);
     expect(MENU_SECTIONS.map((s) => s.id + ": " + s.pages.map((p) => p.id).join(" "))).toEqual([
-      "build: automation templates apitasks tests ideas apps",
-      "manage: activity inbox devices locks schedules triggers queues workflows globals data savedconn credentials toolkits",
-      "ai: chat connections skills docautomation knowledge governance",   // 13 Nov 2026 round 3: AI after Manage, Agent Insights last
-      "administration: users roles teams policies audit events licenses settings",
-      "insights: insights alerts alert-rules operations business runner-status upcoming",
+      "setup: setup",
+      "build: automation templates tests apitasks docautomation workflows apps skills knowledge ideas",
+      "run: activity schedules triggers upcoming queues inbox devices locks chat",
+      "manage: users roles teams credentials policies audit savedconn connections globals data toolkits settings licenses events",
+      "monitor: status insights operations runner-status business alerts alert-rules governance",
     ]);
   });
 
@@ -30,8 +30,9 @@ describe("the UI module registry", () => {
 
   it("without a module its pages are simply not there, and a section with no pages is hidden", () => {
     const without = withModules(KERNEL_SECTIONS, UI_MODULES.filter((m) => m.id !== "insights" && m.id !== "orchestration"));
-    expect(without.map((s) => s.id)).toEqual(["build", "manage", "ai", "administration"]);
-    expect(without.find((s) => s.id === "manage")!.pages.map((p) => p.id)).not.toContain("workflows");
+    expect(without.map((s) => s.id)).toEqual(["setup", "build", "run", "manage", "monitor"]);
+    expect(without.find((s) => s.id === "build")!.pages.map((p) => p.id)).not.toContain("workflows");
+    expect(without.find((s) => s.id === "monitor")!.pages.map((p) => p.id)).toEqual(["status", "governance"]);
   });
 
   it("puts a page whose page to follow is missing at the end of its section", () => {

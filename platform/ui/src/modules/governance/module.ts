@@ -4,7 +4,7 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "governance",
   menu: [
-    { section: "administration", after: "teams", page: {"id": "policies", "label": "Policies", "perm": "settings.manage"} },
-    { section: "ai", after: "knowledge", page: {"id": "governance", "label": "AI governance", "perm": "audit.view"} }
+    { section: "manage", after: "credentials", page: {"id": "policies", "label": "Policies", "perm": "settings.manage"} },
+    { section: "monitor", after: "alert-rules", page: {"id": "governance", "label": "AI governance", "perm": "audit.view"} }
   ],
 };

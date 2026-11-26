@@ -12,7 +12,7 @@ import java.util.*;
 import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
- * Administration > Policies, as AA's (checked 1 Nov 2026): named policies given to folders, of two kinds. Code analysis
+ * Manage > Policies, as AA's (checked 1 Nov 2026): named policies given to folders, of two kinds. Code analysis
  * policies hold the rules agents are checked against and whether errors stop check-in; AI guardrails say how AI steps
  * must treat personal data, which models they may use and how harmful content is handled. A folder uses its own policy
  * of a kind, or the nearest folder's above it; one policy of each kind per folder. Folders with no code analysis policy

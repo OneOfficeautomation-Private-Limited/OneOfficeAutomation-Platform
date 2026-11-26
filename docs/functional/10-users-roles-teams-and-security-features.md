@@ -111,19 +111,19 @@ Every API call checks one permission; the console hides pages and buttons a pers
 
 ## 4. Custom roles, further roles and switched-off roles
 
-- **Custom roles** (Administration > Roles, `users.manage`): a name and the ticked permissions, for example a "queue
+- **Custom roles** (Manage > Roles, `users.manage`): a name and the ticked permissions, for example a "queue
   clerk" that may only see and add work items. A role in use cannot be deleted. Built-in roles cannot be edited.
 - **Further roles** (Users > Edit): besides the main role, a person can have further roles. They have every permission
   of each of their roles, and rules naming a role (`role:NAME` in folder permissions, vault folders, work queues,
   workflow tasks, model connections) apply to them for each role. Administrator can only be a main role.
-- **Switched-off built-in roles** (Administration > Settings > Security, `switched_off_roles`): Agent builder, Agent
+- **Switched-off built-in roles** (Manage > Settings > Security, `switched_off_roles`): Agent builder, Agent
   operator or Viewer can be switched off. A switched-off role gives no permissions and cannot be given to anyone; people
   who still have it keep only their other roles. Administrator cannot be switched off; custom roles are deleted instead.
 - Giving someone a role that does not exist or is switched off is refused.
 
 ## 5. Teams
 
-- A team (Administration > Teams) is a named group of people, each a **member** or a **lead**.
+- A team (Manage > Teams) is a named group of people, each a **member** or a **lead**.
 - `team:NAME` can be used in folder permissions, vault folder members and consumers, and work queue members; adding
   someone to the team gives them all of it.
 - People with `teams.manage` create teams and change any team; a team's leads change its members (and stay leads).

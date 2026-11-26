@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "orchestration",
   menu: [
-    { section: "manage", after: "queues", page: {"id": "workflows", "label": "Workflow", "perm": "runs.view"} }
+    { section: "build", after: "docautomation", page: {"id": "workflows", "label": "Workflow", "perm": "runs.view"} }
   ],
 };

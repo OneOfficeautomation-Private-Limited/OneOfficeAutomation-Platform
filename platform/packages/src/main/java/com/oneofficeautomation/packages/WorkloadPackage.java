@@ -159,7 +159,7 @@ public final class WorkloadPackage {
             throw new ActionException("QUEUE.NO_CENTRAL", "One CommandCenter work queues can only be used by runs started from One CommandCenter",
                     "Turn central off to use the queue file in the workspace, or start the agent from One CommandCenter.");
         }
-        if (queue == null || queue.isBlank()) throw new ActionException("QUEUE.BAD_NAME", "Give the name of the One CommandCenter queue", "Fill in the queue's name as Manage > Work queues shows it.");
+        if (queue == null || queue.isBlank()) throw new ActionException("QUEUE.BAD_NAME", "Give the name of the One CommandCenter queue", "Fill in the queue's name as Run > Work queues shows it.");
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("op", op);
         req.put("queue", queue);

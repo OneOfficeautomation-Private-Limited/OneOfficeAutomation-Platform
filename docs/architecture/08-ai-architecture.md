@@ -77,7 +77,7 @@ and AI agents use by name (`ModelConnections`).
 
 | Source | Where | Notes |
 | --- | --- | --- |
-| One CommandCenter | `model_connections` table; Administration > Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
+| One CommandCenter | `model_connections` table; Manage > Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
 | Workspace (Studio, local runs) | `model-connections.json` | `{"default": "gpt", "connections": [{name, provider, model, api_key_env}]}` or `api_key: {"$credential": ...}`; keys are never stored in the file |
 
 When a run is claimed, One CommandCenter sends only the connections that the run user's roles may use

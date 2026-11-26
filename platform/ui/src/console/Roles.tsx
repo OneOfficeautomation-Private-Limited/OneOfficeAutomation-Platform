@@ -6,7 +6,7 @@ import { roleName } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Administration > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
+ * Manage > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
  * roles, 31 Oct 2026): the roles with their kind, permissions and holders; create, copy (UiPath's clone), delete
  * selected, export. A role opens as a permission matrix grouped by area, as Blue Prism's tree and UiPath's View /
  * Run / Manage columns, with the people who hold it. Built-in roles are read-only; copy one to change it.

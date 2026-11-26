@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "integration",
   menu: [
-    { section: "build", after: "templates", page: {"id": "apitasks", "label": "Agent APIs", "perm": "apitasks.manage"} }
+    { section: "build", after: "tests", page: {"id": "apitasks", "label": "Agent APIs", "perm": "apitasks.manage"} }
   ],
 };

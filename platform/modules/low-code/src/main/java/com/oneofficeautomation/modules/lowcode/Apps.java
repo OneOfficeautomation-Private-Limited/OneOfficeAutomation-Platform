@@ -151,7 +151,7 @@ public final class Apps {
                 case "create_record" -> { ctx.require(by, "data.edit", "add data store records from apps"); data.entity(str(a.get("entity"))); }
                 case "add_queue_item" -> {
                     ctx.require(by, "queues.work", "add work items from apps");
-                    if (db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue"))) == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Manage > Work queues.");
+                    if (db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue"))) == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Run > Work queues.");
                 }
                 default -> { }
             }
@@ -276,7 +276,7 @@ public final class Apps {
             case "add_queue_item" -> {
                 ctx.require(pub, "queues.work", "add work items from apps");
                 Map<String, Object> q = db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue")));
-                if (q == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Manage > Work queues.");
+                if (q == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Run > Work queues.");
                 Map<String, Object> added = ctx.addWorkItems(pub, actor, (String) q.get("id"), List.of(fill(a.getOrDefault("data", Map.of()), fields)), ip);
                 result.put("item_id", ((List<Object>) added.get("ids")).get(0));
             }

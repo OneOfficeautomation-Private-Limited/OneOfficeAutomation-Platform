@@ -6,7 +6,7 @@ import { HelpButton, type HelpTopic, PageError } from "../../components";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
+ * Build > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
  * ConsolePlugin on the server); without it, the page says what the module does and that it is not installed.
  * Review round 2 (1 Nov 2026): the title row of the other pages (what it does on hover, Installed or Not installed).
  * Item 15 (docs/research/input-help-check.md): a start screen. Open Document Automation on the left under the title,

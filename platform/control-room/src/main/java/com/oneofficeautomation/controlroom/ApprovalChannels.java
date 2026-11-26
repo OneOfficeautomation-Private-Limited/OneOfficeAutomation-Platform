@@ -283,7 +283,7 @@ final class ApprovalChannels {
         headers.forEach(b::header);
         try {
             HttpResponse<String> r = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
-            if (r.statusCode() / 100 != 2) throw new OoaException("CR.NOTIFY_FAILED", "The notification service answered HTTP " + r.statusCode(), "Check the channel's address and token in Administration > Settings > Approvals; the service may also be down.");
+            if (r.statusCode() / 100 != 2) throw new OoaException("CR.NOTIFY_FAILED", "The notification service answered HTTP " + r.statusCode(), "Check the channel's address and token in Manage > Settings > Approvals; the service may also be down.");
         } catch (java.io.IOException e) { throw new OoaException("CR.NOTIFY_FAILED", "Cannot reach " + URI.create(url).getHost() + ": " + e.getMessage(), "Check that the server can reach the notification service (network, proxy, firewall)."); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("CR.NOTIFY_FAILED", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
     }

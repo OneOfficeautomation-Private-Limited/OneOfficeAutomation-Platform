@@ -6,7 +6,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 
 /**
- * Administration > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
+ * Manage > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
  * assets and stores, Blue Prism's Credential Manager, 31 Oct 2026): tabs Credentials, Vault folders (AA's lockers)
  * and My requests (values each person fills in for their own runs). Values are encrypted and never shown again unless
  * marked not secret; agents get them only while running, and every use is audited. A folder can read its values live

@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "document-automation",
   menu: [
-    { section: "ai", after: "skills", page: {"id": "docautomation", "label": "Document Automation", "perm": "repo.view"} }
+    { section: "build", after: "apitasks", page: {"id": "docautomation", "label": "Document Automation", "perm": "repo.view"} }
   ],
 };

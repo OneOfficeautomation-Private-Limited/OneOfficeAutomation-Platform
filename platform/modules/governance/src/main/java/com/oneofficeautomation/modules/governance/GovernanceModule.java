@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Governance, a feature module of One CommandCenter (docs/architecture/13-modules.md): code analysis (rules checked at
- * check-in and on demand, stored reports), folder policies (Administration > Policies: code analysis rules and AI
+ * check-in and on demand, stored reports), folder policies (Manage > Policies: code analysis rules and AI
  * guardrails per folder) and production approval (a version goes live only after someone else approves). It plugs
  * into the kernel's check-in (CheckinListener), production gate (ProductionGate) and run dispatch (Guardrails). Its
  * tables are in the kernel's frozen baseline; the setting production_approval stays the kernel's.
@@ -49,7 +49,7 @@ public final class GovernanceModule implements CommandCenterModule {
         // each run gets its folder's AI guardrails
         ctx.guardrails(policies::guardrailsFor);
 
-        // Administration > Policies: /api/policies
+        // Manage > Policies: /api/policies
         ctx.route("policies", (ex, u, m, route, ip) -> {
             String[] seg = route.isEmpty() ? new String[0] : route.split("/");
             Object out;

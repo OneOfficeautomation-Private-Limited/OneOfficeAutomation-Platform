@@ -24,7 +24,7 @@ final class CoreCommands {
         c.command("conformance", "Run the language-neutral conformance cases.",
                 a -> Ooa.conformance(Path.of(a.pos().isEmpty() ? "../contracts/conformance/cases" : a.pos(0))))
             .param("DIR", "The folder of cases (default ../contracts/conformance/cases).", "0..1");
-        c.group("license", "Check license files" + (LicenseCommand.vendorBuild() ? ", and make them (vendor build)." : "; install them in Administration > Licenses."));
+        c.group("license", "Check license files" + (LicenseCommand.vendorBuild() ? ", and make them (vendor build)." : "; install them in Manage > Licenses."));
         c.command("license show", "Show a license file's terms and whether this release accepts its signature.", a -> LicenseCommand.show(a.pos(0)))
             .param("FILE", "The license file.", "1");
         c.group("release", "Check a release before installing it" + (LicenseCommand.vendorBuild() ? ", and sign releases (vendor build)." : "."));

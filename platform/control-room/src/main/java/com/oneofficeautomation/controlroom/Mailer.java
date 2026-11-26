@@ -38,7 +38,7 @@ final class Mailer {
 
     /** Sends one message, with files attached when given (multipart/mixed). */
     void send(List<String> to, String subject, String body, List<Attachment> attachments) {
-        if (!configured()) throw new OoaException("MAIL.NOT_SET_UP", "E-mail is not set up", "Fill in the outgoing mail server and sender in Administration > Settings > E-mail");
+        if (!configured()) throw new OoaException("MAIL.NOT_SET_UP", "E-mail is not set up", "Fill in the outgoing mail server and sender in Manage > Settings > E-mail");
         List<String> rcpt = new ArrayList<>();
         for (String a : to) if (a != null && !a.isBlank()) rcpt.add(address(a.trim()));
         if (rcpt.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "No one to send the e-mail to", "Add at least one recipient.");
@@ -72,7 +72,7 @@ final class Mailer {
             c.cmd(message(from, rcpt, subject, body, attachments) + "\r\n.", 250);
             try { c.cmd("QUIT", 221); } catch (RuntimeException ignored) { }
         } catch (IOException e) {
-            throw new OoaException("MAIL.FAILED", "Could not reach the mail server " + host + ":" + port + ": " + e.getMessage(), "Check the server, port and security in Administration > Settings > E-mail");
+            throw new OoaException("MAIL.FAILED", "Could not reach the mail server " + host + ":" + port + ": " + e.getMessage(), "Check the server, port and security in Manage > Settings > E-mail");
         }
     }
 

@@ -248,13 +248,13 @@ public final class ControlRoomServer {
         if (!Set.of("GET", "HEAD").contains(ex.getRequestMethod())) { ex.getResponseHeaders().set("Allow", "GET"); securityHeaders(ex); writeBody(ex, 405, new byte[0]); return; }
         String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
         IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
-        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter", "Ask an administrator to add your network address to the allowed list (Administration > Policies > IP allow list).");
+        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter", "Ask an administrator to add your network address to the allowed list (Manage > Policies > IP allow list).");
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         String bearer = auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null;
         if (!cr.metrics.tokenMatches(bearer)) {
             if (bearer != null && bearer.startsWith("ooam_")) {
                 ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"metrics\"");
-                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced", "Use the current metrics token (Administration > Settings > Monitoring); it changes when it is replaced.");
+                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced", "Use the current metrics token (Manage > Settings > Monitoring); it changes when it is replaced.");
             }
             cr.require(user(ex, false), "metrics.view", "read the metrics");
         }
@@ -509,7 +509,7 @@ public final class ControlRoomServer {
         }
         if (m.equals("GET") && route.equals("auth/sso/callback")) {
             try {
-                if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""), "Check the sign-in settings in Administration > Settings > Sign-in, or ask your identity provider's administrator why you were refused.");
+                if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""), "Check the sign-in settings in Manage > Settings > Sign-in, or ask your identity provider's administrator why you were refused.");
                 Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
                 // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.
@@ -740,6 +740,12 @@ public final class ControlRoomServer {
                 if (!m.equals("GET")) { notFound(ex); return; }
                 cr.require(u, "settings.manage", "see the database details");
                 sendJson(ex, 200, cr.db.info());
+            }
+            case "setup" -> {
+                // Setup > Install and set up (26 Nov 2026): the steps with their live checks, and running the sample agent
+                if (m.equals("GET") && route.equals("setup")) { sendJson(ex, 200, cr.setup.steps(u, overHttps(ex))); return; }
+                if (m.equals("POST") && route.equals("setup/sample")) { sendJson(ex, 200, cr.setup.runSample(u, ip)); return; }
+                notFound(ex);
             }
             case "settings" -> {
                 // G43: phone notifications for the signed-in person, and a test card for the Teams channel
@@ -1141,7 +1147,7 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("cancel")) { cr.runWaits.cancel(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
-            case "event-subscriptions" -> {   // Administration > Event subscriptions (G38)
+            case "event-subscriptions" -> {   // Manage > Event subscriptions (G38)
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.events.list(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.events.save(u, null, map(body(ex)), ip));
                 else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.events.save(u, seg[1], map(body(ex)), ip));
@@ -1155,7 +1161,7 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 1) { cr.metrics.deleteToken(u, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
-            case "environment-locks" -> {   // Manage > Environment locks; the name is a query parameter, as it may hold a slash
+            case "environment-locks" -> {   // Run > Environment locks; the name is a query parameter, as it may hold a slash
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("locks", cr.locks.list(u)));
                 else if (m.equals("DELETE") && seg.length == 1) sendJson(ex, 200, cr.locks.adminRelease(u, q.get("name"), ip));
                 else notFound(ex);
@@ -1321,7 +1327,7 @@ public final class ControlRoomServer {
     private static final java.util.regex.Pattern DOCS_FILE = java.util.regex.Pattern.compile("^(|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
 
     /**
-     * AI > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
+     * Build > Document Automation at /documents/. The page signs in like the console (it asks /api/auth/me) and reaches
      * DocFlow only through /api/docflow/ (the document-automation module). A build made without Node.js has no page and says so.
      */
     private void documentsPage(HttpExchange ex, String path) throws IOException {

@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * AI > Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter. An indexing agent fills and refreshes a
+ * Build > Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter. An indexing agent fills and refreshes a
  * base (Knowledge Q&A > Build index with the base's name), usually on a schedule; agents search and ask it by name.
  */
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);

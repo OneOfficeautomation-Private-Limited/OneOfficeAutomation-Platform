@@ -1,5 +1,5 @@
 /**
- * The events that start an agent (Manage > Triggers, built as AA's event triggers): their settings and help, in three
+ * The events that start an agent (Run > Triggers, built as AA's event triggers): their settings and help, in three
  * groups: on the runner, checked by One CommandCenter, and reported by Document Automation. Shared by the console's
  * Triggers page and the command list of OneAgentStudio's agent editor, so both offer the same triggers.
  */

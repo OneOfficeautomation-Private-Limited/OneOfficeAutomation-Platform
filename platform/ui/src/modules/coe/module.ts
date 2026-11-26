@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "coe",
   menu: [
-    { section: "build", after: "tests", page: {"id": "ideas", "label": "Automation ideas"} }
+    { section: "build", after: "knowledge", page: {"id": "ideas", "label": "Automation ideas"} }
   ],
 };

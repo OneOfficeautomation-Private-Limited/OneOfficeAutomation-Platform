@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "testing",
   menu: [
-    { section: "build", after: "apitasks", page: {"id": "tests", "label": "Agent tests", "perm": "repo.view"} }
+    { section: "build", after: "templates", page: {"id": "tests", "label": "Agent tests", "perm": "repo.view"} }
   ],
 };

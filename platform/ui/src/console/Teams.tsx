@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Administration > Teams. AA has no teams of its own (it maps directory groups to roles); this follows UiPath's groups
+ * Manage > Teams. AA has no teams of its own (it maps directory groups to roles); this follows UiPath's groups
  * and Blue Prism's team-based access (checked against their docs, 31 Oct 2026): a team is named team:NAME in agent
  * folder permissions, vault folders and work queues, so adding someone gives them all of it. The list shows leads,
  * members and where each team is used (an access review); a team opens with its members, which administrators and

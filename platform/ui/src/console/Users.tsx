@@ -7,7 +7,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 
 /**
- * Administration > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
+ * Manage > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
  * and Blue Prism's user management, 31 Oct 2026): search in a chosen field, status and role filters, a column chooser;
  * for the selected people: enable, disable, delete, export. A person's details open from their row, in AA's order
  * (general details, roles, default runner), with Blue Prism's Unlock and the password and two-step resets. Create

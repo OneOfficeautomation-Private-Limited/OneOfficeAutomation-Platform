@@ -23,7 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Document Automation (AI > Document Automation): the Command Center forwards /api/docflow/... to the DocFlow service
+ * Document Automation (Build > Document Automation): the Command Center forwards /api/docflow/... to the DocFlow service
  * (the separate oneoffice-docauto server) at /api/docs/v1/..., after checking the person's permission. DocFlow trusts
  * the service token and is told the tenant (X-OOA-Tenant) and the person (X-OOA-User); it keeps each tenant's
  * documents, processes and routing apart. The browser never sees the token or DocFlow's address.
@@ -297,12 +297,12 @@ public final class DocFlowProxy {
             // improvement list 12 Nov 2026 (item 10): say whether it was never set up or set up and not answering
             if (!configured())
                 throw new OoaException("DOCS.NOT_SET_UP", "Document Automation is not set up yet: no address for its DocFlow service has been entered",
-                        "An administrator starts DocFlow and enters its address (" + DEFAULT_URL + " when it runs on this server) and token in Administration > Settings > Document Automation.");
+                        "An administrator starts DocFlow and enters its address (" + DEFAULT_URL + " when it runs on this server) and token in Manage > Settings > Document Automation.");
             if (DocFlowLauncher.isStarting())   // 14 Nov 2026: say it is on its way, not that it is missing
                 throw new OoaException("DOCS.STARTING", "Document Automation is starting: its database is getting ready",
                         "Wait a minute and open the page again; the first start after an unclean stop can take a few minutes.", true, null);
             throw new OoaException("DOCS.UNAVAILABLE", "The Document Automation service at " + baseUrl() + " is not answering",
-                    "Check that DocFlow is running (on Windows: the OneOffice DocFlow service, or windows\\start.bat), and the address in Administration > Settings > Document Automation.", true, Map.of());
+                    "Check that DocFlow is running (on Windows: the OneOffice DocFlow service, or windows\\start.bat), and the address in Manage > Settings > Document Automation.", true, Map.of());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new OoaException("DOCS.UNAVAILABLE", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log.");
@@ -641,7 +641,7 @@ public final class DocFlowProxy {
         HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(processId, StandardCharsets.UTF_8) + "/documents", "source=email&requireLive=true",
                 multipart(boundary, a.name(), a.contentType(), a.data()), Map.of("Content-Type", "multipart/form-data; boundary=" + boundary),
                 "Email from " + String.valueOf(msg.getOrDefault("from", "")).replaceAll("[\\r\\n]", " "));
-        if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")", "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+        if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")", "Check that the Document Automation service is running and set up (Manage > Settings > Document Automation); the message has its answer.");
     }
 
     /** One file as the multipart form Add documents sends (field "files"). */
@@ -687,7 +687,7 @@ public final class DocFlowProxy {
         Object parsed = JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
         if (r.statusCode() >= 300) {
             Object msg = parsed instanceof Map<?, ?> m ? (m.get("message") != null ? m.get("message") : m.get("detail")) : null;
-            throw new OoaException("DOCS.REFUSED", "Document Automation refused the document: " + (msg == null ? "HTTP " + r.statusCode() : msg), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+            throw new OoaException("DOCS.REFUSED", "Document Automation refused the document: " + (msg == null ? "HTTP " + r.statusCode() : msg), "Check that the Document Automation service is running and set up (Manage > Settings > Document Automation); the message has its answer.");
         }
         List<Object> docs = (List<Object>) ((Map<String, Object>) parsed).get("documents");
         Map<String, Object> d = docs.isEmpty() ? Map.of() : (Map<String, Object>) docs.get(0);
@@ -788,7 +788,7 @@ public final class DocFlowProxy {
                 for (int offset = 0; offset < 20_000; offset += 500) {
                     HttpResponse<byte[]> r = send("GET", "df/flows/" + java.net.URLEncoder.encode(String.valueOf(flow.get("id")), StandardCharsets.UTF_8) + "/documents",
                             "limit=500&offset=" + offset + "&status=" + statuses, null, null, "Command Center");
-                    if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+                    if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Manage > Settings > Document Automation); the message has its answer.");
                     List<Object> page = (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
                     for (Object o : page) if (includeCollected || !taken.contains(String.valueOf(((Map<String, Object>) o).get("id")))) found.add(o);
                     if (page.size() < 500 || found.size() >= limit) break;
@@ -902,7 +902,7 @@ public final class DocFlowProxy {
         HttpResponse<byte[]> r = send("GET", "df/documents/" + id, null, null, null, "Command Center");
         if (r.statusCode() == 404) throw new OoaException("CR.NOT_FOUND", "No document '" + id + "' in Document Automation", "Use the document id that Send document to process gave.");
         if (r.statusCode() != 200 || !(JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m))
-            throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
+            throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Manage > Settings > Document Automation); the message has its answer.");
         return (Map<String, Object>) m;
     }
 
@@ -984,7 +984,7 @@ public final class DocFlowProxy {
             byte[] bytes = Base64.getDecoder().decode(String.valueOf(a.get("base64")));
             total += bytes.length;
             if (total > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The attachments are larger than the Largest upload setting allows",
-                    "Send fewer files with the e-mail delivery (for example the data only, not the original), or raise Largest upload in Administration > Settings.");
+                    "Send fewer files with the e-mail delivery (for example the data only, not the original), or raise Largest upload in Manage > Settings.");
             files.add(new ModuleContext.MailAttachment(String.valueOf(a.get("name")), String.valueOf(a.get("contentType")), bytes));
         }
         ctx.sendMail(to, String.valueOf(b.getOrDefault("subject", "Document Automation")), String.valueOf(b.getOrDefault("body", "")), files);
@@ -1105,7 +1105,7 @@ public final class DocFlowProxy {
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         String token = token();
         if (token.isEmpty() || auth == null || !MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8), ("Bearer " + token).getBytes(StandardCharsets.UTF_8)))
-            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", "Check the Document Automation token in Administration > Settings > Document Automation.");
+            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", "Check the Document Automation token in Manage > Settings > Document Automation.");
         String t = ex.getRequestHeaders().getFirst("X-OOA-Tenant");
         if (t == null || !tenant().equals(java.net.URLDecoder.decode(t, StandardCharsets.UTF_8))) throw new OoaException("CR.FORBIDDEN", "Another tenant's process", "Use a process of your own organisation.");
     }

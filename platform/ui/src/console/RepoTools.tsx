@@ -237,7 +237,7 @@ export function rulesToSave(pol: CodePolicy, text: Record<string, string>) {
 
 /**
  * A code analysis policy's rules (as UiPath's analyzer rules and "before publish"): each rule used or not, its severity
- * and settings, and whether errors stop check-in. On a policy's own page under Administration > Policies (1 Nov 2026).
+ * and settings, and whether errors stop check-in. On a policy's own page under Manage > Policies (1 Nov 2026).
  */
 export function CodeRules({ pol, text, edit, onPol, onText }:
   { pol: CodePolicy; text: Record<string, string>; edit: boolean; onPol: (p: CodePolicy) => void; onText: (t: Record<string, string>) => void }) {

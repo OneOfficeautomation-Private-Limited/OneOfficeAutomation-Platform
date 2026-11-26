@@ -41,7 +41,7 @@ function TabStrip({ label, tabs, current, onTab, extra }: { label: string; tabs:
   </div>;
 }
 
-/** Operational Insights > Operations: Agents, Runners, Work queues and Audit as tabs, and AI usage (AI governance). */
+/** Monitor > Operations: Agents, Runners, Work queues and Audit as tabs, and AI usage (AI governance). */
 export function OperationsPage({ api, user }: { api: CrApi; user: CrUser }) {
   const can = (p: string) => user.permissions.includes(p);
   const tabs = OPERATIONS.filter((t) => can(t.perm));
@@ -56,7 +56,7 @@ export function OperationsPage({ api, user }: { api: CrApi; user: CrUser }) {
   return <section className="st-page cc-list"><header className="cc-list-head"><h1>Operations</h1></header><p className="cc-none cc-pad">You may not see operations figures.</p></section>;
 }
 
-/** Operational Insights > Business: Agents (each agent's own dashboard, data profile and Compare), Value and Dashboards as tabs. */
+/** Monitor > Business: Agents (each agent's own dashboard, data profile and Compare), Value and Dashboards as tabs. */
 export function BusinessPage({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const tabs = BUSINESS.filter((t) => user.permissions.includes(t.perm));
   const [tab, go] = useTab("business", tabs);

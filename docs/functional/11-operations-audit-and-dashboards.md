@@ -232,7 +232,7 @@ estimated_runs_month}`, `POST /api/analytics/queue-savings` `{queue_id, minutes_
 
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
   successful run records its value.
-- Operational Insights > **Dashboards** (new console) holds dashboards of widgets. Widgets are made in a form (what to
+- Monitor > **Dashboards** (new console) holds dashboards of widgets. Widgets are made in a form (what to
   show, the figure, the agent, how to split it, the days) or edited as JSON. A new dashboard can start from a ready-made
   one: *Operations at a glance*, *Value*, or one over the first KPI recorded. Each widget has a CSV of its figures; any
   dashboard a person may see can be copied as their own (not shared). A pie shows the three largest parts and the
@@ -292,7 +292,7 @@ Audit entries can also be forwarded as they happen, by syslog or HTTPS, to a SIE
 
 ### Event subscriptions and metrics (gap G38)
 
-**Administration > Event subscriptions** (`events.manage`, administrators) sends One CommandCenter's events to other
+**Manage > Event subscriptions** (`events.manage`, administrators) sends One CommandCenter's events to other
 systems as they happen: a webhook receiver, an integration platform, or Splunk's HTTP Event Collector, and with them
 the run log lines. It sits beside the per-run `callback_url`, the alert webhook and SIEM forwarding, which stay as they
 were.
@@ -378,7 +378,7 @@ has no OTLP exporter of its own, which would need new libraries.
 
 ## 8. Retention
 
-All in Administration > Settings; 0 keeps everything. Applied at most once an hour by the leading node.
+All in Manage > Settings; 0 keeps everything. Applied at most once an hour by the leading node.
 
 | Setting | Removes |
 | --- | --- |
@@ -393,14 +393,14 @@ periods at once (`settings.manage`). Every removal is audited (`runs.purge`, `ai
 
 ## 9. E-mail from One CommandCenter
 
-Administration > Settings > E-mail: mail server, port (default 587), security (`starttls`, `ssl`, or `none` on a trusted
+Manage > Settings > E-mail: mail server, port (default 587), security (`starttls`, `ssl`, or `none` on a trusted
 network only), account, password as a vault reference, and sender address. **Send a test e-mail** checks it. The
 One CommandCenter uses it for workflow notifications to e-mail addresses and for licence reminders (to administrators with
 an e-mail address and `license_mail_to`). Messages are plain text; the server's certificate must name the server.
 
 ## 10. Backups
 
-- Administration > Settings > Backups: a backup every `backup_hours` (0-168, 0 off) into the data folder's `backups`
+- Manage > Settings > Backups: a backup every `backup_hours` (0-168, 0 off) into the data folder's `backups`
   folder or `backup_folder`, kept for `backup_keep_days` (1-3650, default 7). **Back up now** makes one at once.
 - A backup is one zip with every table and the repository files; vault values stay encrypted and the vault key is
   never included. Restore refuses a backup made with another vault key.

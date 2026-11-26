@@ -82,7 +82,7 @@ public final class Sso {
 
     /** As above, coming back to returnTo (a page of this One CommandCenter, from {@link ControlRoom#safeReturn}) after sign-in. */
     public String start(String redirectUri, String returnTo) {
-        if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Administration > Settings.");
+        if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Manage > Settings.");
         SecureRandom rnd = new SecureRandom();
         byte[] v = new byte[32], s = new byte[24], n = new byte[24];
         rnd.nextBytes(v); rnd.nextBytes(s); rnd.nextBytes(n);
@@ -109,7 +109,7 @@ public final class Sso {
         try {
             HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(String.valueOf(discovery().get("token_endpoint")))).timeout(Duration.ofSeconds(20))
                     .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(form)).build(), HttpResponse.BodyHandlers.ofString());
-            if (r.statusCode() >= 300) throw new OoaException("SSO.TOKEN", "The identity provider refused the sign-in (HTTP " + r.statusCode() + ")", "Check the client id and secret in Administration > Settings > Sign-in.");
+            if (r.statusCode() >= 300) throw new OoaException("SSO.TOKEN", "The identity provider refused the sign-in (HTTP " + r.statusCode() + ")", "Check the client id and secret in Manage > Settings > Sign-in.");
             tok = (Map<String, Object>) JsonLite.parse(r.body());
         } catch (java.io.IOException e) {
             throw new OoaException("SSO.PROVIDER", "The identity provider could not be reached: " + e.getMessage(), "Check that the server can reach the identity provider's address (network, proxy, firewall), then sign in again.");
@@ -127,7 +127,7 @@ public final class Sso {
     @SuppressWarnings("unchecked")
     public Map<String, Object> verify(String jwt, String clientId, String nonce) {
         String[] parts = jwt == null ? new String[0] : jwt.split("\\.");
-        if (parts.length != 3) throw new OoaException("SSO.BAD_TOKEN", "The identity provider sent no valid ID token", "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+        if (parts.length != 3) throw new OoaException("SSO.BAD_TOKEN", "The identity provider sent no valid ID token", "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
         Base64.Decoder d = Base64.getUrlDecoder();
         Map<String, Object> header = (Map<String, Object>) JsonLite.parse(new String(d.decode(parts[0]), StandardCharsets.UTF_8));
         Map<String, Object> claims = (Map<String, Object>) JsonLite.parse(new String(d.decode(parts[1]), StandardCharsets.UTF_8));
@@ -149,14 +149,14 @@ public final class Sso {
                 Signature s = Signature.getInstance("SHA256withECDSAinP1363Format");
                 s.initVerify(pk); s.update(signed); ok = s.verify(sig);
             } else throw new OoaException("SSO.BAD_TOKEN", "Unsupported ID token algorithm " + alg, "Set the identity provider to sign ID tokens with RS256.");
-            if (!ok) throw new OoaException("SSO.BAD_TOKEN", "The ID token signature is not valid", "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+            if (!ok) throw new OoaException("SSO.BAD_TOKEN", "The ID token signature is not valid", "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
         } catch (GeneralSecurityException | IllegalArgumentException e) {
-            throw new OoaException("SSO.BAD_TOKEN", "The ID token could not be checked: " + e.getMessage(), "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+            throw new OoaException("SSO.BAD_TOKEN", "The ID token could not be checked: " + e.getMessage(), "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
         }
         String issuer = String.valueOf(discovery().get("issuer"));
-        if (!issuer.equals(claims.get("iss"))) throw new OoaException("SSO.BAD_TOKEN", "The ID token comes from another issuer", "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+        if (!issuer.equals(claims.get("iss"))) throw new OoaException("SSO.BAD_TOKEN", "The ID token comes from another issuer", "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
         Object aud = claims.get("aud");
-        if (!(clientId.equals(aud) || (aud instanceof List<?> l && l.contains(clientId)))) throw new OoaException("SSO.BAD_TOKEN", "The ID token is for another application", "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+        if (!(clientId.equals(aud) || (aud instanceof List<?> l && l.contains(clientId)))) throw new OoaException("SSO.BAD_TOKEN", "The ID token is for another application", "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
         long exp = claims.get("exp") instanceof Number n ? n.longValue() : 0;
         if (Instant.now().getEpochSecond() > exp + 60) throw new OoaException("SSO.BAD_TOKEN", "The ID token has expired", "Sign in again; if it keeps happening, check that the server's clock is right.");
         if (nonce != null && !nonce.equals(claims.get("nonce"))) throw new OoaException("SSO.BAD_TOKEN", "The ID token does not belong to this sign-in", "Start the sign-in again from the sign-in page.");
@@ -175,6 +175,6 @@ public final class Sso {
                 if ((kid.equals("null") || kid.equals(k.get("kid"))) && (alg.startsWith("RS") ? "RSA".equals(k.get("kty")) : "EC".equals(k.get("kty")))) return k;
             }
         }
-        throw new OoaException("SSO.BAD_TOKEN", "The identity provider's signing key " + kid + " was not found", "Check the identity provider's settings in Administration > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
+        throw new OoaException("SSO.BAD_TOKEN", "The identity provider's signing key " + kid + " was not found", "Check the identity provider's settings in Manage > Settings > Sign-in (issuer, client id and signing keys), then sign in again.");
     }
 }

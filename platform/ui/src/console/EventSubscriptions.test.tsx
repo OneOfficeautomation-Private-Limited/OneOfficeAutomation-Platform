@@ -33,8 +33,8 @@ function server() {
 }
 
 describe("Event subscriptions page", () => {
-  it("is in the Administration menu for those who manage events", () => {
-    const admin = MENU_SECTIONS.find((s) => s.id === "administration")!;
+  it("is in the Manage menu for those who manage events", () => {
+    const admin = MENU_SECTIONS.find((s) => s.id === "manage")!;
     expect(admin.pages).toContainEqual({ id: "events", label: "Event subscriptions", perm: "events.manage" });
   });
 

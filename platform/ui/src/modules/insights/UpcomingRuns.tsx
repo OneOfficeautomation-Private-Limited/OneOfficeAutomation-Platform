@@ -6,7 +6,7 @@ import { name, time } from "./Overview";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Upcoming runs (item 11, docs/research/input-help-check.md): every scheduled run coming up, soonest
+ * Run > Upcoming runs (item 11, docs/research/input-help-check.md): every scheduled run coming up, soonest
  * first, on its own page instead of the five in Overview's side panel. Schedules is where they are made and changed.
  */
 const HELP: HelpTopic = { title: "Upcoming runs", about: "The runs schedules will start, soonest first.",

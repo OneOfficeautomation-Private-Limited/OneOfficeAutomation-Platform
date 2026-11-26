@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * AI > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
+ * Manage > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
  * 2026): named connections to an AI model that agents use. Each shows its provider and model, the roles that may use
  * it, its key's vault reference, tokens used this month against the budget (UiPath-style limits), and its privacy
  * settings. Create in sections: model, key and access, privacy and safety, budget; Test connection before saving.

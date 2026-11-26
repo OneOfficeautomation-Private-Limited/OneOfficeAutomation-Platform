@@ -31,8 +31,8 @@ function server() {
 const person = (permissions: string[]) => ({ id: "1", username: "a", display_name: "A", role: "x", permissions }) as unknown as CrUser;
 
 describe("Environment locks page", () => {
-  it("is in the Manage menu for people who see runners", () => {
-    const manage = MENU_SECTIONS.find((s) => s.id === "manage")!;
+  it("is in the Run menu, beside Runner Machines, for people who see runners", () => {
+    const manage = MENU_SECTIONS.find((s) => s.id === "run")!;
     expect(manage.pages).toContainEqual({ id: "locks", label: "Environment locks", perm: "devices.view" });
   });
 

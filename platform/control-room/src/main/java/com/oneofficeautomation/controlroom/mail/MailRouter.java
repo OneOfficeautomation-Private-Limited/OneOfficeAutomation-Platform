@@ -150,7 +150,7 @@ public final class MailRouter {
     void checkTarget(User by, String kind, String target) {
         if (kind.equals("trigger")) {
             Map<String, Object> t = cr.db.one("SELECT id, kind FROM triggers WHERE id = ?", target);
-            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found", "Choose a trigger that exists (Manage > Triggers).");
+            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found", "Choose a trigger that exists (Run > Triggers).");
             cr.require(by, "triggers.manage", "send emails to triggers");
             return;
         }

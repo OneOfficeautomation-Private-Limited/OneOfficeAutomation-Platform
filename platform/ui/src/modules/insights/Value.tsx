@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Value, as AA's Center of Excellence dashboard and UiPath Insights' Business ROI (checked
+ * Monitor > Value, as AA's Center of Excellence dashboard and UiPath Insights' Business ROI (checked
  * 31 Oct 2026): the manual work the agents' successful runs saved over a period, in hours and money (the hourly cost and
  * currency in Settings), compared with the period before; per day, per top folder and per agent, with each agent's
  * minutes saved per run (its own, or the default) changed in place by people who may put versions in production.

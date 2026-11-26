@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Business > Agents (item 7 step 2, 1 Nov 2026), as AA's Business dashboards: every agent whose
+ * Monitor > Business > Agents (item 7 step 2, 1 Nov 2026), as AA's Business dashboards: every agent whose
  * runs return values, each with a page of its own: a dashboard made from its values, its data profile (AA's data
  * profile) and Compare (two agents, or one agent in two periods). "Make my own copy" turns the made dashboard into one
  * of the person's dashboards (needs insights.design). Only agents in folders the person may see.

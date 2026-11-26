@@ -60,7 +60,7 @@ account that stays unlocked.
 
 **Seats:** a runner needs an **Unattended Runner** seat to take One CommandCenter work (manual, scheduled, triggered,
 API, queue). A person with an **Attended Runner** seat (or a Developer or Citizen Developer seat) may run agents by
-hand on their own default runner. Administrators assign seats on **Administration > Licenses**.
+hand on their own default runner. Administrators assign seats on **Manage > Licenses**.
 
 ## 3. Register a runner
 
@@ -84,7 +84,7 @@ it was installed from the setup package on Windows. Otherwise the dialog says so
 
 ### Step 1: make a registration key (administrator)
 
-1. In One CommandCenter open **Manage > Runner Machines** and press **Register a runner**.
+1. In One CommandCenter open **Run > Runner Machines** and press **Register a runner**.
 2. Tick **Temporary runner (VDI or pooled desktop)** only for runners that come and go (section 10).
 3. Press **Create key**. The dialog shows the key and three ready-made commands. The key works **once**, expires in
    **24 hours** and is shown only now:
@@ -136,7 +136,7 @@ defaults to the computer's name.
 
 ### What you see
 
-In **Manage > Runner Machines** the new runner appears with a green dot and **online** within seconds.
+In **Run > Runner Machines** the new runner appears with a green dot and **online** within seconds.
 
 ## 4. Start it at sign-in or as a service
 
@@ -209,7 +209,7 @@ out by Group Policy needs nothing more.
 
 ## 6. The runner in One CommandCenter
 
-**Manage > Runner Machines** lists every runner. Columns: **Runner** (name, host name, operating system), **Status**,
+**Run > Runner Machines** lists every runner. Columns: **Runner** (name, host name, operating system), **Status**,
 **Running**, **Agent** (the runner's version), **Type**, **Default users**, **Log level**, **Screen**, **After a run**,
 **Program**, **Last seen**, **Registered** and **Disable**/**Enable**. The page refreshes every 15 seconds.
 
@@ -254,7 +254,7 @@ cannot start until the machine is unlocked: use these on machines where that is 
 
 ## Default users and the default runner of a person
 
-Each person can have a **default runner**, chosen by an administrator in **Administration > Users > Default runner**.
+Each person can have a **default runner**, chosen by an administrator in **Manage > Users > Default runner**.
 It is used when:
 
 - someone runs an agent for **Run-as users**: each person's run goes to their default runner, as them;
@@ -266,7 +266,7 @@ The **Default users** column on the Runners page shows whose default runner each
 
 ## 9. Runner pools
 
-**Manage > Runner Machines > Runner pools** groups runners. A run, schedule, work queue, test run or API task sent to a pool
+**Run > Runner Machines > Runner pools** groups runners. A run, schedule, work queue, test run or API task sent to a pool
 goes to its least busy online runner.
 
 1. Press **New runner pool** (needs `pools.manage`).
@@ -344,7 +344,7 @@ reporting. One CommandCenter also checks every 15 seconds for locks whose run is
 A lock held past its lease may be taken by another run, and the audit trail notes whose it was. A long job renews its
 lease by acquiring the lock again, which keeps the time it was first taken.
 
-**In One CommandCenter.** **Manage > Environment locks** lists the locks held now: the lock, the run, agent and person
+**In One CommandCenter.** **Run > Environment locks** lists the locks held now: the lock, the run, agent and person
 holding it, the runner, since when, and when the lease runs out (marked when it has passed). Everyone who can see
 runners sees the list. Administrators (permission **Release environment locks**) can **Release** a lock by hand, for
 example when a run is stuck; the run is not stopped, and the release is written to the audit trail.

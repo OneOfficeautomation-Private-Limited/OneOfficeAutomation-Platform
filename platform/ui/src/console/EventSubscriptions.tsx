@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Administration > Event subscriptions (gap G38; UiPath's webhooks, and run logs streamed to a log platform such as
+ * Manage > Event subscriptions (gap G38; UiPath's webhooks, and run logs streamed to a log platform such as
  * Splunk): addresses One CommandCenter posts its events to as they happen (runs, work items, runners, alerts, audit
  * entries, run log lines), signed with a secret shown once, with a test button and how delivery goes. Below the list,
  * the metrics token for GET /metrics (Prometheus). Needs events.manage (administrators).

@@ -5,7 +5,7 @@ import { RefreshButton } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Administration > Licenses, built as AA's Licenses page (checked against AA's docs, UiPath's licence allocation and
+ * Manage > Licenses, built as AA's Licenses page (checked against AA's docs, UiPath's licence allocation and
  * Blue Prism's licensing, 31 Oct 2026): tabs Overview (the licence, its state and expiry, seats used of purchased with
  * an alert from 80 %, installing a licence file offline), Allocation (seats to people and runners, as AA's device
  * licences and UiPath's user and robot licences) and Usage (90 days, and idle seats to take back, from UiPath's usage).

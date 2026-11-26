@@ -54,7 +54,7 @@ export type VariableProfile = { runs: number; variables: { variable: string; run
   kind?: string; sum?: number; distinct?: number; by_day?: { day: string; sum: number }[] }[];
   /** The latest 20 runs that returned values. */
   recent?: { id: string; status: string; created: string; outputs: Record<string, unknown> }[] };
-/** An alert rule: one condition watched once a minute, and who hears of it (Operational Insights > Alerts). */
+/** An alert rule: one condition watched once a minute, and who hears of it (Monitor > Alerts). */
 export type AlertRule = { id: string; name: string; kind: AlertKind; scope?: string | null; threshold?: number | null; window_minutes?: number | null; notify_to: string[];
   webhook_url?: string | null; severity: "warning" | "critical"; enabled: boolean; created_by?: string; updated?: string; updated_by?: string; last_checked?: string | null; open?: number };
 /** Run figures of a group: counts, success rate (of finished runs) and timing. */

@@ -133,9 +133,11 @@ that folder is used instead, so an upgrade never starts empty. Back this folder 
 3. The **Choose a new password** page appears. Enter the one-time password as **Current password**, then a **New
    password** twice. It must have at least 12 characters, with letters and digits (an administrator can make the rule
    stricter later). Press **Change password**.
-4. You land on **Home**.
+4. You land on **Build > Agents**. An administrator also sees **Setup > Install and set up**, the install guide:
+   four phases (Server, People and runners, Developers and AI, First run), each step checked live, with what to do
+   next. See [06 Administrator's guide](06-administrators-guide.md).
 
-What you see on Home: two strips of figures. **Runs · last 24 hours** has **Running now**, **Waiting to start**,
+**Monitor > Overview > Status** shows how things stand: two strips of figures. **Runs · last 24 hours** has **Running now**, **Waiting to start**,
 **Succeeded**, **Failed**, **Success rate** and **Average run time**; **Platform** has **Runners online**,
 **Agents (Public)**, **Active schedules**, **Work items waiting**, **Hours saved (30 days)** and **Tasks waiting for
 you**. A figure turns red only when something is wrong (for example failed runs, or no runner online). Click a figure
@@ -176,7 +178,7 @@ password.
 
 - **☰** folds the menu on the left to icons, and opens it again.
 - The company logo, then the environment name when your administrator has set one (for example **Production** in red).
-- Where you are: the section and the page, for example **Agent Insights › Business**. Click the section to go to its
+- Where you are: the section and the page, for example **Monitor › Business**. Click the section to go to its
   first page.
 - **Search pages and agents** (Ctrl+K): type part of a page's or an agent's name, or paste a run id to open that run.
 - **OneOfficeAutomation**, in the middle (it hides on narrow windows).
@@ -190,7 +192,7 @@ left, a licence about to expire).
 
 ### The menu on the left
 
-The menu has **Home** and five sections, each a row with its icon and name. Click a section to open it; one section is
+The menu has five sections (since 26 Nov 2026, with no Home), each a row with its icon and name. Click a section to open it; one section is
 open at a time, so the whole menu fits on the screen, and the section of the page you are on opens by itself. Type in
 **Find a page** at the top to search all pages; press Enter to open the first match. **☰** on the top bar makes the menu
 narrow (icons only) or full again; when it is narrow, point at (or click) a section's icon to see its pages and open
@@ -198,14 +200,14 @@ one. Drag the menu's edge to make it wider or narrower. The menu is the same in 
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Agents (Public: the agent repository; Private: your own workspace), Agent Templates, Agent APIs, Agent tests | Find, build and run agents, install ready-made ones, publish agents as web services, test agents |
-| **Manage** | Agent Activity, Task inbox, Runner Machines, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Credential vault, Agent ToolKits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows, secrets and the shared settings agents use |
-| **AI** | One Chat, AI setup (Model Connections, Prompt Skills, Knowledge bases, AI governance), Document Automation | Asking in plain words, AI models and prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
-| **Administration** | Users, Roles, Teams, Settings, Policies, Audit Trail, Event subscriptions, Licenses | People, access, rules for agents' folders, audit, licences and system settings |
-| **Agent Insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
+| **Setup** | Install and set up (administrators only) | The install guide: the server, people and runners, developers and AI, and a first run, each step checked live. An administrator can take it out of everyone's menu (Settings: Show Setup in the menu); each can hide it from their own |
+| **Build** | Agents (Agents, Agent Templates, Agent tests, Agent APIs), Document Automation, Workflows, Apps, AI building blocks (Prompt Skills, Knowledge bases), Ideas | Everything used to make automations: agents, documents read with AI (an add-on module), workflows, apps and AI prompts |
+| **Run** | Agent Activity, Scheduling (Schedules, Triggers, Upcoming runs), Work queues, Task inbox, Runners (Runner Machines, Environment locks), One Chat | Running agents and following them: runs, when agents start, queues, tasks for people, the machines, and asking in plain words |
+| **Manage** | People (Users, Roles, Teams), Security (Credential vault, Policies, Audit Trail), Connections (Connections, Model Connections), Shared data (Shared Global values, Data store), Toolkits, Platform (Settings, Licenses, Event subscriptions) | All administration: people and access, secrets and rules, connections and AI models, shared values, toolkits, licences and system settings |
+| **Monitor** | Overview (Status, Dashboards), Operations (Operations, Runner status), Business, Alerts (Alerts, Alert rules), AI usage (AI governance) | Dashboards and analytics: how things stand, how agents, runners and queues worked, what the work is worth, alerts and the record of AI use. See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
-schedules, triggers, shared values, work queues, Agent Insights and Prompt Skills, but cannot change anything.
+schedules, triggers, shared values, work queues, Monitor and Prompt Skills, but cannot change anything.
 
 **Agents** has two tabs: **Public** (on the left) is the agent repository, with the agents
 checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and pages; only
@@ -318,7 +320,7 @@ administrator has turned on **Approval before production**; then the version wai
 
 ### 6.4 Look at the result
 
-Open **Manage > Agent Activity**. Your run is on the **In progress** tab while it runs and on **Completed** once it
+Open **Run > Agent Activity**. Your run is on the **In progress** tab while it runs and on **Completed** once it
 has ended. Click it: its details open beside the list with the status, how long it took, the steps run, and these
 tabs:
 
@@ -341,7 +343,7 @@ runner takes work. Administrators see a banner with the days left (red in the la
 and only administrators can sign in, to install a licence.
 
 To license the product, an administrator moves One CommandCenter to SQL Server, sends the **install id** from
-**Administration > Licenses** to ONEOFFICEAUTOMATION and installs the `.lic` file received. See
+**Manage > Licenses** to ONEOFFICEAUTOMATION and installs the `.lic` file received. See
 [06 Administrator's guide](06-administrators-guide.md#licences-and-seats).
 
 ## 8. If it goes wrong
@@ -354,7 +356,7 @@ To license the product, an administrator moves One CommandCenter to SQL Server, 
 | You lost the one-time password, or forgot your password | Stop ONEOFFICEAUTOMATION (Ctrl+C in its window), run `bin\ooa.bat reset-admin` (or `reset-admin --user jane.doe`), start again and sign in with the new one-time password it prints. The reset is recorded in the audit trail. |
 | "Account locked" after wrong passwords | Five wrong passwords lock an account for 15 minutes. Wait, ask an administrator to **Reset password**, or run `reset-admin` (above), which also unlocks the account. |
 | **Run** is missing on an agent | The agent has no live production version yet, or your role cannot start runs (`runs.start`). |
-| The run stays **queued** | The chosen runner is offline. Check **Manage > Runner Machines**: a runner is online when it has checked in during the last minute. |
+| The run stays **queued** | The chosen runner is offline. Check **Run > Runner Machines**: a runner is online when it has checked in during the last minute. |
 | The check-in is refused with validation problems | Studio opens the problems list. Fix them, save and check in again. |
 | `bin\ooa.bat check` shows FAIL | Each line says what to fix (memory, disk, port, Java). Fix it and run the check again. |
 

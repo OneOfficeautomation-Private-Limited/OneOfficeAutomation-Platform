@@ -39,6 +39,8 @@ public final class Modules {
     final Map<String, ModuleContext.JobPart> jobParts = new LinkedHashMap<>();
     final List<ModuleContext.RunEnded> runEnded = new CopyOnWriteArrayList<>();
     final Map<String, ModuleContext.TaskStage> taskStages = new LinkedHashMap<>();
+    /** The modules' steps of Setup > Install and set up (SetupGuide). */
+    final List<ModuleContext.SetupStep> setupSteps = new CopyOnWriteArrayList<>();
     final List<ModuleContext.CheckinListener> checkins = new CopyOnWriteArrayList<>();
     volatile ModuleContext.ProductionGate productionGate;
     final List<ModuleContext.Guardrails> guardrails = new CopyOnWriteArrayList<>();
@@ -277,6 +279,7 @@ public final class Modules {
         public void embeddablePage(String path, FrameOrigins origins) { claim(embeddablePages, path, origins, "the page /" + path + "/"); }
         public void onRunEnded(RunEnded listener) { runEnded.add(listener); }
         public void taskStage(String stage, TaskStage rules) { claim(taskStages, stage, rules, "the task stage " + stage); }
+        public void setupStep(SetupStep step) { setupSteps.add(step); }
         public void checkinListener(CheckinListener listener) { checkins.add(listener); }
         public void productionGate(ProductionGate gate) {
             if (productionGate != null) throw new IllegalStateException("Module " + module + " registers a production gate, which another module has");

@@ -1,6 +1,6 @@
 # Document Automation: the contract with DocFlow
 
-AI > Document Automation is One CommandCenter's front end for **DocFlow**. DocFlow is a separate Python service kept
+Build > Document Automation is One CommandCenter's front end for **DocFlow**. DocFlow is a separate Python service kept
 in the repository `OneOfficeautomation-Private-Limited/oneoffice-docauto`. This page is the platform's side of the
 agreement between the two. DocFlow keeps the same agreement in its `PLATFORM-CONTRACT.md`, and its
 `tests/test_platform_contract.py` fails if DocFlow stops serving something listed here.
@@ -81,7 +81,7 @@ DocFlow's `PLATFORM-CONTRACT.md` lists the methods, inputs and response fields f
 
 ### What the console shows
 
-The AI > Document Automation page has a **Service** card. It shows the DocFlow version in use and whether it fits
+The Build > Document Automation page has a **Service** card. It shows the DocFlow version in use and whether it fits
 this release. The card is a warning only and never blocks anything. The Command Center asks DocFlow's
 `admin/version` at most once a minute. The page reads the answer from `GET /api/docflow/version`, which needs
 `docs.view`.

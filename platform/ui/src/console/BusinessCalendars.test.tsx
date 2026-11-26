@@ -6,7 +6,7 @@ import { Schedules, weekendText } from "./Schedules";
 
 afterEach(cleanup);
 
-/** Gap G34: a holiday calendar's weekend, shown and edited in Manage > Schedules > Holiday calendars. */
+/** Gap G34: a holiday calendar's weekend, shown and edited in Run > Schedules > Holiday calendars. */
 function server() {
   const puts: { url: string; body: Record<string, unknown> }[] = [];
   const cals = [{ name: "India 2026", dates: ["2026-08-15"], weekend: ["SAT", "SUN"] }, { name: "Gulf", dates: [], weekend: ["FRI", "SAT"] }, { name: "Open", dates: [], weekend: [] }];

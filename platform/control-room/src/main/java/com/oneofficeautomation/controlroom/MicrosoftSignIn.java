@@ -106,7 +106,7 @@ public final class MicrosoftSignIn implements com.oneofficeautomation.controlroo
     public Map<String, Object> start(User u, String audience, boolean write) throws IOException {
         if (!AUDIENCES.contains(audience)) throw new OoaException("CR.BAD_INPUT", "audience is organizations (work and school accounts) or consumers (personal Microsoft accounts)");
         if (!ready()) throw new OoaException("CR.MS_SIGNIN", "Sign in with Microsoft is not set up on this server",
-                "An administrator puts the Microsoft app ID in Administration > Settings > E-mail, proxy and SIEM; or use your own app under Show advanced settings.");
+                "An administrator puts the Microsoft app ID in Manage > Settings > E-mail, proxy and SIEM; or use your own app under Show advanced settings.");
         cleanUp();
         String app = appId();
         String scope = scope(audience) + (write ? WRITE + (audience.equals("consumers") ? "" : WRITE_SHARED) : "");

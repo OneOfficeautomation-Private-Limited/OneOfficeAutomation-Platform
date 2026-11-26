@@ -6,7 +6,7 @@ import { Button, HelpButton, TextInput, type HelpTopic } from "../../components"
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * AI > One Chat: run agents and check your runs in plain words. Runs start as the person, with their permissions; anything
+ * Run > One Chat: run agents and check your runs in plain words. Runs start as the person, with their permissions; anything
  * that changes data waits for their yes, and R3 agents for a second person's approval in the Task inbox. The server keeps
  * the chat (schema 45), so it survives a restart; this page keeps the chat it is in while the person visits other pages.
  */

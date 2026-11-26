@@ -566,7 +566,7 @@ public final class Db implements AutoCloseable {
     };
 
     /**
-     * Version 27: named policies given to folders (Administration > Policies, 1 Nov 2026): code analysis rules and AI
+     * Version 27: named policies given to folders (Manage > Policies, 1 Nov 2026): code analysis rules and AI
      * guardrails. The default code analysis policy stays in code_policy.
      */
     private static final String[] SCHEMA_V27 = {

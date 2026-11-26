@@ -27,7 +27,7 @@ confidence, the Studio assistant, and AI assistants connecting over the Model Co
 
 ## 1. Model Connections
 
-Model Connections (AI > Model Connections, `connections.manage`) are named AI model connections that agents
+Model Connections (Manage > Model Connections, `connections.manage`) are named AI model connections that agents
 choose by name in the Prompt Skill, AI agent, generative AI, knowledge and web goal agent actions.
 
 | Field | Rule |
@@ -67,7 +67,7 @@ against its budget, key reference and last change.
   and AI governance.
 - **Content check** `moderation` sends each answer to the provider's moderation endpoint; a flagged answer fails the
   step with `AI.CONTENT_FLAGGED`, naming the categories.
-- **AI guardrails policies** (Administration > Policies, given to folders) apply to every AI step of the agents in those
+- **AI guardrails policies** (Manage > Policies, given to folders) apply to every AI step of the agents in those
   folders when they run: masking always on, the model connections allowed (`AI.MODEL_NOT_ALLOWED` otherwise) and the
   content check (off, log or block). Since 2 Nov 2026 a policy chooses the **personal data to mask**: names and places
   (with a Presidio analyzer), e-mail addresses and phone numbers, card numbers and IBANs, government ids, IP addresses
@@ -96,12 +96,12 @@ Every model call made by a run is reported with the run's result and kept:
 | Time, agent, person, purpose, provider, model, connection, input and output tokens, answer time, what was masked, the tools the AI asked for, a SHA-256 fingerprint of the prompt | The prompt and the answer |
 
 - A run's details have an **AI calls** tab listing its calls in order. A run reports at most 500 calls.
-- **AI governance** (AI > AI governance, `audit.view`) lists every AI call over a chosen period, with totals by model,
+- **AI governance** (Monitor > AI governance, `audit.view`) lists every AI call over a chosen period, with totals by model,
   agent and person, masking and tool use, and the latest calls with their fingerprints.
 
 ## 7. Prompt Skills
 
-Prompt Skills (AI > Prompt Skills) are reviewed prompt templates that agents run with the Prompt Skills toolkit
+Prompt Skills (Build > Prompt Skills) are reviewed prompt templates that agents run with the Prompt Skills toolkit
 (`ooa.ai_skills/run`).
 
 | Property | Rule |

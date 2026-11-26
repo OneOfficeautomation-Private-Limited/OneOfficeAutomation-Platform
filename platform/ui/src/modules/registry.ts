@@ -7,7 +7,7 @@ import type { MenuPage, MenuSection } from "../shell/menu";
  * does not load them. A module that is not there simply adds nothing.
  */
 export type ModuleMenuItem = {
-  /** The menu section (build, manage, insights, administration, ai). */
+  /** The menu section (setup, build, run, manage, monitor). */
   section: string;
   /** The page it follows (a page of the kernel or of another module), or null for the top of the section. */
   after: string | null;

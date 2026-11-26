@@ -7,7 +7,7 @@ import { rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Overview: how agents, runners, queues and AI connections are doing now, on one screen, as
+ * Monitor > Overview: how agents, runners, queues and AI connections are doing now, on one screen, as
  * AA's Operation Manager dashboard, UiPath's Monitoring overview and Blue Prism Hub's Control Room widgets (checked
  * 31 Oct 2026). Laid out as the design plan's step 2b (dense and clean): one row of figures with an icon each, what
  * needs attention in one tabbed panel, the latest runs as a table, and short side panels; "all clear" is one line.

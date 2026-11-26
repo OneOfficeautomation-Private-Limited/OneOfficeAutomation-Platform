@@ -200,15 +200,16 @@ describe("new Studio", () => {
   it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["Build", "Manage", "Agent Insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["Build", "Run", "Manage", "Monitor"]) expect(within(menu).getByText(s)).toBeTruthy();   // 26 Nov 2026; Setup is the console's install guide
+    expect(within(menu).queryByText("Setup")).toBeNull();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
     expect(within(menu).getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
-    // improvement list 13 Nov 2026, item 3: the same entries as the console (BUILD: Automation, Ideas, Apps); one section open at a time (round 2, M1)
-    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));
+    // the same entries as the console; one section open at a time (round 2, M1)
+    fireEvent.click(within(menu).getByRole("button", { name: "Run" }));
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
     fireEvent.click(within(menu).getByRole("button", { name: "Build" }));
-    for (const entry of ["Ideas", "Apps"]) expect(within(menu).getByText(entry)).toBeTruthy();
-    for (const gone of ["Workflows", "Forms", "Templates", "Agent Templates", "Agent APIs"]) expect(within(menu).queryByText(gone)).toBeNull();   // tabs on Automation's page
+    for (const entry of ["Document Automation", "Workflows", "Ideas", "Apps", "AI building blocks"]) expect(within(menu).getByText(entry)).toBeTruthy();
+    for (const gone of ["Forms", "Templates", "Agent Templates", "Agent APIs"]) expect(within(menu).queryByText(gone)).toBeNull();   // tabs on Agents' page
   });
 
   it("opens the Help panel beside the page from the i after a title, and closes it with its close button", async () => {
@@ -395,10 +396,10 @@ describe("new Studio", () => {
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(menu).getByRole("button", { name: "Agents" })).toBeTruthy();   // the page on screen opens its section (Build)
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
-    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // opening another closes it (round 2, M1)
+    fireEvent.click(within(menu).getByRole("button", { name: "Run" }));   // opening another closes it (round 2, M1)
     expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
     expect(within(menu).queryByRole("button", { name: "Agents" })).toBeNull();
-    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // and a heading folds its own
+    fireEvent.click(within(menu).getByRole("button", { name: "Run" }));   // and a heading folds its own
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));   // ☰ on the top bar (round 3, T1)
     expect(within(menu).getByRole("button", { name: "Build" })).toBeTruthy();
@@ -407,8 +408,8 @@ describe("new Studio", () => {
     render(<App api={api} />);
     const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(screen.getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(within(again).getByRole("button", { name: "Manage" }));   // folded: an icon shows its section's pages in a fly-out
-    expect(within(again).getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(within(again).getByRole("button", { name: "Run" }));   // folded: an icon shows its section's pages in a fly-out
+    expect(within(again).getByRole("button", { name: "Run" }).getAttribute("aria-expanded")).toBe("true");
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
     expect(again.className).toContain("is-mini");   // without unfolding the menu
   });
@@ -886,7 +887,7 @@ describe("new Studio", () => {
     const { api, runs } = fakeServer();
     render(<App api={api} />);
     await openIntake();
-    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Run" }).find((b) => !b.closest("nav"))!);   // the editor's Run, not the menu's Run section
     const dialog = await screen.findByRole("dialog", { name: "Run Invoice intake" });
     fireEvent.change(within(dialog).getByLabelText(/^workbook/), { target: { value: "C:/in.xlsx" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Run" })); });

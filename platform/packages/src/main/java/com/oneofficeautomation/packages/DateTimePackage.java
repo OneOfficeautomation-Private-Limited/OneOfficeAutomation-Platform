@@ -511,7 +511,7 @@ public final class DateTimePackage {
         catch (OoaException e) {
             if ("CALENDAR.NOT_FOUND".equals(e.code()))
                 throw new ActionException("DATETIME.CALENDAR_NOT_FOUND", "There is no holiday calendar '" + name + "' in One CommandCenter",
-                        "Check the name under Manage > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step.");
+                        "Check the name under Run > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step.");
             if ("JOBS.BAD_CALL".equals(e.code()))
                 throw new ActionException("DATETIME.NO_COMMAND_CENTER", "This One CommandCenter is too old to give holiday calendars to agents",
                         "Update One CommandCenter, or give the holidays and weekend on the step.");

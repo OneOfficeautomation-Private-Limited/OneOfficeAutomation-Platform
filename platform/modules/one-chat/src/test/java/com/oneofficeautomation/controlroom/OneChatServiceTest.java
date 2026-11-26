@@ -831,6 +831,18 @@ class OneChatServiceTest {
         assertEquals(now, com.oneofficeautomation.modules.chat.ChatStreamAccess.start("nonsense", now));
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void oneChatAddsItsOwnStepToTheInstallGuide() {
+        Map<String, Object> step = null;
+        for (Object ph : (List<Object>) cr.setup.steps(admin, false).get("phases"))
+            for (Object st : (List<Object>) ((Map<String, Object>) ph).get("steps"))
+                if ("onechat".equals(((Map<String, Object>) st).get("id"))) step = (Map<String, Object>) st;
+        assertNotNull(step, "the module's step is in Setup > Install and set up");
+        assertEquals("developers", step.get("phase"));
+        assertEquals(true, step.get("optional"));
+        assertEquals("connections", step.get("page"));
+    }
+
     @Test void anUnreadableSigningKeyIsReplaced() {
         tokens.issue(ctx.activeUser("jane"), "chat", "s1", null);   // the key exists
         String before = (String) db.one("SELECT secret FROM onechat_keys WHERE id = ?", "person-token").get("secret");

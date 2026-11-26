@@ -8,7 +8,7 @@ import { FormField } from "../../console/Inbox";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Manage > Workflow, built as AA's Process Composer requests and UiPath Maestro's instances (checked against their docs
+ * Build > Workflow, built as AA's Process Composer requests and UiPath Maestro's instances (checked against their docs
  * and Blue Prism's, 31 Oct 2026): tabs In progress and Finished; each run with its workflow, reference, status and
  * current stage. A run opens with its timeline (agents, people's tasks, decisions) and data, and Cancel while it is
  * going. Start a workflow with its own start form, or data as JSON. Workflows are designed in OneAgentStudio.

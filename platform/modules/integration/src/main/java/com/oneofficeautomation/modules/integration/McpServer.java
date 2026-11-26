@@ -117,7 +117,7 @@ public final class McpServer {
         if (target.startsWith("pool_") || ctx.db().one("SELECT id FROM device_pools WHERE id = ?", target) != null) pool = target;
         else if (!target.isEmpty()) device = target;
         else device = ctx.onlineRunner();
-        if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name, "Start a runner (Manage > Runners), then try again.");
+        if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name, "Start a runner (Run > Runners), then try again.");
         int perHour = ctx.intSetting("mcp_runs_per_hour");
         if (perHour > 0 && ctx.count("SELECT COUNT(*) AS n FROM runs WHERE source = ? AND requested_by = ? AND created > ?", "mcp", u.username(),
                 ModuleContext.now().minus(java.time.Duration.ofHours(1))) >= perHour)

@@ -175,7 +175,7 @@ the task.
 ## 12. Notifications
 
 - Recipients written as `user:` or `role:` get one inbox notice (kind notification), which they dismiss when read.
-- Plain e-mail addresses get an e-mail through One CommandCenter's mail server (Administration > Settings > E-mail),
+- Plain e-mail addresses get an e-mail through One CommandCenter's mail server (Manage > Settings > E-mail),
   with the subject given (or "Notification name — Workflow name"), as plain text. Texts may use `${name}` from the data.
 - When e-mail is not set up, or sending fails, the addresses are recorded as not delivered in the timeline with the
   reason; the workflow still moves on.

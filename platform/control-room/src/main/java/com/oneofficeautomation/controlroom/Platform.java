@@ -60,6 +60,7 @@ public final class Platform {
         DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
         DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
         DEFAULTS.put("public_url", "");
+        DEFAULTS.put("setup_menu", "admins");          // Setup > Install and set up in the menu: admins, or off for everyone
         // Settings > Connections > Microsoft app ID: the app "Sign in with Microsoft" uses for Microsoft 365 mailboxes
         // (email inboxes, Outlook triggers); empty: OOA's own multi-tenant app. A customer may register their own.
         DEFAULTS.put("microsoft_app_id", "");
@@ -406,6 +407,7 @@ public final class Platform {
                     for (String t : s.split("[,;\\s]+"))
                         if (!t.isEmpty() && !t.matches("(?i)^https?://[^\\s/]+(:\\d+)?(/\\S*)?$"))
                             throw new OoaException("CR.BAD_INPUT", "Not a One CommandCenter address: " + t, "List addresses such as https://cc-prod.example.com, separated by commas");
+                if (k.equals("setup_menu") && !s.equals("admins") && !s.equals("off")) throw new OoaException("CR.BAD_INPUT", "Show Setup in the menu is admins or off");
                 if (k.equals("environment_label") && s.length() > 30) throw new OoaException("CR.BAD_INPUT", "The environment name is at most 30 characters");
                 if (k.equals("environment_colour") && !ENVIRONMENT_COLOURS.contains(s)) throw new OoaException("CR.BAD_INPUT", "The environment colour is one of " + ENVIRONMENT_COLOURS);
                 if (k.equals("trusted_proxies")) IpAllowList.parse(s);
@@ -1504,7 +1506,7 @@ public final class Platform {
         boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
         m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")"
             : state.startsWith("evaluation") ? "Evaluation (" + Licensing.EVALUATION_DAYS + " days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
-        m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
+        m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Manage > Licenses" : "none until a license is installed");
         m.put("license", lic);
         m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));
         m.put("runners", cr.count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE"));

@@ -297,7 +297,7 @@ class DocFlowProxyTest {
         try {
             HttpResponse<String> r = call("GET", "/api/docflow/df/overview", null);
             assertTrue(r.body().contains("DOCS.NOT_SET_UP"), r.body());
-            assertTrue(r.body().contains("Administration > Settings > Document Automation"), r.body());
+            assertTrue(r.body().contains("Manage > Settings > Document Automation"), r.body());
         } finally {
             DocFlowProxy.env = System::getenv;
             cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", ref), null);

@@ -193,7 +193,7 @@ public final class Backups {
         Map<String, Object> manifest;
         try (ZipFile z = new ZipFile(zipFile.toFile())) {
             ZipEntry me = z.getEntry("manifest.json");
-            if (me == null) throw new OoaException("CR.BACKUP", zipFile + " is not a ONEOFFICEAUTOMATION backup", "Choose a backup file made by ONEOFFICEAUTOMATION (Administration > Settings > Data > Backups).");
+            if (me == null) throw new OoaException("CR.BACKUP", zipFile + " is not a ONEOFFICEAUTOMATION backup", "Choose a backup file made by ONEOFFICEAUTOMATION (Manage > Settings > Data > Backups).");
             manifest = (Map<String, Object>) JsonLite.parse(new String(z.getInputStream(me).readAllBytes(), StandardCharsets.UTF_8));
             if (!FORMAT.equals(manifest.get("format"))) throw new OoaException("CR.BACKUP", "Unknown backup format " + manifest.get("format"), "Restore it on the version of One CommandCenter that made it, or a newer one.");
             if (((Number) manifest.get("schema")).intValue() > Db.LATEST) throw new OoaException("CR.BACKUP", "The backup comes from a newer release (schema " + manifest.get("schema") + ")", "Restore it with that release.");

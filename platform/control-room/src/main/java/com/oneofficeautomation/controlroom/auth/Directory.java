@@ -123,7 +123,7 @@ public final class Directory {
             } catch (CommunicationException | ServiceUnavailableException e) {
                 last = url + ": " + e.getMessage();   // the next directory, if any
             } catch (NamingException e) {
-                throw new OoaException("LDAP.FAILED", "The directory answered with an error: " + e.getMessage(), "Check the directory settings in Administration > Settings > Sign-in (address, bind user, search base) and that the server can reach the directory.");
+                throw new OoaException("LDAP.FAILED", "The directory answered with an error: " + e.getMessage(), "Check the directory settings in Manage > Settings > Sign-in (address, bind user, search base) and that the server can reach the directory.");
             } finally { close(ctx); }
         }
         throw new OoaException("LDAP.UNREACHABLE", "The directory could not be reached" + (last == null ? "" : " (" + last + ")"), "Check the addresses, the network and the certificate.");

@@ -32,7 +32,7 @@ The customer build can read and check licence files (`ooa license show`) but nev
 licence tools (`vendor-tools`) is left out of every customer package. The product recognises the vendor build by a
 marker that only that module carries, so the difference cannot be switched on by a setting.
 
-The **edition** is a name carried by the licence (default "Enterprise"). Administration > Settings > This Command
+The **edition** is a name carried by the licence (default "Enterprise"). Manage > Settings > This Command
 Center shows "EDITION (licensed to CUSTOMER)", "Evaluation (60 days, until DATE)" or "Unlicensed".
 
 ## 2. The evaluation
@@ -51,17 +51,17 @@ Installing a licence ends the evaluation; from then on seats are assigned by han
 
 ## 3. Licence files
 
-A licence is a signed file (`.lic`) installed per One CommandCenter in Administration > Licenses (paste or choose the
+A licence is a signed file (`.lic`) installed per One CommandCenter in Manage > Licenses (paste or choose the
 file, then **Install license**). It works fully offline and holds no secret.
 
 To install a licence:
 
-1. Find the **install id** on Administration > Licenses (`OOA-XXXX-XXXX-XXXX-XXXX`) and send it to
+1. Find the **install id** on Manage > Licenses (`OOA-XXXX-XXXX-XXXX-XXXX`) and send it to
    ONEOFFICEAUTOMATION with the agreed terms. A licence issued for it works only on that One CommandCenter.
 2. On a customer build, move to SQL Server or PostgreSQL first (see `LICENSE.DB_REQUIRED` below).
 3. When the `.lic` file arrives, check it if you like: `ooa license show FILE` prints its terms and says whether this
    release accepts its signature.
-4. An administrator with `settings.manage` opens Administration > Licenses, chooses or pastes the file and clicks
+4. An administrator with `settings.manage` opens Manage > Licenses, chooses or pastes the file and clicks
    **Install license**.
 5. Give seats to people and runners on the same page (section 7).
 
@@ -154,7 +154,7 @@ While a licence is in force (active, expiring, grace, evaluation, subscription):
 
 ## 7. Assigning seats and usage
 
-- On Administration > Licenses, seats are given to user names (person seats) or runner ids (Unattended Runner) and taken
+- On Manage > Licenses, seats are given to user names (person seats) or runner ids (Unattended Runner) and taken
   back. Assigning beyond the file's count is refused (`CR.LICENSE_LIMIT`, "All N … seats are in use").
 - Deleting a runner, or the automatic removal of a temporary runner, frees its seat.
 - **Usage**: seats in use per type each day over the last 90 days (recorded once a day), and every seat holder with
@@ -173,7 +173,7 @@ expired (naming the end of the grace period). The evaluation gets the same remin
 - SaaS tenants do not install licence files (installation is refused). Their state is `subscription`.
 - The service operator sets the tenant's seats when creating it and can change them; no seats given means no limit.
 - Free seats go to people and runners on first use; when all are in use, the tenant's administrator takes one back in
-  Administration > Licenses or asks for more ("All N … seats of the subscription are in use").
+  Manage > Licenses or asks for more ("All N … seats of the subscription are in use").
 - On-premises installs keep signed licence files.
 
 ## 10. Permissions, API and audit
@@ -221,7 +221,7 @@ refuses to publish a package that holds it, a `private.key` or a `.lic` file
 
 1. **Agree the terms**: the customer's name, the end date, the grace days (default 14, at most 90) and the seats
    (Developer, Citizen Developer, Attended Runner, Unattended Runner).
-2. **Get the install id** from the customer (Administration > Licenses shows it, `OOA-XXXX-XXXX-XXXX-XXXX`). A licence
+2. **Get the install id** from the customer (Manage > Licenses shows it, `OOA-XXXX-XXXX-XXXX-XXXX`). A licence
    for "any installation" is only for trials or a customer who cannot send one.
 3. **Issue the file**, with License Studio or the command line (below).
 4. **Check it**: `ooa license show FILE` prints the terms and checks the signature, or use License Studio's

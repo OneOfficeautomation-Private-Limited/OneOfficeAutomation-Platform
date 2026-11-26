@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
+ * Build > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
  * 2026): reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new
  * version with a comment. A skill opens with its instructions, prompt ($name$ for inputs, found by themselves), answer
  * kind, temperature, connection and its versions. Templates give a starting point.

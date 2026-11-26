@@ -15,13 +15,14 @@ describe("Document Automation", () => {
   it("opens every other page from its menu as a link, Build > Agents too (14 Nov 2026: Agents did nothing here)", async () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    fireEvent.click(within(menu).getByRole("button", { name: /^(Unfold )?Build$/ }));
+    const build = within(menu).getByRole("button", { name: /^(Unfold )?Build$/ });
+    if (build.getAttribute("aria-expanded") !== "true") fireEvent.click(build);   // Document Automation is in Build since 26 Nov 2026, so Build is open
     const agents = await within(menu).findByRole("link", { name: "Agents" });
     expect(agents.getAttribute("href")).toBe("/next/#/automation");
     expect(within(menu).queryAllByRole("button").map((b) => b.textContent?.trim())).not.toContain("Agents");   // no button that waits for Studio
   });
 
-  it("sits under AI in the Command Center menu: Overview, Inbox and Processes, then the Libraries", async () => {
+  it("sits under Build in the Command Center menu: Overview, Inbox and Processes, then the Libraries", async () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
