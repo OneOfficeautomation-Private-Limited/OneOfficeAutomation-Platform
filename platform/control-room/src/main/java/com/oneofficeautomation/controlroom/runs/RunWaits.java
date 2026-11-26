@@ -61,7 +61,7 @@ public final class RunWaits {
         String base = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         if (base.isEmpty() || base.equals("null"))
             throw new OoaException("LONGRUN.NO_PUBLIC_URL", "One CommandCenter does not know its own address, so it cannot make a callback URL",
-                "An administrator sets it in Administration > Settings (Public address).");
+                "An administrator sets it in Manage > Settings (Public address).");
         byte[] b = new byte[32];
         RANDOM.nextBytes(b);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(b);
@@ -142,7 +142,7 @@ public final class RunWaits {
         String poolId = null;
         if (a.get("pool") instanceof String p && !p.isBlank()) {
             Map<String, Object> pool = db.one("SELECT id FROM device_pools WHERE id = ? OR name = ?", p.strip(), p.strip());
-            if (pool == null) throw new OoaException("CR.NOT_FOUND", "There is no runner pool '" + p + "'", "Check the pool's name in Manage > Runners > Pools.");
+            if (pool == null) throw new OoaException("CR.NOT_FOUND", "There is no runner pool '" + p + "'", "Check the pool's name in Run > Runners > Pools.");
             poolId = (String) pool.get("id");
             cr.platform.requirePoolUse(as.username(), as.role(), poolId);
         }
@@ -156,7 +156,7 @@ public final class RunWaits {
             }
             case "queue_item" -> {
                 Map<String, Object> i = ref == null ? null : db.one("SELECT queue_id FROM queue_items WHERE id = ?", ref);
-                if (i == null) throw new OoaException("CR.NOT_FOUND", "There is no work item '" + ref + "'", "Check the work item's id or reference in Manage > Work queues.");
+                if (i == null) throw new OoaException("CR.NOT_FOUND", "There is no work item '" + ref + "'", "Check the work item's id or reference in Run > Work queues.");
                 cr.require(as, "queues.view", "see work queues");
                 cr.platform.requireQueue(as, (String) i.get("queue_id"), "view", "see this work queue");
             }
@@ -403,7 +403,7 @@ public final class RunWaits {
         if (w.get("pool_id") != null) { String picked = cr.platform.pickDevice((String) w.get("pool_id")); if (picked != null) deviceId = picked; }
         Map<String, Object> dev = deviceId == null ? null : db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw new OoaException("CR.NOT_FOUND", "The runner of the run is gone", "Wait with a runner pool (the Pool field) so any runner of the pool can carry on.");
-        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "The runner of the run is disabled", "Enable the runner in Manage > Runners, or let the run go on on another runner.");
+        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "The runner of the run is disabled", "Enable the runner in Run > Runners, or let the run go on on another runner.");
         cr.licensing.requireRunnable(deviceId, principal, String.valueOf(run.get("source")));
         Map<String, Object> flow = (Map<String, Object>) cr.content(path, run.get("version")).get("flow");
         Map<String, Object> inputs = run.get("inputs") == null ? new LinkedHashMap<>() : new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) run.get("inputs")));

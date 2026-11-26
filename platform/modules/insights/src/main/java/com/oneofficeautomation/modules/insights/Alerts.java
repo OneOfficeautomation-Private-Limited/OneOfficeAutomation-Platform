@@ -13,7 +13,7 @@ import java.util.*;
 import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
 
 /**
- * Alerts (Operational Insights > Alerts), as UiPath's real-time monitoring alerts on processes, queues and machines and
+ * Alerts (Monitor > Alerts), as UiPath's real-time monitoring alerts on processes, queues and machines and
  * AA's notifications (checked 31 Oct 2026). A rule watches one condition; the server clock checks the rules once a
  * minute on the leader node. Each condition met raises one alert per subject (a run, an agent, a runner, a queue, a
  * connection) and sends it to the task inbox (user:NAME, role:NAME), to e-mail addresses (Settings > E-mail) and to a
@@ -369,9 +369,9 @@ public final class Alerts {
             sent.put("inbox", inbox);
         }
         if (!mail.isEmpty()) {
-            if (!ctx.mailConfigured()) { sent.put("not_emailed", mail); sent.put("note", "E-mail is not set up (Administration > Settings > E-mail)"); }
+            if (!ctx.mailConfigured()) { sent.put("not_emailed", mail); sent.put("note", "E-mail is not set up (Manage > Settings > E-mail)"); }
             else {
-                try { ctx.sendMail(mail, title, message + "\n\nOpen ONEOFFICEAUTOMATION One CommandCenter to see it (Operational Insights > Alerts)."); sent.put("emailed", mail); }
+                try { ctx.sendMail(mail, title, message + "\n\nOpen ONEOFFICEAUTOMATION One CommandCenter to see it (Monitor > Alerts)."); sent.put("emailed", mail); }
                 catch (OoaException e) { sent.put("not_emailed", mail); sent.put("note", e.getMessage()); }
             }
         }

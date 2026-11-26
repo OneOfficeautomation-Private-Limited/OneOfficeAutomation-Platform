@@ -33,6 +33,14 @@ the yearly goal in **Business > Value**).
 
 ## 1. Before you go live
 
+**Setup > Install and set up** (26 Nov 2026) walks through the same ground in four phases: **Server** (install, database,
+HTTPS and the public address, licence), **People and runners**, **Developers and AI** (Studio and the browser extension,
+an AI model, and the optional DocFlow and OneChat steps), and **First run** (the sample agent *Hello OOA*, checked in to
+*Samples* and run on the first runner online). Each step is checked live when you open the page, shows what the check
+found, and gives the command to copy or a button to the page where it is done. Only administrators see it. Tick
+**Hide Setup from my menu** once you are done; **Settings > Show Setup in the menu > Off for everyone** takes it out of
+every menu (the page still opens from its address, `#/setup`).
+
 A checklist for a production One CommandCenter:
 
 1. **Install it on a server** with the setup package as a service:
@@ -86,7 +94,7 @@ machines must trust the certificate ([07 Runner guide](07-runner-guide.md#5-prox
 
 ## 2. Users
 
-**Administration > Users** (needs `users.manage`). Columns: **User** (display name, user name, first and last name,
+**Manage > Users** (needs `users.manage`). Columns: **User** (display name, user name, first and last name,
 description), **Role** (a drop-down you can change in place), **Further roles**, **Status** (Active, Must change
 password, Disabled), **Default runner** (a drop-down), **Last sign-in**.
 
@@ -117,7 +125,7 @@ identity provider through SCIM (section 5). Their role then comes from their gro
 
 ## 3. Roles and permissions
 
-**Administration > Roles** (needs `users.manage`) lists built-in and custom roles, their permissions and the number
+**Manage > Roles** (needs `users.manage`) lists built-in and custom roles, their permissions and the number
 of users.
 
 | Built-in role | Id | Can |
@@ -144,7 +152,7 @@ still have one keep only their other roles. Administrator cannot be switched off
 
 ## 4. Teams
 
-**Administration > Teams** (needs `teams.manage`, or leading a team): named groups of people, each a member or a lead.
+**Manage > Teams** (needs `teams.manage`, or leading a team): named groups of people, each a member or a lead.
 
 1. Press **New team**, give a **Name** (used in rules as `team:name`) and **Description**, then **Save**.
 2. In **Members of ...**, pick people (or type a user name), press **+ Add**, choose **Member** or **Lead (changes the
@@ -157,7 +165,7 @@ who leads a team, and a lead sees the teams they are in.
 
 ## 5. Sign-in and security
 
-All in **Administration > Settings > Sign-in and security** unless stated. Change the values, then press **Save Sign-in
+All in **Manage > Settings > Sign-in and security** unless stated. Change the values, then press **Save Sign-in
 and security** in the bar that appears (section 12). The defaults keep the behaviour of earlier versions, so nothing
 changes until you change it.
 
@@ -512,7 +520,7 @@ The agent repository is the **Public** tab of **Build > Agents**; builders use i
 
 ### Policies: code analysis and AI guardrails
 
-**Administration > Policies** holds rules that agents follow, set once and given to folders. There are two kinds:
+**Manage > Policies** holds rules that agents follow, set once and given to folders. There are two kinds:
 
 | Kind | What it sets | When it applies |
 | --- | --- | --- |
@@ -595,7 +603,7 @@ file**.
 
 ## 12. Settings
 
-**Administration > Settings** (needs `settings.manage`) has its sections down the left side. Each section saves on its
+**Manage > Settings** (needs `settings.manage`) has its sections down the left side. Each section saves on its
 own:
 
 1. Click a section, or type in **Find a setting** to search every section by name, hint or setting key (for example
@@ -611,7 +619,7 @@ test something (**Send a test e-mail** and the like) use the saved settings, so 
 | **General** | For everyone | **Announcement** (a banner for everyone); **Public address** of One CommandCenter (for sign-in redirects and links in e-mails) |
 | | This environment | **Environment name** (for example *Development*, *Test* or *Production*) and **Environment colour** (blue, green, amber, red or grey), shown in the top bar and on the sign-in page so nobody changes production by mistake; **Time zone for new schedules** (such as `Asia/Kolkata`; empty: each person's own; existing schedules keep theirs) |
 | | Limits | **Largest upload** (25 MB by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval** |
-| | Value of automation | **Minutes saved per successful run** (for agents without their own), **Cost of an hour of the manual work** and **Currency**, used by Home and **Business > Value** |
+| | Value of automation | **Minutes saved per successful run** (for agents without their own), **Cost of an hour of the manual work** and **Currency**, used by **Monitor > Overview > Status** and **Business > Value** |
 | | Templates | **Template catalogue** (section 11) |
 | | Help links | **Documentation address** and **Video address**: where every Docs and Video link in the product points (each page, dialog and command adds its own path; documentation links add the version too). Point them at the company's own copy when this server has no internet. Empty: the product's own sites. Links for single pages can also be changed without a restart in `<data>/config/help-links.json` (see `docs/architecture/help-links.md`) |
 | **Sign-in and security** | | Sessions, passwords, lockout, the sign-in page, API keys, two-step sign-in, network and built-in roles (sections 3, 5 and 6) |
@@ -646,7 +654,7 @@ Backups from the command line: `ooa backup now`, `ooa backup list`, and with the
 
 ## Licences and seats
 
-**Administration > Licenses** (shown with `users.manage` or `settings.manage`; installing a licence needs
+**Manage > Licenses** (shown with `users.manage` or `settings.manage`; installing a licence needs
 `settings.manage`, ticking seats needs `users.manage`).
 
 ### Install a licence
@@ -692,7 +700,7 @@ Once e-mail is set up, administrators with an e-mail address (and the extra addr
 
 ## 14. Audit Trail
 
-**Administration > Audit Trail** (needs `audit.view`). Every sign-in, change, run, credential use, task and
+**Manage > Audit Trail** (needs `audit.view`). Every sign-in, change, run, credential use, task and
 workflow event is recorded and hash-chained.
 
 - Search with **Search everything**, **Who**, **Action** (a prefix such as `repo.` or an exact action like
@@ -704,12 +712,12 @@ workflow event is recorded and hash-chained.
   so deleting the newest records is found too.
 
 For a summary (who acted, sign-ins and failed sign-ins, what failed or was refused, the busiest day) open
-**Agent Insights > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
+**Monitor > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
 To keep a copy outside One CommandCenter, forward every entry to your SIEM by syslog or HTTPS (section 12).
 
 ### Event subscriptions: events and run logs to other systems
 
-**Administration > Event subscriptions** (needs `events.manage`; administrators) sends events to other systems the
+**Manage > Event subscriptions** (needs `events.manage`; administrators) sends events to other systems the
 moment they happen, so a ticketing tool, an integration platform or Splunk does not have to keep asking.
 
 1. Click **New subscription**. Give it a **Name** and the **Receiver address** (`https://...`).
@@ -741,7 +749,7 @@ node. The figures and a scrape example are in
 
 ## 15. AI: model connections, Prompt Skills and AI governance
 
-**AI > Model Connections** (needs `connections.manage`):
+**Manage > Model Connections** (needs `connections.manage`):
 
 1. **New connection**: **Name**, **Provider** (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI,
    Amazon SageMaker endpoint, Hugging Face, OpenAI-compatible), **Model**, **Type** (standard or fine-tuned),
@@ -753,10 +761,10 @@ node. The figures and a scrape example are in
    `AI.CALL_LIMIT`). When the month's tokens are used, steps fail with `AI.BUDGET_REACHED`.
 4. **Test connection** sends one tiny request with the key from the vault (audited). **Save connection**.
 
-**AI > Prompt Skills**: reviewed prompt templates. People with `skills.all` can mark a skill as a **Template** and
+**Build > Prompt Skills**: reviewed prompt templates. People with `skills.all` can mark a skill as a **Template** and
 change anyone's skills.
 
-**AI > AI governance** (needs `audit.view`) shows every AI call over 7, 30, 90 days or a year: calls, tokens, calls
+**Monitor > AI governance** (needs `audit.view`) shows every AI call over 7, 30, 90 days or a year: calls, tokens, calls
 with personal data masked, calls where the AI used tools, average answer time, **By model**, **By agent** and **Recent
 AI calls** with the prompt's fingerprint (SHA-256). Prompts are never stored. **Operations > AI usage** opens the same
 page.

@@ -9,7 +9,7 @@ import { AfterReading, EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "./MailAcco
 import type { MailAccount, MailConditions } from "../api/cr";
 
 /**
- * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
+ * Run > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
  * triggers and Blue Prism, 31 Oct 2026): each trigger with its event, where it listens (a runner, or One CommandCenter,
  * UiPath-style, so no runner waits), its health (listening, paused, error) with the last firing, and Check now for the
  * One CommandCenter ones. Create in sections: event, its settings, agent, runner and run-as. Refreshes every 30 seconds.
@@ -228,7 +228,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
           : msReady === null ? <span className="st-muted">Checking…</span>
           : msReady ? <span className="ui-ms-account-row"><Button kind="primary" onClick={() => setSigningIn(true)}>Sign in with Microsoft</Button>
               <span className="st-muted">With the mailbox's account, or one that may read the shared mailbox. Your Microsoft 365 administrator approves One CommandCenter once.</span></span>
-          : <span className="st-muted">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM. Until then, give your own app or a token reference below.</span>}
+          : <span className="st-muted">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Manage &gt; Settings &gt; E-mail, proxy and SIEM. Until then, give your own app or a token reference below.</span>}
         {!ms && msReady && <span><button type="button" className="st-link" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? "Hide advanced settings" : "Show advanced settings"}</button>
           {!advanced && <span className="st-muted"> · your own Microsoft app, or a Graph token</span>}</span>}
       </div>}

@@ -4,8 +4,14 @@ import type { MsSignInStart, MsSignInState } from "../components/MicrosoftSignIn
  * The typed client for One CommandCenter API (the same routes today's console uses). The browser keeps the session
  * in an HttpOnly cookie; every change carries X-OOA-Request, which the server needs against cross-site requests.
  */
+/** One step of Setup > Install and set up, as its live check found it. */
+export type SetupStep = { id: string; phase: string; order: number; title: string; optional: boolean; status: "done" | "todo" | "not_needed";
+  detail: string; help: string; page?: string; command?: string };
+export type SetupGuide = { phases: { id: string; name: string; done: number; total: number; steps: SetupStep[] }[]; done: number; total: number; menu: string };
 export type CrUser = { id: string; username: string; display_name: string; role: string; permissions: string[]; roles?: string[];
   must_change?: boolean; mfa_enabled?: boolean; mfa_setup_required?: boolean; leads_team?: boolean; announcement?: string; license_banner?: string;
+  /** Setup > Install and set up is in this person's menu (administrators, unless switched off for everyone; 26 Nov 2026). */
+  setup_menu?: boolean;
   /** Settings: sign out after this many minutes without activity; and days left before the password must be changed (within the warning). */
   idle_minutes?: number; password_expires_in_days?: number;
   /** Settings: which One CommandCenter this is (shown in the top bar), and the time zone new schedules start with. */
@@ -152,12 +158,12 @@ export type GlobalValue = { name: string; value: unknown; changeable: boolean; m
   type?: "text" | "number" | "boolean" | "date" | "list" | "record" | "any";
   /** Values per team (user group): runs of the team's members use them unless the person set their own. */
   team_values?: { team_id: string; team_name: string; value: unknown }[] };
-/** A subscription to One CommandCenter's events (Administration > Event subscriptions); the secret itself is never sent back. */
+/** A subscription to One CommandCenter's events (Manage > Event subscriptions); the secret itself is never sent back. */
 export type EventSubscription = { id: string; name: string; url: string; events: string[]; format: "json" | "splunk"; filters: string[]; enabled: boolean;
   has_secret: boolean; last_status?: string | null; last_error?: string | null; last_delivery?: string | null; failures: number; created?: string; created_by?: string;
   this_node?: { delivered: number; failed: number; dropped: number } };
 export type EventSubscriptionList = { subscriptions: EventSubscription[]; types: string[]; allow_http: boolean; allow_private: boolean; metrics_token: boolean; node?: string };
-/** An environment lock a run holds (Manage > Environment locks); expired: its lease ran out, so another run may take it. */
+/** An environment lock a run holds (Run > Environment locks); expired: its lease ran out, so another run may take it. */
 /** A suspended run's wait (long-running agents, G36): what it waits for, until when, and the run that carried on. */
 export type RunWait = { id: string; run_id: string; bot_path: string; version?: number; step_id?: string | null; kind: "time" | "task" | "queue_item" | "callback" | "job";
   ref?: string | null; status: "waiting" | "resumed" | "timed_out" | "cancelled"; resume_at?: string | null; timeout_at?: string | null; created?: string;
@@ -266,6 +272,10 @@ export class CrApi {
 
   /** The signed-in person (CR.UNAUTHENTICATED when there is no session). */
   me() { return this.call<CrUser>("GET", "auth/me"); }
+  /** Setup > Install and set up: every step with its live check (administrators). */
+  setup() { return this.call<SetupGuide>("GET", "setup"); }
+  /** Checks the sample agent in when it is not there and runs it on the first runner online. */
+  runSample() { return this.call<{ run_id: string }>("POST", "setup/sample", {}); }
   login(username: string, password: string, accepted = false) { return this.call<SignIn>("POST", "auth/login", accepted ? { username, password, accepted } : { username, password }); }
   loginCode(mfaToken: string, code: string) { return this.call<SignIn>("POST", "auth/mfa", { mfa_token: mfaToken, code }); }
   async logout() { await this.call("POST", "auth/logout"); }

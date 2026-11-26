@@ -112,7 +112,7 @@ signed in (section 2):
 3. Type what changed, tick **Make this the live version** so that it can be started, and press **Check in**. Studio
    says "Checked in <path> as version n; it is now the live version."
 
-Check in the forms a workflow uses and the agents it runs as well. People then start the workflow from **Manage >
+Check in the forms a workflow uses and the agents it runs as well. People then start the workflow from **Build >
 Workflow** in One CommandCenter, and get their steps in the **Task inbox** (see [Business users](14-business-users.md)).
 
 ## 6. Check out, edit and check in again
@@ -155,7 +155,7 @@ Going back to an older version is therefore one click: make it live again.
 
 ## 8. Approval before production
 
-When an administrator switches on approval before production (**Administration > Settings > Agents and repository**,
+When an administrator switches on approval before production (**Manage > Settings > Agents and repository**,
 **Approval before production**):
 
 1. Your check-in with **Make this the live version** ticked (or **Ask to make live** on the **Versions** tab) creates a

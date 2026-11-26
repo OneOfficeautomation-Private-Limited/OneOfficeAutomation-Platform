@@ -24,7 +24,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 
 /**
  * Event subscriptions (gap G38; UiPath's webhooks, a SIEM or log platform fed with run logs): One CommandCenter posts
- * its events, as they happen, to the addresses administrators subscribe (Administration > Event subscriptions).
+ * its events, as they happen, to the addresses administrators subscribe (Manage > Event subscriptions).
  * <p>
  * Each event is one JSON POST with an event id (for de-duplication), its type, time and node, and data. With the json
  * format the body is signed: X-OOA-Signature is "sha256=" and the HMAC-SHA256, in hex, of the X-OOA-Timestamp value, a
@@ -350,7 +350,7 @@ public final class EventSubscriptions {
             "Events go to public addresses only. To send them inside your own network, switch on Settings > E-mail, proxy and SIEM > Allow receivers in private networks.");
     }
 
-    // ===================== subscriptions (Administration > Event subscriptions) =====================
+    // ===================== subscriptions (Manage > Event subscriptions) =====================
 
     /** The enabled subscriptions, with their secrets decrypted, kept for 5 seconds (a change on this node clears the copy). */
     List<Sub> subscriptions() {

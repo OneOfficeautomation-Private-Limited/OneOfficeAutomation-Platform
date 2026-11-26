@@ -23,7 +23,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.now;
  *   <li>This Java process: heap and non-heap memory, threads, garbage collection, uptime.</li>
  * </ul>
  * A scrape reads the database at most once every 5 seconds (the text is kept), with a few counting queries on indexed
- * columns. Access: the metrics token (made in Administration > Event subscriptions, kept only as a hash) as the bearer,
+ * columns. Access: the metrics token (made in Manage > Event subscriptions, kept only as a hash) as the bearer,
  * or a signed-in person with the metrics.view permission.
  */
 public final class Metrics {
@@ -94,7 +94,7 @@ public final class Metrics {
 
     public void deleteToken(User by, String ip) {
         cr.require(by, "events.manage", "remove the metrics token");
-        if (cr.db.update("DELETE FROM settings WHERE name = ?", TOKEN_SETTING) == 0) throw new OoaException("CR.NOT_FOUND", "No metrics token is set", "Make a metrics token in Administration > Settings > Monitoring.");
+        if (cr.db.update("DELETE FROM settings WHERE name = ?", TOKEN_SETTING) == 0) throw new OoaException("CR.NOT_FOUND", "No metrics token is set", "Make a metrics token in Manage > Settings > Monitoring.");
         cr.audit.record(by.username(), "metrics.token_delete", "settings", TOKEN_SETTING, null, "ok", ip);
         tokenAt = 0;
     }

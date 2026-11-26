@@ -67,7 +67,7 @@ export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep
               {row("User name", profile.username)}
               {row("E-mail", profile.email)}
               {row("Roles", profile.roles.map(roleWords).join(", "))}
-              {row("What you may do", profile.permissions.length + " permissions (Administration > Roles lists them)")}
+              {row("What you may do", profile.permissions.length + " permissions (Manage > Roles lists them)")}
               {row("Teams", profile.teams.length ? profile.teams.map((t) => t.name + (t.lead ? " (lead)" : "")).join(", ") : "None")}
               {row("Licence seat", profile.license_seats.length ? profile.license_seats.map(roleWords).join(", ") : "None assigned")}
               {row("Signs in with", profile.sign_in)}
@@ -104,7 +104,7 @@ export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep
           {!devices ? <p className="st-muted" role="status">Loading…</p> : <>
             {devices.hint && <p className="st-alert" role="note">{devices.hint}</p>}
             {devices.runners.length === 0
-              ? <p className="cc-none">No runner is set up for you yet. An administrator makes one your default runner in Administration &gt; Users, or adds you as a default user of a runner in Manage &gt; Runner Machines.</p>
+              ? <p className="cc-none">No runner is set up for you yet. An administrator makes one your default runner in Manage &gt; Users, or adds you as a default user of a runner in Run &gt; Runner Machines.</p>
               : <table className="st-table" aria-label="My runners">
                 <thead><tr><th scope="col">Runner</th><th scope="col">Status</th><th scope="col">Computer</th><th scope="col">Version</th><th scope="col">Last seen</th><th scope="col">Used as</th></tr></thead>
                 <tbody>{devices.runners.map((r) => <tr key={r.id}><td><strong>{r.name}</strong></td>

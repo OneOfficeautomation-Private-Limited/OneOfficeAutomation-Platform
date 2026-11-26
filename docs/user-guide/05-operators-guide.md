@@ -27,16 +27,16 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 
 ## 1. Your working day at a glance
 
-1. Open **Home**, or **Agent Insights > Overview** for everything that needs attention in one list. Check
+1. Open **Monitor > Overview** (Status and Dashboards) for everything that needs attention in one list. Check
    failed runs, open alerts and runners online.
-2. Open **Manage > Agent Activity**: the **In progress** tab shows what runs now and what waits.
-3. Look at **Manage > Work queues** for items past their service level (a red "overdue" pill).
-4. Look at **Manage > Triggers** for any trigger whose **Status** is **error**.
+2. Open **Run > Agent Activity**: the **In progress** tab shows what runs now and what waits.
+3. Look at **Run > Work queues** for items past their service level (a red "overdue" pill).
+4. Look at **Run > Triggers** for any trigger whose **Status** is **error**.
 5. Deal with failures (section 13), then rerun what needs rerunning.
 
 ## 2. Agent Activity: what is running and what ran
 
-**Manage > Agent Activity** (needs `runs.view`) has four tabs: **In progress** and **Scheduled**, each with a count,
+**Run > Agent Activity** (needs `runs.view`) has four tabs: **In progress** and **Scheduled**, each with a count,
 **Suspended** and **Completed**. The figures above them (**Running now**, **Waiting for a runner**, **Failed in the last 24 hours**,
 **Ended in the last 24 hours** and the next scheduled run) open the runs behind them. **Scheduled** (with
 `schedules.view`) lists the next run of each schedule, soonest first; tick schedules to **Run now**, **Turn on** or
@@ -169,7 +169,7 @@ files it lists under `requires.files` (up to 50 MB per run) and any custom toolk
 
 ## 4. Runners and runner pools from the operator's side
 
-**Manage > Runner Machines** (needs `devices.view`) has two tabs, **Runners** and **Runner pools**. A runner is
+**Run > Runner Machines** (needs `devices.view`) has two tabs, **Runners** and **Runner pools**. A runner is
 **online** when it checked in during the last minute; the list refreshes every 15 seconds. The columns shown at first:
 
 | Column | Meaning |
@@ -191,7 +191,7 @@ available**).
 
 Click a runner to see its details by topic: **General** (name, status, **Computer**, **Platform**, pools), **Health**
 (CPU and memory), **Sessions** (runner type, default users, screen, after a run, **Running now**) and **Logs and
-program** (log level, version, program, toolkits). To see its runs, filter **Manage > Agent Activity** by **Runner**;
+program** (log level, version, program, toolkits). To see its runs, filter **Run > Agent Activity** by **Runner**;
 to run an agent on it, choose it under **Run on** (section 3).
 
 The **Runner pools** tab lists each pool with its **Description**, **Runners** (a count; hover for their names),
@@ -204,7 +204,7 @@ runners** lists them on the **Runners** tab. Administrators handle registering, 
 
 ## 5. Schedules
 
-**Manage > Schedules** (needs `schedules.view`; changing needs `schedules.manage`).
+**Run > Schedules** (needs `schedules.view`; changing needs `schedules.manage`).
 
 ### Create a schedule
 
@@ -303,7 +303,7 @@ A calendar is used in two places:
 
 ## 6. Triggers
 
-**Manage > Triggers** (needs `triggers.view`; changing needs `triggers.manage`) start an agent when something
+**Run > Triggers** (needs `triggers.view`; changing needs `triggers.manage`) start an agent when something
 happens.
 
 ### Create a trigger
@@ -376,7 +376,7 @@ Columns: **Trigger**, **Kind** ("Checked by One CommandCenter" or "Watched on th
 
 ## 7. Work queues
 
-**Manage > Work queues** (needs `queues.view`) hold items such as invoices, tickets or orders that an agent works
+**Run > Work queues** (needs `queues.view`) hold items such as invoices, tickets or orders that an agent works
 one by one on a runner pool, with retries and a service level.
 
 ### Set up a queue (`queues.manage`)
@@ -410,7 +410,7 @@ or `update`). With `_if_exists` the item's `_reference` is unique in the queue: 
 refused (the whole list is then not added), left as it is, or given the new data and tags. Items added without
 `_if_exists` may share references, as before.
 
-> **Tip.** Large Excel files travel inside a JSON request, which is limited by **Administration > Settings > General >
+> **Tip.** Large Excel files travel inside a JSON request, which is limited by **Manage > Settings > General >
 > Largest upload** (MB; 25 MB by default). Ask an administrator to raise it, or split the file.
 
 ### Work the queue
@@ -463,7 +463,7 @@ an agent started by processing marks its own item, that mark stays when its run 
 
 ## 8. Workflow and the Task inbox
 
-**Manage > Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
+**Build > Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
 (running, waiting, completed, failed, cancelled), **Current stage**, **Started by**, **Started** and **Updated**.
 
 To start one (`runs.start`): press **Start a workflow**, choose the **Workflow (live production version)**, fill in
@@ -474,7 +474,7 @@ Click a run to monitor it: **Reference**, **Status**, **Current stage**, **Start
 **Timeline** of events (agent started, finished or failed, task created or completed, approved, rejected, decided,
 notified) with **Open agent run** links, and the workflow **Data**. **Cancel run** withdraws its open tasks.
 
-People's steps arrive in **Manage > Task inbox** (tabs **To do** and **Done**). Administrators can tick
+People's steps arrive in **Run > Task inbox** (tabs **To do** and **Done**). Administrators can tick
 **Everyone's tasks** to see who is holding what. Each task can be taken (**Take it**), given back (**Give back**),
 filled in and submitted, approved or rejected, or marked as read. See [14 Business users](14-business-users.md).
 
@@ -682,7 +682,7 @@ severity or rule. A new rule only counts what happens after it is made. The bell
 are open.
 
 Alerts can also reach other systems as they happen: an administrator subscribes a receiver to `alert.raised`, run,
-work-item and runner events, or run log lines in **Administration > Event subscriptions** (see the
+work-item and runner events, or run log lines in **Manage > Event subscriptions** (see the
 [Administrator's guide](06-administrators-guide.md#event-subscriptions-events-and-run-logs-to-other-systems)).
 
 ### Operations > Agents: how agents ran
@@ -739,7 +739,7 @@ export them.
 
 ### Operations > AI usage
 
-**AI usage ↗** opens **AI > AI governance**: every AI call, its tokens and cost, by model and by agent
+**AI usage ↗** opens **Monitor > AI governance**: every AI call, its tokens and cost, by model and by agent
 ([06 Administrator's guide](06-administrators-guide.md#15-ai-model-connections-prompt-skills-and-ai-governance)).
 
 ## 12. Business: agents, value and dashboards
@@ -749,7 +749,7 @@ export them.
 A builder can mark an output of an agent as **Business figure (KPI)** in OneAgentStudio, but every value an agent's
 runs return (its outputs) can be looked at here.
 
-1. Open **Agent Insights > Business**. The **Agents** tab lists every agent whose runs returned values in the
+1. Open **Monitor > Business**. The **Agents** tab lists every agent whose runs returned values in the
    period, KPI-marked ones first. Choose the period, or search for an agent or a value.
 2. Click an agent. Its page has three tabs:
    - **Dashboard**: made for you from its values: runs that returned values, the total of each number value, the first
@@ -859,7 +859,7 @@ it up; the calls are described in
 
 ### A step-by-step routine
 
-1. Open the failed run (Home > **Recent failures**, or **Agent Activity > Completed** filtered to **Failed**).
+1. Open the failed run (Monitor > **Overview > Status > Recent failures**, or **Agent Activity > Completed** filtered to **Failed**).
 2. Read the red error box: the **code**, the message, the step and the **Fix**.
 3. Open **Steps** to see where it stopped and whether it retried; **Log** with **Errors** for the detail;
    **Variables** for the values just before the failure.
@@ -888,7 +888,7 @@ it up; the calls are described in
 
 | Symptom | Likely cause |
 | --- | --- |
-| Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Manage > Runner Machines** |
+| Runs stay **queued** on one runner | The runner is offline, disabled, or busy with a long run; check **Run > Runner Machines** |
 | A run for one runner is refused at once, saying the runner is offline | Your administrator has switched on **Refuse runs for a runner that is offline**. Start the runner, or send the run to a runner pool |
 | A trigger stopped by itself: "Switched off after n failed runs in a row" | Its last runs all failed, as many times in a row as your administrator allows. Fix the agent, then **Resume** the trigger |
 | A work item failed as abandoned | It stayed in progress longer than your administrator allows (for example after a runner crashed). Retry it |

@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 /**
  * Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter, so many agents ask the same documents and an
- * index is refreshed in one place. A base is made in AI > Knowledge bases (name, the folder whose agents may use it,
+ * index is refreshed in one place. A base is made in Build > Knowledge bases (name, the folder whose agents may use it,
  * what it holds); an indexing agent fills and refreshes it with Knowledge Q&A > Build index (files, folders, web pages,
  * texts), usually on a schedule; agents search and ask it by name. Runs fetch it once and again only when it changed.
  * <p>Kept in the data folder under knowledge/&lt;id&gt;/: meta.json and index.json.gz (the Knowledge Q&A index as the
@@ -48,7 +48,7 @@ public final class KnowledgeBases {
 
     Map<String, Object> byName(String name) {
         for (Map<String, Object> m : all()) if (String.valueOf(m.get("name")).equalsIgnoreCase(String.valueOf(name).strip()) || String.valueOf(m.get("id")).equals(name)) return m;
-        throw new OoaException("CR.NOT_FOUND", "No knowledge base '" + name + "'", "Make it in AI > Knowledge bases first.");
+        throw new OoaException("CR.NOT_FOUND", "No knowledge base '" + name + "'", "Make it in Build > Knowledge bases first.");
     }
 
     private void save(Map<String, Object> m) {

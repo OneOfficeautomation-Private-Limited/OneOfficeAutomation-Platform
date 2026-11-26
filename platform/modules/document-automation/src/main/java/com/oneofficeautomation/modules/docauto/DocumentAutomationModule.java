@@ -86,6 +86,23 @@ public final class DocumentAutomationModule implements CommandCenterModule {
             public void deliver(ModuleContext.MailDelivery d) { docflow.deliverMail(d); }
         });
         ctx.route("docflow", (ex, u, method, route, ip) -> docflow.forward(ex, u, method, route));
+        // Setup > Install and set up (26 Nov 2026): DocFlow's own step of the install guide, checked live
+        ctx.setupStep(u -> {
+            Map<String, Object> v = docflow.version();
+            boolean ok = Boolean.TRUE.equals(v.get("compatible"));
+            Map<String, Object> s = new java.util.LinkedHashMap<>();
+            s.put("id", "docflow");
+            s.put("phase", "developers");
+            s.put("order", 30);
+            s.put("title", "Document Automation (DocFlow)");
+            s.put("optional", true);
+            s.put("status", ok ? "done" : "todo");
+            s.put("detail", String.valueOf(v.get("message")));
+            s.put("help", "Only if you read documents with OOA. Windows setup installs DocFlow with -DocFlow; containers use docker/compose.docflow.yaml. "
+                    + "Then set its address and token in Settings > Document Automation.");
+            s.put("page", "settings");
+            return s;
+        });
         ctx.agentRoute("docflow/documents", docflow::fromBot);
         ctx.agentRoute("docflow/results", docflow::resultsForBot);
         ctx.callbackRoute("docflow-callback/start-bot", docflow::startBot);

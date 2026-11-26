@@ -4,7 +4,7 @@ import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewe
 import { menuFold, MENU_TOGGLE } from "./TopBrand";
 
 /**
- * One CommandCenter menu (approved look), used by Studio and the console: Home, then the sections. A page the app
+ * One CommandCenter menu (approved look), used by Studio and the console: the sections (no Home since 26 Nov 2026). A page the app
  * shows itself (`local`) is a button; any other page is a link (`hrefFor`), or plain text when there is nowhere to go.
  * The whole menu folds to a column of icons, and each section opens and closes on its heading; both are remembered.
  * While something is being edited (`editing`) the menu folds, as AA's editor hides the Control Room menu, so the work
@@ -26,7 +26,7 @@ type Entry = { id: string; label: string; icon?: MenuGroup["icon"]; first: MenuP
 const WIDTH = { min: 200, max: 360, normal: 232, step: 32 };
 export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, viewer = null, editing = false, offTitle, console: inConsole = false, groups }:
   { sections: MenuSection[]; current: string | null; local: ReadonlySet<string>; onLocal: (id: string) => void;
-    hrefFor: (id: string) => string | undefined; home: { href?: string; onClick?: () => void; current?: boolean };
+    hrefFor: (id: string) => string | undefined; home?: { href?: string; onClick?: () => void; current?: boolean };
     viewer?: MenuViewer; editing?: boolean; offTitle?: string; console?: boolean; groups?: MenuGroup[] }) {
   const [chosenMini, setChosenMini] = usePersistent("menu.mini", false);
   const [openWhileEditing, setOpenWhileEditing] = useState(false);
@@ -79,7 +79,8 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const query = find.trim().toLowerCase();
 
   const homeBody = <><Icon name="home" size={18} />{!mini && "Home"}</>;
-  const homeEl = home.onClick
+  // 26 Nov 2026: no Home in the menu; an app may still pass one
+  const homeEl = !home ? null : home.onClick
     ? <button type="button" className={`st-menu-home${home.current ? " is-current" : ""}`} aria-current={home.current ? "page" : undefined} title="Home" onClick={home.onClick}>{homeBody}</button>
     : home.href ? <a className="st-menu-home" href={home.href} title="Home">{homeBody}</a>
     : <span className="st-menu-home" aria-disabled="true" title={offTitle}>{homeBody}</span>;

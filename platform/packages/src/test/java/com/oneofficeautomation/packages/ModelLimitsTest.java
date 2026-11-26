@@ -56,8 +56,8 @@ class ModelLimitsTest {
         } finally { ModelConnections.clock = clock; ModelConnections.sleeper = sleeper; }
     }
 
-    /** A folder's AI guardrails (Administration > Policies), sent with the run: masking forced on, only the models allowed, the content check's mode. */
-    /** A policy can mask only some kinds of personal data (Administration > Policies). */
+    /** A folder's AI guardrails (Manage > Policies), sent with the run: masking forced on, only the models allowed, the content check's mode. */
+    /** A policy can mask only some kinds of personal data (Manage > Policies). */
     @Test void maskingByKind() {
         String text = "Mail ann@example.com, card 4111 1111 1111 1111, from 10.0.0.1";
         Map<String, String> map = new java.util.LinkedHashMap<>();

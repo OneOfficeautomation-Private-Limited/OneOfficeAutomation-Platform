@@ -5,7 +5,7 @@ import { RefreshButton, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Manage > Environment locks (gap G33, after Blue Prism's environment locks): the named locks runs hold now, so two
+ * Run > Environment locks (gap G33, after Blue Prism's environment locks): the named locks runs hold now, so two
  * runners never use the same single-user system together. Agents take and give back locks with the Environment locks
  * toolkit; a lock goes with its run when the run ends. Administrators (Release environment locks) can give one back by
  * hand, asked first and audited.

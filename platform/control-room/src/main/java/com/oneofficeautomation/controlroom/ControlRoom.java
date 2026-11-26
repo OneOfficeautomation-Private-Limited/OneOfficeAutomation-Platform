@@ -90,6 +90,8 @@ public final class ControlRoom {
     final Directory directory = new Directory(this);
     final Scim scim;
     public final Licensing licensing;
+    /** Setup > Install and set up: the install guide's live checks (26 Nov 2026). */
+    public final SetupGuide setup = new SetupGuide(this);
     public final Mfa mfa;
     public final Cluster cluster;
     public final RunnerUpdates runnerUpdates;
@@ -289,7 +291,7 @@ public final class ControlRoom {
     /** Refuses a role that does not exist or is switched off, for giving it to someone. */
     void requireAssignable(String role) {
         if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
-        if (roleSwitchedOff(role)) throw new OoaException("CR.BAD_INPUT", "The built-in role '" + role + "' is switched off", "Choose another role, or switch it on again in Administration > Settings > Security.");
+        if (roleSwitchedOff(role)) throw new OoaException("CR.BAD_INPUT", "The built-in role '" + role + "' is switched off", "Choose another role, or switch it on again in Manage > Settings > Security.");
     }
 
     void loadRoles() {
@@ -448,7 +450,7 @@ public final class ControlRoom {
      */
     public Map<String, Object> tokenFromApiKey(String apiKey, String ip) {
         User u = apiKey == null || !apiKey.startsWith("ooak_") ? null : platform.apiKeyUser(apiKey);
-        if (u == null) { audit.record("api key", "auth.token", "user", null, null, "failed", ip); throw new OoaException("CR.LOGIN_FAILED", "Unknown, expired or revoked API key", "Make a new API key in Administration > Settings > API access and use it in place of the old one."); }
+        if (u == null) { audit.record("api key", "auth.token", "user", null, null, "failed", ip); throw new OoaException("CR.LOGIN_FAILED", "Unknown, expired or revoked API key", "Make a new API key in Manage > Settings > API access and use it in place of the old one."); }
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", u.username());
         audit.record(u.username(), "auth.token", "user", u.username(), Map.of("via", "api key"), "ok", ip);
         return newSession(r, ip);
@@ -574,7 +576,7 @@ public final class ControlRoom {
         if (audience.isEmpty()) throw new OoaException("CR.UNAUTHENTICATED", "MCP sign-in with OAuth is not set up", "An administrator sets the MCP audience in Settings > AI assistants.");
         Map<String, Object> claims;
         try { claims = sso.verify(jwt, audience, null); }
-        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage(), "Get a new access token (Administration > Settings > API access) and use it in place of the old one."); }
+        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage(), "Get a new access token (Manage > Settings > API access) and use it in place of the old one."); }
         String scope = String.valueOf(platform.setting("mcp_oauth_scope")).trim();
         if (!scope.isEmpty()) {
             String granted = claims.get("scp") instanceof String sc ? sc : claims.get("scope") instanceof String sc2 ? sc2 : "";
@@ -586,7 +588,7 @@ public final class ControlRoom {
             if (claims.get(k) instanceof String v && !v.isBlank()) r = db.one("SELECT * FROM users WHERE LOWER(username) = ?", v.trim().toLowerCase(Locale.ROOT));
         }
         if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No One CommandCenter account belongs to this access token", "Sign in to One CommandCenter once with single sign-on, or ask an administrator for an account.");
-        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled", "Ask an administrator to enable your account in Administration > Users.");
+        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled", "Ask an administrator to enable your account in Manage > Users.");
         User u = user(r);
         licensing.checkSignIn(u);
         // signed in through the identity provider: the local first-time password change does not apply (as for SSO sign-in)
@@ -613,7 +615,7 @@ public final class ControlRoom {
      */
     public String recoverUser(String username) {
         Map<String, Object> r = db.one("SELECT id, role FROM users WHERE username = ?", username);
-        if (r == null) throw new OoaException("CR.NOT_FOUND", "There is no user called " + username, "Check the user name in Administration > Users.");
+        if (r == null) throw new OoaException("CR.NOT_FOUND", "There is no user called " + username, "Check the user name in Manage > Users.");
         String temp = Security.token(12);
         db.update("UPDATE users SET password_hash = ?, must_change = TRUE, enabled = TRUE, failed = 0, locked_until = NULL WHERE id = ?",
                 Security.hashPassword(temp.toCharArray()), r.get("id"));
@@ -651,6 +653,8 @@ public final class ControlRoom {
         if (tenant != null) m.put("tenant", tenant);
         // team leads change their own team's members; the console shows them the Teams page for it
         m.put("leads_team", count("SELECT COUNT(*) AS n FROM team_members WHERE username = ? AND team_role = 'lead'", u.username()) > 0);
+        // Setup > Install and set up in the menu: administrators, unless an administrator switched it off for everyone
+        m.put("setup_menu", can(u, "settings.manage") && !"off".equals(String.valueOf(platform.setting("setup_menu"))));
         if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
@@ -687,7 +691,7 @@ public final class ControlRoom {
         }
         String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"),
                 platform.intSetting("password_needs_mixed_case") == 1, platform.intSetting("password_needs_symbol") == 1);
-        if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem, "Choose a password that meets the rule the message names (Administration > Policies shows the password rules).");
+        if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem, "Choose a password that meets the rule the message names (Manage > Policies shows the password rules).");
         // a new password stays for at least password_min_days, unless it must be changed (a reset or an expired one)
         int minDays = platform.intSetting("password_min_days");
         Map<String, Object> when = db.one("SELECT password_changed, must_change FROM users WHERE id = ?", u.id());
@@ -1610,7 +1614,7 @@ public final class ControlRoom {
             throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
         Map<String, Object> dev = db.one("SELECT enabled, last_seen, name FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw notFound("Runner " + deviceId);
-        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled", "Enable the runner in Manage > Runners, or choose another runner.");
+        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled", "Enable the runner in Run > Runners, or choose another runner.");
         // Settings: a run for a runner that is offline is refused, rather than waiting for it (AA's "when the default device is down")
         if (!serverlessRun && platform.intSetting("runs_refuse_offline_runner") == 1
                 && (dev.get("last_seen") == null || Instant.parse(dev.get("last_seen").toString()).isBefore(now().minus(Duration.ofMinutes(2)))))
@@ -1878,7 +1882,7 @@ public final class ControlRoom {
             String licenseProblem = licensing.runProblem(did, String.valueOf(run.get("run_as") != null ? run.get("run_as") : run.get("requested_by")), String.valueOf(run.get("source")));
             if (licenseProblem != null) {
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ?", now(),
-                    JsonLite.write(new OoaException(licensing.expired() ? "CR.LICENSE_EXPIRED" : "CR.LICENSE_REQUIRED", licenseProblem, "An administrator adds or renews the license in Administration > Licenses.").toMap()), run.get("id"));
+                    JsonLite.write(new OoaException(licensing.expired() ? "CR.LICENSE_EXPIRED" : "CR.LICENSE_REQUIRED", licenseProblem, "An administrator adds or renews the license in Manage > Licenses.").toMap()), run.get("id"));
                 audit.record("agent:" + d.get("name"), "run.finish", "run", (String) run.get("id"), Map.of("status", "failed", "code", "CR.LICENSE_REQUIRED"), "failed", null);
                 continue;
             }
@@ -2187,7 +2191,7 @@ public final class ControlRoom {
                 String cal = args.get("name") instanceof String s ? s.strip() : "";
                 out = platform.calendarFor(as, cal);
                 if (out == null) throw new OoaException("CALENDAR.NOT_FOUND", "There is no holiday calendar '" + cal + "' in One CommandCenter",
-                        "Check the name under Manage > Schedules > Holiday calendars, or give the holidays and weekend on the step.");
+                        "Check the name under Run > Schedules > Holiday calendars, or give the holidays and weekend on the step.");
                 audit.record(actor, "agent.calendar", "calendar", cal, Map.of("from_run", runId), "ok", null);
                 return out;
             }
@@ -2455,7 +2459,7 @@ public final class ControlRoom {
             if (t.toInstant().isAfter(after) && (days.isEmpty() || days.contains(t.getDayOfWeek()))) return t.toInstant();
             t = t.plusDays(1).with(at);
         }
-        throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed", "Correct the schedule in Manage > Scheduling and save it again.");
+        throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed", "Correct the schedule in Run > Scheduling and save it again.");
     }
 
     static final Set<String> SCHEDULE_KINDS = Set.of("every", "daily", "weekly", "monthly", "cron");
@@ -2830,9 +2834,9 @@ public final class ControlRoom {
         Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND kind = 'webhook'", tid);
         if (t == null || !Security.constantEquals(secret == null ? "" : Security.sha256(secret), (String) t.get("secret_hash"))) {
             audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
-            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Run > Triggers; copy them again if the secret was replaced.");
         }
-        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Manage > Triggers.");
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Run > Triggers.");
         return fireTrigger(t, payload == null ? Map.of() : Map.of("payload", payload), "webhook:" + tid, ip);
     }
 
@@ -2846,7 +2850,7 @@ public final class ControlRoom {
         String secret = header.apply("X-OOA-Secret");
         if (t == null) {
             audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
-            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Run > Triggers; copy them again if the secret was replaced.");
         }
         Map<String, Object> cfg = TriggerPollers.config(t);
         Object payload = com.oneofficeautomation.controlroom.runs.Webhooks.payload(raw, contentType);
@@ -2858,11 +2862,11 @@ public final class ControlRoom {
         boolean secretOk = secret != null && Security.constantEquals(Security.sha256(secret), (String) t.get("secret_hash"));
         if (secret != null ? !secretOk : !com.oneofficeautomation.controlroom.runs.Webhooks.signed(cfg)) {
             audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
-            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Run > Triggers; copy them again if the secret was replaced.");
         }
         try { com.oneofficeautomation.controlroom.runs.Webhooks.check(cfg, header, raw, ref -> triggerPollers.triggerSecret(t, ref)); }
         catch (OoaException e) { audit.record("webhook", "trigger.fire", "trigger", tid, Map.of("reason", String.valueOf(e.getMessage())), "denied", ip); throw e; }
-        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Manage > Triggers.");
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Run > Triggers.");
         Map<String, Object> in = new LinkedHashMap<>();
         in.put("payload", payload);
         in.putAll(com.oneofficeautomation.controlroom.runs.Webhooks.inputs(cfg, payload));
@@ -2884,7 +2888,7 @@ public final class ControlRoom {
         if (t == null) throw notFound("Trigger");
         String kind = String.valueOf(t.get("kind"));
         TriggerKinds.Kind k = TriggerKinds.KINDS.get(kind);
-        if (k == null || k.where() != TriggerKinds.Where.RUNNER) throw new OoaException("CR.BAD_TRIGGER", "Trigger " + tid + " is not a runner trigger", "Choose a trigger of the kind This runner watches in Manage > Triggers.");
+        if (k == null || k.where() != TriggerKinds.Where.RUNNER) throw new OoaException("CR.BAD_TRIGGER", "Trigger " + tid + " is not a runner trigger", "Choose a trigger of the kind This runner watches in Run > Triggers.");
         Map<String, Object> ev = new LinkedHashMap<>(event == null ? Map.of() : event);
         ev.put("kind", kind);
         ev.put("trigger_id", tid);

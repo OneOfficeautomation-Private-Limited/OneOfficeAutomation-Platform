@@ -97,7 +97,7 @@ refused until it is recovered (`CR.DELETED`).
 
 ## 7. Approval before production
 
-When **Approval before production** is on (Administration > Settings > Security, setting `production_approval`):
+When **Approval before production** is on (Manage > Settings > Security, setting `production_approval`):
 
 - Check-in "as production", **Ask to make live** in the version list and imports as production create a **request**
   instead of making the version live. Setting the live version directly is refused (`CR.APPROVAL_REQUIRED`).
@@ -171,7 +171,7 @@ toolkits it uses.
 
 ## 12. Git sync
 
-Administration > Settings > Git sync mirrors the repository to a branch of a Git server (GitHub, GitLab, Azure DevOps
+Manage > Settings > Git sync mirrors the repository to a branch of a Git server (GitHub, GitLab, Azure DevOps
 or any Git server).
 
 | Setting | Rule |
@@ -210,7 +210,7 @@ checked first, nothing is installed unless all pass, and agents already there ar
 
 Each agent can record the minutes of manual work one successful run saves (setting it needs `repo.production`). Home
 and Operations show the hours saved; agents without a value use `default_minutes_saved` from Settings. Operational
-Insights > **Value** shows the hours and money saved (with `hourly_cost` and `currency` from Settings) and changes the
+Monitor > **Value** shows the hours and money saved (with `hourly_cost` and `currency` from Settings) and changes the
 minutes in place ([document 11](11-operations-audit-and-dashboards.md)).
 
 ## 16. Permissions and audit

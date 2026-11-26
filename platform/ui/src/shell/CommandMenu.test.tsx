@@ -22,7 +22,7 @@ describe("The menu on a phone (G69)", () => {
     expect(nav.className).toContain("is-mini");
     fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
     expect(nav.className).not.toContain("is-mini");
-    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
     fireEvent.click(screen.getByRole("button", { name: "Task inbox" }));
     expect(picked).toEqual(["inbox"]);
     expect(nav.className).toContain("is-mini");
@@ -38,9 +38,9 @@ describe("The menu on a phone (G69)", () => {
 describe("The menu's sections (M1, 13 Nov 2026 round 2)", () => {
   it("opens the section of the page's group, so a page shown under another section's entry is still marked", () => {
     render(<CommandMenu sections={MENU_SECTIONS} current="toolkits" local={new Set(["automation", "toolkits"])} onLocal={() => {}}
-      hrefFor={() => undefined} home={{ onClick: () => {} }} viewer={null} console groups={MENU_GROUPS} />);
-    expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("true");   // Agent ToolKits is in Build > Automation
-    expect(screen.getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
+      hrefFor={() => undefined} viewer={null} console groups={MENU_GROUPS} />);
+    expect(screen.getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("true");   // Agent ToolKits is in Manage > Toolkits (26 Nov 2026)
+    expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: "Toolkits" }).getAttribute("aria-current")).toBe("page");
   });
 });

@@ -121,7 +121,7 @@ public final class EnvironmentLocksPackage {
         }
         String who = holder(r);
         if (failIfNot) throw new ActionException("LOCK.TIMEOUT", "The lock " + n + " is held by another run" + (who.isEmpty() ? "" : " (" + who + ")")
-                + (wait > 0 ? " and was not given back within " + wait + " seconds" : ""), "Wait longer, or see who holds it in One CommandCenter (Manage > Environment locks).");
+                + (wait > 0 ? " and was not given back within " + wait + " seconds" : ""), "Wait longer, or see who holds it in One CommandCenter (Run > Environment locks).");
         ctx.info("The lock " + n + " is held by another run" + (who.isEmpty() ? "" : ": " + who));
         return Out.of("acquired", false, "held_by", who);
     }

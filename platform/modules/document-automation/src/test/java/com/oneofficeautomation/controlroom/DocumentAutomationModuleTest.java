@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class DocumentAutomationModuleTest {
     @Test void installedModulesAreListedForTheConsole() {
-        // Document Automation (its pages at /documents/, the DocFlow service behind them) fills AI > Document Automation
+        // Document Automation (its pages at /documents/, the DocFlow service behind them) fills Build > Document Automation
         List<Map<String, Object>> all = ConsolePlugin.installed();
         assertEquals(1, all.size(), String.valueOf(all));
         assertEquals("document-automation", all.get(0).get("id"));

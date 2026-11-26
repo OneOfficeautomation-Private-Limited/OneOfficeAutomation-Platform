@@ -146,7 +146,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
     ...(can("lifecycle.export") ? [{ key: "export", label: "Export or promote", onSelect: () => setDialog({ kind: "export" }) }] : []),
     ...(requests.approval_on || requests.requests.length > 0 ? [{ key: "approvals", label: "Production approvals" + (requests.requests.length ? " (" + requests.requests.length + " waiting)" : ""), onSelect: () => setDialog({ kind: "approvals" }) }] : []),
     ...(can("repo.delete") ? [{ key: "deleted", label: "Deleted agents", onSelect: () => setDialog({ kind: "deleted" }) }] : []),
-    { key: "analysis", label: "Code analysis policies", description: "In Administration > Policies", onSelect: () => { location.hash = "#/policies"; } },
+    { key: "analysis", label: "Code analysis policies", description: "In Manage > Policies", onSelect: () => { location.hash = "#/policies"; } },
   ];
   const shownCols = PUBLIC_COLUMNS.filter((c) => !hiddenCols.includes(c.key));
   const showFolder = withSub || !!q.trim();   // agents from more than one folder
@@ -701,7 +701,7 @@ function Approvals({ api, user, onClose, onNotice }: { api: CrApi; user: CrUser;
     <Dialog open title="Production approvals" width={860} onClose={onClose} help={<HelpLinks k="dialog:production-approvals" label="Production approvals" />} footer={null}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {data && <p className="st-muted">{data.on ? "A version goes live only when someone with the approval right, other than the person who asked, approves it."
-        : "Approval before going live is off (Administration > Settings); requests made before still wait here."}</p>}
+        : "Approval before going live is off (Manage > Settings); requests made before still wait here."}</p>}
       <table className="st-table" aria-label="Waiting"><thead><tr><th scope="col">Agent</th><th scope="col">Version</th><th scope="col">Asked by</th><th scope="col">What changed</th><th scope="col">Note</th><th scope="col"></th></tr></thead>
         <tbody>{(data?.pending ?? []).map((r) => <tr key={r.id} className="is-static"><td>{agentName(r.path)}</td><td>v{r.version}</td><td>{r.requested_by}<div className="st-muted">{when(r.requested)}</div></td><td>{r.comment ?? ""}</td>
           <td>{r.can_decide && <TextInput aria-label={"Note on v" + r.version + " of " + agentName(r.path)} value={note[r.id] ?? ""} onChange={(e) => setNote({ ...note, [r.id]: e.target.value })} />}</td>

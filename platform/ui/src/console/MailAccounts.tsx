@@ -176,7 +176,7 @@ export function MailAccountDialog({ api, account, providers, onClose, onSaved }:
       {p && <div className="mail-signin">
         {p.signIn.length > 1 && <Field label="Sign in with">{(id) => <Select id={id} value={method} onChange={(e) => setSignIn(e.target.value)} options={p.signIn.map((m) => ({ value: m, label: SIGN_IN[m] }))} />}</Field>}
         {method === "microsoft" && <>
-          {msReady === false && <p className="st-alert" role="status">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM.</p>}
+          {msReady === false && <p className="st-alert" role="status">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Manage &gt; Settings &gt; E-mail, proxy and SIEM.</p>}
           <div className="cc-inline">{ms ? <><span className="cc-pill is-success">Signed in as {ms.account}</span><button type="button" className="st-link" onClick={() => setSigning(true)}>Sign in again</button></>
             : <Button kind="primary" disabled={msReady === false} onClick={() => setSigning(true)}>Sign in with Microsoft</Button>}</div>
           <label className="st-check-line"><input type="checkbox" checked={write} onChange={(e) => setWrite(e.target.checked)} /> Allow mail rules to mark emails read and move them (Microsoft asks for permission to change the mailbox; sign in again after changing this)</label>

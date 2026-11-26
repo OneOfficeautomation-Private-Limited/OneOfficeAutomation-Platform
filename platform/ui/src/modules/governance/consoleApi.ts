@@ -5,7 +5,7 @@ import type { CodePolicy } from "../../api/cr";
  * governance's part of the console's API client (docs/architecture/13-modules.md, phase 6): its methods are added
  * to CrApi when this file is loaded (its pages import it), so the kernel's client (api/cr.ts) carries no module's calls.
  */
-/** A policy under Administration > Policies (1 Nov 2026): code analysis rules or AI guardrails, given to folders; "default" is the default code analysis. */
+/** A policy under Manage > Policies (1 Nov 2026): code analysis rules or AI guardrails, given to folders; "default" is the default code analysis. */
 export type Policy = { id: string; name: string; kind: "code" | "ai"; description?: string; rules: CodePolicy & Record<string, unknown>; folders: string[]; built_in: boolean;
   updated?: string; updated_by?: string };
 export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; output_tokens?: number; masked_calls?: number; tool_calls?: number; avg_latency_ms?: number | null };

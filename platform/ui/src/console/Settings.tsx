@@ -14,7 +14,7 @@ const OneChatStatus = modulePart<{ api: CrApi; engine: string }>("onechat-status
 const OneChatModelStatus = modulePart<{ api: CrApi }>("onechat-model-status");
 
 /**
- * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
+ * Manage > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
  * settings and Blue Prism's System settings, 31 Oct 2026): sections down the side, as AA's and UiPath's tabs, each
  * saved on its own and only with the values changed; a search across every setting (by name, hint or key); and each
  * section's own actions (send a test e-mail or syslog message, sync Git now, back up now, remove old runs now).
@@ -51,7 +51,7 @@ const assistantGroups = (p: "chat_" | "studio_", modelKey: string, extra: Settin
     { key: p + "language", label: "Answer language", hint: "Agent names, codes and values are never translated.", kind: "select", options: LANGUAGE_CHOICES }] },
   { title: "Instructions and skills", settings: [
     { key: p + "instructions", label: "Company instructions", hint: "Given to the model before every request. Up to 2,000 characters.", kind: "area" },
-    { key: p + "skills", label: "Prompt Skills it may use", hint: "Shared skills from AI › Prompt Skills.", kind: "multi", source: "skills" },
+    { key: p + "skills", label: "Prompt Skills it may use", hint: "Shared skills from Build › Prompt Skills.", kind: "multi", source: "skills" },
     { key: p + "own_instructions", label: "People may add their own instructions", hint: "Added after the company's, never instead of them.", kind: "check" }] },
 ];
 
@@ -60,7 +60,9 @@ const SECTIONS: Section[] = [
   { id: "general", title: "General", mark: "G", colour: "#2f6fde", about: "What everyone sees, and the address of this One CommandCenter.", groups: [
     { title: "For everyone", settings: [
       { key: "announcement", label: "Announcement", hint: "Shown to everyone at the top of the page. Empty: none.", kind: "area", placeholder: "Maintenance on Saturday 10:00–12:00 UTC" },
-      { key: "public_url", label: "Public address", hint: "Of this One CommandCenter, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" }] },
+      { key: "public_url", label: "Public address", hint: "Of this One CommandCenter, for sign-in redirects and links in e-mails.", kind: "text", placeholder: "https://ooa.example.com" },
+      { key: "setup_menu", label: "Show Setup in the menu", hint: "Setup > Install and set up, the install guide. Off: nobody sees it, for example once an enterprise install is done.", kind: "select",
+        options: [["admins", "For administrators"], ["off", "Off for everyone"]] }] },
     { title: "This environment", settings: [
       { key: "environment_label", label: "Environment name", hint: "Shown in the top bar and on the sign-in page. Empty: none.", kind: "text", placeholder: "Production" },
       { key: "environment_colour", label: "Environment colour", kind: "select", options: [["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"], ["grey", "Grey"]] },
@@ -233,7 +235,7 @@ const SECTIONS: Section[] = [
           { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 },
           { key: "mcp_runs_per_hour", label: "Runs per person", hint: "0 = no limit.", unit: "an hour", kind: "number", min: 0, max: 10000 }] }] },
   ] },
-  { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
+  { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "Build > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [
       { key: "docflow_autostart", label: "Start with One CommandCenter", hint: "Starts DocFlow installed on this server, and stops it with One CommandCenter.", kind: "check" },
       { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085. A path is allowed behind a reverse proxy.", kind: "text", placeholder: "http://127.0.0.1:8085" },
@@ -396,7 +398,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
       const all: [string, string][] = [...list, ...on.filter((n) => !list.some(([k]) => k === n)).map((n) => [n, n + " (not found)"] as [string, string])];
       control = all.length ? <span className="cc-set-chips" role="group" aria-label={x.label}>{all.map(([k, l]) => <label key={k} className="cc-set-chip">
           <input type="checkbox" checked={on.includes(k)} onChange={(e) => set((e.target.checked ? [...on, k] : on.filter((o) => o !== k)).join(","))} />{l}</label>)}</span>
-        : <span className="cc-set-hint">{x.source === "connections" ? "No One Model Connections yet: add them in AI › One Model Connections." : "No shared Prompt Skills yet: share them in AI › Prompt Skills."}</span>;
+        : <span className="cc-set-hint">{x.source === "connections" ? "No One Model Connections yet: add them in AI › One Model Connections." : "No shared Prompt Skills yet: share them in Build › Prompt Skills."}</span>;
     } else {
       control = <TextInput id={id} aria-describedby={hintId} className={x.kind === "number" ? "cc-set-num" : undefined} type={x.kind === "number" ? "number" : "text"}
         min={x.min} max={x.max} step={x.step} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;

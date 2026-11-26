@@ -559,7 +559,7 @@ def main(inputs, ooa):
 - Python 3 must be on the runner (or name it in **Interpreter**, such as a virtual environment's python).
 - Test the module with plain Python and pytest by passing your own stand-in for `ooa` with `call` and `log`.
 
-**Git as the source of truth.** With Git set up (Administration > Settings > Agents and repository), developers can
+**Git as the source of truth.** With Git set up (Manage > Settings > Agents and repository), developers can
 work on agents in Git: **Pull from Git** reads every agent changed on the branch since the last sync as a new version
 (checked like a check-in; production stays as it was), with the Git commit and its author in the version's comment, and
 makes new files new agents. An agent changed both in One CommandCenter and in Git since the last sync is left alone and

@@ -271,7 +271,7 @@ public final class Dashboards {
         List<String> people = new ArrayList<>(), to = new ArrayList<>();
         for (String r : String.valueOf(s.get("recipients")).split(",")) if (r.contains("@") && !r.startsWith("user:") && !r.startsWith("role:")) to.add(r); else people.add(r);
         for (String a : ctx.addressesOf(people)) if (!to.contains(a)) to.add(a);
-        if (to.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the people or roles has an e-mail address", "Add an e-mail address to the people (Administration > Users), or send to addresses directly.");
+        if (to.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "None of the people or roles has an e-mail address", "Add an e-mail address to the people (Manage > Users), or send to addresses directly.");
         String dated = String.valueOf(d.get("name")) + ", " + LocalDate.now(ZoneId.of(String.valueOf(s.get("time_zone")))).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH));
         StringBuilder body = new StringBuilder(dated).append("\n\n");
         for (Object o : (List<Object>) d.get("widgets")) {
@@ -287,7 +287,7 @@ public final class Dashboards {
             }
         }
         String link = String.valueOf(ctx.setting("public_url")).trim().replaceAll("/+$", "");
-        body.append("\n").append(link.isEmpty() ? "Open it in One CommandCenter: Operational Insights > Business > Dashboards."
+        body.append("\n").append(link.isEmpty() ? "Open it in One CommandCenter: Monitor > Business > Dashboards."
             : "Open it: " + link + "/next/#/business?tab=dashboards&dashboard=" + dashboardId).append("\n");
         // the same figures as a PDF too, to keep or forward
         byte[] pdf = ModuleContext.textPdf(dated, Arrays.asList(body.substring(dated.length() + 2).split("\n", -1)));

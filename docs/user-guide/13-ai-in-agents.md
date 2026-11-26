@@ -52,7 +52,7 @@ Instead of repeating the provider, model and key on every step, name the setting
 3. Click **Save**. The settings go to `model-connections.json` in your workspace; keys are never stored there, only where
    to find them.
 
-**In One CommandCenter (for runs on runners):** AI > **Model Connections**. Administrators also set which roles may
+**In One CommandCenter (for runs on runners):** Manage > **Model Connections**. Administrators also set which roles may
 use each connection, monthly token budgets, call limits, personal-data detection and content checks. Runs receive the
 connections they are allowed to use.
 
@@ -108,7 +108,7 @@ A Prompt Skill is a prompt that someone has written and reviewed once, kept as a
 
 API keys never go into skill files: give the step a **Connection**, or an **API key** credential.
 
-In One CommandCenter (AI > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
+In One CommandCenter (Build > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
 there wins over a file of the same name in a runner's workspace.
 
 ## 5. AI agents that use your agents as tools
@@ -387,7 +387,7 @@ training** on (off by default), Studio tells it whether the builder inserted or 
 ## Knowledge bases kept in One CommandCenter
 
 Instead of each agent carrying its own index file, keep shared documents in a **knowledge base**: make it in
-**AI > Knowledge bases** (a name, the folder whose agents may use it, what it holds), then:
+**Build > Knowledge bases** (a name, the folder whose agents may use it, what it holds), then:
 
 - **Fill and refresh it** with an indexing agent: Knowledge Q&A > **Build index** with **Knowledge base** set to its
   name. It reads files and folders (a share, a synced SharePoint library), **web pages** (intranet or public pages:

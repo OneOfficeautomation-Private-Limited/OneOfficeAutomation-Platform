@@ -118,7 +118,7 @@ public final class CustomToolkits {
     private ToolkitJar.Loaded check(Path jar, PackageSigning.PublisherKey key) {
         ToolkitJar.Loaded l = ToolkitJar.load(jar, CustomToolkits.class.getClassLoader());
         if (l.signature() == null || !key.publisher().equals(l.signature().publisher()))
-            throw new OoaException("PKG.UNTRUSTED", "The jar is not signed by a trusted publisher", "Sign the jar with a publisher certificate that is trusted in Administration > Settings > Toolkits.");
+            throw new OoaException("PKG.UNTRUSTED", "The jar is not signed by a trusted publisher", "Sign the jar with a publisher certificate that is trusted in Manage > Settings > Toolkits.");
         String pid = com.oneofficeautomation.sdk.PackageIntrospector.inspect(l.cls()).meta().id();
         if (firstParty.contains(pid)) throw new OoaException("CR.CONFLICT", "The toolkit id " + pid + " belongs to a toolkit that comes with the product", "Give your toolkit its own id, e.g. com.yourcompany.billing.");
         Map<String, Object> other = db.one("SELECT publisher FROM custom_toolkits WHERE toolkit_id = ? AND publisher <> ?", pid, key.publisher());

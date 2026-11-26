@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * Document Automation (AI > Document Automation in the Command Center): an agent hands a document to a process, which
+ * Document Automation (Build > Document Automation in the Command Center): an agent hands a document to a process, which
  * reads, checks and delivers it like an upload. The runner sends it to the Command Center for the run's user; there is
  * no Document Automation in Studio on its own.
  */

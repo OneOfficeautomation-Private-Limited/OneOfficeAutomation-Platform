@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
+ * Run > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
  * queues, 31 Oct 2026): queues with their agent, pool, items waiting, in progress and done, service level and items past
  * it (UiPath's SLA), processing on or off. A queue opens with its items by status, retry, defer or delete selected,
  * add items (JSON, CSV or Excel), validate items an agent was unsure of, each item's data, result and error; members;

@@ -105,7 +105,7 @@ What a module adds, in `start`:
 | Part | Where |
 | --- | --- |
 | Server side | `platform/modules/document-automation` (Gradle project `:document-automation`, package `com.oneofficeautomation.modules.docauto`): `DocumentAutomationModule`, `DocFlowProxy`, `DocFlowConfig`, `McpDocuments`, `DocTemplates`, `DocumentAutomationPlugin`, `docflow-compat.properties` |
-| Screens | `platform/ui/src/modules/document-automation` (the pages at `/documents/`, and the console's AI > Document Automation page) |
+| Screens | `platform/ui/src/modules/document-automation` (the pages at `/documents/`, and the console's Build > Document Automation page) |
 | Tests | the module's own (`:document-automation:test`), including `DocFlowLiveTest` against a real DocFlow |
 | CI | the `docflow` and `docflow-windows` jobs run only when the module, something it depends on, or the installer changed (`changes` job); master runs everything |
 | Tables | `docflow_mail` stays in the kernel's frozen baseline (version 33); new tables go in the module's `schema()` |

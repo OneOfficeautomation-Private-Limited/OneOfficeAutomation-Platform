@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
 import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry, useFullTextOnHover } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
-import { canSee, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
+import { canSee, FIRST_PAGE, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
 import { MOVED_PAGES } from "../modules/registry";
 import { enableTableTools } from "./TableTools";
@@ -14,6 +14,7 @@ import { EnvironmentLocks } from "./EnvironmentLocks";
 import { EventSubscriptions } from "./EventSubscriptions";
 import { Globals } from "./Globals";
 import { Home } from "./Home";
+import { Setup } from "./Setup";
 import { Inbox } from "./Inbox";
 import { Licenses } from "./Licenses";
 import { ModelConnections } from "./ModelConnections";
@@ -35,7 +36,7 @@ import { HelpLinks } from "../shell/HelpLinks";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
 /** The kernel's pages this console shows itself, and every module page (modules/<id>/pages.tsx); other pages open in today's console. */
-const LOCAL = new Set<string>(["activity", "audit", "automation", "connections", "credentials", "devices", "events", "globals", "inbox", "licenses", "locks", "queues", "roles", "savedconn", "schedules", "settings", "teams", "templates", "toolkits", "triggers", "users"].concat(Object.keys(MODULE_PAGES)));
+const LOCAL = new Set<string>(["setup", "status", "activity", "audit", "automation", "connections", "credentials", "devices", "events", "globals", "inbox", "licenses", "locks", "queues", "roles", "savedconn", "schedules", "settings", "teams", "templates", "toolkits", "triggers", "users"].concat(Object.keys(MODULE_PAGES)));
 /** Pages that became tabs of another page (insights: item 7, 1 Nov 2026): their old addresses open the tab, so links keep working. */
 const MOVED = MOVED_PAGES;
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
@@ -79,6 +80,17 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
     addEventListener("keydown", on); return () => removeEventListener("keydown", on);
   }, []);
   const [studio, setStudio] = useState(false);
+  // 26 Nov 2026: no Home; an address with no page opens Build > Agents, or the first page the person may see
+  useEffect(() => {
+    if (!user || page !== "home") return;
+    const viewer = { permissions: user.permissions, leadsTeam: user.leads_team };
+    const pages = MENU_SECTIONS.flatMap((s) => s.pages).filter((p) => LOCAL.has(p.id) && p.id !== "setup" && canSee(p, viewer));
+    const to = pages.find((p) => p.id === FIRST_PAGE)?.id ?? pages[0]?.id ?? "status";
+    history.replaceState(null, "", "#/" + to);
+    setPageState(to);
+  }, [user, page]);
+  // Setup in the menu: administrators (the server says, setup_menu), unless the person hid it in this browser
+  const [hideSetup, setHideSetup] = usePersistent<boolean>("menu.hideSetup", false);
   const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => enableTableTools(), []);   // widen, narrow and filter the columns of every table
@@ -129,13 +141,14 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       {notice && <Notice text={notice} onClose={() => setNotice(null)} />}
       <MinorNotices />
       <HelpProvider><div className="st-body">
-        <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
-          home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
+        <CommandMenu sections={user.setup_menu && !hideSetup ? MENU_SECTIONS : MENU_SECTIONS.filter((s) => s.id !== "setup")} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
+          viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
         <main className="st-main cc-main" onKeyDown={listKeys}>
           <Breadcrumb user={user} page={page} onPage={setPage} />
           <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
           <PageRetry.Provider value={() => setReloads((n) => n + 1)}><Fragment key={page + ":" + reloads + ":" + visit}>
-          {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
+          {page === "status" && <Home api={api} user={user} pageHref={hrefFor} />}
+          {page === "setup" && <Setup api={api} user={user} setPage={setPage} hidden={hideSetup} setHidden={setHideSetup} />}
           {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "devices" && <Devices api={api} user={user} onNotice={setNotice} />}

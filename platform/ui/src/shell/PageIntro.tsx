@@ -6,7 +6,8 @@ import { HelpLinks } from "./HelpLinks";
  * Keys are the help keys of helpCatalogue.ts.
  */
 export const PAGE_INTROS: Record<string, string> = {
-  "page:home": "How your agents are doing today, and a way back to your recent work.",
+  "page:status": "How your agents are doing today, and a way back to your recent work.",
+  "page:setup": "Install and set up OOA step by step: the server, people and runners, developers and AI, and a first run.",
   "studio:agents-public": "Every agent checked in to run, by folder, with its live version.",
   "page:automation": "Every agent checked in to run, by folder, with its live version.",
   "studio:agents-private": "Your own workspace: build, test and check in agents.",

@@ -14,7 +14,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Administration > Policies (item 5, 1 Nov 2026): named policies given to folders. A folder uses its own code analysis
+ * Manage > Policies (item 5, 1 Nov 2026): named policies given to folders. A folder uses its own code analysis
  * policy, or the nearest folder's above it, else the default; one policy of each kind per folder.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

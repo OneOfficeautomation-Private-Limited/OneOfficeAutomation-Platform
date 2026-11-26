@@ -8,7 +8,7 @@ import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/R
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Administration > Policies, as AA's (item 5, drawn on the design canvas and approved 1 Nov 2026): named policies given
+ * Manage > Policies, as AA's (item 5, drawn on the design canvas and approved 1 Nov 2026): named policies given
  * to folders. A folder uses its own policy of a kind, or the nearest folder's above it; one of each kind per folder.
  * Code analysis policies hold the rules agents are checked against at check-in, and whether errors stop it; folders with
  * none use Default code analysis (the policy that was a dialog under Automation). Seeing needs repo.view; changing,

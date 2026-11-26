@@ -18,7 +18,7 @@ import { PageIntro } from "../../shell/PageIntro";
 import { loadHelpConfig } from "../../shell/helpCatalogue";
 
 /**
- * Document Automation in the Command Center: AI > Document Automation, with its own tabs. Screens are addressed by the
+ * Document Automation in the Command Center: Build > Document Automation, with its own tabs. Screens are addressed by the
  * hash (#/inbox, #/process/<id>, #/review/<document>), so links, Back and a reload all keep the place.
  */
 const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines", "testlab"] as const;

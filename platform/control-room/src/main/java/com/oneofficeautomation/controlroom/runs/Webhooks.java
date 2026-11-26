@@ -127,6 +127,6 @@ public final class Webhooks {
     }
 
     private static OoaException denied(String why) {
-        return new OoaException("CR.FORBIDDEN", why, "Check the webhook's settings in Manage > Triggers against what the sender sends.");
+        return new OoaException("CR.FORBIDDEN", why, "Check the webhook's settings in Run > Triggers against what the sender sends.");
     }
 }

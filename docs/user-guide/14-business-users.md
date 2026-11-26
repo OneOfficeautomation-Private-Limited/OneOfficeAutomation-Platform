@@ -37,7 +37,7 @@ reason and a link to the run).
 ## 2. The Task inbox
 
 1. Open One CommandCenter in your browser and sign in.
-2. Choose **Task inbox** in the menu (under **Manage**), or click the **Tasks waiting for you** tile on **Home**.
+2. Choose **Task inbox** in the menu (under **Run**), or click the **Tasks waiting for you** tile on **Monitor > Overview > Status**.
 
 **What you see:**
 

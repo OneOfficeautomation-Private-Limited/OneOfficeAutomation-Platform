@@ -22,11 +22,10 @@ const NONE = new Set<string>();
 export function CommandMenu({ view, onView, controlRoom, editing = false, currentPage }:
   { view: StudioView | null; onView?: (v: StudioView) => void; controlRoom: string | null; editing?: boolean; currentPage?: string }) {
   return (
-    <Menu sections={MENU_SECTIONS} current={view ?? (currentPage === "documents" ? "docautomation" : currentPage ?? null)} local={onView ? LOCAL : NONE}
+    <Menu sections={MENU_SECTIONS.filter((s) => s.id !== "setup")} current={view ?? (currentPage === "documents" ? "docautomation" : currentPage ?? null)} local={onView ? LOCAL : NONE}
       onLocal={(id) => onView?.(id as StudioView)} editing={editing}
       // Document Automation has its own pages beside the console (/documents/); the others are console pages
       hrefFor={(page) => !controlRoom ? undefined : page === "docautomation" ? controlRoom.replace(/\/?$/, "/") + "documents/" : controlRoom + "next/#/" + page}
-      home={{ href: controlRoom ? controlRoom + "next/" : undefined }}
       offTitle="Sign in to One CommandCenter (Agents, Public tab) to open this page" console groups={MENU_GROUPS} />
   );
 }

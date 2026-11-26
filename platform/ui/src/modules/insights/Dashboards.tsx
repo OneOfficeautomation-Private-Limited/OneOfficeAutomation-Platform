@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Dashboards, rebuilt from today's console with AA's Bot Insight custom dashboards and UiPath
+ * Monitor > Dashboards, rebuilt from today's console with AA's Bot Insight custom dashboards and UiPath
  * Insights' templates in mind (checked 31 Oct 2026): dashboards of widgets over the KPIs agents record and over the
  * runs, kept to oneself or shared; ready-made dashboards to start from; widgets made in a form (or as JSON) and shown as
  * a number, bars, a line, a table or a pie; a CSV of each widget; any dashboard one may see copied as one's own.

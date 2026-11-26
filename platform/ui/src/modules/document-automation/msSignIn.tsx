@@ -32,7 +32,7 @@ export function MicrosoftAccount({ api, account, signedIn, onSignedIn, onSignOut
           <span className="df-small">Sign in with the mailbox's account, or with one that may read the shared mailbox. Your Microsoft 365 administrator approves One CommandCenter once.</span>
         </div>
       ) : (
-        <span className="df-small">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM. Or use your own Microsoft app under Show advanced settings.</span>
+        <span className="df-small">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Manage &gt; Settings &gt; E-mail, proxy and SIEM. Or use your own Microsoft app under Show advanced settings.</span>
       )}
       {open && api && <MicrosoftSignInDialog start={() => api.msSignInStart()} poll={(id) => api.msSignInPoll(id)} onClose={() => setOpen(false)}
         onDone={(id, who) => { setOpen(false); onSignedIn(id, who); }} />}

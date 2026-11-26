@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * One Chat, a feature module of One CommandCenter (docs/architecture/13-modules.md): AI > One Chat, /api/chat. People
+ * One Chat, a feature module of One CommandCenter (docs/architecture/13-modules.md): Run > One Chat, /api/chat. People
  * run agents and check their runs in plain words; R3 agents wait for someone else's approval in the Task inbox (task
  * stage chat_approval). The chat engine is the conversation library. Its tables chat_sessions and chat_runs are in the
  * kernel's frozen baseline (version 45).
@@ -124,6 +124,25 @@ public final class OneChatModule implements CommandCenterModule {
         // GET /api/onechat/model-check: whether OneChat model servers behind Model Connections fit this release (S6)
         OneChatModelCheck.define(ctx);
         OneChatModelCheck modelCheck = new OneChatModelCheck(ctx);
+        // Setup > Install and set up (26 Nov 2026): OneChat's own step of the install guide, checked live
+        ctx.setupStep(u -> {
+            Map<String, Object> check = modelCheck.check(u);
+            @SuppressWarnings("unchecked") java.util.List<Map<String, Object>> flowModels = (java.util.List<Map<String, Object>>) check.get("connections");
+            boolean serviceOk = service.chosen() && Boolean.TRUE.equals(service.version().get("compatible"));
+            boolean modelOk = flowModels.stream().anyMatch(c -> !"unreachable".equals(c.get("status")) && !"wrong_contract".equals(c.get("status")));
+            Map<String, Object> s = new java.util.LinkedHashMap<>();
+            s.put("id", "onechat");
+            s.put("phase", "developers");
+            s.put("order", 40);
+            s.put("title", "OneChat assistant");
+            s.put("optional", true);
+            s.put("status", serviceOk || modelOk ? "done" : "todo");
+            s.put("detail", flowModels.isEmpty() && !service.chosen() ? "Not set up: Studio's assistant and One Chat use the built-in engine"
+                    : (flowModels.isEmpty() ? "" : "OneChat model: " + flowModels.get(0).get("message") + " ") + (service.chosen() ? String.valueOf(service.version().get("message")) : ""));
+            s.put("help", "Optional. Start OneChat's model server, then add a Model Connection from the preset \"OneChat flow assistant\" and choose it in Settings > AI assistants > Studio assistant.");
+            s.put("page", "connections");
+            return s;
+        });
         ctx.route("onechat", (ex, u, m, route, ip) -> {
             if (m.equals("GET") && route.equals("model-check")) {
                 ctx.require(u, "settings.manage", "check the OneChat model servers");

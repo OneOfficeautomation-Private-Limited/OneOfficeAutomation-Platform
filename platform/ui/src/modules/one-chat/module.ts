@@ -4,6 +4,6 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "one-chat",
   menu: [
-    { section: "ai", after: null, page: {"id": "chat", "label": "One Chat", "perm": "runs.view"} }
+    { section: "run", after: "locks", page: {"id": "chat", "label": "One Chat", "perm": "runs.view"} }
   ],
 };

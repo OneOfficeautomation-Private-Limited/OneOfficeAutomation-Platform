@@ -4,7 +4,7 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "ai-services",
   menu: [
-    { section: "ai", after: "connections", page: {"id": "skills", "label": "Prompt Skills", "perm": "skills.view"} },
-    { section: "ai", after: "docautomation", page: {"id": "knowledge", "label": "Knowledge bases", "perm": "repo.view"} }
+    { section: "build", after: "apps", page: {"id": "skills", "label": "Prompt Skills", "perm": "skills.view"} },
+    { section: "build", after: "skills", page: {"id": "knowledge", "label": "Knowledge bases", "perm": "repo.view"} }
   ],
 };

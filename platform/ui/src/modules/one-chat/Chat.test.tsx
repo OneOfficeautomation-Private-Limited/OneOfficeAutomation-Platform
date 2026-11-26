@@ -76,9 +76,9 @@ describe("One Chat page", () => {
     expect((await screen.findByRole("group", { name: "Waiting for approval" })).textContent).toContain("task_9");
   });
 
-  it("is in the AI menu for people who may see runs", () => {
-    const ai = MENU_SECTIONS.find((s) => s.id === "ai")!;
-    expect(ai.pages.map((p) => p.label)[0]).toBe("One Chat");
+  it("is in the Run menu for people who may see runs", () => {
+    const ai = MENU_SECTIONS.find((s) => s.id === "run")!;
+    expect(ai.pages.map((p) => p.label)).toContain("One Chat");
     expect(ai.pages.find((p) => p.id === "chat")?.perm).toBe("runs.view");
   });
 

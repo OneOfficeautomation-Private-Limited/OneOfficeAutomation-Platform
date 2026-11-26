@@ -7,7 +7,7 @@ import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts"
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
+ * Monitor > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
  * notifications (checked 31 Oct 2026). Rules watch one condition each, checked once a minute; an alert goes to the
  * task inbox, e-mail and a webhook. Alerts on a state clear by themselves when it ends; alerts on a failed run stay
  * open until acknowledged. Seeing needs analytics.view; changing rules needs alerts.manage.
@@ -242,7 +242,7 @@ function RuleDialog({ api, rule, choices, onClose, onSaved }: { api: CrApi; rule
       </div>
       <h3 className="cc-log-title">Tell</h3>
       <Field label="People, in their task inbox">{(id) => <PrincipalPicker id={id} label="People" kinds={["user", "role"]} source={who} value={v.people} onChange={(x) => setV({ ...v, people: x })} />}</Field>
-      <Field label="E-mail addresses" hint="Sent through Administration > Settings > E-mail">{(id) => <TextInput id={id} value={v.mail} placeholder="ops@example.com" onChange={(e) => setV({ ...v, mail: e.target.value })} />}</Field>
+      <Field label="E-mail addresses" hint="Sent through Manage > Settings > E-mail">{(id) => <TextInput id={id} value={v.mail} placeholder="ops@example.com" onChange={(e) => setV({ ...v, mail: e.target.value })} />}</Field>
       <Field label="Webhook address" hint="Each alert is posted as JSON (Teams, Slack or your incident tool)">{(id) => <TextInput id={id} type="url" value={v.webhook} placeholder="https://" onChange={(e) => setV({ ...v, webhook: e.target.value })} />}</Field>
     </Dialog>
   );

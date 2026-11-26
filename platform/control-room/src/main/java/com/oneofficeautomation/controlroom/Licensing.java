@@ -176,9 +176,9 @@ public final class Licensing {
             m.put("grace_until", l.expires().plusDays(l.graceDays()).toString());
             String text = st.equals("database_required") ? "A licensed installation runs on Microsoft SQL Server. Runs are stopped until the database is moved: " + DATABASE_STEPS : null;
             if (text == null) text = switch (st) {
-                case "expiring" -> "The license expires in " + left + (left == 1 ? " day" : " days") + " (" + l.expires() + "). Install a new license in Administration > Licenses.";
+                case "expiring" -> "The license expires in " + left + (left == 1 ? " day" : " days") + " (" + l.expires() + "). Install a new license in Manage > Licenses.";
                 case "grace" -> "The license expired on " + l.expires() + ". Everything keeps working until " + l.expires().plusDays(l.graceDays()) + "; install a new license before then.";
-                case "expired" -> "The license has expired. Runs are stopped and only administrators can sign in. Install a new license in Administration > Licenses.";
+                case "expired" -> "The license has expired. Runs are stopped and only administrators can sign in. Install a new license in Manage > Licenses.";
                 default -> null;
             };
             if (text != null && (isAdmin(cr, by) || st.equals("expired"))) m.put("banner", Map.of("level", st.equals("expiring") && left > 7 ? "warning" : "critical", "text", text));
@@ -188,8 +188,8 @@ public final class Licensing {
             m.put("days_left", left);
             m.put("evaluation_ends", end.toString());
             String text = st.equals("evaluation")
-                ? "Evaluation: " + left + (left == 1 ? " day" : " days") + " left (until " + end + "). Install a license in Administration > Licenses to keep using ONEOFFICEAUTOMATION."
-                : "The " + EVALUATION_DAYS + "-day evaluation has ended. Runs are stopped and only administrators can sign in. Install a license in Administration > Licenses.";
+                ? "Evaluation: " + left + (left == 1 ? " day" : " days") + " left (until " + end + "). Install a license in Manage > Licenses to keep using ONEOFFICEAUTOMATION."
+                : "The " + EVALUATION_DAYS + "-day evaluation has ended. Runs are stopped and only administrators can sign in. Install a license in Manage > Licenses.";
             if (isAdmin(cr, by) || st.equals("evaluation_ended")) m.put("banner", Map.of("level", st.equals("evaluation") && left > 7 ? "warning" : "critical", "text", text));
         }
         if (isAdmin(cr, by) || cr.can(by, "users.manage")) {
@@ -214,11 +214,11 @@ public final class Licensing {
         License l = License.verify(text, key.get());
         if (today().isAfter(l.expires().plusDays(l.graceDays()))) throw new OoaException("LICENSE.EXPIRED_FILE", "This license expired on " + l.expires(), "Ask for a current license");
         if (otherInstall(l)) throw new OoaException("LICENSE.OTHER_INSTALL", String.format(OTHER_INSTALL, l.installId(), installId()),
-            "Send this install id (Administration > Licenses) to ONEOFFICEAUTOMATION for a license issued for it");
+            "Send this install id (Manage > Licenses) to ONEOFFICEAUTOMATION for a license issued for it");
         if (!vendorBuild() && !serverDatabase())
             throw new OoaException("LICENSE.DB_REQUIRED", "A licensed installation runs on Microsoft SQL Server; this one still uses the built-in evaluation database", DATABASE_STEPS);
         for (String t : License.TYPES) if (used(t) > l.seats().get(t))
-            throw new OoaException("LICENSE.TOO_FEW_SEATS", "This license has " + l.seats().get(t) + " " + label(t) + " seats but " + used(t) + " are assigned", "Take seats back in Administration > Licenses first");
+            throw new OoaException("LICENSE.TOO_FEW_SEATS", "This license has " + l.seats().get(t) + " " + label(t) + " seats but " + used(t) + " are assigned", "Take seats back in Manage > Licenses first");
         db.tx(() -> {
             db.update("UPDATE licenses SET active = FALSE");
             db.update("DELETE FROM licenses WHERE id = ?", l.id());
@@ -305,9 +305,9 @@ public final class Licensing {
     void requireDeveloper(User by) {
         if (!enforcing()) { if (expired()) throw expiredError(); return; }
         if (has("user", by.username(), "developer") || has("user", by.username(), "citizen_developer") || autoSeat("user", by.username(), "developer")) return;
-        if (state().equals("evaluation")) throw new OoaException("CR.LICENSE_LIMIT", "The evaluation allows " + EVALUATION_SEATS.get("developer") + " developers, and both seats are in use", "Install a license in Administration > Licenses");
-        if (cr.tenant != null) throw new OoaException("CR.LICENSE_LIMIT", "All " + total("developer") + " Developer seats of the subscription are in use", "Take a seat back in Administration > Licenses, or ask ONEOFFICEAUTOMATION for more seats");
-        throw new OoaException("CR.LICENSE_REQUIRED", by.username() + " has no Developer or Citizen Developer license", "An administrator assigns one in Administration > Licenses");
+        if (state().equals("evaluation")) throw new OoaException("CR.LICENSE_LIMIT", "The evaluation allows " + EVALUATION_SEATS.get("developer") + " developers, and both seats are in use", "Install a license in Manage > Licenses");
+        if (cr.tenant != null) throw new OoaException("CR.LICENSE_LIMIT", "All " + total("developer") + " Developer seats of the subscription are in use", "Take a seat back in Manage > Licenses, or ask ONEOFFICEAUTOMATION for more seats");
+        throw new OoaException("CR.LICENSE_REQUIRED", by.username() + " has no Developer or Citizen Developer license", "An administrator assigns one in Manage > Licenses");
     }
 
     /**
@@ -332,14 +332,14 @@ public final class Licensing {
         boolean seat = has("user", requestedBy, "attended_runner") || has("user", requestedBy, "developer") || has("user", requestedBy, "citizen_developer");
         boolean own = db.one("SELECT device_id FROM user_devices WHERE username = ? AND device_id = ?", requestedBy, deviceId) != null;
         if (byHand && seat && own) return null;
-        if (cr.tenant != null) return "All " + total("unattended_runner") + " Unattended Runner seats of the subscription are in use (take one back in Administration > Licenses, or ask ONEOFFICEAUTOMATION for more)";
-        return state().equals("evaluation") ? "The evaluation allows " + EVALUATION_SEATS.get("unattended_runner") + " runners, and both are in use (install a license in Administration > Licenses)"
-            : "This runner has no Unattended Runner license (an administrator assigns one in Administration > Licenses)";
+        if (cr.tenant != null) return "All " + total("unattended_runner") + " Unattended Runner seats of the subscription are in use (take one back in Manage > Licenses, or ask ONEOFFICEAUTOMATION for more)";
+        return state().equals("evaluation") ? "The evaluation allows " + EVALUATION_SEATS.get("unattended_runner") + " runners, and both are in use (install a license in Manage > Licenses)"
+            : "This runner has no Unattended Runner license (an administrator assigns one in Manage > Licenses)";
     }
 
     public void requireRunnable(String deviceId, String requestedBy, String source) {
         String p = runProblem(deviceId, requestedBy, source);
-        if (p != null) throw expired() ? expiredError() : new OoaException("CR.LICENSE_REQUIRED", p, "An administrator adds or renews the license in Administration > Licenses.");
+        if (p != null) throw expired() ? expiredError() : new OoaException("CR.LICENSE_REQUIRED", p, "An administrator adds or renews the license in Manage > Licenses.");
     }
 
     /** After the grace period only administrators may sign in. */
@@ -349,10 +349,10 @@ public final class Licensing {
         License l;
         try { l = current(); } catch (OoaException e) { l = null; }
         if (l != null && otherInstall(l)) return new OoaException("CR.LICENSE_EXPIRED", String.format(OTHER_INSTALL, l.installId(), installId()),
-            "An administrator installs a license issued for this install id in Administration > Licenses");
+            "An administrator installs a license issued for this install id in Manage > Licenses");
         if (state().equals("database_required")) return new OoaException("CR.LICENSE_EXPIRED", "A licensed installation runs on Microsoft SQL Server; this one uses the built-in database", DATABASE_STEPS);
         return new OoaException("CR.LICENSE_EXPIRED", state().equals("evaluation_ended") ? "The ONEOFFICEAUTOMATION evaluation has ended" : "The ONEOFFICEAUTOMATION license has expired",
-            "An administrator installs a license in Administration > Licenses");
+            "An administrator installs a license in Manage > Licenses");
     }
 
     // ---------- expiry e-mails (L3) and the usage report (L2) ----------
@@ -405,7 +405,7 @@ public final class Licensing {
             body = what + " ends on " + end + " (" + left + (left == 1 ? " day" : " days") + " from today).";
         }
         String url = String.valueOf(cr.platform.setting("public_url"));
-        body += "\n\nInstall a new license in Administration > Licenses. This install's id is " + installId() + "; send it to ONEOFFICEAUTOMATION when you ask for one."
+        body += "\n\nInstall a new license in Manage > Licenses. This install's id is " + installId() + "; send it to ONEOFFICEAUTOMATION when you ask for one."
             + (url.isEmpty() ? "" : "\n\nOne CommandCenter: " + url);
         cr.mailer.send(to, subject, body);
         String json = com.oneofficeautomation.sdk.JsonLite.write(marker);

@@ -4,7 +4,7 @@ import { formatFolderList, lastPart, parseFolderList, type DocFlowApi, type Fold
 import { HttpDocFlowApi } from "./http";
 
 /**
- * DA-1 item 5: Administration > Settings > Document Automation, "Folders processes may use" (DocFlow 3.2.0,
+ * DA-1 item 5: Manage > Settings > Document Automation, "Folders processes may use" (DocFlow 3.2.0,
  * DOCAUTO_ALLOWED_FOLDERS), laid out as the design plan's DA1-FolderAdmin artboard (approved 15 Nov 2026). Each folder
  * with the name people see, DocFlow's access to it and the processes using it; before saving, the processes a change
  * would leave outside. Needs docs.engines (DocFlow's admin settings). Shown in the Settings page as a module part.

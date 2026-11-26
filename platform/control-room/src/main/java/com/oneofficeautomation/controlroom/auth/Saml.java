@@ -57,7 +57,7 @@ public final class Saml {
 
     /** As above, coming back to returnTo (a page of this One CommandCenter) after sign-in. */
     public String start(String origin, String returnTo) {
-        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Administration > Settings.");
+        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Manage > Settings.");
         String id = "_" + Security.token(18).replace('-', 'a').replace('_', 'b');
         cr.cluster.put("saml", id, ControlRoom.safeReturn(returnTo), java.time.Duration.ofMinutes(10));
         String req = "<samlp:AuthnRequest xmlns:samlp=\"" + P + "\" xmlns:saml=\"" + A + "\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + clock.instant() + "\""
@@ -84,7 +84,7 @@ public final class Saml {
 
     /** Checks a SAMLResponse posted back by the identity provider and signs the person in. */
     public Map<String, Object> acs(String samlResponse, String origin, String ip) {
-        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets up SAML in Administration > Settings > Sign-in.");
+        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets up SAML in Manage > Settings > Sign-in.");
         Map<String, Object> claims = new LinkedHashMap<>(validate(samlResponse, origin));
         String back = ControlRoom.safeReturn((String) claims.remove("_return"));
         Map<String, Object> out = new LinkedHashMap<>(cr.ssoLogin(claims, s("sso_default_role"), ip));

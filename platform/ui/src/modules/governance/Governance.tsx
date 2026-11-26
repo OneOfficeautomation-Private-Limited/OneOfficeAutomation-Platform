@@ -7,7 +7,7 @@ import { RefreshButton, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * AI > AI governance, built as AA's AI governance (prompt logs) and UiPath's AI Trust Layer audit (checked against their
+ * Monitor > AI governance, built as AA's AI governance (prompt logs) and UiPath's AI Trust Layer audit (checked against their
  * docs, 31 Oct 2026): every AI model call agents made in a period, by model and by agent, with tokens, what was masked
  * and which tools the AI used. Prompts are never stored, only a fingerprint. Calls export as CSV.
  * Review round 2 (1 Nov 2026): the title row and figures of the other pages, Recent calls, By agent and By model in one

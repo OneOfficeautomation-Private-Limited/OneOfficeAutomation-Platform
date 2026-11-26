@@ -17,7 +17,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { errorLink } from "../components/errorLink";
 
 /**
- * Manage > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
+ * Run > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
  * (input and output arguments, the log, why it ended) and Blue Prism's live session log and request-stop (checked
  * against their official docs, 31 Oct 2026). A summary row; tabs: In progress (queued and running, refreshed
  * every 5 seconds), Scheduled (each schedule's next run), Suspended (long-running agents waiting, G36) and Completed (a chosen period, the last 90 days unless

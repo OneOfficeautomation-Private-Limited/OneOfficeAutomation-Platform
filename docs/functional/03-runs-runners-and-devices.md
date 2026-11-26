@@ -291,7 +291,7 @@ Runs already queued on an offline runner wait for it. A running run whose runner
 ## 14. Temporary runners
 
 Runners registered with a temporary key (pooled virtual desktops, short-lived machines) are removed by the Command
-Center once they have been offline for `temporary_runner_hours` (Administration > Settings, 1-720, default 8). Removal
+Center once they have been offline for `temporary_runner_hours` (Manage > Settings, 1-720, default 8). Removal
 takes them off pools and default runners and frees their licence seat; it is recorded as `device.expired`. A temporary
 runner with queued or running work, or used by a schedule or trigger, stays and is checked again later.
 

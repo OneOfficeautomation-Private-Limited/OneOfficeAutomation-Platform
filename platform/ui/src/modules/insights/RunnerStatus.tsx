@@ -6,7 +6,7 @@ import { time, trouble } from "./Overview";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Runner status (item 11, docs/research/input-help-check.md): every runner on its own page, not
+ * Monitor > Runner status (item 11, docs/research/input-help-check.md): every runner on its own page, not
  * squeezed into a side panel of Overview. Its state, what it is running, why it needs attention, its load and version;
  * Runner Machines is where runners are managed.
  */

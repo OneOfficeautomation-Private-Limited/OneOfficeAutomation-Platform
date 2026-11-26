@@ -146,7 +146,7 @@ public final class RunnerCare {
         boolean logs = kind.equals("logs");
         Map<String, Object> asked = logs ? db.one("SELECT logs_requested AS asked FROM devices WHERE id = ?", id)
             : db.one("SELECT screen_requested AS asked FROM devices WHERE id = ?", id);
-        if (asked == null || asked.get("asked") == null) throw new OoaException("CR.NOT_ASKED", "Nothing was asked of this runner", "Ask the runner for its logs or screen first (Manage > Runners).");
+        if (asked == null || asked.get("asked") == null) throw new OoaException("CR.NOT_ASKED", "Nothing was asked of this runner", "Ask the runner for its logs or screen first (Run > Runners).");
         String error = b.get("error") instanceof String e && !e.isBlank() ? e.substring(0, Math.min(e.length(), 1000)) : null;
         String content = null;
         if (error == null && kind.equals("logs")) {

@@ -9,7 +9,7 @@ import { howStarted } from "../../console/Activity";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Operational Insights > Operations, rebuilt from today's console with AA's Bot Insight operational dashboards, UiPath
+ * Monitor > Operations, rebuilt from today's console with AA's Bot Insight operational dashboards, UiPath
  * Monitoring and Blue Prism Hub's utilisation heatmap in mind (checked 31 Oct 2026): how agents ran over a period, for
  * all agents or one runner, agent or way of starting; each figure compared with the period before; when runs start
  * (weekday by hour, in the viewer's time zone); why runs failed; the agents that run most, take longest and fail most;

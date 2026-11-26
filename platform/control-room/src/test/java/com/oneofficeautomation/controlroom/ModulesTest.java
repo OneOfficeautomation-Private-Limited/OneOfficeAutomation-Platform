@@ -44,7 +44,7 @@ class ModulesTest {
             assertEquals(List.of(), cr.modules.list());
             assertNull(cr.modules.taskKind("document_review"));
             assertTrue(cr.modules.userRoutes.isEmpty());
-            assertEquals(List.of(), ConsolePlugin.installed(), "no module pages either: AI > Document Automation says it is not installed");
+            assertEquals(List.of(), ConsolePlugin.installed(), "no module pages either: Build > Document Automation says it is not installed");
         }
     }
 

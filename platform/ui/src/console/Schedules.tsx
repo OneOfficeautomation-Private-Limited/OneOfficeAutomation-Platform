@@ -6,7 +6,7 @@ import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 
 /**
- * Manage > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
+ * Run > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
  * Prism's Scheduler, 31 Oct 2026): schedules with what runs, where, how often, the next and last run; filters; for the
  * selected: enable, disable, run now, change owner, delete. Create in AA's order (agent, run-as, runner or pool, then
  * timing with a time zone) with UiPath's and Blue Prism's holiday calendars and rules for missed times and overlaps.

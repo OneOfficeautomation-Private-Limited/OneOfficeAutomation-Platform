@@ -4,7 +4,7 @@ import type { UiModuleInfo } from "../registry";
 export const info: UiModuleInfo = {
   id: "low-code",
   menu: [
-    { section: "build", after: "ideas", page: {"id": "apps", "label": "Apps"} },
+    { section: "build", after: "workflows", page: {"id": "apps", "label": "Apps"} },
     { section: "manage", after: "globals", page: {"id": "data", "label": "Data store", "perm": "data.view"} }
   ],
 };

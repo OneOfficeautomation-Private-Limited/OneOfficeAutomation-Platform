@@ -54,7 +54,7 @@ public final class GitSync {
     /** Syncs now (administrators): returns the result, also shown by status(). */
     public Map<String, Object> syncNow(User by, String ip) throws Exception {
         ctx.require(by, "settings.manage", "sync the agent repository to Git");
-        if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Administration > Settings > Git)");
+        if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Manage > Settings > Git)");
         try { return worker.submit(() -> sync(by.username(), "Sync from ONEOFFICEAUTOMATION One CommandCenter")).get(5, TimeUnit.MINUTES); }
         catch (ExecutionException e) { throw e.getCause() instanceof Exception x ? x : e; }
     }
@@ -71,7 +71,7 @@ public final class GitSync {
     /** Reads the branch back into the repository (G70); returns what was read, what conflicted and what failed checks. */
     public Map<String, Object> pullNow(User by, String ip) throws Exception {
         ctx.require(by, "repo.checkin", "read agents from Git");
-        if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Administration > Settings > Git)");
+        if (!configured()) throw new OoaException("CR.BAD_INPUT", "Set the Git remote first (Manage > Settings > Git)");
         try { return worker.submit(() -> pull(by, ip)).get(10, TimeUnit.MINUTES); }
         catch (ExecutionException e) { throw e.getCause() instanceof Exception x ? x : e; }
     }
@@ -192,7 +192,7 @@ public final class GitSync {
             String why = e instanceof OoaException o ? o.getMessage() : e.getClass().getSimpleName() + ": " + e.getMessage();
             last = Map.of("state", "failed", "at", Instant.now().toString(), "error", why);
             ctx.audit(who, "repo.git_sync", "repository", url, Map.of("error", why), "failed", null);
-            throw e instanceof OoaException o ? o : new OoaException("CR.GIT", "Git sync failed: " + why, "Check the remote address, branch and token in Administration > Settings > Git.");
+            throw e instanceof OoaException o ? o : new OoaException("CR.GIT", "Git sync failed: " + why, "Check the remote address, branch and token in Manage > Settings > Git.");
         }
     }
 

@@ -232,7 +232,7 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
                         sent.put("to", inbox);
                         if (!other.isEmpty()) {
                             // e-mail addresses go out through One CommandCenter's own mail server (Settings > E-mail)
-                            if (!ctx.mailConfigured()) { sent.put("not_delivered", other); sent.put("note", "E-mail is not set up (Administration > Settings > E-mail); the inbox notification was sent."); }
+                            if (!ctx.mailConfigured()) { sent.put("not_delivered", other); sent.put("note", "E-mail is not set up (Manage > Settings > E-mail); the inbox notification was sent."); }
                             else {
                                 String subject = String.valueOf(s.getOrDefault("subject", s.getOrDefault("name", "Notification") + " — " + String.valueOf(def.getOrDefault("name", wf.get("path"))).replace(".process.json", "")));
                                 try { ctx.sendMail(other, String.valueOf(Expressions.resolve(subject, n -> lookup(data, n))), msg); sent.put("emailed", other); }

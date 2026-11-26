@@ -196,7 +196,7 @@ public final class AssistantSettings {
     private static void checkSkills(ModuleContext ctx, String v) {
         for (String n : names(v))
             if (ctx.db().one("SELECT name FROM prompt_skills WHERE name = ? AND shared = ? AND template = ?", n, true, false) == null)
-                throw new OoaException("CR.BAD_INPUT", "There is no shared Prompt Skill called " + n, "Share it in AI > Prompt Skills first, or choose another.");
+                throw new OoaException("CR.BAD_INPUT", "There is no shared Prompt Skill called " + n, "Share it in Build > Prompt Skills first, or choose another.");
     }
 
     /** A comma-separated list, trimmed, without empty entries or repeats. */

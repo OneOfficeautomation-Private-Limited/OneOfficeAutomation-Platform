@@ -84,7 +84,7 @@ final class McpDocuments implements ModuleContext.McpTools {
         for (String k : List.of("process", "file_name", "document_id", "decision")) if (args.get(k) != null) audited.put(k, String.valueOf(args.get(k)));
         try {
             if (tools(u).stream().noneMatch(t -> t.get("name").equals(name)))
-                throw new OoaException("CR.FORBIDDEN", on() ? "You may not use " + name : "Document Automation's tools are not offered here", "Ask an administrator for the permission, or switch the tools on in Administration > Settings > Document Automation.");
+                throw new OoaException("CR.FORBIDDEN", on() ? "You may not use " + name : "Document Automation's tools are not offered here", "Ask an administrator for the permission, or switch the tools on in Manage > Settings > Document Automation.");
             Object out = switch (name) {
                 case LIST -> processes(u);
                 case SEND -> send(u, args);
@@ -141,7 +141,7 @@ final class McpDocuments implements ModuleContext.McpTools {
         byte[] data;
         try { data = Base64.getMimeDecoder().decode(need(args, "content_base64")); } catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_INPUT", "content_base64 is not Base64"); }
         if (data.length == 0) throw new OoaException("CR.BAD_INPUT", "The file is empty");
-        if (data.length > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The file is larger than the Largest upload setting allows", "Upload a smaller file, or raise Largest upload in Administration > Settings > Document Automation.");
+        if (data.length > ctx.maxBody()) throw new OoaException("CR.TOO_LARGE", "The file is larger than the Largest upload setting allows", "Upload a smaller file, or raise Largest upload in Manage > Settings > Document Automation.");
         Map<String, Object> flow = visibleProcesses(u).stream().filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst()
                 .orElseThrow(() -> new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "' that you may see", "Call " + LIST + " for the names."));
         String boundary = "ooa" + UUID.randomUUID().toString().replace("-", "");

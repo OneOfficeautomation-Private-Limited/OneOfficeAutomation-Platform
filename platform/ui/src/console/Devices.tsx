@@ -11,7 +11,7 @@ const byWhom = (by: string) => by.startsWith("self:") ? by.slice(5) + " (own com
 const PoolScalingDialog = modulePart<{ api: CrApi; pool: RunnerPool; onClose: () => void; onSaved: (t: string) => void }>("pool-scaling");
 
 /**
- * Manage > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
+ * Run > Runners, built as AA's Devices page (checked against AA's live Control Room and docs, UiPath Machines and
  * Blue Prism Resources, 30 Oct 2026): two tabs, Runners and Runner pools. Runners: search in a chosen field, filters,
  * a column chooser, and for the selected runners: update settings (with CPU and memory limits), update the runner
  * program, maintenance (no new work; runs finish or are stopped, as UiPath's), disable or enable, delete, export. A

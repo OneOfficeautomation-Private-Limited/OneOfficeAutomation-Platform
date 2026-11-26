@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
+ * Run > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
  * Prism's, 31 Oct 2026): tabs To do and Done; filters by kind, overdue and a search; administrators can see everyone's
  * tasks. A task opens with its form, approval or notice, the workflow's data, a comment, and Take it / Give back so two
  * people do not work on the same task. The list refreshes every 30 seconds.

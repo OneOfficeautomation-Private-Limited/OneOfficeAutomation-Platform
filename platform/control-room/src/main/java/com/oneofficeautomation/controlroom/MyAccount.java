@@ -21,7 +21,7 @@ final class MyAccount {
 
     /**
      * Stage B1, as AA's Edit profile: a person changes their own first name, last name and contact e-mail (the same
-     * checks as Administration > Users: one address belongs to one person). Accounts from single sign-on or a directory
+     * checks as Manage > Users: one address belongs to one person). Accounts from single sign-on or a directory
      * keep what the provider says.
      */
     void updateProfile(ControlRoom.User u, Map<String, Object> changes, String ip) {

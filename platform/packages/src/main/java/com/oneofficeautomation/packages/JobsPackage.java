@@ -79,7 +79,7 @@ public final class JobsPackage {
     }
 
     @Action(id = "raise_alert", name = "Raise alert", category = "Alerts",
-            description = "Raise an alert in Operational Insights > Alerts. It goes to the people, e-mail addresses and webhook of the alert rules of kind Raised by an agent (for every agent or this one); "
+            description = "Raise an alert in Monitor > Alerts. It goes to the people, e-mail addresses and webhook of the alert rules of kind Raised by an agent (for every agent or this one); "
                     + "with no such rule it is only listed there. It stays open until someone acknowledges it. A run raises at most 20 alerts, and the same subject once.",
             panel = "message, severity | subject")
     @Output(name = "alerts", type = OoaType.NUMBER, description = "How many alerts were raised (one per rule that takes them; 0 when this subject was already raised by this run).")

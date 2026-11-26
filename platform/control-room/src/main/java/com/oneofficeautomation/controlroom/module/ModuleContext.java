@@ -515,6 +515,22 @@ public interface ModuleContext {
     /** Tasks whose stage the module owns (One Chat: chat_approval). */
     void taskStage(String stage, TaskStage rules);
 
+    /**
+     * A step the module adds to Setup > Install and set up (26 Nov 2026), so the install guide covers it while the
+     * kernel never names the module (Document Automation: DocFlow; One Chat: the OneChat service).
+     */
+    void setupStep(SetupStep step);
+
+    /** A step of the install guide, checked live each time an administrator opens it. */
+    @FunctionalInterface interface SetupStep {
+        /**
+         * {id, phase (server, people, developers or first_run), order (within the phase), title, optional (true/false),
+         * status (done, todo or not_needed), detail (what the check found), help (how to do it), and optionally page (a
+         * console page id to open) or command (a command line to copy)}.
+         */
+        Map<String, Object> check(User u);
+    }
+
     /** Told around every check-in. */
     void checkinListener(CheckinListener listener);
 

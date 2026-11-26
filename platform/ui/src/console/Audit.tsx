@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Administration > Audit Trail, built as AA's Audit log (checked against AA's docs, UiPath's Audit page and Blue
+ * Manage > Audit Trail, built as AA's Audit log (checked against AA's docs, UiPath's Audit page and Blue
  * Prism's audit log viewer, 31 Oct 2026): a time range (last 24 hours, 7 or 30 days, or chosen dates), filters by area
  * (AA's item types), action, person, result and object; a column chooser; a record's details with the changed values
  * and "more about this object" (UiPath's related records); CSV export of the search; and the hash-chain check, which

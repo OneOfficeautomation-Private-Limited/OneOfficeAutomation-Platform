@@ -170,7 +170,7 @@ Without members, roles alone decide who may use a queue. With members, only they
 
 ## 12. Retention
 
-`work_item_retention_days` (Administration > Settings, 0 keeps them) removes succeeded and failed items whose
+`work_item_retention_days` (Manage > Settings, 0 keeps them) removes succeeded and failed items whose
 processing ended longer ago than that, once an hour; the removal is audited as `queue.items_purged`.
 
 ## 13. Permissions and audit

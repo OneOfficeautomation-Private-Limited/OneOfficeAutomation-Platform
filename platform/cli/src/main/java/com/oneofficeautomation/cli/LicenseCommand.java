@@ -8,7 +8,7 @@ import java.util.*;
 
 /**
  * {@code ooa license show FILE}: the terms of a license file and whether this release accepts its signature. Customers
- * install licenses in Administration > Licenses. Making licenses (keygen, issue) is only in the vendor build, where the
+ * install licenses in Manage > Licenses. Making licenses (keygen, issue) is only in the vendor build, where the
  * vendor-tools module is present (com.oneofficeautomation.vendor.VendorLicenseTools).
  */
 final class LicenseCommand {
