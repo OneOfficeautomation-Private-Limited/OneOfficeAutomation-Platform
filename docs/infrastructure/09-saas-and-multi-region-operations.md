@@ -152,7 +152,7 @@ similar are reserved.
 
 ## 8. Shared templates
 
-Tenants can offer agents to the region (Build > Templates > Share an agent). An operator reviews them:
+Tenants can offer agents to the region (Build > Agents, an agent's Share as template...). An operator reviews them:
 
 ```
 ooa region template list    --url https://in.example.com --token-env OOA_OPERATOR_TOKEN [--status pending|approved|rejected|all]

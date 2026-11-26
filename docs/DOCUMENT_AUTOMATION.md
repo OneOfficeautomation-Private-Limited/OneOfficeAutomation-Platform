@@ -216,8 +216,8 @@ assistants (MCP) > Document Automation tools** turns them off for everyone.
 
 ## 8. Templates with processes
 
-An agent template (Build > Agent Templates) can carry Document Automation processes with its agents. When you **share
-an agent** as a template (SaaS regions), tick the processes that go with it. The template carries each process's
+An agent template (Manage > Platform > Templates) can carry Document Automation processes with its agents. When you
+**share an agent as a template** (its menu in Build > Agents, SaaS regions), tick the processes that go with it. The template carries each process's
 settings and the document types it reads, but not what belongs to your company: its email inbox, its watched folder,
 the review webhook, passwords and tokens of its deliveries, and what its document types learned from your documents.
 

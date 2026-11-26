@@ -16,7 +16,7 @@ export const SETTING_HELP: Record<string, string> = {
   default_minutes_saved: "The manual minutes one successful run saves, for agents that have no value of their own. Value uses it to work out hours and money saved; set an agent's own value in Value.",
   hourly_cost: "What an hour of the same work costs when people do it by hand. Value multiplies the hours saved by this to show money saved, in the currency below.",
   currency: "The currency of the hourly cost, as a three-letter code such as INR, USD or EUR. It only changes how money is shown.",
-  template_catalog_url: "An https address of a templates.json file listing ready-made agents. Agent Templates then offers them to install. Leave it empty to show only your own templates.",
+  template_catalog_url: "An https address of a templates.json file listing ready-made agents. Templates (Manage > Platform) and Create > Start from then offer them. Leave it empty to show only your own templates.",
   // Sign-in and security
   session_hours: "How long someone stays signed in before One CommandCenter asks for their password again. Shorter is safer on shared computers; people already signed in keep their sign-in until it ends.",
   max_sessions_per_user: "How many browsers or computers one person may be signed in on at the same time. When someone signs in once more, their oldest sign-in ends.",

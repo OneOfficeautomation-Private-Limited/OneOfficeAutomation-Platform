@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 import { PageIntro } from "../shell/PageIntro";
 
 /**
- * Build > Agent Templates, built as AA's Bot Store and UiPath's Marketplace (checked 31 Oct 2026): ready-made agents to
- * install into the agent repository and adapt, from ONEOFFICEAUTOMATION and, where the service allows, shared in your
- * region. Cards by category with search; Install into a folder (agents already there are kept); share an agent as a
- * template (approved by the operators); a signed catalogue file for One CommandCenter without internet access.
+ * Manage > Platform > Templates (review round, 26 Nov 2026; until then Build > Agent Templates), built as AA's Bot Store
+ * and UiPath's Marketplace (checked 31 Oct 2026): the administrators' template library. Ready-made agents from
+ * ONEOFFICEAUTOMATION and, where the service allows, shared in your region; Install into a folder (agents already
+ * there are kept); a signed catalogue file for One CommandCenter without internet access. Developers use templates from
+ * Create > Start from > Template and share theirs with "Share as template..." on an agent's row menu in Build > Agents.
  * Laid out exactly as Automation (review round 2, 31 Oct 2026): a category tree on the left, the templates in one
  * table on the right (installed or not, and where), and a template's own page when you open one. Administrators make,
  * rename and delete folders (nested, as in Automation) and move templates between them; the catalogue's categories are
@@ -23,9 +24,10 @@ const keyOf = (t: AgentTemplate) => t.source + ":" + t.id;
 /** A folder path with the folders above it, top first: "A/B" gives A, A/B. */
 const withParents = (f: string) => f.split("/").map((_, i, a) => a.slice(0, i + 1).join("/"));
 
-const HELP: HelpTopic = { title: "Agent Templates",
-  about: "Ready-made agents to install into Agents and adapt, from ONEOFFICEAUTOMATION's template catalogue and, where the service allows, shared by "
-    + "others in your region.",
+const HELP: HelpTopic = { title: "Templates",
+  about: "The template library: ready-made agents from ONEOFFICEAUTOMATION's template catalogue and, where the service allows, shared by others in "
+    + "your region. Developers start from them in Create > Start from > Template and share their own with Share as template... on an agent's menu "
+    + "in Build > Agents.",
   items: [
     { name: "Folders", text: "Pick a folder to list its templates; All templates shows every one. The catalogue's categories are the first folders." },
     { name: "Status", text: "Show only templates already installed in Agents, or only those not installed yet." },
@@ -37,8 +39,6 @@ const HELP: HelpTopic = { title: "Agent Templates",
       + "administrators." },
     { name: "Create", text: "New folder makes a folder here, inside the chosen one; the folder's ⋯ menu renames, moves or deletes it when it is empty. For "
       + "administrators." },
-    { name: "Share an agent", text: "In Manage: sends the live version of one of your agents to your region's catalogue. Once the service's operators "
-      + "approve it, others in the region can install it." },
     { name: "Upload a catalogue file", text: "In Manage: for a One CommandCenter without internet access, upload the signed templates.json from the "
       + "releases page. Needs permission to change settings." },
   ] };
@@ -50,7 +50,7 @@ const HELP_TEMPLATE: HelpTopic = { title: "Agent template",
     { name: "Install", text: "Choose a folder; the agents go there as new agents you can change. Install again into… puts another copy in a different "
       + "folder." },
     { name: "Open in Agents", text: "Shows the installed agents on the Agents page." },
-    { name: "Move to folder…", text: "Shows the template in another folder of Agent Templates. For administrators." },
+    { name: "Move to folder…", text: "Shows the template in another folder of Templates. For administrators." },
   ] };
 
 export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
@@ -58,7 +58,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
-  const [dialog, setDialog] = useState<null | { kind: "install" | "move"; t: AgentTemplate } | { kind: "share" | "catalogue" | "rename" } | { kind: "folder"; parent: string }>(null);
+  const [dialog, setDialog] = useState<null | { kind: "install" | "move"; t: AgentTemplate } | { kind: "catalogue" | "rename" } | { kind: "folder"; parent: string }>(null);
   const [opened, setOpened] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [open, setOpen] = useState<AgentTemplate | null>(null);
@@ -115,8 +115,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const folderMenu = arrangeable && cat ? [{ key: "sub", label: "New subfolder", onSelect: () => setDialog({ kind: "folder", parent: cat }) },
     { key: "rename", label: "Rename or move folder", onSelect: () => setDialog({ kind: "rename" }) },
     ...(total(cat) === 0 ? [{ key: "delete", label: "Delete folder…", separatorBefore: true, onSelect: () => setConfirmDelete(true) }] : [])] : [];
-  const manage = [...(data?.can_share ? [{ key: "share", label: "Share an agent", onSelect: () => setDialog({ kind: "share" }) }] : []),
-    ...(can("settings.manage") ? [{ key: "catalogue", label: "Upload a catalogue file", onSelect: () => setDialog({ kind: "catalogue" }) }] : [])];
+  const manage = [...(can("settings.manage") ? [{ key: "catalogue", label: "Upload a catalogue file", onSelect: () => setDialog({ kind: "catalogue" }) }] : [])];
   
   const openIn = (t: AgentTemplate) => "#/automation?q=" + encodeURIComponent(agentName(t.agents[0] ?? t.name));
   const rowMenu = (t: AgentTemplate) => [
@@ -129,10 +128,10 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   if (open) {   // a template's own page, in place of the panes, as an agent opens in Automation
     const where = installedIn(open);
     return (
-      <section className="st-page cc-home cc-explorer" aria-label={"Agent Templates: " + open.name}>
+      <section className="st-page cc-home cc-explorer" aria-label={"Templates: " + open.name}>
         <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"About " + open.name}>
           <div className="cc-agent-head">
-            <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => { setOpen(null); setCat(""); }}>Agent Templates</button> ›{" "}
+            <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => { setOpen(null); setCat(""); }}>Templates</button> ›{" "}
               {folderOfT(open).split("/").filter(Boolean).map((c, i, a) => <span key={i}><button type="button" className="cc-link" onClick={() => { setOpen(null); setCat(a.slice(0, i + 1).join("/")); }}>{c}</button> › </span>)}</span>
             <h1>{open.name}</h1>
             <HelpButton topic={HELP_TEMPLATE} />
@@ -167,7 +166,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   return (
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tpl-title">
       <header className="cc-list-head">
-        <h1 id="cc-tpl-title">Agent Templates</h1>
+        <h1 id="cc-tpl-title">Templates</h1>
         <HelpButton topic={HELP} /><PageIntro k="page:templates" />
         {data && <span className="cc-list-count">{all.length} template{all.length === 1 ? "" : "s"}{repo.length ? " · " + installed + " installed" : ""} · {folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
@@ -189,7 +188,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         </nav>
         <div className="cc-files-pane">
           <div className="cc-pane-head">
-            <span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setCat("")}>Agent Templates</button>
+            <span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setCat("")}>Templates</button>
               {crumbs.map((c, i) => <span key={i}> › {i === crumbs.length - 1 ? <strong>{c}</strong> : <button type="button" className="cc-link" onClick={() => setCat(crumbs.slice(0, i + 1).join("/"))}>{c}</button>}</span>)}</span>
             <span className="ov-fill" />
             {folderMenu.length > 0 && <RowMenu label={"Actions for the folder " + cat} items={folderMenu} />}
@@ -199,7 +198,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             <Button kind="plain" onClick={() => setConfirmDelete(false)}>Cancel</Button></div>}
           <div className="cc-list-tools cc-pane-tools">
             <div className="cc-list-filters" role="group" aria-label="Filters">
-              <span className="cc-list-search"><TextInput type="search" aria-label="Search templates" placeholder={"Search in " + (cat ? cat.split("/").pop() : "Agent Templates")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
+              <span className="cc-list-search"><TextInput type="search" aria-label="Search templates" placeholder={"Search in " + (cat ? cat.split("/").pop() : "Templates")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
               <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}
                 options={[{ value: "", label: "Status: Any" }, { value: "installed", label: "Status: Installed" }, { value: "not", label: "Status: Not installed yet" }]} /></span>
               {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
@@ -243,7 +242,6 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         onClose={() => setDialog(null)} onSave={(f) => addFolder(f).then(() => setDialog(null))} />}
       {dialog?.kind === "rename" && <FolderName title={"Rename or move " + cat} label="New path" initial={cat} taken={folders} action="Rename" notInside={cat}
         hint="The folders and templates in it move too." onClose={() => setDialog(null)} onSave={(f) => renameFolder(cat, f).then(() => setDialog(null))} />}
-      {dialog?.kind === "share" && <Share api={api} categories={folders.filter((f) => !f.includes("/"))} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); setDialog(null); }} />}
       {dialog?.kind === "catalogue" && <Catalogue api={api} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); setDialog(null); load(); }} />}
     </section>
   );
@@ -270,33 +268,6 @@ function Install({ api, t, onClose, onDone }: { api: CrApi; t: AgentTemplate; on
         <table className="st-table" aria-label="Document processes"><tbody>{processes.map((x) => <tr key={x.name}><td>{x.name}</td><td>{x.status}</td><td>{x.error ?? x.note ?? ""}</td></tr>)}</tbody></table></>}
       {results && <><p className="st-alert">Nothing was installed: fix the problems listed.</p>
         <table className="st-table" aria-label="Install results"><tbody>{results.map((x) => <tr key={x.path}><td>{agentName(x.path)}</td><td>{x.status}</td><td>{x.error?.message ?? ""}</td></tr>)}</tbody></table></>}
-    </Dialog>
-  );
-}
-
-function Share({ api, categories, onClose, onDone }: { api: CrApi; categories: string[]; onClose: () => void; onDone: (m: string) => void }) {
-  const [agents, setAgents] = useState<string[]>([]);
-  const [v, setV] = useState({ path: "", name: "", description: "", category: categories[0] ?? "Other" });
-  const [error, setError] = useState<string | null>(null);
-  const [flows, setFlows] = useState<{ id: string; name: string }[]>([]);
-  const [chosen, setChosen] = useState<string[]>([]);
-  useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, path: o.path || b[0]?.path || "" })); }, (e) => reportMinor("the list of agents", e)); }, [api]);
-  useEffect(() => { api.documentProcesses().then((f) => setFlows(f.filter((x) => !x.isInbox))); }, [api]);
-  return (
-    <Dialog open title="Share an agent as a template" width={600} onClose={onClose} footer={<>
-      <Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!v.path} onClick={() => api.shareTemplate({ ...v, name: v.name.trim() || agentName(v.path), description: v.description.trim(), ...(chosen.length ? { processes: chosen } : {}) })
-        .then(() => onDone("Sent for approval: it shows in Agent Templates once approved."), (e) => setError(message(e)))}>Share</Button></>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="st-muted">Its live version and the agents it calls go to your region's template catalogue. Once the service's operators approve it, every company in the region can install it.</p>
-      <Field label="Agent">{(id) => <Select id={id} value={v.path} onChange={(e) => setV({ ...v, path: e.target.value })} options={agents.map((a) => ({ value: a, label: agentName(a) }))} />}</Field>
-      <Field label="Template name">{(id) => <TextInput id={id} value={v.name} maxLength={120} placeholder={v.path ? agentName(v.path) : ""} onChange={(e) => setV({ ...v, name: e.target.value })} />}</Field>
-      <Field label="What it does">{(id) => <TextArea id={id} rows={3} maxLength={2000} value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} />}</Field>
-      <Field label="Category">{(id) => <Select id={id} value={v.category} onChange={(e) => setV({ ...v, category: e.target.value })} options={categories.map((c) => ({ value: c, label: c }))} />}</Field>
-      {!!flows.length && <fieldset><legend>Document Automation processes that go with it (optional)</legend>
-        {flows.map((f) => <label key={f.id} className="st-check-line"><input type="checkbox" checked={chosen.includes(f.id)}
-          onChange={(e) => setChosen(e.target.checked ? [...chosen, f.id] : chosen.filter((x) => x !== f.id))} /> {f.name}</label>)}
-        <p className="st-muted">Their settings and document types go along; their email inbox, watched folder, delivery passwords and what they learned stay here.</p></fieldset>}
     </Dialog>
   );
 }
@@ -329,7 +300,7 @@ function MoveTemplate({ t, at, folders, onClose, onMove }: { t: AgentTemplate; a
       <Button kind="primary" disabled={to === at} onClick={() => onMove(to).catch((e) => setError(message(e)))}>Move</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <Field label="To the folder">{(id) => <Select id={id} value={to} onChange={(e) => setTo(e.target.value)}
-        options={[{ value: "", label: "(top: Agent Templates)" }, ...folders.map((f) => ({ value: f, label: "\u00a0\u00a0\u00a0".repeat(f.split("/").length - 1) + f.split("/").pop() }))]} />}</Field>
+        options={[{ value: "", label: "(top: Templates)" }, ...folders.map((f) => ({ value: f, label: "\u00a0\u00a0\u00a0".repeat(f.split("/").length - 1) + f.split("/").pop() }))]} />}</Field>
       <p className="cc-list-hint">Only where it shows here changes: installing still puts its agents in the folder you choose in Agents.</p>
     </Dialog>
   );

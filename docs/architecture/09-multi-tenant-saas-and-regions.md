@@ -185,7 +185,7 @@ or cloud security groups.
 
 ## 10. Shared templates
 
-A tenant can offer one of its agents to the other tenants of the region (Build > Templates > Share an agent;
+A tenant can offer one of its agents to the other tenants of the region (Build > Agents, an agent's Share as template...;
 `POST /api/templates/share`). The bundle (the agent and the agents it calls, never credentials or values) is stored in
 `ooa_catalog.shared_templates` with status `pending`. An operator reviews and approves or rejects it; once approved,
 every tenant of the region sees it in its catalogue and can install it. Rejecting an approved template withdraws it from

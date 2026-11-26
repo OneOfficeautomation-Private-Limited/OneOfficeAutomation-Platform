@@ -7,6 +7,7 @@ import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
 import { PageIntro } from "../shell/PageIntro";
+import { ShareTemplate } from "./ShareTemplate";
 import { HelpLinks } from "../shell/HelpLinks";
 import { varRef } from "../studio/variables";
 
@@ -33,7 +34,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const ACCESS = [["view", "View: see and export"], ["run", "Run: also run and schedule"], ["edit", "Edit: also check out, check in, move, delete"], ["manage", "Manage: also live version and labels"]];
 
 type Dlg = null | { kind: "agent"; a: RepoAgent } | { kind: "folder"; parent: string } | { kind: "rename" } | { kind: "permissions" } | { kind: "deleted" } | { kind: "approvals" }
-  | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" };
+  | { kind: "run"; a: RepoAgent; from?: "agent" } | { kind: "export" } | { kind: "import" } | { kind: "share"; a: RepoAgent };
 
 const HELP: HelpTopic = { title: "Agents",
   about: "The shared (public) workspace: agents, workflows and forms checked in from people's Private workspaces, with every version. "
@@ -114,10 +115,15 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
     ...(can("apitasks.manage") && kindOf(a.path) === "Agent" ? [apis.has(a.path)
       ? { key: "api", label: "Open its Agent API", onSelect: () => { location.hash = "#/apitasks"; } }
       : { key: "api", label: "Make it an Agent API…", disabled: !a.production_version, onSelect: () => { location.hash = "#/apitasks?new=" + encodeURIComponent(a.path); } }] : []),
+    // review round (26 Nov 2026): share a live agent as a template from its own menu (it was on Agent Templates' page)
+    ...(sharing && kindOf(a.path) === "Agent" ? [{ key: "share", label: "Share as template…", disabled: !a.production_version, onSelect: () => setDialog({ kind: "share", a }) }] : []),
   ];
 
   const [opened, setOpened] = usePersistent<string[]>("repo.opened", []);
   const [apis, setApis] = useState<Set<string>>(new Set());
+  // whether this person may share templates (the region's catalogue is on and they may export), and its categories
+  const [sharing, setSharing] = useState<string[] | null>(null);
+  useEffect(() => { if (can("lifecycle.export")) api.templates().then((t) => setSharing(t.can_share ? t.categories.filter((c) => !c.includes("/")) : null), (e) => reportMinor("whether templates can be shared", e)); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (can("apitasks.manage")) api.agentApis().then((l) => setApis(new Set(l.map((t) => t.bot_path))), (e) => reportMinor("which agents have an API", e)); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [withSub, setWithSub] = usePersistent<boolean>("repo.withSubfolders", true);
   // the same columns, and the same choice of them, as the Private workspace's Public tab
@@ -277,6 +283,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
       {dialog?.kind === "deleted" && <Deleted api={api} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); load(); }} />}
       {dialog?.kind === "approvals" && <Approvals api={api} user={user} onClose={() => { setDialog(null); load(); }} onNotice={onNotice} />}
       {dialog?.kind === "export" && <ExportAgents api={api} onClose={() => setDialog(null)} onNotice={onNotice} />}
+      {dialog?.kind === "share" && sharing && <ShareTemplate api={api} categories={sharing} path={dialog.a.path} onClose={() => setDialog(null)} onDone={(m) => { onNotice(m); setDialog(null); }} />}
       {dialog?.kind === "import" && <ImportAgents api={api} folder={folder} onClose={() => { setDialog(null); load(); }} onDone={(m) => { onNotice(m); load(); }} />}
     </section>
   );

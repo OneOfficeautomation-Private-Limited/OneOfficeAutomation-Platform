@@ -595,7 +595,9 @@ a policy's **⋯** menu asks first; its folders then follow the nearest policy a
 
 ## 11. Templates
 
-**Build > Templates** lists ready-made agents. **Install** (needs `lifecycle.import`) puts a template's agents into a
+**Manage > Platform > Templates** is the template library (administrators). Developers start from a template in
+**Create > Start from > Template** and share a live agent with **Share as template…** on its menu in Build > Agents.
+**Install** (needs `lifecycle.import`) puts a template's agents into a
 folder (default `Templates`); every agent is checked first and nothing is installed unless all pass. The catalogue is
 signed by ONEOFFICEAUTOMATION; a changed one is refused. **Settings > General > Template catalogue** sets another https address,
 or `off`. Without internet access, download `templates.json` from the releases page and use **Upload a catalogue

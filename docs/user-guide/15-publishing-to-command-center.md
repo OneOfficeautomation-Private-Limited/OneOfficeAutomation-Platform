@@ -197,7 +197,8 @@ People can also start agents in their own words from [One Chat](16-one-chat.md).
 
 ## 11. Templates
 
-**Build > Agent Templates** in One CommandCenter lists ready-made agents to install into the repository and adapt:
+Developers start from a template in **Create > Start from > Template**. Administrators keep the library in
+**Manage > Platform > Templates**: ready-made agents to install into the repository and adapt:
 
 - *Sort support tickets with AI* (Customer service)
 - *Collect invoice emails*, *Invoice summary in Excel*, *Overdue invoice report* (Finance)
@@ -211,8 +212,8 @@ are kept. Then **Check out** the installed agent on Studio's **Public** tab, ada
 test it and check it in.
 
 Without internet access, an administrator downloads `templates.json` from the releases page and uses **Upload a
-catalogue file** (in **Manage ▾**). On the SaaS service, **Share an agent** (also in **Manage ▾**) offers one of your
-agents to other companies in your region once the operators approve it.
+catalogue file** (in **Manage ▾**). On the SaaS service, **Share as template…** on a live agent's **⋯** menu in
+**Build > Agents** offers it to other companies in your region once the operators approve it.
 
 For a quick start inside Studio, **Create ▾ > Agent** offers smaller patterns in its **Start from** list (blueprints)
 that are built into Studio itself (see [Studio basics](02-studio-basics.md)).

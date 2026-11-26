@@ -2565,10 +2565,10 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
-  it("shows Agent Templates laid out as Agents: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {
-    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
+  it("shows Templates (Manage > Platform) laid out as Agents: a folder tree, folders made and templates moved, install into a folder; an agent shared as a template from its own menu", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import", "lifecycle.export"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Agent Templates");
+    await go("Templates");
     const list = await screen.findByRole("table", { name: "Templates" });   // laid out as Automation: a category tree and one table
     expect(await within(list).findByText("Shared by Contoso")).toBeTruthy();
     fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
@@ -2605,9 +2605,15 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(i).getByRole("button", { name: "Install" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/install", body: { source: "vendor", id: "inv", folder: "Finance/From templates" } }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "About Invoice intake" })).getByRole("button", { name: "Close" }));
+    // review round (26 Nov 2026): no Share here any more; a developer shares a live agent from its menu in Build > Agents
     fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
-    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Share an agent" }));
-    const sh = await screen.findByRole("dialog", { name: "Share an agent as a template" });
+    expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: /Share/ })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await go("Agents");
+    const agents = await screen.findByRole("table", { name: "Agents list" });
+    fireEvent.keyDown(within(within(agents).getByText("Invoice intake").closest("tr")!).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Share as template…" }));
+    const sh = await screen.findByRole("dialog", { name: "Share as template" });
     await waitFor(() => expect((within(sh).getByLabelText("Agent") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
     await act(async () => { fireEvent.click(within(sh).getByRole("button", { name: "Share" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/share", body: { path: "Finance/Invoice intake.flow.json", name: "Invoice intake", description: "", category: "Finance" } }));

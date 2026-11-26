@@ -195,12 +195,13 @@ author. One CommandCenter stays the source of truth: changes made in Git are ove
 
 ## 14. Templates
 
-**Build > Templates** lists ready-made agents to install and adapt.
+**Manage > Platform > Templates** (administrators) keeps the library of ready-made agents to install and adapt;
+developers start from one in **Create > Start from > Template**.
 
 | Source | Rules |
 | --- | --- |
 | ONEOFFICEAUTOMATION catalogue | Published with each release (`templates.json`) and signed by ONEOFFICEAUTOMATION; a changed catalogue is refused as a whole. Setting `template_catalog_url` names another `https://` address, or `off`. Without internet, **Upload a catalogue file** (needs `settings.manage`). |
-| The region's shared templates (SaaS only) | **Share an agent** offers one agent's live version and the agents it calls to the other companies of the region. It appears once the service's operators approve it. Only agents are shared, never credentials, shared values or runs. Sharing needs `lifecycle.export`. |
+| The region's shared templates (SaaS only) | **Share as template…** (an agent's menu in Build > Agents) offers one agent's live version and the agents it calls to the other companies of the region. It appears once the service's operators approve it. Only agents are shared, never credentials, shared values or runs. Sharing needs `lifecycle.export`. |
 
 **Install** places the template's agents under a folder (default `Templates`) as an import does: every agent is
 checked first, nothing is installed unless all pass, and agents already there are kept. Installing needs

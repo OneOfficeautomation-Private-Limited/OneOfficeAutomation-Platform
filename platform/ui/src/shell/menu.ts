@@ -16,7 +16,7 @@ export const KERNEL_SECTIONS: MenuSection[] = [
   { id: "setup", label: "Setup", color: "#b45309", icon: "power", pages: [
     { id: "setup", label: "Install and set up", perm: "settings.manage" }] },
   { id: "build", label: "Build", color: "#2f6fde", icon: "folder", pages: [
-    { id: "automation", label: "Agents", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" }] },
+    { id: "automation", label: "Agents", perm: "repo.view" }] },
   { id: "run", label: "Run", color: "#0f766e", icon: "play", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
@@ -30,6 +30,7 @@ export const KERNEL_SECTIONS: MenuSection[] = [
     { id: "globals", label: "Shared Global values", perm: "globals.view" },
     { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }, { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
+    { id: "templates", label: "Templates", perm: "settings.manage" },
     { id: "events", label: "Event subscriptions", perm: "events.manage" }] },
   { id: "monitor", label: "Monitor", color: "#0e7490", icon: "chart", pages: [
     { id: "status", label: "Status" }] },
@@ -49,7 +50,7 @@ export const FIRST_PAGE = "automation";
 export type MenuGroup = { id: string; label: string; icon: IconName; section: string; pages: string[] };
 export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-setup", label: "Install and set up", icon: "clipboard", section: "setup", pages: ["setup"] },
-  { id: "g-automation", label: "Agents", icon: "folder", section: "build", pages: ["automation", "templates"] },
+  { id: "g-automation", label: "Agents", icon: "folder", section: "build", pages: ["automation"] },
   { id: "g-docs", label: "Document Automation", icon: "doc", section: "build", pages: ["docautomation"] },
   { id: "g-workflows", label: "Workflows", icon: "process", section: "build", pages: ["workflows"] },
   { id: "g-apps", label: "Apps", icon: "grid", section: "build", pages: ["apps"] },
@@ -66,7 +67,7 @@ export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-connections", label: "Connections", icon: "globe", section: "manage", pages: ["savedconn", "connections"] },
   { id: "g-data", label: "Shared data", icon: "db", section: "manage", pages: ["globals", "data"] },
   { id: "g-toolkits", label: "Toolkits", icon: "sliders", section: "manage", pages: ["toolkits"] },
-  { id: "g-platform", label: "Platform", icon: "gear", section: "manage", pages: ["settings", "licenses", "events"] },
+  { id: "g-platform", label: "Platform", icon: "gear", section: "manage", pages: ["settings", "licenses", "templates", "events"] },
   { id: "g-overview", label: "Overview", icon: "chart", section: "monitor", pages: ["status", "insights"] },
   { id: "g-operations", label: "Operations", icon: "sliders", section: "monitor", pages: ["operations", "runner-status"] },
   { id: "g-business", label: "Business", icon: "target", section: "monitor", pages: ["business"] },
