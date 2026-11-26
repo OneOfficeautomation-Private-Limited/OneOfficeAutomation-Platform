@@ -45,8 +45,10 @@ class SetupGuideTest {
         Map<String, Map<String, Object>> s = byId(g);
         assertTrue(s.keySet().containsAll(List.of("install", "database", "https", "license", "people", "runners", "studio", "model", "sample")), s.keySet().toString());
         assertEquals("done", s.get("install").get("status"));
-        assertEquals("todo", s.get("database").get("status"), "the built-in database is for trying OOA");
-        assertEquals("ooa db configure", s.get("database").get("command"));
+        // the built-in database is for trying OOA; the CI jobs on SQL Server and PostgreSQL run these tests on a real one
+        boolean embedded = String.valueOf(db.info().get("engine")).startsWith("H2");
+        assertEquals(embedded ? "todo" : "done", s.get("database").get("status"));
+        assertEquals(embedded ? "ooa db configure" : null, s.get("database").get("command"));
         assertEquals("todo", s.get("https").get("status"));
         assertEquals("ooa tls self-signed", s.get("https").get("command"));
         assertEquals("todo", s.get("runners").get("status"));
