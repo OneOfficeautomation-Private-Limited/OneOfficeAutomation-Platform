@@ -74,7 +74,6 @@ public final class VendorLicenseTools {
         seats.put("attended_runner", Integer.parseInt(o.getOrDefault("attended", "0")));
         seats.put("unattended_runner", Integer.parseInt(o.getOrDefault("unattended", "0")));
         seats.put("nonproduction_runner", Integer.parseInt(o.getOrDefault("nonproduction", "0")));
-        seats.put("testing_runner", Integer.parseInt(o.getOrDefault("testing", "0")));
         // G45: --features a,b (or the edition's own list for Community and Standard); Enterprise and no list: everything
         String edition = o.getOrDefault("edition", "Enterprise");
         List<String> features = o.containsKey("features") ? Arrays.stream(o.get("features").split("[,\\s]+")).filter(f -> !f.isBlank()).toList()

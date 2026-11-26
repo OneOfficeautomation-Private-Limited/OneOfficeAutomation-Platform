@@ -43,7 +43,7 @@ public final class Licensing {
 
     static final int EVALUATION_DAYS = 60;
     static final Map<String, Integer> EVALUATION_SEATS = Map.of("developer", 2, "citizen_developer", 0, "attended_runner", 2, "unattended_runner", 2,
-            "nonproduction_runner", 0, "testing_runner", 0);
+            "nonproduction_runner", 0);
 
     /** The vendor build carries META-INF/ooa-vendor (the vendor-tools module); the customer distribution does not. */
     boolean vendorBuild() {
@@ -317,16 +317,12 @@ public final class Licensing {
     String runProblem(String deviceId, String requestedBy, String source) {
         if (expired()) return "The license has expired, so runs are stopped";
         if (!enforcing() || has("device", deviceId, "unattended_runner") || autoSeat("device", deviceId, "unattended_runner")) return null;
-        // G45: a testing runner takes the runs of test sets only; a non-production runner runs for development and test
-        // (by hand, from Studio, test sets), never the scheduled, triggered or queued work of production
+        // G45: a non-production runner runs for development and test (by hand, from Studio), never the scheduled,
+        // triggered or queued work of production
         String src = source == null ? "" : source;
-        if (has("device", deviceId, "testing_runner")) {
-            if (src.startsWith("test:")) return null;
-            return "This runner has a Testing Runner license, which takes the runs of test sets only";
-        }
         if (has("device", deviceId, "nonproduction_runner")) {
-            if (src.equals("manual") || src.equals("studio") || src.startsWith("test:")) return null;
-            return "This runner has a Non-production Runner license: it takes runs started by hand, from Studio or by test sets, not " + src + " runs";
+            if (src.equals("manual") || src.equals("studio")) return null;
+            return "This runner has a Non-production Runner license: it takes runs started by hand or from Studio, not " + src + " runs";
         }
         boolean byHand = "manual".equals(source) || "studio".equals(source);
         boolean seat = has("user", requestedBy, "attended_runner") || has("user", requestedBy, "developer") || has("user", requestedBy, "citizen_developer");
@@ -487,7 +483,7 @@ public final class Licensing {
     static String label(String type) {
         return switch (type) {
             case "developer" -> "Developer"; case "citizen_developer" -> "Citizen Developer"; case "attended_runner" -> "Attended Runner";
-            case "nonproduction_runner" -> "Non-production Runner"; case "testing_runner" -> "Testing Runner"; default -> "Unattended Runner";
+            case "nonproduction_runner" -> "Non-production Runner"; default -> "Unattended Runner";
         };
     }
 }

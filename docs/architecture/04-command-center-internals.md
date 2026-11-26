@@ -114,7 +114,7 @@ failures. Every response carries the security headers described in [06-security-
 | Repository | `repo`, `repo/bot`, `repo/checkin`, `repo/checkout`, `repo/undo-checkout`, `repo/versions`, `repo/labels`, `repo/production`, `repo/production-requests`, `repo/folders`, `repo/permissions`, `repo/files`, `repo/move`, `repo/copy`, `repo/delete`, `repo/recover`, `repo/dependencies`, `repo/analyze`, `repo/analysis`, `repo/policy`, `repo/roi` |
 | Runs | `runs` (list, start one or many, control, purge), `runs/{id}/ai-calls`, `changes` (live update feed) |
 | Runners | `devices`, `devices/registration-key`, `devices/runasusers`, `devices/update`, `pools` |
-| Automation | `schedules`, `schedules/bulk`, `schedules/preview`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks`, `test-sets` |
+| Automation | `schedules`, `schedules/bulk`, `schedules/preview`, `triggers`, `calendars`, `queues`, `queues/import`, `queue-models`, `workflows`, `workflows/start`, `workflows/runs`, `workflows/form`, `tasks`, `apitasks` |
 | Vault and values | `lockers`, `vault`, `vault/credential`, `vault/value`, `vault/my-value`, `vault/requests`, `vault/rotate`, `vault/status`, `globals`, `saved-connections`, `connection-kinds` |
 | AI | `connections` (model connections), `connections/test`, `skills`, `skills/templates`, `skills/from-template`, `governance`, `mcp` |
 | Administration | `users`, `roles`, `teams`, `apikeys`, `settings`, `settings/mail-test`, `settings/syslog-test`, `database`, `toolkits`, `toolkits/custom`, `toolkits/publishers`, `license`, `license/assignments`, `license/usage`, `backups`, `cluster`, `git`, `git/sync`, `git/status`, `audit`, `audit/verify`, `audit/export` |
@@ -157,8 +157,8 @@ once, and writes on other nodes are seen within 2 seconds.
 ## 5. Runs: from request to runner
 
 `ControlRoom.startRun(...)` is the single entry for every run source: a person (`POST /api/runs`), a schedule, a
-trigger, a work queue (`queue:<id>`), a workflow (`workflow:<id>`), an API task, MCP (`mcp`), a test set
-(`test:<run>`), and serverless runs.
+trigger, a work queue (`queue:<id>`), a workflow (`workflow:<id>`), an API task, MCP (`mcp`), and
+serverless runs.
 
 1. Checks the permission (`runs.start`) and folder access, the licence, and that the agent has a live production
    version.
@@ -186,7 +186,7 @@ Any failure here fails the run with its reason before it starts.
 
 `finish(...)` stores AI call records first (so whoever waits for the status sees them), then the status, outputs,
 error and step count; records the audit entry; updates the work-queue item; dispatches the queue's next item at once on
-the leader; records KPIs for successful runs; judges test-set runs; resumes waiting workflows; and posts the optional
+the leader; records KPIs for successful runs; resumes waiting workflows; and posts the optional
 callback URL (3 attempts in the background, failures audited).
 
 Run control (`POST /api/runs/{id}` with stop, pause, resume) sets `cancel_requested` or `pause_requested` and asks the
@@ -414,7 +414,6 @@ not updated this way, and a build from source never offers updates.
 | Lifecycle | `Lifecycle` | Export/import bundles with checksums, all or nothing; promote to another One CommandCenter with an API key from the vault |
 | Git mirror | `GitSync` | One-way mirror to a Git remote |
 | Templates | `Templates` | Signed vendor catalogue and, in SaaS, the region's shared templates |
-| Test sets | `TestSets` | Cases with expectations; one run per case; scored |
 | Folder permissions | `Folders` | view, run, edit, manage per folder for roles, teams and users |
 
 ## 15. Settings

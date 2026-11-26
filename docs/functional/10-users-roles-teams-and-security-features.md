@@ -65,8 +65,8 @@ Permissions marked "admin only" belong to administrators unless a custom role gr
 
 | Permission | Allows |
 | --- | --- |
-| `repo.view` | See the agent repository, versions, toolkits, templates, test sets and results, production requests; analyse agents |
-| `repo.checkin` | Check out and check in, label versions, create folders, move agents and folders, upload repository files, ask for production, manage test sets, update agents' toolkit ranges |
+| `repo.view` | See the agent repository, versions, toolkits, templates, production requests; analyse agents |
+| `repo.checkin` | Check out and check in, label versions, create folders, move agents and folders, upload repository files, ask for production, update agents' toolkit ranges |
 | `repo.delete` | Delete and recover agents, delete folders and repository files, see deleted agents |
 | `repo.production` (admin only) | Set the live production version, set minutes saved, undo other people's check-outs |
 | `repo.approve` (admin only) | Approve or reject production requests |

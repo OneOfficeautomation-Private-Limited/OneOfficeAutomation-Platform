@@ -366,8 +366,8 @@ training** on (off by default), Studio tells it whether the builder inserted or 
   descriptions, or JSON answers, rather than free text that later steps must parse.
 - **Check before acting.** Use Min confidence and work-queue validation, approvals for sensitive tools, and **If**
   steps that check a value is sensible before it is used.
-- **Test with variety.** One CommandCenter's **Agent tests** can check outputs with `contains`, `one_of`, `approx` or
-  `not_empty`, which suit answers worded differently each time.
+- **Test with variety.** Run the agent on several kinds of input and compare the answers; check outputs with `contains`
+  or a range rather than an exact text, since AI answers are worded differently each time.
 - **Audit.** Every AI call of a run is listed in its **AI calls** tab and in **AI governance**; prompts and answers are
   never stored, only fingerprints.
 

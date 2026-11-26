@@ -42,7 +42,7 @@ Five layers; a module uses only modules in lower layers and the kernel:
 | 0 Foundation | `sdk`, `runner`, `adapters-jackson`, contracts |
 | 1 Toolkits | `packages` (core) and `packages-*`, and the toolkit groups in `platform/toolkits/<group>` (microsoft, google, enterprise, cloud-data, ai, ...), each found with `ServiceLoader` (`ToolkitGroup`) since phase 5 |
 | 2 Command Center kernel | sign-in, users, roles, folders, repository, runs and dispatch, audit, vault, settings, database, cluster, licensing, tenants, and the module contract |
-| 3 Feature modules | document-automation, one-chat, orchestration, governance, insights, ai-services, low-code, coe, testing, runner-management, integration, enterprise-ops |
+| 3 Feature modules | document-automation, one-chat, orchestration, governance, insights, ai-services, low-code, coe, runner-management, integration, enterprise-ops |
 | 4 Applications and packaging | `cli` and Studio, `agent` (the runner), the UI shell, installers, containers, Helm |
 
 `module-map.json` at the repository root says which module owns every file. The most specific path wins, so a
@@ -141,7 +141,7 @@ kernel, and feature modules plug into them through the contract:
 | P0 | Module map, boundary report (87 crossings on 7 Nov 2026), this record | done |
 | P1 | Module contract, `Modules` registry, schema 46 (`module_schema`), Document Automation moved out, CI `changes` job | done |
 | P2 | coe (automation ideas), ai-services (Prompt Skills, knowledge bases), low-code (apps, embed links, data store), one-chat moved out; contract grows job parts, public routes, embeddable pages, run-ended listeners, task stages, services (boundary crossings 81 -> 59) | done |
-| P3 | testing (test sets), governance (code analysis, policies, production approval), insights (analytics, dashboards, alerts), integration (Agent APIs, MCP server, Git sync), runner-management (pool auto-scaling); contract grows check-in listeners, the production gate, guardrails, repository changes, run requests, the no-runner hook; mixed tests move to the CLI's whole-product tests (boundary crossings 59 -> 26) | done |
+| P3 | testing (test sets; removed 26 Nov 2026 with Agent tests), governance (code analysis, policies, production approval), insights (analytics, dashboards, alerts), integration (Agent APIs, MCP server, Git sync), runner-management (pool auto-scaling); contract grows check-in listeners, the production gate, guardrails, repository changes, run requests, the no-runner hook; mixed tests move to the CLI's whole-product tests (boundary crossings 59 -> 26) | done |
 | P4 | orchestration: the workflow engine moves out; the Task inbox (`TaskInbox`) and `FlowFiles` stay the kernel's; contract grows the workflow engine hook (`WorkflowTasks`), definition checks, licence features and task notifications | done |
 | P5 | Toolkit groups in `platform/toolkits/<group>`, found with ServiceLoader (`ToolkitGroup`) instead of one list in `FirstPartyPackages`; One CommandCenter ships every group | done |
 | P6 | UI: modules found with `import.meta.glob` (`ui/src/modules/<id>/module.ts`: menu entries; `pages.tsx`: pages and parts such as the pool auto-scaling dialog and the embed page); each module's part of the API client (`consoleApi.ts`, added to `CrApi` when its pages load) and of the styles (`<id>.css`); tests keep the menu order, each stylesheet with its owner and module class prefixes (`df-` for Document Automation). The console has no translation files yet, so there was nothing to split | done |

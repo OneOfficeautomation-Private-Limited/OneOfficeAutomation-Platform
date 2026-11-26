@@ -255,19 +255,6 @@
       ]
     },
     {
-      "id": "testing",
-      "name": "Agent testing",
-      "layer": 3,
-      "description": "Test sets and their runs. Moved out of the kernel: platform/modules/testing (Gradle project :testing).",
-      "paths": [
-        "platform/modules/testing/**",
-        "platform/ui/src/modules/testing/**"
-      ],
-      "dependsOn": [
-        "kernel"
-      ]
-    },
-    {
       "id": "runner-management",
       "name": "Runner management",
       "layer": 3,

@@ -119,7 +119,7 @@ sequenceDiagram
     R->>W: start java RunWorker, job on stdin
     W-->>R: events, credential requests, result (stdout JSON lines)
     R->>C: POST runs/{id}/events, agent/credential, runs/{id}/finish
-    C->>C: update queue item, workflow, KPIs, test set, callback
+    C->>C: update queue item, workflow, KPIs, callback
 ```
 
 ### 4.2 Key rules that shape the design

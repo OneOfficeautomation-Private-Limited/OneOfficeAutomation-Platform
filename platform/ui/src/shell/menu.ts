@@ -42,21 +42,21 @@ export const MENU_SECTIONS: MenuSection[] = withModules(KERNEL_SECTIONS, UI_MODU
 export const FIRST_PAGE = "automation";
 
 /**
- * The menu's entries: one per group of related pages, shown as tabs of one page (Scheduling: Schedules, Triggers,
- * Upcoming runs). Every page keeps its own address; an entry opens the first of its pages the person may see. A page
+ * The menu's entries: one per group of related pages, shown as tabs of one page (Start agents: Schedules, Triggers,
+ * Agent APIs, Upcoming runs). Every page keeps its own address; an entry opens the first of its pages the person may see. A page
  * in no group (a module added later) is an entry of its own in its section.
  */
 export type MenuGroup = { id: string; label: string; icon: IconName; section: string; pages: string[] };
 export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-setup", label: "Install and set up", icon: "clipboard", section: "setup", pages: ["setup"] },
-  { id: "g-automation", label: "Agents", icon: "folder", section: "build", pages: ["automation", "templates", "tests", "apitasks"] },
+  { id: "g-automation", label: "Agents", icon: "folder", section: "build", pages: ["automation", "templates"] },
   { id: "g-docs", label: "Document Automation", icon: "doc", section: "build", pages: ["docautomation"] },
   { id: "g-workflows", label: "Workflows", icon: "process", section: "build", pages: ["workflows"] },
   { id: "g-apps", label: "Apps", icon: "grid", section: "build", pages: ["apps"] },
   { id: "g-ai-blocks", label: "AI building blocks", icon: "spark", section: "build", pages: ["skills", "knowledge"] },
   { id: "g-ideas", label: "Ideas", icon: "idea", section: "build", pages: ["ideas"] },
   { id: "g-activity", label: "Agent Activity", icon: "pulse", section: "run", pages: ["activity"] },
-  { id: "g-scheduling", label: "Scheduling", icon: "clock", section: "run", pages: ["schedules", "triggers", "upcoming"] },
+  { id: "g-scheduling", label: "Start agents", icon: "clock", section: "run", pages: ["schedules", "triggers", "apitasks", "upcoming"] },
   { id: "g-queues", label: "Work queues", icon: "queue", section: "run", pages: ["queues"] },
   { id: "g-inbox", label: "Task inbox", icon: "list", section: "run", pages: ["inbox"] },
   { id: "g-runners", label: "Runners", icon: "machine", section: "run", pages: ["devices", "locks"] },

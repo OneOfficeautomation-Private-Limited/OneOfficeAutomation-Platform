@@ -60,7 +60,6 @@ It is in five collections, each for a different reader. Start with the one that 
 | [AI features](functional/09-ai-features.md) | Model connections, governance, AI steps |
 | [Users, roles, teams and security features](functional/10-users-roles-teams-and-security-features.md) | Permissions, SSO, MFA |
 | [Operations, audit and dashboards](functional/11-operations-audit-and-dashboards.md) | Run pages, audit trail, KPIs |
-| [Agent tests](functional/12-agent-tests.md) | Test sets and scoring |
 | [Licensing and editions](functional/13-licensing-and-editions.md) | Evaluation, licences, seats |
 | [OneAgentStudio](functional/14-studio-features.md) | Editor, run, debug, Run from here |
 

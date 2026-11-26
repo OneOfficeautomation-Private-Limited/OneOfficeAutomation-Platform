@@ -123,9 +123,11 @@ folder, which keeps its data. Restart and install the licence. The full steps ar
 | Developer | A person | Checking agents in (Studio, API); running agents by hand on their own default runner |
 | Citizen Developer | A person | Checking in simpler agents: an agent that uses a toolkit in the setting `citizen_blocked_toolkits` (scripts, .NET/Java/COM code, the command line and command sessions at first) is refused for them (`CR.LICENSE_CITIZEN`). A person who also has a Developer seat is not limited |
 | Attended Runner | A person | Running agents by hand on their own default runner |
-| Unattended Runner | A runner | Taking any One CommandCenter work: manual, scheduled, triggered, API, work queues, workflows, tests |
-| Non-production Runner | A runner | Development and test only: runs started by hand, from Studio or by test sets; not scheduled, triggered, API, queue or workflow work |
-| Testing Runner | A runner | The runs of test sets only |
+| Unattended Runner | A runner | Taking any One CommandCenter work: manual, scheduled, triggered, API, work queues, workflows |
+| Non-production Runner | A runner | Development and test only: runs started by hand or from Studio; not scheduled, triggered, API, queue or workflow work |
+
+Licence files issued before 26 Nov 2026 may list **Testing Runner** seats (for Agent tests, since removed). Each one counts as a
+Non-production Runner seat, and a runner that held one holds a Non-production Runner seat after the upgrade.
 
 **Feature tiers.** A licence may list the features it includes. A licence that lists none (every licence issued before
 6 November 2026) includes all of them. The features are `workflows`, `ai_agents`, `event_subscriptions`, `git_sync`,

@@ -55,7 +55,7 @@ public final class TenantMove {
     public static final Map<String, String> LEFT_OUT = new LinkedHashMap<>();
     /** Run history: moved only with --with-history. */
     public static final Set<String> HISTORY = new LinkedHashSet<>(List.of("runs", "run_events", "run_waits", "workflow_runs", "human_tasks", "ai_calls",
-        "chat_runs", "app_runs", "test_runs", "test_results", "alerts", "kpi_values"));
+        "chat_runs", "app_runs", "alerts", "kpi_values"));
     /** Settings of the install, not of the customer: the tenant keeps its own. */
     public static final Set<String> OWN_SETTINGS = Set.of("evaluation_started", "install_id", "audit_chain_key", "public_url", "repo_files_folder", "backup_folder");
     /** Folders of the data folder that hold customer content (repo-files is handled by itself, as it may be a shared folder). */

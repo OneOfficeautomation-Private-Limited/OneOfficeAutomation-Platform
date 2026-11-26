@@ -7,7 +7,7 @@ import { FolderIcon } from "../../console/Repository";
 import { PageIntro } from "../../shell/PageIntro";
 
 /**
- * Build > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
+ * Run > Start agents > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
  * agent behind its own address and token, for other systems to call like a web service; the call runs the agent and
  * answers with its outputs. Each shows its agent, where it runs (a runner, a pool, or serverless on the Command
  * Center), how long a caller waits, calls and last use. The token is shown once, with an example call.

@@ -32,7 +32,6 @@ dependencies {
     implementation(project(":integration"))
     implementation(project(":insights"))
     implementation(project(":governance"))
-    implementation(project(":testing"))
     implementation(project(":one-chat"))
     implementation(project(":low-code"))
     implementation(project(":ai-services"))

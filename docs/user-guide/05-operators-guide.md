@@ -19,7 +19,6 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 7. [Work queues](#7-work-queues)
 8. [Workflow and the Task inbox](#8-workflow-and-the-task-inbox)
 9. [Agent APIs](#9-agent-apis)
-10. [Agent tests](#10-agent-tests)
 11. [Operational Insights: Overview, Alerts and Operations](#11-operational-insights-overview-alerts-and-operations)
 12. [Business: agents, value and dashboards](#12-business-agents-value-and-dashboards)
 13. [Handling failures](#13-handling-failures)
@@ -480,7 +479,7 @@ filled in and submitted, approved or rejected, or marked as read. See [14 Busine
 
 ## 9. Agent APIs
 
-**Build > Agent APIs** (needs `apitasks.manage`) put an agent behind its own web address and token for other systems.
+**Run > Start agents > Agent APIs** (needs `apitasks.manage`) put an agent behind its own web address and token for other systems.
 
 1. Press **New API task**: **Name**, **Agent**, and either a **Runner** / **Or a runner pool**, or tick **Run on the
    One CommandCenter, with no runner (serverless)** for agents that only call web services and work on data (at most 5
@@ -493,31 +492,6 @@ Callers send `POST` with `X-OOA-Task-Token` (or `Authorization: Bearer`) and `{"
 run as the person who made the task, at high priority, and show in Agent Activity like any run. The list shows **Runs on**,
 **Waits up to**, **Calls** (and last use) and **Status**; buttons **Switch off**/**Switch on**, **New token** (the old
 one stops at once) and **Delete**.
-
-## 10. Agent tests
-
-**Build > Agent tests** keep test sets: an agent and cases with inputs and expected results. Press **Run**, choose a
-runner or pool, and each case runs the live production version once. The test run is scored when every case answered
-(for example "4 / 5"); each case says why it passed or failed. **History** shows the scores over time. Builders write
-the cases ([04 Running and debugging](04-studio-running-and-debugging.md)); operators run them after changes to
-runners, toolkits or connected systems.
-
-**Mocks.** A case can stand in for toolkit steps that reach other systems, so a test does not book an order or send an
-e-mail. In the case's JSON, `"mocks": {"<step id>": {"outputs": {...}}}` gives the step's outputs without running it, and
-`{"error": {"code": "ERP.DOWN", "message": "..."}}` makes it fail as that error, to test the agent's error handling.
-Only steps of the agent under test are mocked (not of its child agents), and Core's own steps (If, Assign, Log...) are
-not. The run's log says "Mocked by the test" at each mocked step. Mocks travel with the test case's run; other runs
-refuse them.
-
-**Pipelines (CI/CD).** Run a test set from a pipeline and fail the build when a case fails:
-
-- **GitHub Actions**: `uses: OneOfficeautomation-Private-Limited/OneOfficeAutomation-Platform/platform/deploy/ci/github-action@master`
-  with `url`, `token` (an API key in a secret), `test-set`, and `runner` or `pool`. Its outputs are `test-run`, `passed`
-  and `total`.
-- **Azure DevOps**: the step template `platform/deploy/ci/azure-devops/ooa-test-set.yml` with `url`, `testSet`, and
-  `runner` or `pool`, with the API key in the secret variable `OOA_API_KEY`.
-
-Both start the test set, wait for every case (30 minutes at first), print each case's verdict and fail on any failure.
 
 ## 10a. Process mining: how a process really runs
 

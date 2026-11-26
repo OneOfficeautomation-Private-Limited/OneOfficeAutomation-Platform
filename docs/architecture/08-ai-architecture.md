@@ -204,8 +204,6 @@ manifests, new toolkits are known to the assistant without code changes.
 - **Document automations** (`*.doc.json` in Studio) describe the fields to extract and generate an AI extraction agent.
 - When an agent run from a work queue returns `validation.fields`, the item waits in status `review`; a person checks
   and corrects the fields (`validateItem`), and the item returns to the queue with the validated values.
-- **Test sets** (`TestSets`) score AI agents with tolerant expectations (`contains`, `matches`, `approx` with tolerance,
-  `one_of`, `not_empty`).
 
 ## 13. Adding a provider
 

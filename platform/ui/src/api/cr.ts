@@ -194,8 +194,6 @@ export type ModelConnection = { name: string; provider: string; model?: string |
   pii_analyzer_url?: string | null; content_check?: string | null; updated?: string; updated_by?: string };
 export type AgentApi = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; serverless?: boolean; timeout_seconds: number; enabled: boolean;
   created_by?: string; created?: string; last_used?: string | null; calls: number; url: string };
-export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number; started_by?: string | null };
-export type TestSet = { id: string; name: string; description?: string | null; bot_path: string; cases: { name: string; inputs?: Record<string, unknown>; expect?: Record<string, unknown> }[]; last_run?: TestRunSummary | null };
 export type RepoAgent = { path: string; bot_id?: string; name?: string; description?: string | null; latest_version: number; production_version?: number | null; locked_by?: string | null;
   updated?: string; updated_by?: string; folder?: string; access?: string; labels?: { label: string; version: number }[]; deleted_at?: string; deleted_by?: string;
   platform?: "Windows" | "Any"; size?: number; analysis?: { errors: number; warnings: number } };
@@ -580,9 +578,6 @@ export class CrApi {
   testModelConnection(b: Record<string, unknown>) { return this.call<{ ok: boolean; ms?: number; answer?: string; message?: string }>("POST", "connections/test", b); }
   // ---- Agent APIs: an agent behind its own address and token ----
   async agentApis() { return (await this.call<{ tasks?: AgentApi[] }>("GET", "apitasks")).tasks ?? []; }
-  // ---- Agent tests: test sets of cases, runs scored per case ----
-  async testSets() { return (await this.call<{ sets?: TestSet[] }>("GET", "test-sets")).sets ?? []; }
-  async deleteTestSet(id: string) { await this.call("DELETE", "test-sets/" + encodeURIComponent(id)); }
   // ---- Agent Repository: folders and their permissions, agents with versions, labels, live production and approvals ----
   async repo(folder?: string) { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo" + (folder ? "?folder=" + encodeURIComponent(folder) : ""))).bots ?? []; }
   async deletedAgents() { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo?deleted=true")).bots ?? []; }

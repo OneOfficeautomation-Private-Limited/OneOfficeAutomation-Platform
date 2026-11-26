@@ -20,8 +20,7 @@ const TYPES: [string, string, "user" | "device", string][] = [
   ["citizen_developer", "Citizen Developer", "user", "Checks in simpler agents"],
   ["attended_runner", "Attended Runner", "user", "Runs agents on their own runner"],
   ["unattended_runner", "Unattended Runner", "device", "A runner that takes scheduled, triggered, API and queue work"],
-  ["nonproduction_runner", "Non-production Runner", "device", "A runner for development and test: runs started by hand, from Studio or by test sets"],
-  ["testing_runner", "Testing Runner", "device", "A runner that takes the runs of test sets only"],
+  ["nonproduction_runner", "Non-production Runner", "device", "A runner for development and test: runs started by hand or from Studio"],
 ];
 /** Features a licence can leave out (G45), in words. */
 const FEATURE_NAMES: Record<string, string> = { workflows: "Workflows", ai_agents: "AI agents", event_subscriptions: "Event subscriptions", git_sync: "Git sync",
@@ -29,7 +28,7 @@ const FEATURE_NAMES: Record<string, string> = { workflows: "Workflows", ai_agent
 /** What a holder can no longer do once a seat of the type is taken back. */
 const LOSES: Record<string, string> = { developer: "They can no longer check in agents", citizen_developer: "They can no longer check in simpler agents",
   attended_runner: "They can no longer run agents on their own runner", unattended_runner: "It no longer takes scheduled, triggered, API and queue work",
-  nonproduction_runner: "It no longer takes development and test runs", testing_runner: "It no longer takes test set runs" };
+  nonproduction_runner: "It no longer takes development and test runs" };
 const STATE: Record<string, [string, string]> = { unlicensed: ["No licence installed", "pending"], evaluation: ["Evaluation", "pending"], evaluation_ended: ["Evaluation ended", "failed"],
   active: ["Active", "success"], expiring: ["Expiring soon", "pending"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"], database_required: ["Needs SQL Server", "failed"] };
 const typeName = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t;

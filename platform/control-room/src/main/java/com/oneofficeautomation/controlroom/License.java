@@ -45,8 +45,10 @@ public record License(String id, String customer, String edition, LocalDate issu
 
     /** Seat types: three per person, one per runner. */
     public static final List<String> USER_TYPES = List.of("developer", "citizen_developer", "attended_runner");
-    public static final List<String> DEVICE_TYPES = List.of("unattended_runner", "nonproduction_runner", "testing_runner");
-    public static final List<String> TYPES = List.of("developer", "citizen_developer", "attended_runner", "unattended_runner", "nonproduction_runner", "testing_runner");
+    public static final List<String> DEVICE_TYPES = List.of("unattended_runner", "nonproduction_runner");
+    public static final List<String> TYPES = List.of("developer", "citizen_developer", "attended_runner", "unattended_runner", "nonproduction_runner");
+    /** A seat type earlier licence files may carry (Testing Runner, until Agent tests left on 26 Nov 2026): it counts as Non-production Runner. */
+    static final String OLD_TESTING_RUNNER = "testing_runner";
 
     /** The vendor's public key (Ed25519, X.509, Base64) that every license must be signed with. */
     public static final String VENDOR_PUBLIC_KEY = "MCowBQYDK2VwAyEA5izC9CueL5Ke+I+88gmudgf4fs1wlxELhf9qRZ7J+uI=";
@@ -74,6 +76,7 @@ public record License(String id, String customer, String edition, LocalDate issu
         Map<String, Integer> seats = new LinkedHashMap<>();
         Map<String, Object> s = t.get("seats") instanceof Map<?, ?> m ? asMap(m) : Map.of();
         for (String type : TYPES) seats.put(type, s.get(type) instanceof Number n ? Math.max(0, n.intValue()) : 0);
+        if (s.get(OLD_TESTING_RUNNER) instanceof Number n && n.intValue() > 0) seats.merge("nonproduction_runner", n.intValue(), Integer::sum);
         try {
             return new License(String.valueOf(t.get("id")), String.valueOf(t.get("customer")), String.valueOf(t.getOrDefault("edition", "Enterprise")),
                 LocalDate.parse(String.valueOf(t.get("issued"))), LocalDate.parse(String.valueOf(t.get("expires"))),

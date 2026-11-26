@@ -201,7 +201,7 @@ answers as soon as a run of that runner is queued, paused, resumed or stopped.
 
 ## 9. Agent APIs and serverless Agent APIs
 
-An API task (Build > Agent APIs, `apitasks.manage`) puts an agent behind its own address and token.
+An API task (Run > Start agents > Agent APIs, `apitasks.manage`) puts an agent behind its own address and token.
 
 | Property | Rule |
 | --- | --- |

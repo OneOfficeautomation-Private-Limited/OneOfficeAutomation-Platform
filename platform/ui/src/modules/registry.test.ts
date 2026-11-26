@@ -13,8 +13,8 @@ describe("the UI module registry", () => {
     expect(UI_MODULES.map((m) => m.id)).toEqual(folders);
     expect(MENU_SECTIONS.map((s) => s.id + ": " + s.pages.map((p) => p.id).join(" "))).toEqual([
       "setup: setup",
-      "build: automation templates tests apitasks docautomation workflows apps skills knowledge ideas",
-      "run: activity schedules triggers upcoming queues inbox devices locks chat",
+      "build: automation templates docautomation workflows apps skills knowledge ideas",
+      "run: activity schedules triggers apitasks upcoming queues inbox devices locks chat",
       "manage: users roles teams credentials policies audit savedconn connections globals data toolkits settings licenses events",
       "monitor: status insights operations runner-status business alerts alert-rules governance",
     ]);

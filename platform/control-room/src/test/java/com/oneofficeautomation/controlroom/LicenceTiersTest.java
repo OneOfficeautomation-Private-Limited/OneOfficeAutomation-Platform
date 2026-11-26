@@ -60,7 +60,7 @@ class LicenceTiersTest {
         License some = License.fromTerms(new LinkedHashMap<>(Map.of("id", "B", "customer", "C", "issued", "2026-01-01", "expires", "2027-01-01",
                 "features", List.of("workflows", "made_up", "none"))));
         assertEquals(List.of("workflows", "none"), some.features(), "unknown names are dropped; none marks an edition with no extras");
-        assertEquals(0, some.seats().get("testing_runner"));
+        assertNull(some.seats().get("testing_runner"), "Testing Runner left with Agent tests (26 Nov 2026)");
     }
 
     @Test @Order(2)
@@ -79,17 +79,18 @@ class LicenceTiersTest {
         assertEquals("CR.LICENSE_CITIZEN", code(() -> cr.checkin(cleo, "C/Script.flow.json", agent("script", "ooa.script/run_powershell"), "v1", true, null)));
         assertEquals("ok", code(() -> cr.checkin(dana, "C/Script.flow.json", agent("script", "ooa.script/run_powershell"), "v1", true, null)));
 
-        // runner seats: non-production takes runs by hand, from Studio and test sets; testing takes test sets only
+        // runner seats: non-production takes runs by hand and from Studio, never production work; the licence's one
+        // Testing Runner seat (an older licence file) counts as a second Non-production Runner seat
         cr.licensing.assign(admin, "nonproduction_runner", dev1, true, null);
-        cr.licensing.assign(admin, "testing_runner", dev2, true, null);
+        cr.licensing.assign(admin, "nonproduction_runner", dev2, true, null);
         assertNull(cr.licensing.runProblem(dev1, "dana", "manual"));
-        assertNull(cr.licensing.runProblem(dev1, "dana", "test:tr_1"));
+        assertNull(cr.licensing.runProblem(dev2, "dana", "studio"));
         assertTrue(cr.licensing.runProblem(dev1, "dana", "schedule").contains("Non-production Runner"));
-        assertNull(cr.licensing.runProblem(dev2, "dana", "test:tr_1"));
-        assertTrue(cr.licensing.runProblem(dev2, "dana", "manual").contains("test sets only"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.licensing.assign(admin, "testing_runner", dev2, true, null)));
         @SuppressWarnings("unchecked")
         Map<String, Map<String, Object>> seats = (Map<String, Map<String, Object>>) cr.licensing.status(admin).get("seats");
-        assertEquals(1, ((Number) seats.get("testing_runner").get("used")).intValue());
-        assertEquals(1, ((Number) seats.get("nonproduction_runner").get("total")).intValue());
+        assertFalse(seats.containsKey("testing_runner"));
+        assertEquals(2, ((Number) seats.get("nonproduction_runner").get("total")).intValue());
+        assertEquals(2, ((Number) seats.get("nonproduction_runner").get("used")).intValue());
     }
 }

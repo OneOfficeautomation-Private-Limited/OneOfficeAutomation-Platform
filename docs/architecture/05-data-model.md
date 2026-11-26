@@ -141,7 +141,6 @@ and a **runtime** account with data read/write rights only.
 | `production_requests` | Approval before going live | `path`, `version`, `requested_by`, `status`, `decided_by`, `note` |
 | `code_policy` | Code analysis rules (one row) | `json_value` |
 | `code_analysis` | Report per analysed version | `path`, `version`, `errors`, `warnings`, `violations` |
-| `test_sets`, `test_runs`, `test_results` | Agent tests and scores | `cases`, `total`, `passed`, `status`, `detail` |
 
 ### 4.3 Runners and runs
 

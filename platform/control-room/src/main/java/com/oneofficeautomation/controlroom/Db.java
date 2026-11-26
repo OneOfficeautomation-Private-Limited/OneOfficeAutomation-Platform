@@ -843,9 +843,23 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE runs ADD COLUMN run_window VARCHAR(20)",
     };
 
+    /**
+     * Version 50 (review round, 26 Nov 2026): Agent tests left the platform, so its tables go (test sets, their runs and
+     * each case's result), and a runner that held a Testing Runner seat holds a Non-production Runner seat instead (a
+     * licence file's Testing Runner seats count as Non-production ones, License.parse).
+     */
+    private static final String[] SCHEMA_V50 = {
+        "DROP TABLE test_results",
+        "DROP TABLE test_runs",
+        "DROP TABLE test_sets",
+        "DELETE FROM license_assignments WHERE license_type = 'testing_runner' AND EXISTS (SELECT 1 FROM license_assignments n "
+            + "WHERE n.principal_type = license_assignments.principal_type AND n.principal = license_assignments.principal AND n.license_type = 'nonproduction_runner')",
+        "UPDATE license_assignments SET license_type = 'nonproduction_runner' WHERE license_type = 'testing_runner'",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 49;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47, SCHEMA_V48, SCHEMA_V49 };
+    public static final int LATEST = 50;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47, SCHEMA_V48, SCHEMA_V49, SCHEMA_V50 };
 
     /** A feature module's schema version recorded in module_schema (0 when it has none yet). */
     public int moduleVersion(String module) {
@@ -962,11 +976,13 @@ public final class Db implements AutoCloseable {
         return out;
     }
 
-    /** The tables of the schema, in creation order (for copying data between databases). */
+    /** The tables of the schema, in creation order (for copying data between databases); a table a later version dropped is left out. */
     public static List<String> tables() {
         List<String> out = new ArrayList<>();
-        for (String[] version : SCHEMA) for (String ddl : version)
+        for (String[] version : SCHEMA) for (String ddl : version) {
             if (ddl.startsWith("CREATE TABLE ")) out.add(ddl.substring(13, ddl.indexOf(' ', 13)));
+            if (ddl.startsWith("DROP TABLE ")) out.remove(ddl.substring(11).trim());
+        }
         return out;
     }
 

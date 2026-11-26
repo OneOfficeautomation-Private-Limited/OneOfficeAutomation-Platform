@@ -425,15 +425,6 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       calls: 7, last_used: "2026-10-31T08:00:00Z", url: "/api/apitasks/a1/run", created_by: "admin", created: "2026-10-01T08:00:00Z" }] });
     if (route === "apitasks/a1/token") return ok({ token: "tok-again" });
     if (/^apitasks\/a\d$/.test(route)) return ok({ ok: true });
-    if (route === "test-sets" && init.method === "POST") return ok({ id: "x2" });
-    if (route === "test-sets") return ok({ sets: [
-      { id: "x1", name: "Triage checks", bot_path: "Finance/Invoice intake.flow.json", cases: [{ name: "urgent", inputs: { text: "Down!" }, expect: { status: "success" } }, { name: "calm" }],
-        last_run: { id: "tr0", started: "2026-10-30T08:00:00Z", total: 2, passed: 1, status: "done", version: 3 } },
-      { id: "x3", name: "Onboarding checks", bot_path: "HR/Onboard.flow.json", cases: [{ name: "new hire" }], last_run: null }] });
-    if (route === "test-sets/x1/history") return ok({ runs: [{ id: "tr0", started: "2026-10-30T08:00:00Z", total: 2, passed: 1, status: "done", version: 3 }] });
-    if (route === "test-sets/x1/run") return ok({ test_run_id: "tr1", started: 2, cases: 2 });
-    if (route === "test-sets/runs/tr1") return ok({ id: "tr1", bot_path: "Finance/Invoice intake.flow.json", version: 3, started: "2026-10-31T09:00:00Z", started_by: "admin", total: 2, passed: 1, status: "done",
-      results: [{ case_name: "urgent", status: "done", passed: true }, { case_name: "calm", status: "done", passed: false, detail: "label was high, expected low" }] });
     if (route === "templates") return ok({ can_share: true, can_arrange: true, categories: ["Finance", "IT"], problem: null, templates: [
       { id: "inv", source: "vendor", name: "Invoice intake", description: "Reads invoices into the ERP", category: "Finance", folder: "Finance", publisher: "ONEOFFICEAUTOMATION", agents: ["Invoice intake.flow.json", "Read PDF.flow.json"] },
       { id: "pw", source: "region", name: "Password reset", description: "Resets a user's password", category: "IT", folder: "IT", publisher: "Contoso", agents: ["Password reset.flow.json"] }] });
@@ -564,7 +555,7 @@ describe("rebuilt One CommandCenter console", () => {
     }
     expect(all).toEqual(["Agents", "Document Automation", "Workflows", "Apps", "AI building blocks", "Ideas",
       "Install and set up",
-      "Agent Activity", "Scheduling", "Work queues", "Task inbox", "Runners", "One Chat",
+      "Agent Activity", "Start agents", "Work queues", "Task inbox", "Runners", "One Chat",
       "People", "Security", "Connections", "Shared data", "Toolkits", "Platform",
       "Overview", "Operations", "Business", "Alerts", "AI usage"]);
     fireEvent.click(within(menu).getByRole("button", { name: "Monitor" }));   // the open one folds from its heading too
@@ -1352,9 +1343,9 @@ describe("rebuilt One CommandCenter console", () => {
     expect(adminHead.getAttribute("aria-expanded")).toBe("true");
     // option B still holds in Run: a group's entry is current on any of its pages, and its pages are tabs above the page
     await go("Schedules");
-    const scheduling = screen.getByRole("navigation", { name: "Scheduling" });
-    expect(within(scheduling).getAllByRole("button").map((b) => b.textContent)).toEqual(["Schedules", "Triggers", "Upcoming runs"]);
-    expect(within(menu).getByRole("button", { name: "Scheduling" }).getAttribute("aria-current")).toBe("page");
+    const scheduling = screen.getByRole("navigation", { name: "Start agents" });
+    expect(within(scheduling).getAllByRole("button").map((b) => b.textContent)).toEqual(["Schedules", "Triggers", "Agent APIs", "Upcoming runs"]);
+    expect(within(menu).getByRole("button", { name: "Start agents" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).queryByRole("button", { name: "Triggers" })).toBeNull();   // pages are tabs, not menu entries
     expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
     // round 3 (T1): the menu folds from ☰ on the top bar; no buttons at its foot; its edge still sets the width
@@ -2572,39 +2563,6 @@ describe("rebuilt One CommandCenter console", () => {
     await waitFor(() => expect((within(n).getByLabelText("Agent (its live version)") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
     expect(location.hash).toBe("#/apitasks");
     location.hash = "";
-  });
-
-  it("shows Agent tests laid out as Agents: folders, the last result, a test set's page with its cases, a run on a pool and each case's checks", async () => {
-    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "repo.checkin"] } as typeof admin });
-    render(<ConsoleApp api={api} />);
-    await go("Agent tests");
-    const list = await screen.findByRole("table", { name: "Test sets list" });
-    const row = (await within(list).findByText("Triage checks")).closest("tr")!;
-    expect(within(row).getByText("Failing")).toBeTruthy();
-    expect(within(row).getByText("v3")).toBeTruthy();
-    expect(within(within(list).getByText("Onboarding checks").closest("tr")!).getByText("Not run")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Last result"), { target: { value: "never" } });
-    await waitFor(() => expect(within(list).queryByText("Triage checks")).toBeNull());
-    fireEvent.change(screen.getByLabelText("Last result"), { target: { value: "" } });
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^HR/ }));
-    await waitFor(() => expect(within(list).queryByText("Triage checks")).toBeNull());
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^All test sets/ }));
-    fireEvent.click(await within(list).findByText("Triage checks"));
-    // its own page: the cases, a case's inputs and checks beside
-    const d = await screen.findByRole("dialog", { name: "Test set Triage checks" });
-    fireEvent.click(within(within(d).getByRole("table", { name: "Cases" })).getByText("urgent"));
-    const side = within(d).getByRole("complementary", { name: "The selected case" });
-    expect(within(side).getByText("Down!")).toBeTruthy();
-    expect(within(within(side).getByRole("list", { name: "Checks" })).getByText(/finishes with success/)).toBeTruthy();
-    fireEvent.change(within(d).getByLabelText("Run on"), { target: { value: "p:p1" } });
-    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Run" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "test-sets/x1/run", body: { pool_id: "p1" } }));
-    // the run's cases, scored, with the reason a case failed
-    const results = await within(d).findByRole("table", { name: "Case results" });
-    expect(await within(results).findByText("label was high, expected low")).toBeTruthy();
-    expect(within(within(d).getByRole("table", { name: "Runs" })).getByText("v3")).toBeTruthy();
-    fireEvent.click(within(results).getByText("calm"));
-    expect(within(within(d).getByRole("complementary", { name: "The selected case" })).getByText("Failed")).toBeTruthy();
   });
 
   it("shows Agent Templates laid out as Agents: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {

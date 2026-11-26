@@ -212,5 +212,4 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [05 Work queues](05-work-queues.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
-- [12 Agent tests](12-agent-tests.md) (checks suited to AI answers)
 - [One CommandCenter and runner, section 9](../user-guide/00-README.md)

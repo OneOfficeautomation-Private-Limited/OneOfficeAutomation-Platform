@@ -99,7 +99,7 @@ check its version with `runtime\bin\java -version`.
    production.
 2. Export your agents from production (Export / promote, with the agents they call) and import them into the
    sandbox.
-3. Run your agent tests (Build > Agent tests) for a quick pass or fail, and your own checks.
+3. Run your main agents by hand on the sandbox's runners, and your own checks.
 4. Report problems. Three weeks later the same version is published as final (or a fix version if something
    changed).
 

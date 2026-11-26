@@ -716,8 +716,6 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-aico.is-template { background: #0e7490; }
 /* Agent APIs laid out as Automation (review round 2, 31 Oct 2026): the address to copy in its row */
 .cc-aico.is-api { width: 24px; background: #c2410c; font-size: 8.5px; }
-/* Agent tests (review round 2): a test set's page, its checks with a mark each */
-.cc-aico.is-test { background: #be185d; }
 /* Schedules (review round 2): the last run, its result and when, opens the run */
 .cc-last-run { color: inherit; text-decoration: none; white-space: nowrap; }
 .cc-last-run:hover { text-decoration: underline; }

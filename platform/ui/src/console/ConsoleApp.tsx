@@ -180,8 +180,8 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
 }
 
 /**
- * The pages of the current page's group (option B, 8 Nov 2026) as tabs above it: Scheduling shows Schedules, Triggers
- * and Upcoming runs; each tab is its own page and address. Only pages the person may see; none for a group of one.
+ * The pages of the current page's group (option B, 8 Nov 2026) as tabs above it: Start agents shows Schedules,
+ * Triggers, Agent APIs and Upcoming runs; each tab is its own page and address. Only pages the person may see; none for a group of one.
  */
 function GroupTabs({ page, user, onPage, hrefFor }: { page: string; user: CrUser; onPage: (id: string) => void; hrefFor: (id: string) => string }) {
   const group = groupOf(page);
