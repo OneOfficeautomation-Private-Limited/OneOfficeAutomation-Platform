@@ -462,16 +462,20 @@ an agent started by processing marks its own item, that mark stays when its run 
 
 ## 8. Workflow and the Task inbox
 
-**Build > Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
-(running, waiting, completed, failed, cancelled), **Current stage**, **Started by**, **Started** and **Updated**.
+Workflows are designed in OneAgentStudio (Build). **Run > Workflow runs** (needs `runs.view`) lists the runs with
+**Status**, **Reference**, **Workflow**, **Now at** (the step), **Waiting on** (the people, runner, agent, time or
+branches), **Start time** and **Due** (**Late** in red). The counts **Waiting on a person**, **Late**, **Finished
+today** and **Failed** filter the list.
 
 To start one (`runs.start`): press **Start a workflow**, choose the **Workflow (live production version)**, fill in
 its start form (or **Starting data (JSON, optional)**), optionally a **Reference** such as `PO-2026-0042` to find the
 request again, and press **Start**.
 
-Click a run to monitor it: **Reference**, **Status**, **Current stage**, **Started**, **Finished**, **Error**, a
-**Timeline** of events (agent started, finished or failed, task created or completed, approved, rejected, decided,
-notified) with **Open agent run** links, and the workflow **Data**. **Cancel run** withdraws its open tasks.
+Click a run to monitor it: its **Steps** (done, now with who has it, failed, skipped, to come; a parallel step's
+branches inside), the **Diagram** coloured the same way, the **History** of events, **People's tasks** with their due
+times, and the **Data**. With `runs.stop`: **Remind** tells the people again, **Reassign…** gives the open task to
+someone else, **Skip step…** goes on without it (with a reason), and **Cancel run** stops it; each is recorded in the
+history and the audit trail.
 
 People's steps arrive in **Run > Task inbox** (tabs **To do** and **Done**). Administrators can tick
 **Everyone's tasks** to see who is holding what. Each task can be taken (**Take it**), given back (**Give back**),

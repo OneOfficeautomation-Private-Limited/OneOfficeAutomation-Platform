@@ -1,14 +1,8 @@
 /* orchestration's styles (docs/architecture/13-modules.md, phase 6): only classes its own pages use. */
-.cc-wf-track { list-style: none; margin: 0 0 12px; padding: 0; display: flex; }
-.cc-wf-track li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; font-size: 12.5px; position: relative; min-width: 0; }
-.cc-wf-track li::before { content: ""; position: absolute; top: 13px; left: -50%; right: 50%; height: 2px; background: var(--ui-success); }
-.cc-wf-track li:first-child::before { display: none; }
 .cc-wf-dot { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; position: relative; z-index: 1;
   background: var(--ui-success); color: #ffffff; border: 2px solid var(--ui-success); box-sizing: border-box; }
 .cc-wf-name { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc-wf-detail { color: var(--ui-text-2); }
-.cc-wf-track li.is-now .cc-wf-dot { background: var(--ui-running-bg); color: var(--ui-warning-text); border-color: var(--ui-warning-text); }
-.cc-wf-track li.is-bad .cc-wf-dot { background: var(--ui-error-text); border-color: var(--ui-error-text); }
 
 /* The workflow diagram (review round, 26 Nov 2026; design A): Studio's editor and Run > Workflow runs */
 .wfd { display: flex; flex-direction: column; align-items: center; padding: 12px 16px 20px; min-width: max-content; font-size: 13px; color: var(--ui-text); }
@@ -27,9 +21,9 @@
 .wfd-card { position: relative; display: flex; align-items: flex-start; gap: 8px; width: 240px; padding: 7px 10px 7px 14px; border: 1px solid var(--ui-frame-line, #5c6575);
   border-left: 5px solid var(--wfd-color); border-radius: 8px; background: var(--ui-bg); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .wfd-card:disabled { cursor: default; opacity: 1; }
-.wfd-node.is-diamond .wfd-card { border-left-width: 1px; border-color: var(--wfd-color); border-width: 2px; border-radius: 14px; }
-.wfd-node.is-round .wfd-card { border-radius: 18px; }
-.wfd-node.is-end .wfd-card { border-color: var(--ui-success); border-width: 2px; }
+.wfd-node.is-diamond > .wfd-card { border-left-width: 1px; border-color: var(--wfd-color); border-width: 2px; border-radius: 14px; }
+.wfd-node.is-round > .wfd-card { border-radius: 18px; }
+.wfd-node.is-end > .wfd-card { border-color: var(--ui-success); border-width: 2px; }
 .wfd-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-bar, #1c2840); color: #ffffff; font-size: 11px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; }
 .wfd-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -37,17 +31,17 @@
 .wfd-meta { color: var(--ui-text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
 .wfd-warn { position: absolute; top: -8px; right: -8px; width: 18px; height: 18px; border-radius: 50%; background: var(--ui-error-text); color: #ffffff; font-weight: 700; font-size: 12px;
   display: inline-flex; align-items: center; justify-content: center; }
-.wfd-node.is-selected .wfd-card { outline: 3px solid var(--ui-focus, #7148c9); outline-offset: 2px; }
-.wfd-node.is-target .wfd-card { box-shadow: 0 0 0 3px var(--ui-success); }
-.wfd-node.is-found .wfd-card { background: var(--ui-offer-bg, #fff7d6); }
-.wfd-node.has-problem .wfd-card { border-color: var(--ui-error-text); }
-.wfd-node.st-done .wfd-num { background: var(--ui-success); }
-.wfd-node.st-now .wfd-card { border-color: var(--ui-warning-text); border-width: 2px; background: var(--ui-running-bg); }
-.wfd-node.st-now .wfd-num { background: var(--ui-warning-text); }
-.wfd-node.st-failed .wfd-card { border-color: var(--ui-error-text); background: var(--ui-error-bg); }
-.wfd-node.st-failed .wfd-num { background: var(--ui-error-text); }
-.wfd-node.st-todo .wfd-card, .wfd-node.st-skipped .wfd-card { border-style: dashed; color: var(--ui-text-2); }
-.wfd-node.st-todo .wfd-num, .wfd-node.st-skipped .wfd-num { background: var(--ui-text-3); }
+.wfd-node.is-selected > .wfd-card { outline: 3px solid var(--ui-accent); outline-offset: 2px; }
+.wfd-node.is-target > .wfd-card { box-shadow: 0 0 0 3px var(--ui-success); }
+.wfd-node.is-found > .wfd-card { background: var(--ui-offer-bg, #fff7d6); }
+.wfd-node.has-problem > .wfd-card { border-color: var(--ui-error-text); }
+.wfd-node.st-done > .wfd-card .wfd-num { background: var(--ui-success); }
+.wfd-node.st-now > .wfd-card { border-color: var(--ui-warning-text); border-width: 2px; background: var(--ui-running-bg); }
+.wfd-node.st-now > .wfd-card .wfd-num { background: var(--ui-warning-text); }
+.wfd-node.st-failed > .wfd-card { border-color: var(--ui-error-text); background: var(--ui-error-bg); }
+.wfd-node.st-failed > .wfd-card .wfd-num { background: var(--ui-error-text); }
+.wfd-node.st-todo > .wfd-card, .wfd-node.st-skipped > .wfd-card { border-style: dashed; color: var(--ui-text-2); }
+.wfd-node.st-todo > .wfd-card .wfd-num, .wfd-node.st-skipped > .wfd-card .wfd-num { background: var(--ui-text-3); }
 .wfd-ways { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 520px; }
 .wfd-ways li { padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-bg); font-size: 12px; }
 .wfd-way-label { font-weight: 700; color: var(--ui-text); }
@@ -75,3 +69,52 @@
 .cc-wf-diagram { overflow: auto; max-height: 60vh; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-soft, #f6f8fb); }
 .cc-wf-act { margin-top: 10px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 6px; }
 .cc-wf-act-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* OneAgentStudio's workflow editor (review round, 26 Nov 2026; design A): step list, diagram, settings */
+.wfe { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.wfe-tabs { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--ui-border); }
+.wfe-tabs .ui-btn { margin: 4px 0 4px 6px; }
+.wfe-bad { margin-left: 6px; padding: 0 6px; border-radius: 9px; background: var(--ui-error-text); color: #ffffff; font-size: 11.5px; font-weight: 700; }
+.wfe-body { flex: 1; display: grid; grid-template-columns: 220px minmax(0, 1fr) 340px; min-height: 0; }
+.wfe-palette { border-right: 1px solid var(--ui-border); padding: 10px 12px; overflow: auto; font-size: 13px; }
+.wfe-pal-h { margin: 12px 0 4px; font-size: 12px; font-weight: 700; color: var(--ui-text-2); text-transform: uppercase; letter-spacing: .03em; }
+.wfe-pal { list-style: none; margin: 0; padding: 0; }
+.wfe-pal-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 6px; border: 0; border-radius: 4px; background: transparent; color: var(--ui-text);
+  font: inherit; text-align: left; cursor: grab; }
+.wfe-pal-item:hover, .wfe-pal-item:focus-visible { background: var(--ui-row-hover); }
+.wfe-dot { flex: none; width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.wfe-dot.is-round { border-radius: 50%; } .wfe-dot.is-diamond { transform: rotate(45deg); }
+.wfe-pal-tip { margin-top: 14px; font-size: 12px; }
+.wfe-canvas { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--ui-soft, #f6f8fb); outline: none; }
+.wfe-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
+.wfe-tools .st-tool { width: auto; padding: 0 8px; }
+.wfe-tools .ui-input { width: 150px; height: 28px; }
+.wfe-zoom { min-width: 40px; text-align: center; font-size: 12.5px; }
+.wfe-scroll { flex: 1; overflow: auto; }
+.wfe-mini { position: absolute; right: 10px; bottom: 10px; width: 180px; height: 220px; overflow: hidden; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-bg);
+  box-shadow: 0 2px 8px rgba(12, 18, 30, .15); }
+.wfe-props { border-left: 1px solid var(--ui-border); overflow: auto; padding: 10px 14px; }
+.wfe-none { padding: 6px 0; }
+.wfe-settings, .wfe-dry { display: flex; flex-direction: column; gap: 8px; }
+.wfe-set-head { display: flex; align-items: center; gap: 8px; }
+.wfe-set-head strong { font-size: 15px; }
+.wfe-two, .wfe-three { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.wfe-three { grid-template-columns: 1fr 1fr 1fr; }
+.wfe-count { padding-bottom: 8px; }
+.wfe-fieldset { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.wfe-fieldset legend { font-weight: 600; padding: 0 4px; }
+.wfe-branch { border-bottom: 1px dashed var(--ui-border); padding-bottom: 6px; }
+.wfe-assignee { display: flex; flex-direction: column; gap: 6px; }
+.wfe-page { padding: 14px 16px; max-width: 760px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.wfe-radio { border: 0; padding: 0; margin: 0; }
+.wfe-radio legend { font-weight: 600; margin-bottom: 4px; }
+.wfe-problems { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.wfe-ok { color: var(--ui-ok-text); font-weight: 600; }
+.wfe-ask { border: 2px solid var(--ui-warning-text); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.wfe-ask-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.wfe-path { margin: 0; padding-left: 18px; font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
+.wfe-data { max-height: 220px; overflow: auto; font-size: 12px; }
+/* the run panel sits inside the list page (.cc-list li is a flex row with a line under it): steps keep their own layout */
+.cc-list .cc-wf-steps > li.cc-wf-step { display: grid; min-height: 0; border-bottom: 1px solid var(--ui-border); }
+.cc-list .cc-wf-steps > li.cc-wf-step.is-now { border-bottom-width: 2px; border-bottom-color: var(--ui-warning-text); }
+.cc-list .cc-wf-branches > li { display: block; min-height: 0; border-bottom: 0; }

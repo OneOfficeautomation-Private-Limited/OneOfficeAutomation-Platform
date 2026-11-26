@@ -257,7 +257,9 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
                 : db.one("SELECT * FROM workflow_runs WHERE reference = ? AND parent_id IS NULL ORDER BY created DESC LIMIT 1", reference);
         if (r == null) throw notFound("Workflow run");
         Map<String, Object> m = shown(r, openTasks(String.valueOf(r.get("id"))));
-        m.put("tasks", db.query("SELECT id, stage, kind, title, assignee, status, claimed_by, outcome, created, completed, due FROM human_tasks WHERE workflow_run_id = ? ORDER BY created", r.get("id")));
+        // its own tasks and its branches' and sub-workflow's
+        m.put("tasks", db.query("SELECT id, stage, kind, title, assignee, status, claimed_by, outcome, created, completed, due FROM human_tasks WHERE workflow_run_id = ? "
+                + "OR workflow_run_id IN (SELECT id FROM workflow_runs WHERE parent_id = ?) ORDER BY created", r.get("id"), r.get("id")));
         try { m.put("steps", steps(definition(r))); } catch (RuntimeException e) { m.put("steps", List.of()); }
         List<Map<String, Object>> children = new ArrayList<>();
         for (Map<String, Object> ch : db.query("SELECT * FROM workflow_runs WHERE parent_id = ? ORDER BY created", r.get("id"))) {

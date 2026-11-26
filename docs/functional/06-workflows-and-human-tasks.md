@@ -23,12 +23,21 @@ notifications by inbox and e-mail, cancellation, and the permissions involved.
 12. Notifications
 13. Cancelling a workflow run
 14. Permissions and audit
+15. Test run (a dry run in Studio)
 
 ## 1. Workflows and forms as repository items
 
 - A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in OneAgentStudio (Create >
   Workflow, Create > Form) and published with **Publish to One CommandCenter**, which checks them in as the live
   production version.
+- **The editor** (since 26 Nov 2026): the step list on the left (search it; drag a step onto a **+** in the diagram, or
+  double-click it to add it after the selected step), the diagram in the middle (numbered steps; a decision's ways as
+  chips that point to their step; a Parallel step's branches side by side), and the selected step's settings on the
+  right. Copy, Paste, Delete, Move up and down, Find a step, zoom, Fit and a mini map. Tabs: **Flow**, **Start and
+  data** (start with inputs or a form, the run title, outputs), **Who does what** (every person, role, team and
+  address the workflow uses) and **Problems** (the same checks as check-in; click one to go to the step). **Check**
+  opens Problems; **Test run…** is a dry run (section 15). The editor is the orchestration module's: without the module
+  a workflow opens as text.
 - Like agents they have versions, check-out and a live production version. A workflow run uses the live version of the
   workflow at its start and keeps that version to the end; forms and agents are read at their live versions when a
   stage reaches them.
@@ -42,10 +51,19 @@ A workflow is an ordered list of stages, each with an id, a name and a type.
 | Stage (type) | Settings | What it does |
 | --- | --- | --- |
 | Agent task (`bot`) | Agent path (`.flow.json`), inputs (values or `$name` from the workflow data), optional runner pool | Starts the agent's live version as the person who started the workflow, at priority 3, on the pool or on the least busy online runner. The workflow waits for the run. |
-| Human task (`form`) | Form path (`.form.json`), assignee, optional description, optional due time in hours | Puts the form in the Task inbox of the assignee and waits for it |
-| Approval (`approval`) | Assignee, optional description, due time, what a rejection does (`on_reject`) | Asks a person to approve or reject, and waits |
-| Decision (`decision`) | Condition (an expression such as `$amount > 1000`), target if true, target if false | Evaluates the condition and goes to one stage or another |
+| Human task (`form`) | Form path (`.form.json`), assignee, optional description, optional due time in hours and what happens when late (`escalate`) | Puts the form in the Task inbox of the assignee and waits for it |
+| Approval (`approval`) | Assignee, how many must approve (`approvals_needed`: a number, or `all` for everyone named), the form the approver sees (optional, read-only), button labels (`approve_label`, `reject_label`), a reason to reject (`reason_required`), due time and `escalate`, what a rejection does (`on_reject`) | Asks people to approve or reject, and waits |
+| Decision (`decision`) | Ways in order (`branches`: each a `name`, a `condition` and where it goes, `goto`), then `else`. The older form, one `condition` with `if_true` and `if_false`, still works | Takes the first way whose condition is true, else `else` |
 | Notification (`notify`) | Recipients (`to`), message, optional subject | Sends an inbox notice and/or an e-mail, then moves on without waiting |
+| Parallel (`parallel`) | Branches (each a `name` and its own `stages`), `on_failure`: `stop` (default) or `finish` | Runs the branches at the same time and goes on when all are done (section 6) |
+| Wait (`wait`) | `until` (a date and time, or a value such as `$due_date$`), or `days`, `hours`, `minutes` | Waits; a time already passed does not wait |
+| Sub-workflow (`subflow`) | Workflow path (`.process.json`), data it starts with (`inputs`; empty: all of this workflow's data) | Starts the other workflow's live version and waits; its data comes back. If it fails, this one fails |
+| End (`end`) | `status`: `completed`, `failed` or `cancelled`; optional `message` | Ends the run with that state and message |
+
+**Who a task goes to** (`assignee`): people and roles (`user:NAME`, `role:NAME`, several separated by commas; whoever
+opens it first takes it), `starter` (the person who started the run), or one random member (`random:team:NAME`,
+`random:role:NAME`) to spread the work. **Read a document** and **AI step** in the step list are agent tasks whose
+agent list shows only agents that read documents or use AI.
 
 **Next stage.** After a stage the run goes to the stage named in its `next`, else to the following stage in the list,
 else it ends. `end` as a target ends the run. A decision without a target for its outcome continues with the following stage.
@@ -62,6 +80,10 @@ Checked at check-in and publish; problems block it:
 | A human task or approval has an assignee |
 | A decision has a condition that parses as an expression |
 | A notification has a recipient |
+| A decision's ways each have a condition; Everyone-must-approve names the approvers as people |
+| A parallel step has at least two branches, each with steps; ids are unique across the workflow |
+| A wait has a date and time or a period; a sub-workflow names a `.process.json`; an End's status is known |
+| Escalation needs a due time, and Give it to someone else names who |
 | `next`, `if_true`, `if_false` and `on_reject` point to an existing stage, `end` (or, for `on_reject`, `continue`) |
 | A start form, when given, is a `.form.json` |
 
@@ -69,8 +91,10 @@ A form must have a `fields` list.
 
 ## 4. Starting a workflow
 
-- From **Workflow** (or Start in the agent repository), or `POST` to the workflow API, with optional starting data
-  (for example `{"amount": 1200}`).
+- From **Run > Workflow runs** (or Start in the agent repository), or `POST` to the workflow API, with optional
+  starting data (for example `{"amount": 1200}`).
+- **Run title**: a workflow can name its runs (`"title": "Invoice $number$"`); a run started without a reference gets
+  the title, filled in from its data, as its reference.
 - **Start form**: a workflow can name a start form. Its fields are asked when the workflow starts, and data from the API
   is checked against them like a submitted form. `GET /api/workflows/form?path=` returns the start form.
 - **Reference**: a start can carry a reference of up to 200 characters (a ticket or order number). Runs can be found by
@@ -82,7 +106,7 @@ A form must have a `fields` list.
 | State | Meaning |
 | --- | --- |
 | `running` | The engine is moving the run, or an agent task waits for a runner to come online |
-| `waiting` | Waiting for an agent run, a human task or an approval |
+| `waiting` | Waiting for an agent run, a human task or an approval, a time (Wait), or its branches or sub-workflow |
 | `completed` | Reached the end (including a rejection whose `on_reject` is `end`) |
 | `failed` | An agent task failed or was stopped (`WF.AGENT_FAILED`, `WF.AGENT_STOPPED`), the starter was disabled (`WF.STARTER_DISABLED`), or a stage raised an error (`WF.STAGE_FAILED` or the stage's own code) |
 | `cancelled` | Cancelled by a person (`WF.CANCELLED`) |
@@ -96,9 +120,16 @@ When a run ends (any final state), its open human tasks are set to `cancelled`; 
   online; the agent starts when one is", and the clock tries again.
 - **Agent task finished**: success merges the agent's outputs into the data and continues; failure or stop fails the workflow.
 - **Human task or approval completed**: the answers or outcome are merged and the run continues.
+- **Parallel**: each branch runs as a run of its own under the workflow run (`parent_id`, `branch`), with a copy of
+  the data; they are not listed in Run > Workflow runs but in the run's Steps. When all are done, each branch's data
+  is kept under the step id by branch name (and as `branches`), and its values at the top level. When one fails:
+  `stop` stops the others at once, `finish` lets them finish; the workflow then fails (`WF.BRANCH_FAILED`).
+- **Wait**: the run waits (`wake_at`); the server clock moves it on when the time comes.
+- **Sub-workflow**: the other workflow runs under this one; its data comes back when it completes.
 - Every event is added to the run's **timeline** (history) with time, stage and details: `agent_started`,
-  `agent_finished`, `task_created`, `task_completed`, `approved`, `rejected`, `decided`, `notified`, `waiting`,
-  `failed`, `cancelled`.
+  `agent_finished`, `task_created`, `task_completed`, `approved`, `approved_partly`, `rejected`, `decided`, `notified`,
+  `waiting`, `waited`, `split`, `joined`, `branch_failed`, `subflow_started`, `subflow_finished`, `ended`,
+  `escalated`, `reminded`, `reassigned`, `skipped`, `failed`, `cancelled`.
 
 ## 7. Workflow data
 
@@ -157,7 +188,11 @@ A required field (other than a checkbox) that is empty is refused with "LABEL is
 
 ## 10. Approvals
 
-- The outcome must be `approved` or `rejected`; a comment is optional.
+- The outcome must be `approved` or `rejected`; a comment is optional unless the step asks for a reason to reject.
+- **Several approvers**: with `approvals_needed` of 2 or more (or `all`), each approval is kept and the task is given
+  again (for `all`, to those still to approve) until enough have approved; no one approves the same step twice. A
+  rejection ends the step at once. The result lists the `approvers`.
+- **Labels**: the Task inbox shows the step's own Approve and Reject labels.
 - On rejection the stage's `on_reject` decides:
 
 | `on_reject` | Effect |
@@ -169,8 +204,9 @@ A required field (other than a checkbox) that is empty is refused with "LABEL is
 ## 11. Due times
 
 A human task or approval can have a due time in hours (decimals allowed) from the moment it is made. An open or
-claimed task past its due time is shown as **Overdue** in the inbox. A due time does not reassign, escalate or cancel
-the task.
+claimed task past its due time is shown as **Overdue** in the inbox and **Late** in Run > Workflow runs. The step can
+say what happens then (`escalate`), once per task: `remind` tells the people again; `reassign` gives the task to
+`to` (people or roles). Without it the task only shows as late.
 
 ## 12. Notifications
 
@@ -183,8 +219,12 @@ the task.
 ## 13. Cancelling a workflow run
 
 - The person who started a run may cancel it; others need `runs.stop`. A run that has already ended cannot be cancelled.
-- Cancelling asks a running agent task to stop, stops its queued runs, withdraws open human tasks, and ends the run as
-  `cancelled`.
+- Cancelling asks a running agent task to stop, stops its queued runs, withdraws open human tasks, stops its branches
+  and sub-workflow, and ends the run as `cancelled`.
+- **Remind**, **Reassign** and **Skip step** (Run > Workflow runs, `runs.stop`): tell the people with the run's open
+  tasks again; give the open tasks to someone else; or leave the step the run waits on (with a reason: its tasks are
+  withdrawn, its agent run and branches stopped) and go on to the next. Each is in the timeline and the audit trail
+  (`workflow.remind`, `workflow.reassign`, `workflow.skip`).
 
 ## 14. Permissions and audit
 
@@ -192,7 +232,7 @@ the task.
 | --- | --- |
 | Start a workflow, read its start form | `runs.start` |
 | See workflow runs and their timelines | `runs.view` |
-| Cancel someone else's workflow run | `runs.stop` |
+| Cancel someone else's workflow run; Remind, Reassign, Skip step | `runs.stop` |
 | Act on a task | Being an assignee (or the person who claimed it); `users.manage` for any task |
 | Publish workflows and forms | `repo.checkin` with folder access edit (manage to make them live) |
 
@@ -200,6 +240,13 @@ Agent tasks run as the starter, so the starter's folder access and vault permiss
 
 Audited: `workflow.start`, `workflow.completed`, `workflow.failed`, `workflow.cancelled`, `workflow.cancel`,
 `task.claim`, `task.release`, `task.complete`.
+
+## 15. Test run (a dry run in Studio)
+
+**Test run…** in the workflow editor walks the workflow without running anything: no agent starts and no task or
+e-mail goes out. Give the starting data, then for each agent task, form, approval or sub-workflow say what it gives
+back (or that it fails). Decisions are worked out from the data so far with Studio's formula check; Parallel branches
+go one after the other. The diagram shows the path (done, now, failed) and the panel lists it with the data so far.
 
 ## Related documents
 

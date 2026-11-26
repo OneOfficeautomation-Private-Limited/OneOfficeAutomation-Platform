@@ -168,8 +168,8 @@ and a **runtime** account with data read/write rights only.
 | `queue_items` | Work items | `queue_id`, `reference`, `data`, `status`, `priority`, `attempts`, `run_id`, `device_id`, `defer_until`, `error`, `result` |
 | `work_item_models` | Typed item fields | `name`, `fields` |
 | `queue_members` | Queue roles | `queue_id`, `principal`, `member_role` (owner, participant, consumer) |
-| `workflow_runs` | Workflow instances | `path`, `version`, `status`, `stage`, `data`, `history`, `reference`, `started_by`, `error` |
-| `human_tasks` | Task inbox | `workflow_run_id`, `stage`, `kind`, `title`, `form`, `data`, `assignee`, `status`, `claimed_by`, `outcome`, `result`, `due`, `completed_by` |
+| `workflow_runs` | Workflow instances; a parallel branch or sub-workflow is a run under its parent (schema 51) | `path`, `version`, `status`, `stage`, `data`, `history`, `reference`, `started_by`, `error`, `parent_id`, `branch`, `wake_at` |
+| `human_tasks` | Task inbox | `workflow_run_id`, `stage`, `kind`, `title`, `form`, `data`, `assignee`, `status`, `claimed_by`, `outcome`, `result`, `due`, `completed_by`, `escalated` |
 | `api_tasks` | Agents behind a URL | `bot_path`, `device_id`, `pool_id`, `token_hash`, `timeout_seconds`, `enabled`, `calls`, `last_used` |
 
 ### 4.5 Vault, values and connections

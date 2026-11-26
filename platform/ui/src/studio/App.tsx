@@ -6,7 +6,12 @@ import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu
 import { Automation, find as findNode, showInList, STATUS as FILE_STATUS } from "./Automation";
 import { FileProperties } from "./FileProperties";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
-import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
+import { DocumentEditor, FormEditor, SkillEditor, TextEditor } from "./ItemEditors";
+import { modulePart } from "../modules/pages";
+
+/** The orchestration module's workflow editor (review round, 26 Nov 2026), when the module is installed. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const WorkflowEditorPart = modulePart<any>("workflow-editor");
 import { ObjectRepositoryEditor } from "./ObjectRepository";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
@@ -852,7 +857,9 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
               {scriptRun.error && <pre className="st-error">{scriptRun.error}</pre>}
             </section>}</>
         : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
-        : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} agents={loadAgents} />
+        : tab.itemType === "process" ? (WorkflowEditorPart ? <WorkflowEditorPart data={data} onChange={set} tree={tree} agents={loadAgents}
+            readItem={(p: string) => api.item(p).then((x) => x.text)} evaluate={(e: string, v: Record<string, unknown>) => api.formulaPreview(e, v)} />
+          : <p className="st-alert" role="alert">Workflows are a module that is not installed here, so this file opens as text only. Install the Orchestration module to design workflows.</p>)
         : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />
         : tab.itemType === "objects" ? <ObjectRepositoryEditor data={data} onChange={set} />
         : <SkillEditor data={data} onChange={set} name={tab.path.split("/").pop()!.replace(/\.json$/i, "")} />}

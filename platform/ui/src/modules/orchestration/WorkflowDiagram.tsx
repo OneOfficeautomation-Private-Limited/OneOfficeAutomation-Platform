@@ -12,7 +12,7 @@ export type StepState = "done" | "now" | "failed" | "todo" | "skipped";
 /** Where a new step goes: after a step, at the end of a branch, or at the end of the workflow. */
 export type Slot = { after: string | null; branch?: { par: string; index: number } };
 
-export function WorkflowDiagram({ stages, selected, onSelect, states, editable, onSlot, onDropAt, find, problemSteps, label = "Workflow diagram" }: {
+export function WorkflowDiagram({ stages, selected, onSelect, states, editable, onSlot, onDropAt, find, problemSteps, brief, label = "Workflow diagram" }: {
   stages: Step[]; selected?: string | null; onSelect?: (id: string) => void;
   states?: Record<string, StepState>; editable?: boolean;
   /** A click on a place between steps (editable). */
@@ -20,6 +20,8 @@ export function WorkflowDiagram({ stages, selected, onSelect, states, editable, 
   /** Something dragged from the step list was dropped on a place (editable); data is what was dragged. */
   onDropAt?: (slot: Slot, data: string) => void;
   find?: string; problemSteps?: Set<string>; label?: string;
+  /** Names and types only (a run's steps, which carry no settings). */
+  brief?: boolean;
 }) {
   const [hover, setHover] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function WorkflowDiagram({ stages, selected, onSelect, states, editable, 
   const slotKey = (s: Slot) => (s.after ?? "") + "|" + (s.branch ? s.branch.par + "#" + s.branch.index : "");
   const place = (slot: Slot, last = false): ReactNode => !editable ? <span className="wfd-line" aria-hidden="true" /> : (
     <button type="button" className={"wfd-slot" + (over === slotKey(slot) ? " is-over" : "") + (last ? " is-last" : "")}
-      aria-label={slot.branch ? "Add a step to this branch" : slot.after ? "Add a step after " + nameOf(slot.after) : "Add a step at the end"}
+      aria-label={slot.branch ? "Add a step to this branch" : slot.after ? "Add a step after " + nameOf(slot.after) : "Add a step at the start"}
       title="Add a step here (or drop one from the step list)"
       onClick={() => onSlot?.(slot)}
       onDragOver={(e: DragEvent) => { e.preventDefault(); setOver(slotKey(slot)); }} onDragLeave={() => setOver(null)}
@@ -53,7 +55,7 @@ export function WorkflowDiagram({ stages, selected, onSelect, states, editable, 
         <button type="button" className="wfd-card" aria-pressed={onSelect ? selected === s.id : undefined} aria-label={nums.get(s.id) + " " + (str(s.name) || s.id) + ", " + typeLabel(s.type) + (st ? ", " + st : "")}
           onClick={() => onSelect?.(s.id)} disabled={!onSelect}>
           <span className="wfd-num" aria-hidden="true">{st === "done" ? "✓" : st === "failed" ? "!" : nums.get(s.id)}</span>
-          <span className="wfd-text"><strong>{str(s.name) || s.id}</strong><span className="wfd-meta">{typeLabel(s.type)} · {meta(s, nameOf)}</span></span>
+          <span className="wfd-text"><strong>{str(s.name) || s.id}</strong><span className="wfd-meta">{typeLabel(s.type)}{brief ? "" : " · " + meta(s, nameOf)}</span></span>
           {problemSteps?.has(s.id) && <span className="wfd-warn" title="This step has a problem; see Problems">!</span>}
         </button>
         {jumps(s).length > 0 && <ul className="wfd-ways" aria-label={"Where " + (str(s.name) || s.id) + " goes"}>

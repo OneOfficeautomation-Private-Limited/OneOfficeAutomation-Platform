@@ -256,7 +256,8 @@ listed. They work only while Studio runs ([document 04](04-schedules-and-trigger
 
 ## 20. Other item editors
 
-Forms (fields and their types), workflows (stages, start form, due hours, what a rejection does), document
+Forms (fields and their types), workflows (a diagram editor since 26 Nov 2026: step list, diagram, settings, Start and
+data, Who does what, Problems, Test run; see [06](06-workflows-and-human-tasks.md)), document
 intelligence (fields to extract), Prompt Skills (instructions, prompt, inputs, answer type, temperature), scripts and
 text files open in their own editors in the centre area, with Save and, for scripts, Run.
 

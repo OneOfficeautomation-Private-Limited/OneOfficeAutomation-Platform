@@ -266,7 +266,7 @@ function RunView({ api, user, id, onClose, onNotice }: { api: CrApi; user: CrUse
           <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
       </div>
       {tab === "steps" && <ol className="cc-wf-steps" aria-label="Steps">{(r.steps ?? []).map((s, i) => stepRow(s, i + 1))}</ol>}
-      {tab === "diagram" && <div className="cc-wf-diagram"><WorkflowDiagram stages={toSteps(r.steps ?? [])} states={states} label="This run's steps" /></div>}
+      {tab === "diagram" && <div className="cc-wf-diagram"><WorkflowDiagram stages={toSteps(r.steps ?? [])} states={states} brief label="This run's steps" /></div>}
       {tab === "timeline" && <ol className="cc-run-steps" aria-label="History">
         {(r.history ?? []).map((e, i) => { const bad = e.event.endsWith("failed") || e.event === "rejected"; const wait = e.event === "task_created" || e.event === "waiting";
           return <li key={i} className={bad ? "is-failed" : undefined}>

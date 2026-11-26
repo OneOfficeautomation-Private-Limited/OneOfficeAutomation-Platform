@@ -1047,10 +1047,10 @@ describe("new Studio", () => {
     const { api, savedItems } = fakeServer();
     render(<App api={api} />);
     await openItem("Approve");
-    const stages = await screen.findByRole("region", { name: "Workflow stages" });
-    fireEvent.click(within(stages).getByRole("button", { name: "Add" }));
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "Finance/Invoices/Invoice intake.flow.json" } });
-    expect(within(stages).getByText(/Agent task · Finance\/Invoices\/Invoice intake.flow.json/)).toBeTruthy();
+    // the orchestration module's editor (design A, 26 Nov 2026): add from the step list, choose the agent in the settings
+    fireEvent.doubleClick(within(await screen.findByRole("complementary", { name: "Steps to add" })).getByRole("button", { name: "Agent task" }));
+    fireEvent.change(within(screen.getByRole("complementary", { name: "Settings" })).getByLabelText("Agent"), { target: { value: "Finance/Invoices/Invoice intake.flow.json" } });
+    expect(within(screen.getByRole("group", { name: "Workflow diagram" })).getByText(/Agent task · Invoice intake/)).toBeTruthy();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
     expect(JSON.parse(savedItems["Finance/Invoices/Approve.process.json"]).stages).toEqual([
       { id: "bot", type: "bot", name: "Agent task 1", bot: "Finance/Invoices/Invoice intake.flow.json" }]);
