@@ -1113,7 +1113,8 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Agents");
     const where = await screen.findByRole("tablist", { name: "Where" });
     expect(within(where).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Public", "Private"]);
-    await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).getAttribute("href")).toBe("../studio/#private"));
+    // fix list 27 Nov, item 3b (P1): Private opens in this page, in the console's frame, not as Studio's own page
+    await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).tagName).toBe("BUTTON"));
     const create = screen.getByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     expect(await screen.findByRole("menuitem", { name: /^New agent/ })).toBeTruthy();   // made in Private (#private/new)

@@ -148,6 +148,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   const [foldersWidth, setFoldersWidth] = usePanelSize("public.folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
   const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
+  const [deep, setDeep] = usePersistent("public.subfolders", true);
   const [choosingCols, setChoosingCols] = useState(false);
   const tree = useMemo(() => folderTree((list?.agents ?? []).map((a) => a.path)), [list]);
   useEffect(() => {
@@ -185,7 +186,8 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   // with a search, every match in the repository; otherwise the chosen folder's agents (its sub-folders are in the tree
   // only, improvement list 13 Nov 2026, item 2)
   const subfolders: TreeNode[] = [];
-  const agents = (list?.agents ?? []).filter((a) => q || folderOf(a.path) === here.id);
+  // fix list 27 Nov, item 3b: Include subfolders, on unless turned off, as the console's Public tab, so both count the same
+  const agents = (list?.agents ?? []).filter((a) => q || (deep ? !here.id || a.path.startsWith(here.id + "/") : folderOf(a.path) === here.id));
   const openFolder = (id: string) => { setFolder(id); setExpanded(new Set([...expanded, ...id.split("/").map((_, i, all) => all.slice(0, i).join("/"))])); };
   const shownCols = PUBLIC_COLUMNS.filter((c) => !hiddenCols.includes(c.key));
   const cols = shownCols.length + (q ? 3 : 2);
@@ -210,6 +212,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
         <span className="st-items-count" aria-live="polite">{list ? agents.length + (agents.length === 1 ? " agent" : " agents") : ""}</span>
         {!status.sameServer && <span className="st-items-count" title={status.url ?? undefined}>Signed in as {me}</span>}
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className={"cc-chip-check" + (deep ? " is-on" : "")}><input type="checkbox" checked={deep} onChange={(e) => setDeep(e.target.checked)} /> Include subfolders</label>
         <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
         <button type="button" className="st-tool" aria-label="Refresh" title="Refresh" onClick={reload}><Icon name="loop" size={15} /></button>
         {status.sameServer ? <span className="st-muted">Signed in through One CommandCenter</span>

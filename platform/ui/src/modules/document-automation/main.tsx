@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import "../../theme.css";
 import "../../components/components.css";
 import "../../studio/studio.css";
+import "../../console/console.css";
 import "./docflow.css";
 import { SampleApi } from "./api";
 import { App } from "./App";

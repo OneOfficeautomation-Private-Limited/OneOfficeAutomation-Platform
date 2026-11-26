@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type RunWindowSize, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
@@ -61,7 +61,15 @@ function agentsTab(): "public" | "private" {
   try { return localStorage.getItem("ooa.studio.automation.place") === '"public"' ? "public" : "private"; } catch { return "private"; }
 }
 
-export function App({ api: given }: { api?: StudioApi }) {
+/**
+ * Studio inside the console's Agents page, Private tab (fix list 27 Nov, item 3b, option P1): when Studio runs on the same
+ * computer as One CommandCenter, its workspace shows in the console's own frame, with no reload. Without a top bar or a
+ * menu of its own: the console's are used, the editor's name and Save / Run / Check in sit in a bar above the open
+ * items, and the console's menu folds while something is open (onEditing). On another computer Studio runs on its own.
+ */
+export type Embedded = { onPublic: () => void; onEditing: (open: boolean) => void; startNew?: boolean };
+
+export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embedded }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
   const [api] = useState(() => given ?? new StudioApi());
   const vaultList = useCallback(() => api.crCredentials().then((r) => r.connected ? r.credentials : Promise.reject(new Error("not connected"))), [api]);   // typed when not connected
@@ -206,10 +214,11 @@ export function App({ api: given }: { api?: StudioApi }) {
   // Ctrl+K goes to the workspace search, as the console's search
   const searchBox = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
+    if (embedded) return;   // in the console, Ctrl+K is the console's search
     const onKey = (e: KeyboardEvent) => { if (is(e, "app.search")) { e.preventDefault(); searchBox.current?.focus(); searchBox.current?.select(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   // the keys of the shortcut list (components/shortcuts.ts): save, undo and redo (outside text fields, which keep their
   // own undo); run and debug as UiPath's (F5 debug or continue, Ctrl+F5 run, Shift+F5 stop, F10 step over, F11 step into,
   // Shift+F11 step out), with AA's F6 as step over too; ? shows the Keyboard shortcuts
@@ -546,11 +555,14 @@ export function App({ api: given }: { api?: StudioApi }) {
   const dirty = current ? isDirty(current) : false;
   const closingTab = tabs.find((t) => t.path === closing) ?? null;
 
-  return (
-    <div className="st-app">
-      <header className="st-top">
-        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is OneAgentStudio */}
-        <TopBrand product={current ? "OneAgentStudio" : undefined} />
+  // inside the console, its menu folds while an item is open, as Studio's own does
+  const isOpen = !!current;
+  useEffect(() => { embedded?.onEditing(isOpen); }, [isOpen]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => embedded?.onEditing(false), []);   // eslint-disable-line react-hooks/exhaustive-deps
+  // inside the console: its help panel and its <main> are used, so Studio adds neither
+  const Wrap = embedded ? Fragment : HelpProvider;
+  const MainTag = embedded ? "div" : "main";
+  const crumbs = (
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
@@ -567,12 +579,8 @@ export function App({ api: given }: { api?: StudioApi }) {
               <span key={a.path}>{i ? ", " : ""}<button type="button" className="st-crumb-link" onClick={() => openCaller(a.path)}>{a.name || a.id}</button></span>)}</span> : null;
           })()}
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
-        </nav>
-        <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
-          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
-        {!current && <CompanyName />}
-        <Menu label="Display" title="Display" items={displayItems}
-          trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
+        </nav>);
+  const editActions = (
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current && <>
@@ -592,9 +600,22 @@ export function App({ api: given }: { api?: StudioApi }) {
                 {agent && !isClone && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="plain" icon="close" className="st-top-close" onClick={() => close(current.path)}>Close</Button>
               </>}
-        </div>
-      </header>
+        </div>);
 
+  return (
+    <div className={embedded ? "st-embedded" : "st-app cc-app"}>
+      {!embedded && <header className="st-top">
+        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is OneAgentStudio */}
+        <TopBrand product={current ? "OneAgentStudio" : undefined} />
+        {/* the page's own header names it (Agents); the bar names only an open item, as the console's bar */}
+        {current ? crumbs : <span className="st-crumbs" />}
+        <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
+          onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
+        {!current && <CompanyName />}
+        <Menu label="Display" title="Display" items={displayItems}
+          trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
+        {editActions}
+      </header>}
       {propsFor && (() => {
         const t = tabs.find((x) => x.path === propsFor);
         if (!t) return null;
@@ -608,8 +629,8 @@ export function App({ api: given }: { api?: StudioApi }) {
       {notice && !error && <Notice text={notice} onClose={() => setNotice(null)} />}
       <MinorNotices />
 
-      <HelpProvider><div className="st-body">
-        <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
+      <Wrap><div className={embedded ? "st-body st-embedded-body" : "st-body"}>
+        {!embedded && <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />}
         {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} simple={simple} onSimple={setSimple} onTrigger={(kind, where) => {
           if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
           // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
@@ -633,7 +654,8 @@ export function App({ api: given }: { api?: StudioApi }) {
             setNotice("Captured " + (prop("ControlType") || "a control") + "; finish the trigger in One CommandCenter.");
           }, (e) => { tab?.close(); fail(e); });
         }} />}
-        <main className="st-main">
+        <MainTag className={embedded ? "st-main st-embedded-main" : "st-main cc-main"}>
+          {embedded && current && <div className="st-editbar">{crumbs}{editActions}</div>}
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
               {tabs.map((t) => (
@@ -680,18 +702,18 @@ export function App({ api: given }: { api?: StudioApi }) {
                 api={api} packages={packages} onSave={() => save(item.path)} onExtraction={() => makeExtraction(item)}
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
-              ? <Automation view={view} tree={tree}
-                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal}
+              ? <Automation view={view} tree={tree} onPublic={embedded?.onPublic} startNew={embedded?.startNew}
+                  publicView={embedded ? undefined : <PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal}
                     request={repoLink} onRequestDone={() => setRepoLink(null)} onNotice={setNotice} onError={fail} />} onRepoLink={setRepoLink} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
-        </main>
-        <HelpPanel page={active ?? view} links={!active ? <HelpLinks k={"studio:agents-" + agentsTab()} long /> : undefined} />
+        </MainTag>
+        {!embedded && <HelpPanel page={active ?? view} links={!active ? <HelpLinks k={"studio:agents-" + agentsTab()} long /> : undefined} />}
         {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
         {copyingClone && <CopyToPrivate api={api} path={copyingClone} onClose={() => setCopyingClone(null)}
           onCopied={(local, note) => { setCopyingClone(null); openLocal(local, note).catch(fail); }} />}
-      </div></HelpProvider>
+      </div></Wrap>
 
       {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}
         deps={checkInDeps}

@@ -200,8 +200,8 @@ describe("new Studio", () => {
   it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["Build", "Run", "Manage", "Monitor"]) expect(within(menu).getByText(s)).toBeTruthy();   // 26 Nov 2026; Setup is the console's install guide
-    expect(within(menu).queryByText("Setup")).toBeNull();
+    // 27 Nov 2026 (fix list item 3a): the same menu as the console's, Setup too (it opens the console's install guide)
+    for (const s of ["Setup", "Build", "Run", "Manage", "Monitor"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
     expect(within(menu).getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
     // the same entries as the console; one section open at a time (round 2, M1)
@@ -268,7 +268,7 @@ describe("new Studio", () => {
     expect(screen.getByRole("heading", { name: "Agents" })).toBeTruthy();
 
     // the Create menu (opened from the keyboard here) offers the types, then the dialog asks only the name
-    const create = screen.getByRole("button", { name: "Create ▾" });
+    const create = screen.getByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
@@ -294,7 +294,7 @@ describe("new Studio", () => {
   it("asks for a name before creating, and Cancel closes the dialog", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
-    const create = await screen.findByRole("button", { name: "Create ▾" });
+    const create = await screen.findByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
     const dialog = await screen.findByRole("dialog");
@@ -447,7 +447,7 @@ describe("new Studio", () => {
   it("starts a new agent from a blueprint chosen in Create, offering only blueprints whose toolkits are installed", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
-    const create = await screen.findByRole("button", { name: "Create ▾" });
+    const create = await screen.findByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
@@ -1077,7 +1077,7 @@ describe("new Studio", () => {
   it("opens a newly created form in its editor", async () => {
     const { api } = fakeServer();
     render(<App api={api} />);
-    const create = await screen.findByRole("button", { name: "Create ▾" });
+    const create = await screen.findByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Form,/ }));
     const dialog = await screen.findByRole("dialog", { name: "New form" });
@@ -1210,7 +1210,7 @@ describe("new Studio", () => {
   it("creates an AI agent and edits it in the AI agent editor: tools, approval, role, then tries it", async () => {
     const { api, created, runs } = fakeServer();
     render(<App api={api} />);
-    const create = await screen.findByRole("button", { name: "Create ▾" });
+    const create = await screen.findByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^AI agent,/ }));
     const dialog = await screen.findByRole("dialog", { name: "New ai agent" });
@@ -1245,7 +1245,7 @@ describe("new Studio", () => {
   it("adds a model connection in four steps, with the key only as a vault reference, and tests it", async () => {
     const { api, connections } = fakeServer();
     render(<App api={api} />);
-    const create = await screen.findByRole("button", { name: "Create ▾" });
+    const create = await screen.findByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^AI agent,/ }));
     const d = await screen.findByRole("dialog", { name: "New ai agent" });
@@ -1830,7 +1830,7 @@ describe("new Studio", () => {
     fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("v2");
-    expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
+    expect(screen.queryByRole("button", { name: "Create" })).toBeNull();   // Create belongs to the workspace
     fireEvent.keyDown(within(row).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Versions" })); });
     const versions = await screen.findByRole("dialog", { name: "Versions of Finance/Invoice intake" });

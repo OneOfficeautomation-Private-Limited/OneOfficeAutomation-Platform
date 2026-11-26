@@ -90,8 +90,10 @@ export function showInList(api: object, path: string) {
   v.selected = [path];
 }
 
-export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks;
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, onPublic, startNew = false, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode;
+    /** Inside the console's Agents page (fix list 27 Nov, item 3b): its Public tab is the console's own page, so this page shows Private only. */
+    onPublic?: () => void; startNew?: boolean; repo?: RepoHooks;
     onRepoLink?: (r: RepoRequest) => void; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
@@ -141,6 +143,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     if (h === "public" && (act === "checkout" || act === "clone" || act === "copy") && rest.length) onRepoLink?.({ act, path: decodeURIComponent(rest.join("/")) });
     history.replaceState(null, "", location.pathname);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  // in the console (#/automation/private/new: Create > New agent on Public), the Create dialog opens at once
+  useEffect(() => { if (startNew) { setCreateIn(folder); setCreating(ITEM_TYPES.find((t) => t.kind === "TaskBot") ?? null); } }, [startNew]);   // eslint-disable-line react-hooks/exhaustive-deps
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;
@@ -179,6 +183,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     return made;
   };
   const count = (n: number) => n + (n === 1 ? " item" : " items");
+  const agentCount = (n: number) => n + (n === 1 ? " agent" : " agents");
+  const folderCount = (n: number) => n + (n === 1 ? " folder" : " folders");
   const act = {
     copy: (list = chosen) => { if (list.length) { setClip({ paths: list, cut: false }); onNotice("Copied " + count(list.length) + ". Paste them into a folder."); } },
     cut: (list = chosen) => { if (list.length) { setClip({ paths: list, cut: true }); onNotice("Cut " + count(list.length) + ". Paste them into a folder to move them."); } },
@@ -306,26 +312,30 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   return (
     <section className="st-page" aria-labelledby="st-page-title" onKeyDown={keys}>
       <input ref={uploadInput} type="file" multiple hidden aria-label="Files to upload" onChange={(e) => uploaded(e.target.files)} />
-      <header className="st-page-head">
-        <div className="st-head-row">
-          <h1 id="st-page-title">{title}</h1>
-          <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} /><PageIntro k={isPublic ? "studio:agents-public" : "studio:agents-private"} />
-          {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
-            : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
-        </div>
-        {!isPublic && <div className="st-page-actions">
-          <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
-          {/* 14 Nov usability round, item 16: Upload beside New folder, not only in a folder's ⋮ menu */}
-          <Button kind="secondary" icon="up" title={"Upload files from this computer into " + folderName} onClick={() => act.upload(folder)}>Upload</Button>
-          <Menu label="Create" title={"Create in " + folderName}
-            trigger={<Button kind="primary">Create ▾</Button>}
+      {/* fix list 27 Nov, item 3b: the console's header and tabs (Agents, Help, intro, the count line, Manage ▾ and Create ▾,
+          one tab row), so Public and Private look the same in the console and in Studio */}
+      <header className="cc-list-head st-agents-head">
+        <h1 id="st-page-title">{title}</h1>
+        <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} /><PageIntro k={isPublic ? "studio:agents-public" : "studio:agents-private"} />
+        {!isPublic && <span className="cc-list-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
+          : agentCount(everything(tree).filter((n) => n.type === "bot").length) + " · " + folderCount(everything(tree).filter((n) => n.type === "folder").length) + " in your workspace"}</span>}
+        <span className="ov-fill" />
+        {!isPublic && <>
+          {/* 14 Nov usability round, item 16 kept: New folder and Upload one click from the page, now in Manage ▾ as the console's */}
+          <Menu label="Manage" align="end" title={"Manage " + folderName}
+            trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>}
+            items={[{ key: "folder", label: "New folder", description: "In " + folderName, onSelect: () => onNewFolder(folder) },
+              { key: "upload", label: "Upload", description: "Files from this computer into " + folderName, onSelect: () => act.upload(folder) }]} />
+          <Menu label="Create" align="end" title={"Create in " + folderName}
+            trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,
               onSelect: () => { setCreateIn(folder); setCreating(t); } }))} />
-        </div>}
+        </>}
       </header>
-      {publicView && <div className="st-page-tabs" role="tablist" aria-label="Where">
+      {(publicView || onPublic) && <div className="ov-tabs cc-ins-tabs" role="tablist" aria-label="Where">
         {([["public", "Public", "One CommandCenter agent repository: agents checked in, to run"], ["private", "Private", "Your workspace on this computer: build and test"]] as const).map(([k, t, tip]) =>
-          <button key={k} type="button" role="tab" className="st-page-tab" aria-selected={(k === "public") === isPublic} title={tip} onClick={() => setPlace(k)}>{t}</button>)}
+          <button key={k} type="button" role="tab" className="ov-tab" aria-selected={(k === "public") === isPublic} title={tip}
+            onClick={() => k === "public" && onPublic ? onPublic() : setPlace(k)}>{t}</button>)}
       </div>}
       {isPublic ? publicView : <div className="st-page-body">
         <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"

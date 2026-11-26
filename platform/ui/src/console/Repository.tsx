@@ -81,7 +81,9 @@ const HELP_AGENT: HelpTopic = { title: "Agent",
       + "make versions live." },
   ] };
 
-export function Repository({ api, user, onNotice, studio = false }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; studio?: boolean }) {
+export function Repository({ api, user, onNotice, studio = false, onPrivate }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; studio?: boolean;
+  /** Opens the Private tab in this page (fix list 27 Nov, item 3b); true opens Create > Agent there. */
+  onPrivate?: (startNew?: boolean) => void }) {
   const [agents, setAgents] = useState<RepoAgent[] | null>(null);
   const [folders, setFolders] = useState<RepoFolder[]>([]);
   const [requests, setRequests] = useState<{ requests: ProductionRequest[]; approval_on: boolean }>({ requests: [], approval_on: false });
@@ -174,7 +176,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
   };
   const create = [
     ...(can("repo.checkin") ? [{ key: "folder", label: "New folder" + (folder ? " in " + folder.split("/").pop() : ""), onSelect: () => setDialog({ kind: "folder", parent: folder }) }] : []),
-    ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { location.href = "../studio/#private/new"; } }] : []),
+    ...(studio && can("repo.checkin") ? [{ key: "agent", label: "New agent", description: "In your Private workspace", onSelect: () => { if (onPrivate) onPrivate(true); else location.href = "../studio/#private/new"; } }] : []),
   ];
   const folderMenu = [
     ...(can("repo.checkin") ? [{ key: "sub", label: "New subfolder", onSelect: () => setDialog({ kind: "folder", parent: folder }) },
@@ -208,7 +210,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
       <div className="ov-tabs cc-ins-tabs" role="tablist" aria-label="Where">
         <button type="button" role="tab" className="ov-tab" aria-selected title="One CommandCenter agent repository: agents checked in, to run">Public</button>
         {studio && user.permissions.includes("repo.checkin")
-          ? <a className="ov-tab" role="tab" aria-selected={false} href="../studio/#private" title="Your own workspace: build and test agents, then check them in">Private</a>
+          ? <button type="button" className="ov-tab" role="tab" aria-selected={false} onClick={() => onPrivate?.()} title="Your own workspace: build and test agents, then check them in">Private</button>
           : <span className="ov-tab is-off" role="tab" aria-selected={false} aria-disabled title={!user.permissions.includes("repo.checkin")
             ? "Private workspaces are for people who build agents" : "Private workspaces are not set up on this One CommandCenter"}>Private</span>}
       </div>

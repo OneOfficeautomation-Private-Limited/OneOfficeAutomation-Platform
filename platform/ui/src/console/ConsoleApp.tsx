@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
+import { StudioApi } from "../api/client";
 import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry, useFullTextOnHover } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { canSee, FIRST_PAGE, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
@@ -41,11 +42,16 @@ const LOCAL = new Set<string>(["setup", "status", "activity", "audit", "automati
 const MOVED = MOVED_PAGES;
 /** The page in the address (#/activity, or #/activity?run=<id> for one run), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => {
-  const [id, query] = hash.replace(/^#\/?/, "").split("?");
+  const [path, query] = hash.replace(/^#\/?/, "").split("?");
+  const id = path.split("/")[0];   // #/automation/private: the Agents page on its Private tab
   const moved = MOVED[id];
   if (moved) { const q = new URLSearchParams(query ?? ""); q.set("tab", moved[1]); history.replaceState(null, "", "#/" + moved[0] + "?" + q.toString()); return moved[0]; }
   return LOCAL.has(id) ? id : "home";
 };
+/** Which tab of Agents the address opens (fix list 27 Nov, item 3b): #/automation/private, #/automation/private/new (Create > New agent). */
+const agentsTabOf = (hash: string) => { const p = hash.replace(/^#\/?/, "").split("?")[0].split("/"); return p[0] === "automation" && p[1] === "private" ? (p[2] === "new" ? "new" : "private") : "public"; };
+/** Studio's workspace, shown on the Private tab when Studio runs on this computer (option P1): loaded only when opened. */
+const StudioApp = lazy(() => import("../studio/App").then((m) => ({ default: m.App })));
 /** Today's console, which this one is served beside (at <base>/next/). */
 
 /**
@@ -58,12 +64,17 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [api] = useState(() => given ?? new CrApi());
   const [user, setUser] = useState<CrUser | null | undefined>(undefined);   // undefined: still asking
   const [page, setPageState] = useState(() => pageOf(location.hash));
+  const [agentsTab, setAgentsTab] = useState(() => agentsTabOf(location.hash));
+  const [editing, setEditing] = useState(false);   // an item open in the Private workspace: the menu folds, as Studio's
+  const [studioApi] = useState(() => new StudioApi(new URL("../studio/api/", location.href).toString()));
   useEffect(() => { if (user) loadHelpConfig(); }, [user]);   // where Docs and Video point (round 3, item 6)
   // 14 Nov 2026: a click in the menu always opens the page fresh, at its list, even when it is the page already open
   // with an agent, a run or a person shown (it used to stay on that view, which felt stuck)
   const [visit, setVisit] = useState(0);
-  const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); setVisit((n) => n + 1); };
-  useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); setAgentsTab("public"); setVisit((n) => n + 1); };
+  const openPrivate = (startNew = false) => { location.hash = "/automation/private" + (startNew ? "/new" : ""); setAgentsTab(startNew ? "new" : "private"); };
+  const openPublic = () => { location.hash = "/automation"; setAgentsTab("public"); };
+  useEffect(() => { const on = () => { setPageState(pageOf(location.hash)); setAgentsTab(agentsTabOf(location.hash)); }; addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
   useFullTextOnHover();   // cut-off text shows in full on hover (13 Nov 2026, item 11)
   const [reloads, setReloads] = useState(0);   // Retry on a page that could not load mounts it again (E2b)
@@ -141,7 +152,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       {notice && <Notice text={notice} onClose={() => setNotice(null)} />}
       <MinorNotices />
       <HelpProvider><div className="st-body">
-        <CommandMenu sections={user.setup_menu && !hideSetup ? MENU_SECTIONS : MENU_SECTIONS.filter((s) => s.id !== "setup")} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
+        <CommandMenu sections={user.setup_menu && !hideSetup ? MENU_SECTIONS : MENU_SECTIONS.filter((s) => s.id !== "setup")} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor} editing={editing}
           viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
         <main className="st-main cc-main" onKeyDown={listKeys}>
           <Breadcrumb user={user} page={page} onPage={setPage} />
@@ -169,7 +180,10 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "savedconn" && <Connections api={api} user={user} onNotice={setNotice} />}
           {page === "toolkits" && <Toolkits api={api} user={user} onNotice={setNotice} />}
           {page === "connections" && <ModelConnections api={api} user={user} onNotice={setNotice} />}
-          {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} studio={studio} />}
+          {page === "automation" && (agentsTab !== "public" && studio && user.permissions.includes("repo.checkin")
+            ? <Suspense fallback={<p className="st-pad">Loading your workspace…</p>}>
+                <StudioApp api={studioApi} embedded={{ onPublic: openPublic, onEditing: setEditing, startNew: agentsTab === "new" }} /></Suspense>
+            : <Repository api={api} user={user} onNotice={setNotice} studio={studio} onPrivate={openPrivate} />)}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
           </Fragment></PageRetry.Provider>
         </main>
