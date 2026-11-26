@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentSummary, WorkspaceNode } from "../../api/client";
-import { AgentInputs, Button, Field, PrincipalPicker, Select, TextInput } from "../../components";
+import { AgentInputs, Button, Field, PrincipalPicker, Select, SidePanel, TextInput, usePersistent } from "../../components";
 import { WorkflowDiagram, type Slot, type StepState } from "./WorkflowDiagram";
 import { DryRun } from "./DryRun";
 import {
@@ -68,6 +68,8 @@ export function WorkflowEditor({ data, onChange, tree, agents: loadAgents, readI
   const [sel, setSel] = useState<string | null>(null);
   const [find, setFind] = useState("");
   const [palette, setPalette] = useState("");
+  const [palHidden, setPalHidden] = usePersistent("panel.workflow.steps.hidden", false);
+  const [propsHidden, setPropsHidden] = usePersistent("panel.workflow.settings.hidden", false);
   const [zoom, setZoom] = useState(1);
   const [mini, setMini] = useState(false);
   const [clip, setClip] = useState<Step | null>(null);
@@ -157,14 +159,15 @@ export function WorkflowEditor({ data, onChange, tree, agents: loadAgents, readI
         <Button kind="secondary" onClick={() => setDryOpen(true)} disabled={!stages.length}>Test run…</Button>
       </div>
       {tab === "flow" && <div className="wfe-body">
-        <aside className="wfe-palette" aria-label="Steps to add">
+        {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+        <SidePanel title="Steps to add" side="left" collapsed={palHidden} onToggle={() => setPalHidden(!palHidden)} className="wfe-palette">
           <TextInput type="search" aria-label="Search steps" placeholder="Search steps" value={palette} onChange={(e) => setPalette(e.target.value)} />
           {groups.map((g) => <section key={g} aria-label={g}><h3 className="wfe-pal-h">{g}</h3><ul className="wfe-pal">
             {Object.entries(STEP_TYPES).filter(([, t]) => t.group === g).map(([k, t]) => paletteItem(k, t.label, t.color, undefined, t.shape))}
             {g === "Work" && Object.entries(SHORTCUTS).map(([k, sc]) => paletteItem(k, sc.label, sc.color, sc.hint))}
           </ul></section>)}
           <p className="st-muted wfe-pal-tip">Drag a step onto a + in the diagram, or double-click it to add it after the selected step.</p>
-        </aside>
+        </SidePanel>
         <section className="wfe-canvas" aria-label="Diagram" tabIndex={0} onKeyDown={onKey} ref={canvas}>
           <div className="wfe-tools" role="toolbar" aria-label="Diagram tools">
             <button type="button" className="st-tool" onClick={copy} disabled={!chosen}>Copy</button>
@@ -193,13 +196,13 @@ export function WorkflowEditor({ data, onChange, tree, agents: loadAgents, readI
             <WorkflowDiagram stages={stages} selected={sel} onSelect={(id) => { setSel(id); document.querySelector(".wfe-scroll [aria-pressed='true']")?.scrollIntoView({ block: "center" }); }} label="Mini map of the workflow" />
           </div></div>}
         </section>
-        <aside className="wfe-props st-right" aria-label="Settings">
+        <SidePanel title="Settings" side="right" collapsed={propsHidden} onToggle={() => setPropsHidden(!propsHidden)} className="wfe-props st-right">
           {dryOpen ? <DryRun data={data} evaluate={evaluate} onStates={setDry} onClose={() => { setDryOpen(false); setDry(null); }} />
             : props ?? <div className="wfe-none">
               <strong>{str(data.name) || "Workflow"}</strong>
               <p className="st-muted">Select a step to change its settings. {stages.length ? stages.length + " step(s) at the top level, " + all.length + " in all." : "Add the first step from the list on the left."}</p>
             </div>}
-        </aside>
+        </SidePanel>
       </div>}
       {tab === "start" && <section className="wfe-page st-card" aria-label="Start and data">
         <Text label="Name" value={str(data.name)} onCommit={(v) => onChange(withKey(data, "name", v))} />

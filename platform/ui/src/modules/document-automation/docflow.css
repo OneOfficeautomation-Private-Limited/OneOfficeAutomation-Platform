@@ -301,3 +301,6 @@
 .df-tabs.ov-tabs .df-tab-group { display: flex; align-items: stretch; gap: 0; }
 .df-tabs.ov-tabs .df-tab { flex: none; height: auto; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ui-text); font-size: inherit; font-weight: 400; text-decoration: none; }
 .df-tabs.ov-tabs .df-tab[aria-current="page"] { border-bottom-color: var(--ui-accent); background: transparent; color: var(--ui-text); font-weight: 600; }
+/* Fix list 27 Nov, item 4: a folded list leaves a 40 px strip */
+.df-split:has(> .ui-panel-strip-left) { grid-template-columns: 40px minmax(0, 1fr); }
+.df-list > .ui-panel-bar { margin: -10px -10px 0; }

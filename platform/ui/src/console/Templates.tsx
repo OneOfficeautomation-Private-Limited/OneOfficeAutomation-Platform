@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 import { PageIntro } from "../shell/PageIntro";
@@ -61,6 +61,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const [cat, setCat] = useState("");
   const [dialog, setDialog] = useState<null | { kind: "install" | "move"; t: AgentTemplate } | { kind: "catalogue" | "rename" } | { kind: "folder"; parent: string }>(null);
   const [opened, setOpened] = useState<string[]>([]);
+  const [foldersHidden, setFoldersHidden] = usePersistent("panel.templates.folders.hidden", false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [open, setOpen] = useState<AgentTemplate | null>(null);
   const [state, setState] = useState("");
@@ -177,16 +178,15 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       {error && <PageError text={error} />}
       {data?.problem && <p className="st-alert">{data.problem}</p>}
       <div className="cc-explorer-body">
-        <nav className="cc-tree-pane" aria-label="Folders">
-          <div className="cc-pane-head"><h2>Folders</h2><span className="ov-fill" />
-            <button type="button" className="cc-link" onClick={() => setOpened(folders.filter((f) => kids(f).length))}>Open all</button></div>
+        {/* fix list 27 Nov, item 4: the folder pane folds to a strip, as Studio's (remembered) */}
+        <SidePanel as="nav" title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="cc-tree-pane" actions={<button type="button" className="cc-link" onClick={() => setOpened(folders.filter((f) => kids(f).length))}>Open all</button>}>
           <ul className="cc-tree">
             <li><div className={"cc-tree-row" + (cat === "" ? " is-on" : "")} style={{ paddingLeft: 6 }}><span className="cc-tree-chev" />
               <button type="button" className="cc-tree-name" aria-current={cat === "" ? "page" : undefined} onClick={() => setCat("")}><FolderIcon open />All templates<span className="cc-tree-n">{all.length}</span></button></div>
               <ul>{kids("").map((f) => node(f, 1))}</ul></li>
           </ul>
           <p className="cc-pane-foot">From ONEOFFICEAUTOMATION's template catalogue{data?.can_share ? " and templates shared in your region" : ""}.{arrangeable ? " Arrange them in your own folders: Create > New folder, and a template's Move to folder." : ""}</p>
-        </nav>
+        </SidePanel>
         <div className="cc-files-pane">
           <div className="cc-pane-head">
             <span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setCat("")}>Templates</button>

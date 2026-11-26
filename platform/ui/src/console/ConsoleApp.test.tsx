@@ -1113,6 +1113,11 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(where).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Public", "Private"]);
     // fix list 27 Nov, item 3b (P1): Private opens in this page, in the console's frame, not as Studio's own page
     await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).tagName).toBe("BUTTON"));
+    // fix list 27 Nov, item 4: the Folders pane folds to a strip and back, and the page remembers it
+    fireEvent.click(screen.getByRole("button", { name: "Hide folders" }));
+    expect(screen.getByRole("navigation", { name: "Folders" }).className).toContain("ui-panel-strip");
+    fireEvent.click(screen.getByRole("button", { name: "Show folders" }));
+    expect(screen.getByRole("navigation", { name: "Folders" }).className).toContain("cc-tree-pane");
     const create = screen.getByRole("button", { name: "Create" });
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     expect(await screen.findByRole("menuitem", { name: /^New agent/ })).toBeTruthy();   // made in Private (#private/new)

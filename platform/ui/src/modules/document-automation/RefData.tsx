@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Dialog, Field, TextInput } from "../../components";
+import { Button, Dialog, Field, SidePanel, TextInput, usePersistent } from "../../components";
 import type { DocFlowApi, RefRow, RefTable } from "./api";
 import { Empty, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
@@ -17,6 +17,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
   const [chosen, setChosen] = useState("");
   const [rows, setRows] = useState<RefRow[] | null>(null);
   const [listQ, setListQ] = useState("");
+  const [listHidden, setListHidden] = usePersistent("panel.docs.refdata.hidden", false);
   const [q, setQ] = useState("");
   const [column, setColumn] = useState("all");
   const [facets, setFacets] = useState<Record<string, string>>({});
@@ -72,7 +73,8 @@ export function RefData({ api }: { api: DocFlowApi }) {
     <div className="df-page">
       {head}
       <div className="df-split">
-        <nav className="df-card df-list" aria-label="Tables">
+        {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+        <SidePanel as="nav" title="Tables" side="left" collapsed={listHidden} onToggle={() => setListHidden(!listHidden)} className="df-card df-list">
           <SearchBox value={listQ} onChange={setListQ} placeholder="Search tables" />
           {list.map((x) => (
             <button key={x.id} type="button" className="df-list-item" aria-current={x.id === t.id} onClick={() => setChosen(x.id)}>
@@ -80,7 +82,7 @@ export function RefData({ api }: { api: DocFlowApi }) {
               <span className="df-small">{x.meta}</span>
             </button>
           ))}
-        </nav>
+        </SidePanel>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <section className="df-card df-pad" aria-label={t.name}>

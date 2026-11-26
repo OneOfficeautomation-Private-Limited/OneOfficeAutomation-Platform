@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 import { PageIntro } from "../../shell/PageIntro";
@@ -47,6 +47,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState("");
+  const [foldersHidden, setFoldersHidden] = usePersistent("panel.apis.folders.hidden", false);
   const [state, setState] = useState("");
   const [dialog, setDialog] = useState<null | { kind: "new"; bot?: string } | { kind: "open"; t: AgentApi } | { kind: "token"; name: string; url: string; token: string }>(() => {
     const bot = linkedNew();
@@ -90,8 +91,8 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       </header><PageTabs />
       {error && <PageError text={error} />}
       <div className="cc-explorer-body">
-        <nav className="cc-tree-pane" aria-label="Folders">
-          <div className="cc-pane-head"><h2>Folders</h2></div>
+        {/* fix list 27 Nov, item 4: the folder pane folds to a strip, as Studio's (remembered) */}
+        <SidePanel as="nav" title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="cc-tree-pane">
           <ul className="cc-tree">
             <li><div className={"cc-tree-row" + (folder === "" ? " is-on" : "")} style={{ paddingLeft: 6 }}><span className="cc-tree-chev" />
               <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />All Agent APIs<span className="cc-tree-n">{count("")}</span></button></div>
@@ -99,7 +100,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                 <button type="button" className="cc-tree-name" aria-current={folder === f ? "page" : undefined} onClick={() => setFolder(f)}><FolderIcon />{f.split("/").pop()}<span className="cc-tree-n">{count(f)}</span></button></div></li>)}</ul></li>
           </ul>
           <p className="cc-pane-foot">The folders of the agents behind them, as in Agents.</p>
-        </nav>
+        </SidePanel>
         <div className="cc-files-pane">
           <div className="cc-pane-head"><span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setFolder("")}>Agent APIs</button>
             {folder.split("/").filter(Boolean).map((c, i, a) => <span key={i}> › {i === a.length - 1 ? <strong>{c}</strong> : <button type="button" className="cc-link" onClick={() => setFolder(a.slice(0, i + 1).join("/"))}>{c}</button>}</span>)}</span></div>

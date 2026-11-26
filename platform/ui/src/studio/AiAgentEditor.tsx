@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type AgentSummary, type Flow, type ModelConnections, type StudioApi, errorText, runErrorText } from "../api/client";
-import { Button, Field, Icon, SearchSelect, Select, TabPanel, Tabs, TextInput } from "../components";
+import { Button, Field, Icon, SearchSelect, Select, SidePanel, TabPanel, Tabs, TextInput, usePersistent } from "../components";
 import { aiStep } from "./aiAgent";
 import { setArg } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
@@ -40,6 +40,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
   const a: Args = step.args ?? {};
   const put = (k: string, v: unknown) => onEdit(setArg(flow, step.id, k, v === "" ? undefined : v));
   const [tab, setTab] = useState("instructions");
+  const [tryHidden, setTryHidden] = usePersistent("panel.ai.try.hidden", false);
   const [brief, setBrief] = useState(flow.description ?? "");
   const [drafting, setDrafting] = useState<string | null>(null);
   const [request, setRequest] = useState("");
@@ -135,8 +136,9 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
         </Tabs>
       </main>
 
-      <aside className="st-ai-try" aria-label="Try it">
-        <div className="ui-panel-bar"><strong>Try it</strong>{run && <span className={"st-run-state is-" + run.state}>{busy ? "Working" : run.state === "success" ? "Done" : run.state}</span>}</div>
+      {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+      <SidePanel title="Try it" side="right" collapsed={tryHidden} onToggle={() => setTryHidden(!tryHidden)} className="st-ai-try"
+        actions={run ? <span className={"st-run-state is-" + run.state}>{busy ? "Working" : run.state === "success" ? "Done" : run.state}</span> : undefined}>
         <div className="st-ai-fields">
           <Field label="Request">{(id) => <textarea id={id} className="ui-input ui-textarea" rows={4} value={request} onChange={(e) => setRequest(e.target.value)}
             placeholder="Paste an email, a ticket or a question" />}</Field>
@@ -151,7 +153,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
             </>}
           </>}
         </div>
-      </aside>
+      </SidePanel>
     </div>
   );
 }

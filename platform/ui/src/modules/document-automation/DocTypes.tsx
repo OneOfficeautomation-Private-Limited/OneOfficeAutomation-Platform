@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Button, Dialog, Field, Select, TextInput } from "../../components";
+import { Button, Dialog, Field, Select, SidePanel, TextInput, usePersistent } from "../../components";
 import type { CheckStrictness, DocFlowApi, DocType, DocTypeField, FieldMethod, FieldType } from "./api";
 import { FORMATS, READABLE_FILES, formatOf } from "./formats";
 import { LanguagePicker } from "./languages";
@@ -53,6 +53,7 @@ export function DocTypes({ api }: { api: DocFlowApi }) {
   // a type not saved yet: a new one (its first field is added straight away) or one proposed from samples
   const [pending, setPending] = useState<{ type: DocType; addField: boolean; n: number } | null>(null);
   const [listQ, setListQ] = useState("");
+  const [listHidden, setListHidden] = usePersistent("panel.docs.types.hidden", false);
   const [origin, setOrigin] = useState<"all" | "built-in" | "made-here">("all");
   const [teaching, setTeaching] = useState(false);
   const [naming, setNaming] = useState(false);
@@ -70,7 +71,8 @@ export function DocTypes({ api }: { api: DocFlowApi }) {
         <Button kind="primary" icon="plus" onClick={() => setNaming(true)}>New document type</Button>
       </div>
       <div className="df-split">
-        <nav className="df-card df-list" aria-label="Document types">
+        {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+        <SidePanel as="nav" title="Document types" side="left" collapsed={listHidden} onToggle={() => setListHidden(!listHidden)} className="df-card df-list">
           <SearchBox value={listQ} onChange={setListQ} placeholder="Search types" />
           <select className="ui-input ui-select" aria-label="Origin" value={origin} onChange={(e) => setOrigin(e.target.value as typeof origin)}>
             <option value="all">All types ({types.length})</option>
@@ -84,7 +86,7 @@ export function DocTypes({ api }: { api: DocFlowApi }) {
               <span className="df-small">{x.meta}</span>
             </button>
           ))}
-        </nav>
+        </SidePanel>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           {current

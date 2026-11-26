@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Button, Field, Icon, IconTile, keyOf, Select, TextInput, type IconName } from "../components";
+import { Button, Field, Icon, IconTile, keyOf, Select, SidePanel, TextInput, usePersistent, type IconName } from "../components";
 
 /**
  * Editors for the items other than agents: forms, document types, Prompt Skills and scripts (workflows: the orchestration
@@ -43,6 +43,7 @@ function PartsEditor<P extends Obj>({ title, parts, kinds, describe, onParts, se
     describe: (p: P) => { name: string; meta: string }; onParts: (next: P[], select?: number | null) => void;
     settings: ReactNode; partSettings: (p: P, set: (next: P) => void) => ReactNode; newPart: (kind: string) => P; addLabel: string }) {
   const [sel, setSel] = useState<number | null>(null);
+  const [propsHidden, setPropsHidden] = usePersistent("panel.item.settings.hidden", false);
   const [kind, setKind] = useState(Object.keys(kinds)[0]);
   const chosen = sel !== null && parts[sel] ? parts[sel] : null;
   const move = (i: number, by: number) => {
@@ -86,13 +87,13 @@ function PartsEditor<P extends Obj>({ title, parts, kinds, describe, onParts, se
         {!parts.length && <p className="st-empty-steps">Nothing here yet. Choose what to add above and press Add.</p>}
         <div className="st-marker st-end">END</div>
       </section>
-      <aside className="st-right st-item-props" aria-label="Settings">
-        <div className="ui-panel-bar"><strong>{chosen ? describe(chosen).name : "Settings"}</strong>
-          {chosen && <Button kind="plain" onClick={() => setSel(null)}>All settings</Button>}</div>
+      {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+      <SidePanel title={chosen ? describe(chosen).name : "Settings"} label="Settings" side="right" collapsed={propsHidden} onToggle={() => setPropsHidden(!propsHidden)}
+        className="st-right st-item-props" actions={chosen ? <Button kind="plain" onClick={() => setSel(null)}>All settings</Button> : undefined}>
         <div className="st-prop-fields st-item-fields">
           {chosen ? partSettings(chosen, (next) => onParts(parts.map((x, k) => k === sel ? next : x))) : settings}
         </div>
-      </aside>
+      </SidePanel>
     </div>
   );
 }

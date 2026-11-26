@@ -118,3 +118,8 @@
 .cc-list .cc-wf-steps > li.cc-wf-step { display: grid; min-height: 0; border-bottom: 1px solid var(--ui-border); }
 .cc-list .cc-wf-steps > li.cc-wf-step.is-now { border-bottom-width: 2px; border-bottom-color: var(--ui-warning-text); }
 .cc-list .cc-wf-branches > li { display: block; min-height: 0; border-bottom: 0; }
+/* Fix list 27 Nov, item 4: folded panels leave 40 px strips */
+.wfe-body:has(> .ui-panel-strip-left) { grid-template-columns: 40px minmax(0, 1fr) 340px; }
+.wfe-body:has(> .ui-panel-strip-right) { grid-template-columns: 220px minmax(0, 1fr) 40px; }
+.wfe-body:has(> .ui-panel-strip-left):has(> .ui-panel-strip-right) { grid-template-columns: 40px minmax(0, 1fr) 40px; }
+.wfe-palette > .ui-panel-bar, .wfe-props > .ui-panel-bar { margin: -10px -12px 8px; }

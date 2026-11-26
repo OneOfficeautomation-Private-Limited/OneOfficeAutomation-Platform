@@ -5,9 +5,11 @@ import { Icon } from "./Icon";
  * A side panel that folds away to a thin strip and back. The button says what it does ("Hide folders",
  * "Show folders"), the strip keeps the panel's name readable, and the choice is the caller's to remember.
  */
-export function SidePanel({ title, side, collapsed, onToggle, className, children, label, actions, style, panelRef }:
+export function SidePanel({ title, side, collapsed, onToggle, className, children, label, actions, style, panelRef, as: Tag = "aside" }:
   { title: string; side: "left" | "right"; collapsed: boolean; onToggle: () => void; className?: string; children: ReactNode; label?: string;
-    actions?: ReactNode; style?: CSSProperties; panelRef?: (el: HTMLElement | null) => void }) {
+    actions?: ReactNode; style?: CSSProperties; panelRef?: (el: HTMLElement | null) => void;
+    /** "nav" for a pane that is the page's navigation (a folder tree), so it stays a navigation landmark */
+    as?: "aside" | "nav" }) {
   const toward = (side === "left") === collapsed ? "chevronRight" : "chevronLeft";
   const button = (
     <button type="button" className="ui-panel-toggle" aria-expanded={!collapsed} aria-label={(collapsed ? "Show " : "Hide ") + title.toLowerCase()}
@@ -17,20 +19,20 @@ export function SidePanel({ title, side, collapsed, onToggle, className, childre
   );
   if (collapsed) {
     return (
-      <aside className={`ui-panel-strip ui-panel-strip-${side}`} aria-label={label ?? title}>
+      <Tag className={`ui-panel-strip ui-panel-strip-${side}`} aria-label={label ?? title}>
         {button}
         <span className="ui-panel-strip-title" aria-hidden="true">{title}</span>
-      </aside>
+      </Tag>
     );
   }
   return (
-    <aside className={className} aria-label={label ?? title} style={style} ref={panelRef}>
+    <Tag className={className} aria-label={label ?? title} style={style} ref={panelRef}>
       <div className="ui-panel-bar">
         <strong>{title}</strong>
         {actions}
         {button}
       </div>
       {children}
-    </aside>
+    </Tag>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
+import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -129,6 +129,7 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   ];
 
   const [opened, setOpened] = usePersistent<string[]>("repo.opened", []);
+  const [foldersHidden, setFoldersHidden] = usePersistent("panel.repo.folders.hidden", false);
   const [apis, setApis] = useState<Set<string>>(new Set());
   // whether this person may share templates (the region's catalogue is on and they may export), and its categories
   const [sharing, setSharing] = useState<string[] | null>(null);
@@ -224,16 +225,15 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
       </div>
       {error && <PageError text={error} />}
       <div className="cc-explorer-body">
-        <nav className="cc-tree-pane" aria-label="Folders">
-          <div className="cc-pane-head"><h2>Folders</h2><span className="ov-fill" />
-            <button type="button" className="cc-link" onClick={() => setOpened(folders.filter((f) => kids(f.path).length).map((f) => f.path))}>Open all</button></div>
+        {/* fix list 27 Nov, item 4: the folder pane folds to a strip, as Studio's (remembered) */}
+        <SidePanel as="nav" title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="cc-tree-pane" actions={<button type="button" className="cc-link" onClick={() => setOpened(folders.filter((f) => kids(f.path).length).map((f) => f.path))}>Open all</button>}>
           <ul className="cc-tree">
             <li><div className={"cc-tree-row" + (folder === "" ? " is-on" : "")} style={{ paddingLeft: 6 }}><span className="cc-tree-chev" />
               <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />Agents<span className="cc-tree-n">{total("")}</span></button></div>
               <ul>{kids("").map((f) => node(f, 1))}</ul></li>
           </ul>
           <p className="cc-pane-foot">The shared (public) workspace. Each builder's own workspace is the Private tab.</p>
-        </nav>
+        </SidePanel>
         <div className="cc-files-pane">
           <div className="cc-pane-head">
             <span className="cc-crumbs-path"><FolderIcon open />
@@ -304,6 +304,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onStudio, onClos
   /** Edit, Clone or Copy to Private on this page's Private tab (fix list 27 Nov, leftover 1); without it, Studio's own page. */
   onStudio?: (act: "checkout" | "clone" | "copy") => void; onClose: () => void; onFolder: (folder: string) => void; onRun: () => void; onDone: (m: string) => void }) {
   const [tab, setTab] = useState<"steps" | "about" | "versions" | "runs" | "deps" | "findings">("steps");
+  const [lineHidden, setLineHidden] = usePersistent("panel.agent.line.hidden", false);
   const [shownVersion, setShownVersion] = useState<string>("latest");
   const [flow, setFlow] = useState<FlowStep[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -460,7 +461,8 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onStudio, onClos
               <li aria-hidden="true"><span className="st-marker-row"><span className="st-marker st-end">END</span></span></li>
             </ol>}
         </div>
-        <aside className="cc-agent-side" aria-label="The selected line">
+        {/* fix list 27 Nov, item 4: folds to a strip and back (remembered) */}
+        <SidePanel title="Selected line" label="The selected line" side="right" collapsed={lineHidden} onToggle={() => setLineHidden(!lineHidden)} className="cc-agent-side">
           {sel ? <>
             <div className="cc-pane-head"><IconTile name={describeAction(sel.action ?? "", []).mark.icon} color={describeAction(sel.action ?? "", []).mark.color} size={20} />
               <h2>Line {pick?.kind === "step" ? pick.n : ""} · {nameOf(sel.action ?? "")}</h2></div>
@@ -473,7 +475,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onStudio, onClos
               {can("runs.view") && <a href={"#/activity?tab=completed&status=failed&q=" + encodeURIComponent(a.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, ""))}>Failed runs of this agent</a>}
             </div>
           </> : <p className="cc-none cc-agent-pad">Choose a line to see its settings.</p>}
-        </aside>
+        </SidePanel>
       </div>}
       <div className="cc-agent-tab" hidden={tab === "steps"}>
       {tab === "about" && <>
