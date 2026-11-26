@@ -855,7 +855,9 @@ describe("rebuilt One CommandCenter console", () => {
     // item 12: the rules are their own page
     fireEvent.click(screen.getByRole("link", { name: /rules? ›$/ }));
     expect(await screen.findByRole("heading", { name: "Alerts", level: 1 })).toBeTruthy();   // the entry's name; Alert rules is its tab
-    const rules = await screen.findByRole("table", { name: "Alert rules" });
+    // both pages carry the entry's title, so wait for the rules themselves, not the heading (CI's Windows machines are slower)
+    expect(await screen.findByText("Too many runs fail · Invoice intake", {}, { timeout: 10000 })).toBeTruthy();
+    const rules = screen.getByRole("table", { name: "Alert rules" });
     expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
     expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
     const menu = async (rule: string, item: string) => {
