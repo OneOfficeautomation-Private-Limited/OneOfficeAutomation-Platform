@@ -24,8 +24,8 @@ export function CommandMenu({ view, onView, controlRoom, editing = false, curren
   return (
     <Menu sections={MENU_SECTIONS} current={view ?? (currentPage === "documents" ? "docautomation" : currentPage ?? null)} local={onView ? LOCAL : NONE}
       onLocal={(id) => onView?.(id as StudioView)} editing={editing}
-      // Document Automation has its own pages beside the console (/documents/); the others are console pages
-      hrefFor={(page) => !controlRoom ? undefined : page === "docautomation" ? controlRoom.replace(/\/?$/, "/") + "documents/" : controlRoom + "next/#/" + page}
+      // every page opens in the console, Document Automation too since 27 Nov 2026 (fix list item 3c)
+      hrefFor={(page) => !controlRoom ? undefined : controlRoom + "next/#/" + page}
       offTitle="Sign in to One CommandCenter (Agents, Public tab) to open this page" console groups={MENU_GROUPS} />
   );
 }

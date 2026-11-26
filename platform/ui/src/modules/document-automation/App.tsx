@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon, Menu, usePersistent } from "../../components";
 import { CompanyName, TopBrand } from "../../shell/TopBrand";
 import { CommandMenu } from "../../studio/CommandMenu";
@@ -13,7 +13,7 @@ import { RefData } from "./RefData";
 import { Review } from "./Review";
 import { TestLab } from "./TestLab";
 import { HELP, type HelpPage } from "./help";
-import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
+import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError, dfHash, setDfHashBase } from "./ui";
 import { PageIntro } from "../../shell/PageIntro";
 import { loadHelpConfig } from "../../shell/helpCatalogue";
 
@@ -27,7 +27,8 @@ const TAB_IDS = ["overview", "inbox", "processes", "types", "refdata", "engines"
 export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; design?: string; stage?: string; document?: string; section?: string; item?: string };
 
 export function parseRoute(hash: string): Route {
-  const [first, second, third] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  // inside the console its addresses are #/docautomation/<route> (fix list 27 Nov, item 3c)
+  const [first, second, third] = hash.replace(/^#\/?/, "").replace(/^docautomation(\/|$)/, "").split("/").map(decodeURIComponent);
   if (first === "process" && second) return { tab: "inbox", process: second };
   if (first === "review" && second) return { tab: "review", document: second };
   if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
@@ -53,8 +54,11 @@ export const TAB_GROUPS: { label: string; tabs: Tab[]; menu?: boolean }[] = [
 ];
 const TABS = TAB_GROUPS.flatMap((g) => g.tabs);
 
-export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], user = "Sara Khan" }:
-  { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string }) {
+export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], user = "Sara Khan", embedded = false, status }:
+  { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string;
+    /** Inside the console's frame (Build > Document Automation): no top bar or menu of its own, the console's header and tab look. */
+    embedded?: boolean; status?: ReactNode }) {
+  setDfHashBase(embedded ? "#/docautomation/" : "#/");
   const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   useEffect(() => { loadHelpConfig(); }, []);   // where Docs and Video point (round 3, item 6)
   const [optIn, setOptIn] = useState(false);
@@ -83,12 +87,51 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const crumb = reviewing ? "Review" : route.process ? "Process" : TABS.find((t) => t.tab === route.tab)!.label;
   const initials = user.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
+  const head = !reviewing && (
+            <div className={embedded ? "df-head df-head-embedded" : "df-head"}>
+              <div className={embedded ? "df-head-row cc-list-head st-agents-head" : "df-head-row"}>
+                <h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} />
+                {optIn
+                  ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
+                  : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
+                {embedded && status}
+                {embedded && tenants.length === 1 && <span className="cc-list-count">Tenant: {tenants[0]}</span>}
+                <span className="df-grow" />
+                <HelpButton open={helpOpen} onToggle={toggleHelp} />
+              </div>
+              <nav className={embedded ? "df-tabs ov-tabs cc-ins-tabs" : "df-tabs"} aria-label="Document Automation">
+                {TAB_GROUPS.map((g) => (
+                  <div key={g.label} className={`df-tab-group${g.menu ? " is-menu" : ""}`} role="group" aria-label={g.label}>
+                    {g.menu ? <LibraryMenu tabs={g.tabs} current={route.tab} /> : g.tabs.map((t) => (
+                      <a key={t.tab} className={embedded ? "df-tab ov-tab" : "df-tab"} href={dfHash() + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
+                    ))}
+                  </div>
+                ))}
+              </nav>
+            </div>
+          );
+  const body = (<>
+          {error && (
+            <div className="df-alert" role="alert">
+              {error}
+              <button type="button" className="df-link" onClick={() => setError("")}>Dismiss</button>
+            </div>
+          )}
+          {reviewing
+            ? <div className="df-help-row"><HelpButton open={helpOpen} onToggle={toggleHelp} />{help}</div>
+            : help && <div className="df-help-row">{help}</div>}
+          {/* a new tenant loads every screen again, for that tenant */}
+          <Screen key={tenant} route={route} api={api} onOptIn={setOptIn} />
+        </>);
+  // inside the console: its top bar, menu and breadcrumb (Build > Document Automation) are used
+  if (embedded) return <div className="df-embedded">{head}{body}</div>;
+
   return (
-    <div className="st-app">
+    <div className="st-app cc-app">
       <header className="st-top">
         <TopBrand />
         <nav className="st-crumbs" aria-label="Breadcrumb">
-          {reviewing ? <span>Manage</span> : <span>AI</span>}<Icon name="chevronRight" size={12} />
+          {reviewing ? <span>Run</span> : <span>Build</span>}<Icon name="chevronRight" size={12} />
           {reviewing ? <span>Task inbox</span> : <span>Document Automation</span>}<Icon name="chevronRight" size={12} />
           <span className="st-crumb-current">{crumb}</span>
         </nav>
@@ -110,38 +153,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
       <div className="st-body">
         <CommandMenu view={null} controlRoom={controlRoom} currentPage={reviewing ? "inbox" : "documents"} />
         <main className="df-main">
-          {!reviewing && (
-            <div className="df-head">
-              <div className="df-head-row">
-                <h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} />
-                {optIn
-                  ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
-                  : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
-                <span className="df-grow" />
-                <HelpButton open={helpOpen} onToggle={toggleHelp} />
-              </div>
-              <nav className="df-tabs" aria-label="Document Automation">
-                {TAB_GROUPS.map((g) => (
-                  <div key={g.label} className={`df-tab-group${g.menu ? " is-menu" : ""}`} role="group" aria-label={g.label}>
-                    {g.menu ? <LibraryMenu tabs={g.tabs} current={route.tab} /> : g.tabs.map((t) => (
-                      <a key={t.tab} className="df-tab" href={"#/" + t.tab} aria-current={route.tab === t.tab ? "page" : undefined}>{t.label}</a>
-                    ))}
-                  </div>
-                ))}
-              </nav>
-            </div>
-          )}
-          {error && (
-            <div className="df-alert" role="alert">
-              {error}
-              <button type="button" className="df-link" onClick={() => setError("")}>Dismiss</button>
-            </div>
-          )}
-          {reviewing
-            ? <div className="df-help-row"><HelpButton open={helpOpen} onToggle={toggleHelp} />{help}</div>
-            : help && <div className="df-help-row">{help}</div>}
-          {/* a new tenant loads every screen again, for that tenant */}
-          <Screen key={tenant} route={route} api={api} onOptIn={setOptIn} />
+          {head}
+          {body}
         </main>
       </div>
     </div>
@@ -155,7 +168,7 @@ function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) 
     {open && <span className="df-tab-group-label" aria-hidden="true">Libraries</span>}
     <Menu label="Libraries" align="start"
       trigger={<button type="button" className="df-tab" aria-current={open ? "page" : undefined}>{open ? open.label : "Libraries"}<Icon name="chevronDown" size={12} stroke={2.4} /></button>}
-      items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = "#/" + t.tab; } }))} />
+      items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = dfHash() + "" + t.tab; } }))} />
   </>);
 }
 

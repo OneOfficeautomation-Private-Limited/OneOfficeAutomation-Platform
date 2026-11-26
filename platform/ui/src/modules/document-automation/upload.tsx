@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Icon } from "../../components";
 import type { DocFlowApi, DocumentRow } from "./api";
 import { folderLabel } from "./dialogs";
-import { Loading, StatusChip, reportError, useLoad } from "./ui";
+import { Loading, StatusChip, reportError, useLoad, dfHash } from "./ui";
 import { READABLE_FILES as ACCEPT } from "./formats";
 
 /**
@@ -49,7 +49,7 @@ export function UploadFiles({ api, process, inbox = false, inputId, onAdded }:
 }
 
 /** Where a document opens: the review when it waits for one, else its process. */
-const linkOf = (d: DocumentRow) => (d.status === "review" ? "#/review/" + encodeURIComponent(d.id) : "#/process/" + encodeURIComponent(d.processId));
+const linkOf = (d: DocumentRow) => (d.status === "review" ? dfHash() + "review/" + encodeURIComponent(d.id) : dfHash() + "process/" + encodeURIComponent(d.processId));
 
 /** The last few documents of a process, with their status, each linking to its review or the process. */
 export function RecentUploads({ api, processId, n, max = 5 }: { api: DocFlowApi; processId: string; n: number; max?: number }) {

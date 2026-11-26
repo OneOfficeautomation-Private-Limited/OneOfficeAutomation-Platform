@@ -4,7 +4,7 @@ import type { DocFlowApi, DocType, TestRun } from "./api";
 import { SetDetail } from "./testsets/SetDetail";
 import { SetList } from "./testsets/SetList";
 import { READABLE_FILES } from "./formats";
-import { AdvancedToggle, FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
+import { AdvancedToggle, FilterBar, FilterSelect, Kpi, reportError, useLoad, dfHash } from "./ui";
 
 export const TESTLAB_SECTIONS = [{ id: "try", label: "Try one document" }, { id: "sets", label: "Test sets" }] as const;
 
@@ -25,7 +25,7 @@ export function TestLab({ api, initialType = "", embedded = false, section, item
       </div>
       <nav className="df-seg df-seg-wide" aria-label="Test lab sections">
         {TESTLAB_SECTIONS.map((s) => (
-          <a key={s.id} href={"#/testlab/" + s.id} aria-current={(s.id === "sets") === sets ? "page" : undefined}>{s.label}</a>
+          <a key={s.id} href={dfHash() + "testlab/" + s.id} aria-current={(s.id === "sets") === sets ? "page" : undefined}>{s.label}</a>
         ))}
       </nav>
       {sets ? (item ? <SetDetail key={item} api={api} setId={item} /> : <SetList api={api} />) : <TryOne api={api} initialType={initialType} embedded />}

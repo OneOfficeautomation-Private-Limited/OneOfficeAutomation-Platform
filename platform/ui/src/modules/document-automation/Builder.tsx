@@ -7,7 +7,7 @@ import { NewProcessDialog, folderLabel } from "./dialogs";
 import { SelectStep } from "./SelectStep";
 import { CheckDialog, DeliverStage, DeliveryDialog, ExtractStage, IF_FAILS, IntakeStage, ReviewStage } from "./stages";
 import { TestLab } from "./TestLab";
-import { Chip, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError } from "./ui";
+import { Chip, FilterBar, FilterSelect, Hint, Loading, SearchBox, matches, reportError, dfHash } from "./ui";
 import { RecentUploads, UploadFiles } from "./upload";
 
 /**
@@ -62,8 +62,8 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   useEffect(() => { if (firstStage) setStage(firstStep(processId, firstStage)); }, [processId, firstStage]);
 
   const newProcess = <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-    onCreated={(id) => { setCreating(false); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/") + "/intake"; }} />;
-  const choose = (id: string) => { location.hash = "#/processes/" + encodeURIComponent(id); };
+    onCreated={(id) => { setCreating(false); location.hash = dfHash() + "processes/" + id.split("/").map(encodeURIComponent).join("/") + "/intake"; }} />;
+  const choose = (id: string) => { location.hash = dfHash() + "processes/" + encodeURIComponent(id); };
   if (!processes || (processId && (!design || !saved))) return <Loading />;
   if (!design || !saved)
     return (
@@ -123,7 +123,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   return (
     <div className="df-page">
       <div className="df-page-head">
-        <a className="ui-icon-btn" href={"#/process/" + encodeURIComponent(design.id)} aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
+        <a className="ui-icon-btn" href={dfHash() + "process/" + encodeURIComponent(design.id)} aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
         <h2 style={{ fontSize: 18 }}>{design.name}</h2>
         <Chip tone={live ? "ok" : "mute"}>{live ? "Live · version " + design.version : "Draft · version " + design.version}</Chip>
         <span className="df-muted">{folderLabel(design.folder)}{design.folder ? " · " : ""}{design.docType === "Any" ? "Every document type" : design.docType}</span>
@@ -155,7 +155,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
             <section className="df-card df-span2" aria-label="Validation" style={{ overflow: "hidden" }}>
               <div className="df-head-row df-pad">
                 <div><b style={{ fontSize: 15 }}>5 · Validation</b><div className="df-muted">Checks run on every document after its fields are read. Each check decides what happens when it fails.
-                  Lists to look values up in are kept in <a href="#/refdata">Reference data</a>.</div></div>
+                  Lists to look values up in are kept in <a href={dfHash() + "refdata"}>Reference data</a>.</div></div>
                 <span className="df-grow" /><Button kind="primary" icon="plus" onClick={() => setEditCheck("new")}>Add check</Button>
               </div>
               <FilterBar onClear={() => { setQ(""); setKind("all"); setOnOff("all"); setFails("all"); }} count={`${rows.length} of ${design.checks.length} checks`}>
@@ -206,7 +206,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
               {stage === EXTRACT && <>
                 <ExtractStage s={design.settings} set={setSettings} api={api} processId={design.id}
                   types={design.docTypeIds.map((id, i) => ({ id, name: design.docType.split(", ")[i] ?? id }))} />
-                <p className="df-small" style={{ margin: 0 }}>How pages are read (OCR, and when the cloud may be used) is set once for every process on <a href="#/engines/routing">Engines</a>.</p>
+                <p className="df-small" style={{ margin: 0 }}>How pages are read (OCR, and when the cloud may be used) is set once for every process on <a href={dfHash() + "engines/routing"}>Engines</a>.</p>
               </>}
               {stage === REVIEW && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} />}
               {stage === DELIVER && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}

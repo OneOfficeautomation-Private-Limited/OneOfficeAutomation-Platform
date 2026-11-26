@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "../../components";
 import { INBOX_ID, type DocFlowApi, type Source } from "./api";
 import { NewProcessDialog, folderLabel } from "./dialogs";
-import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad } from "./ui";
+import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad, dfHash } from "./ui";
 
 /**
  * Inbox: one row per process (minimal); a row opens the process page with every document. Documents are added on a
@@ -39,7 +39,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
       <div className="df-grid df-g4">
         <Kpi label="Received today" value={total("today")} />
         <Kpi label="Straight through" value={straight} sub={Math.round(straight / Math.max(1, total("done")) * 100) + "%"} tone="ok" />
-        <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <a href={"#/process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a> : undefined} />
+        <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <a href={dfHash() + "process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a> : undefined} />
         <Kpi label="Failed" value={total("failed")} tone={total("failed") ? "bad" : undefined} />
       </div>
 
@@ -61,7 +61,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id}>
-                  <td><a href={"#/process/" + p.id} style={{ fontSize: 14 }}>{p.name}</a><div className="df-small">{folderLabel(p.folder)}</div></td>
+                  <td><a href={dfHash() + "process/" + p.id} style={{ fontSize: 14 }}>{p.name}</a><div className="df-small">{folderLabel(p.folder)}</div></td>
                   <td className="df-right df-num"><span style={{ fontSize: 15, fontWeight: 600 }}>{docs(p)}</span>
                     {p.today > 0 && <div className="df-small">{p.today} today</div>}</td>
                   <td><span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -73,7 +73,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
                   </span></td>
                   <td className="df-muted" style={{ whiteSpace: "nowrap" }}>{p.lastTime ? `${p.lastTime} · ${p.lastDocument}` : "—"}</td>
                   <td className="df-right" style={{ whiteSpace: "nowrap" }}>
-                    <a className="ui-btn ui-btn-plain" href={"#/process/" + p.id} aria-label={"Open " + p.name}>Open</a>
+                    <a className="ui-btn ui-btn-plain" href={dfHash() + "process/" + p.id} aria-label={"Open " + p.name}>Open</a>
                   </td>
                 </tr>
               ))}
@@ -83,10 +83,10 @@ export function Inbox({ api }: { api: DocFlowApi }) {
         </div>
       </section>
       {processes.some((p) => p.id === INBOX_ID) && <p className="df-small" style={{ margin: 0 }}>Documents of different kinds?{" "}
-        <a href={"#/process/" + INBOX_ID}>Add them in {processes.find((p) => p.id === INBOX_ID)!.name}</a>: it recognises each one and sends it to its process.</p>}
+        <a href={dfHash() + "process/" + INBOX_ID}>Add them in {processes.find((p) => p.id === INBOX_ID)!.name}</a>: it recognises each one and sends it to its process.</p>}
 
       <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-        onCreated={(id) => { setCreating(false); reload(); location.hash = "#/processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
+        onCreated={(id) => { setCreating(false); reload(); location.hash = dfHash() + "processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
     </div>
   );
 }

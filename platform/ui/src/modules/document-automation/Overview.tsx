@@ -1,6 +1,7 @@
 import type { DocFlowApi } from "./api";
 import { Dashboard } from "./overview/Dashboard";
 import { ProcessTable } from "./overview/ProcessTable";
+import { dfHash } from "./ui";
 
 export const OVERVIEW_SECTIONS = [{ id: "table", label: "Table" }, { id: "dashboard", label: "Dashboard" }] as const;
 
@@ -16,7 +17,7 @@ export function OverviewPage({ api, section }: { api: DocFlowApi; section?: stri
         <div><h2>Overview</h2><p>{current === "table" ? "Every process: how it is set up and what is happening." : "How documents are doing across every process."}</p></div>
       </div>
       <nav className="df-seg df-seg-wide" aria-label="Overview sections">
-        {OVERVIEW_SECTIONS.map((s) => <a key={s.id} href={"#/overview/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>)}
+        {OVERVIEW_SECTIONS.map((s) => <a key={s.id} href={dfHash() + "overview/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>)}
       </nav>
       {current === "table" ? <ProcessTable api={api} /> : <Dashboard api={api} />}
     </div>

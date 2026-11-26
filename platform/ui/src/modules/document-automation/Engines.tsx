@@ -5,7 +5,7 @@ import { EngineCatalog } from "./engines/EngineCatalog";
 import { OptInSwitch } from "./engines/OptInSwitch";
 import { RoutingSection } from "./engines/RoutingSection";
 import { LanguagesPanel } from "./languages";
-import { Loading, reportError, useLoad } from "./ui";
+import { Loading, reportError, useLoad, dfHash } from "./ui";
 
 export const ENGINE_SECTIONS = [
   { id: "routing", label: "How pages are routed" }, { id: "catalog", label: "Engines" }, { id: "languages", label: "Languages" }, { id: "cost", label: "Monthly cost" },
@@ -42,13 +42,13 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
       </div>
       <nav className="df-seg df-seg-wide" aria-label="Engine sections">
         {ENGINE_SECTIONS.map((s) => (
-          <a key={s.id} href={"#/engines/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>
+          <a key={s.id} href={dfHash() + "engines/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>
         ))}
       </nav>
       {current === "routing" && <RoutingSection routing={routing} cloudEngines={cloudEngines} engines={data.options.flatMap((o) => o.engines)} saved={saved} claude={data.claude}
         onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
-        onOption={(id) => { location.hash = "#/engines/catalog/" + id; }} />}
+        onOption={(id) => { location.hash = dfHash() + "engines/catalog/" + id; }} />}
       {current === "languages" && <LanguagesPanel api={api} />}
       {current === "cost" && <CostSection optIn={routing.cloudOptIn} claude={data.claude} prices={data.prices} />}
     </div>

@@ -89,6 +89,14 @@ export function FilterSelect<T extends string>({ label, value, onChange, options
 export const matches = (q: string, ...texts: string[]) => !q.trim() || texts.some((t) => t.toLowerCase().includes(q.trim().toLowerCase()));
 
 /** A failed call: the page's banner shows it (App listens), so a screen never waits on "Loading…" for ever. */
+/**
+ * Where Document Automation's own addresses start (fix list 27 Nov, item 3c): "#/" on its own page, "#/docautomation/"
+ * inside the console's frame, so its #/inbox never opens the console's Task inbox. Every link and hash change uses it.
+ */
+let hashBase = "#/";
+export const dfHash = () => hashBase;
+export function setDfHashBase(base: string) { hashBase = base; }
+
 export const DF_ERROR = "df-error";
 export function reportError(e: unknown) {
   window.dispatchEvent(new CustomEvent(DF_ERROR, { detail: e instanceof Error ? e.message : String(e) }));
@@ -116,7 +124,7 @@ export function Empty({ children }: { children: ReactNode }) {
 export function HelpButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button type="button" className="df-help-btn" aria-expanded={open} aria-controls="df-help" onClick={onToggle}>
-      <span className="df-help-q" aria-hidden="true">?</span>How to use this page
+      <span className="df-help-q" aria-hidden="true">?</span>Help
     </button>
   );
 }

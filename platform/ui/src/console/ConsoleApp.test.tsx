@@ -669,19 +669,17 @@ describe("rebuilt One CommandCenter console", () => {
     cleanup();
     render(<ConsoleApp api={fakeServer({ signedIn: admin, plugins: [{ id: "document-automation", name: "Document Automation", description: "Learning instances and validation.", path: "/plugins/document-automation/" }] }).api} />);
     await go("Document Automation");
-    expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
-    expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
-    // the service it uses: its version against the one this release is tested with
-    const service = await screen.findByRole("generic", { name: "Document Automation service" });
-    expect(await within(service).findByText("DocFlow 3.2.0")).toBeTruthy();   // it loads after the card
-    // the start screen (item 15): each area opens at its own address in the module's pages, and the first steps
-    const areas = screen.getByRole("navigation", { name: "Document Automation areas" });
-    expect(within(areas).getByRole("link", { name: /^Inbox/ }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
-    expect(within(areas).getAllByRole("link")).toHaveLength(7);
-    expect(screen.getByRole("link", { name: "Open the Inbox" }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
-    expect(within(screen.getByRole("generic", { name: "First steps" })).getAllByRole("listitem")).toHaveLength(4);
-    expect(within(service).getByText("Newer than tested").closest(".cc-pill")?.className).toContain("is-pending");
-    expect(within(service).getByText(/tested with DocFlow 3\.1\.0 \(works from 3\.1\.0\)/)).toBeTruthy();
+    // fix list 27 Nov, item 3c: once installed, its own pages open here, in the console's frame, at #/docautomation/<page>
+    const tabs = await screen.findByRole("navigation", { name: "Document Automation" });
+    expect(within(within(tabs).getByRole("group", { name: "Pages" })).getAllByRole("link").map((a) => a.getAttribute("href")))
+      .toEqual(["#/docautomation/overview", "#/docautomation/inbox", "#/docautomation/processes"]);
+    expect(screen.getByRole("heading", { name: "Document Automation", level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("banner", { name: /Document Automation/ })).toBeNull();
+    // the service it uses, in its header: the version against the one this release is tested with
+    const pill = (await screen.findByText(/DocFlow 3\.2\.0/)).closest(".cc-pill")!;
+    expect(pill.textContent).toContain("Newer than tested");
+    expect(pill.className).toContain("is-pending");
+    location.hash = "";
   });
 
   it("shows Agent Activity as AA's Activity: a summary, In progress and Completed, filters, selected runs stopped or run again, columns, CSV", async () => {

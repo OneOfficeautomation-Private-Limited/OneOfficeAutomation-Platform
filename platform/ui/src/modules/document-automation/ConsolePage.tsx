@@ -1,6 +1,9 @@
 import "./consoleApi";
+import "./docflow.css";
 import { useEffect, useState } from "react";
-import type { ConsolePlugin, CrApi } from "../../api/cr";
+import type { ConsolePlugin, CrApi, CrUser } from "../../api/cr";
+import { App } from "./App";
+import { HttpDocFlowApi } from "./http";
 import type { DocFlowVersion } from "./consoleApi";
 import { HelpButton, type HelpTopic, PageError } from "../../components";
 import { PageIntro } from "../../shell/PageIntro";
@@ -45,7 +48,7 @@ const PILL: Record<DocFlowVersion["status"], string> = {
   compatible: "active", newer: "pending", too_old: "failed", other_contract: "failed", unreachable: "failed", not_set_up: "disabled", unknown: "pending",
 };
 
-export function DocumentAutomation({ api }: { api: CrApi }) {
+export function DocumentAutomation({ api, user }: { api: CrApi; user?: CrUser }) {
   const [plugin, setPlugin] = useState<ConsolePlugin | null | undefined>(undefined);   // undefined: still asking
   const [error, setError] = useState<string | null>(null);
   const [service, setService] = useState<DocFlowVersion | null>(null);
@@ -59,6 +62,14 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
   }, [api, plugin]);
 
   const open = (tab?: string) => plugin ? plugin.path + (tab ? "#/" + tab : "") : "#";
+  // fix list 27 Nov, item 3c: once installed, its pages open here in the console's frame (#/docautomation/<page>), as
+  // AA's plug-in pages do; the service's state sits in their header. The start screen stays for "Not installed".
+  const [docflow] = useState(() => new HttpDocFlowApi());
+  if (plugin && user) {
+    const tenant = (user as CrUser & { tenant?: string }).tenant;
+    return <App api={docflow} embedded user={user.display_name || user.username} tenants={tenant ? [tenant] : []}
+      status={service ? <span className={"cc-pill is-" + PILL[service.status]} title={service.message}><span className="cc-pill-dot" />DocFlow {service.version ?? ""} · {LABEL[service.status]}</span> : undefined} />;
+  }
   return (
     <section className="st-page cc-home cc-list df-start" aria-labelledby="cc-da-title">
       <header className="cc-list-head">

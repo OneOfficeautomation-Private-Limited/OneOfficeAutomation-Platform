@@ -292,3 +292,12 @@
 .df-mail-rules { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
 .df-mail-rule { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--ui-divider); }
 .df-mail-rule-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* Inside the console's frame (fix list 27 Nov, item 3c): the console's header and its one tab row, the Libraries menu at the end */
+.df-embedded { display: flex; flex-direction: column; min-height: 100%; }
+.df-head.df-head-embedded { padding: 0; border-bottom: 0; }
+.df-head-embedded .df-head-row { gap: 10px; }
+.df-head-embedded .df-tabs.ov-tabs { margin-top: 0; gap: 0; }
+.df-tabs.ov-tabs .df-tab-group { display: flex; align-items: stretch; gap: 0; }
+.df-tabs.ov-tabs .df-tab { flex: none; height: auto; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ui-text); font-size: inherit; font-weight: 400; text-decoration: none; }
+.df-tabs.ov-tabs .df-tab[aria-current="page"] { border-bottom-color: var(--ui-accent); background: transparent; color: var(--ui-text); font-weight: 600; }

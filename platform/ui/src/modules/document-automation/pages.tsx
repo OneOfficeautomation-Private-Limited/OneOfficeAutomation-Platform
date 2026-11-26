@@ -12,7 +12,7 @@ function AllowedFoldersPart(p: { onNotice: (t: string) => void; onError: (e: str
 /** document-automation's console pages (by menu page id) and the parts other pages show when it is installed (modules/pages.tsx finds this file). */
 export const ui: UiModulePages = {
   pages: {
-    "docautomation": (p) => <DocumentAutomation api={p.api} />,
+    "docautomation": (p) => <DocumentAutomation api={p.api} user={p.user} />,
   },
   parts: {
     "allowed-folders": AllowedFoldersPart,

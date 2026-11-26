@@ -10,7 +10,7 @@ import { TableField } from "./review/TableField";
 /** Common reasons to reject a document; any other is typed. */
 const REJECT_REASONS = ["Not a document we process", "Duplicate of one already received", "Unreadable or incomplete", "Wrong supplier or customer", "Sent to us by mistake"];
 const OWN_REASON = "Other reason…";
-import { Chip, Hint, Loading, reportError } from "./ui";
+import { Chip, Hint, Loading, reportError, dfHash } from "./ui";
 
 /**
  * The review task a reviewer opens from the Task inbox: the page itself with a box over every value read from it, why the
@@ -40,7 +40,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
 
   const [types, setTypes] = useState<DocType[] | null>(null);
   const [newType, setNewType] = useState("");
-  const back = task?.processId ? "#/process/" + encodeURIComponent(task.processId) : "#/inbox";
+  const back = task?.processId ? dfHash() + "process/" + encodeURIComponent(task.processId) : dfHash() + "inbox";
   // Reject asks why: a reason from the list, or one typed (kept with the document)
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState(REJECT_REASONS[0]);
@@ -53,11 +53,11 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
       const changed = task.tables.filter((t) => JSON.stringify(rows[t.id]) !== JSON.stringify(t.rows));
       const out: ReviewValues = { ...values, ...Object.fromEntries(changed.map((t) => [t.id, rows[t.id]])) };
       const r = await api.completeReview(task.documentId, out, decision, note);
-      location.hash = r.next ? "#/review/" + encodeURIComponent(r.next) : back;   // Approve and next: the next one waiting
+      location.hash = r.next ? dfHash() + "review/" + encodeURIComponent(r.next) : back;   // Approve and next: the next one waiting
     } catch (e) { reportError(e); } finally { setSaving(false); }
   };
   /** Previous task, Next task: another document waiting for review (what was typed here and not approved is not kept). */
-  const open = (id?: string) => { if (id) location.hash = "#/review/" + encodeURIComponent(id); };
+  const open = (id?: string) => { if (id) location.hash = dfHash() + "review/" + encodeURIComponent(id); };
   const openTypes = () => { setNewType(""); api.docTypes().then(setTypes, reportError); };
   const reclassify = async () => {
     if (!task || !newType) return;
@@ -65,7 +65,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
     try {
       const r = await api.changeDocType(task.documentId, newType);
       setTypes(null);
-      location.hash = r.needsReview ? "#/review/" + encodeURIComponent(r.documentId) : back;
+      location.hash = r.needsReview ? dfHash() + "review/" + encodeURIComponent(r.documentId) : back;
     } catch (e) { reportError(e); } finally { setSaving(false); }
   };
   useEffect(() => {

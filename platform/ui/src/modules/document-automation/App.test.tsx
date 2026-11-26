@@ -26,7 +26,7 @@ describe("Document Automation", () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
-    expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/documents/");
+    expect(within(menu).getByRole("link", { name: "Document Automation" }).getAttribute("href")).toBe("/next/#/docautomation");   // in the console's frame (27 Nov 2026)
     const tabs = screen.getByRole("navigation", { name: "Document Automation" });
     expect(within(tabs).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["Pages", "Libraries"]);
     expect(within(within(tabs).getByRole("group", { name: "Pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Overview", "Inbox", "Processes"]);
@@ -655,7 +655,7 @@ describe("Document Automation", () => {
     expect(within(await screen.findByRole("region", { name: "How to use this page" })).getByText(/Cloud opt-in off/)).toBeTruthy();
     await go("#/inbox");
     expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "How to use this page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Help" }));   // the standard ? Help (27 Nov 2026)
     expect(screen.getByRole("region", { name: "How to use this page" })).toBeTruthy();
   });
 

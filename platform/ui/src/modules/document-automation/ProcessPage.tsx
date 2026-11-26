@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Icon } from "../../components";
 import { INBOX_ID, type DocFlowApi, type DocStatus, type Source } from "./api";
 import { folderLabel } from "./dialogs";
-import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad } from "./ui";
+import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad, dfHash } from "./ui";
 import { UploadFiles } from "./upload";
 import { AccuracyCard } from "./accuracy";
 import { SplitDialog } from "./splitDialog";
@@ -25,7 +25,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
   if (!data) return <Loading />;
   const [processes, docs] = data;
   const p = processes.find((x) => x.id === processId);
-  if (!p) return <div className="df-page"><a className="df-back" href="#/inbox"><Icon name="chevronLeft" size={14} />Inbox</a><p>This process does not exist (any more).</p></div>;
+  if (!p) return <div className="df-page"><a className="df-back" href={dfHash() + "inbox"}><Icon name="chevronLeft" size={14} />Inbox</a><p>This process does not exist (any more).</p></div>;
 
   // "Read by": the engines that really read these documents (each step of "Tesseract, then PaddleOCR")
   const engines = [...new Set(docs.filter((d) => d.status !== "processing").flatMap((d) => d.engine.split(", then ")).filter((e) => e && e !== "—"))].sort();
@@ -41,12 +41,12 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
 
   return (
     <div className="df-page">
-      <a className="df-back" href="#/inbox"><Icon name="chevronLeft" size={14} />Inbox</a>
+      <a className="df-back" href={dfHash() + "inbox"}><Icon name="chevronLeft" size={14} />Inbox</a>
       <div className="df-page-head">
         <h2 style={{ fontSize: 20 }}>{p.name}</h2>
         <Chip tone={p.state === "live" ? "ok" : "mute"}>{p.state === "live" ? `Live · version ${p.version}` : "Draft"}</Chip>
         <span className="df-grow" />
-        <a className="ui-btn ui-btn-secondary" href={"#/processes/" + encodeURIComponent(p.id)}>Process settings</a>
+        <a className="ui-btn ui-btn-secondary" href={dfHash() + "processes/" + encodeURIComponent(p.id)}>Process settings</a>
         {p.sources.includes("upload") && <Button kind="primary" onClick={() => document.getElementById("df-add-files")?.click()}>Add documents</Button>}
       </div>
 
@@ -92,7 +92,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
             <tbody>
               {rows.map((d) => (
                 <tr key={d.id}>
-                  <td><a href={d.status === "review" ? "#/review/" + d.id : "#/process/" + p.id}>{d.name}</a><div className="df-small">{d.pages}</div></td>
+                  <td><a href={d.status === "review" ? dfHash() + "review/" + d.id : dfHash() + "process/" + p.id}>{d.name}</a><div className="df-small">{d.pages}</div></td>
                   {!columns && invoiceLike && <><td>{d.supplier}<div className="df-small">{d.invoice}</div></td>
                   <td className="df-right df-num" style={{ whiteSpace: "nowrap" }}>{d.total}</td></>}
                   {shown.map((k) => <td key={k} dir="auto">{d.values?.[k] || "—"}</td>)}
@@ -101,7 +101,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
                   <td className="df-muted">{d.engine}</td>
                   <td><ConfidenceBar value={d.confidence} /></td>
                   <td className="df-right">
-                    {d.status === "review" ? <a className="ui-btn ui-btn-secondary" href={"#/review/" + d.id}>Review</a>
+                    {d.status === "review" ? <a className="ui-btn ui-btn-secondary" href={dfHash() + "review/" + d.id}>Review</a>
                       : d.status === "failed" ? <Button>Retry</Button>
                       : d.status === "split" ? <Button kind="plain" onClick={() => setSplitting({ id: d.id, name: d.name, pages: parseInt(d.pages, 10) || 1 })}>Change the split</Button>
                       : <Button kind="plain">Open</Button>}

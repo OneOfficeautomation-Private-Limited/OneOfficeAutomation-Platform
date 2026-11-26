@@ -10,7 +10,7 @@ export function checkText(f: Pick<DocTypeField, "regex" | "type">): string {
   return ({ Date: "A date", "Date and time": "A date and time", Amount: "An amount", Number: "A number", Percentage: "A percentage", Choice: "One of the choices",
     "Several choices": "Some of the choices", Email: "An email address", Phone: "A phone number", "Yes/No": "Yes or no", Ticked: "Ticked or not", Signed: "Signed or not" } as Record<string, string>)[f.type] ?? "None";
 }
-import { AdvancedToggle, Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
+import { AdvancedToggle, Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad, dfHash } from "./ui";
 
 export const TYPES: FieldType[] = ["Text", "Date", "Date and time", "Amount", "Number", "Percentage", "Yes/No", "Ticked", "Signed", "Choice",
   "Several choices", "Email", "Phone", "Address", "Table", "Group"];
@@ -135,7 +135,7 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           <Chip tone="mute" dot={false}>{!t.id ? "New" : t.origin === "built-in" ? "Built in" : "Made here"}</Chip>
           <span className="df-grow" />
           {dirty && <span className="df-text-warn" role="status">Unsaved changes</span>}
-          {showTest && t.id && <a className="ui-btn ui-btn-secondary" href="#/testlab">Test on a document</a>}
+          {showTest && t.id && <a className="ui-btn ui-btn-secondary" href={dfHash() + "testlab"}>Test on a document</a>}
           {t.id && t.origin === "made-here" && onDeleted && <Button kind="plain" disabled={t.usedBy.length > 0} title={t.usedBy.length ? "Used by a process" : undefined} onClick={() => setDeleting(true)}>Delete</Button>}
           {!t.id && onDiscard && <Button onClick={onDiscard}>Discard</Button>}
           <Button kind="primary" disabled={!dirty || busy || !t.name.trim()} title={!t.fields.length ? "Saved with no fields: add them before a process uses it" : undefined} onClick={save}>{t.id ? "Save" : "Create type"}</Button>
