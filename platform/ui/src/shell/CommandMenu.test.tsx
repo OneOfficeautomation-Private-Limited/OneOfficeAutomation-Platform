@@ -20,7 +20,7 @@ describe("The menu on a phone (G69)", () => {
     render(menu((id: string) => { picked.push(id); }));
     const nav = screen.getByRole("navigation", { name: "One CommandCenter" });
     expect(nav.className).toContain("is-mini");
-    fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand menu" })[0]);   // the ☰ on the top bar
     expect(nav.className).not.toContain("is-mini");
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     fireEvent.click(screen.getByRole("button", { name: "Task inbox" }));

@@ -30,6 +30,13 @@
 .st-menu.is-mini { width: 56px; align-items: center; padding: 8px 4px; gap: 6px; }
 .st-menu.is-mini .st-menu-fold { width: 40px; justify-content: center; padding: 0; }
 .st-menu.is-mini .st-menu-home { width: 40px; justify-content: center; padding: 0; }
+/* The round ‹ at the menu's foot (27 Nov 2026, as AA's): stays at the bottom left while the menu scrolls */
+.st-menu-end { position: sticky; bottom: -8px; display: flex; margin: 8px -6px -8px; padding: 8px 10px 10px; background: var(--ui-frame-2); }
+.st-menu.is-mini .st-menu-end { align-self: stretch; justify-content: center; margin: 8px -4px -8px; padding: 8px 0 10px; }
+.st-menu-round { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%;
+  border: 1px solid #8592a8; background: transparent; color: var(--ui-frame-text); cursor: pointer; }
+.st-menu-round:hover { background: rgba(255, 255, 255, .1); }
+.st-menu-round:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 .st-menu-mini { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .st-menu-mini:hover { background: rgba(255, 255, 255, .08); }
 .st-menu-items { list-style: none; margin: 0 0 0 18px; padding: 0 0 0 6px; border-left: 1px solid var(--ui-frame-guide); display: flex; flex-direction: column; gap: 1px; }

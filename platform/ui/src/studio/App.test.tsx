@@ -401,13 +401,13 @@ describe("new Studio", () => {
     expect(within(menu).queryByRole("button", { name: "Agents" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Run" }));   // and a heading folds its own
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));   // ☰ on the top bar (round 3, T1)
+    fireEvent.click(screen.getAllByRole("button", { name: "Collapse menu" })[0]);   // ☰ on the top bar (round 3, T1)
     expect(within(menu).getByRole("button", { name: "Build" })).toBeTruthy();
 
     unmount();
     render(<App api={api} />);
     const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    expect(screen.getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getAllByRole("button", { name: "Expand menu" })[0].getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(within(again).getByRole("button", { name: "Run" }));   // folded: an icon shows its section's pages in a fly-out
     expect(within(again).getByRole("button", { name: "Run" }).getAttribute("aria-expanded")).toBe("true");
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
@@ -1141,7 +1141,7 @@ describe("new Studio", () => {
     await goToFolder("Finance", "Invoices");
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));   // opens it in a tab
     await screen.findByRole("region", { name: "Agent steps" });
-    fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));   // the menu folds while an agent is open
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand menu" })[0]);   // the menu folds while an agent is open
     fireEvent.click(screen.getByRole("button", { name: "Agents" }));
     await goToFolder("Finance", "Invoices");
     fireEvent.contextMenu(await waitFor(() => row("Invoice intake")));

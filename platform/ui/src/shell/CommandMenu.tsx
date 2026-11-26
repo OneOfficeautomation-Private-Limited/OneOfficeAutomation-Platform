@@ -167,6 +167,14 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
           );
         })}
       </>}
+      {/* 27 Nov 2026 (fix list item 1, AA's look): a round ‹ at the menu's foot folds it too, as the ☰ on the top bar does */}
+      <div className="st-menu-fill" />
+      <div className="st-menu-end">
+        <button type="button" className="st-menu-round" aria-expanded={!mini} aria-label={mini ? "Expand menu" : "Collapse menu"}
+          title={mini ? "Expand menu" : "Collapse menu"} onClick={() => setMini(!mini)}>
+          <Icon name={mini ? "chevronRight" : "chevronLeft"} size={14} stroke={2.6} />
+        </button>
+      </div>
     </nav>
     {inConsole && !mini && <Splitter label="Menu width" axis="x" grow={1} value={width} min={WIDTH.min} max={WIDTH.max} measure={() => w} onChange={setWidth} />}
   </>);

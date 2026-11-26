@@ -1351,8 +1351,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getByRole("button", { name: "Start agents" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).queryByRole("button", { name: "Triggers" })).toBeNull();   // pages are tabs, not menu entries
     expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
-    // round 3 (T1): the menu folds from ☰ on the top bar; no buttons at its foot; its edge still sets the width
-    expect(within(menu).queryByRole("button", { name: "Collapse menu" })).toBeNull();
+    // round 3 (T1): the menu folds from ☰ on the top bar; its edge still sets the width; since 27 Nov 2026 a round ‹ at its foot folds it too (as AA's)
+    const foot = within(menu).getByRole("button", { name: "Collapse menu" });
+    fireEvent.click(foot);
+    expect(menu.className).toContain("is-mini");
+    expect(within(document.querySelector(".cc-top") as HTMLElement).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");   // the ☰ follows
+    fireEvent.click(within(menu).getByRole("button", { name: "Expand menu" }));
+    expect(menu.className).not.toContain("is-mini");
     expect(within(menu).queryByRole("group", { name: "Menu width" })).toBeNull();
     expect(menu.style.width).toBe("232px");
     const fold = within(document.querySelector(".cc-top") as HTMLElement).getByRole("button", { name: "Collapse menu" });
