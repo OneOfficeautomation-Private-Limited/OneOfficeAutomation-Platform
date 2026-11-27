@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, Environment } from "../api/cr";
 import { Icon, is, keyOf, Menu } from "../components";
-import { CompanyName, TopBrand } from "../shell/TopBrand";
+import { TopBrand } from "../shell/TopBrand";
 import { canSee, groupOf, MENU_SECTIONS } from "../shell/menu";
 import { helpLinks } from "../shell/helpCatalogue";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
@@ -14,6 +14,13 @@ import { MyAccountDialog } from "./MyAccount";
  * back to the parent.
  */
 const sectionName = (label: string) => label === "AI" ? "AI" : label.charAt(0) + label.slice(1).toLowerCase();
+/** Up to two letters for the account badge: the first letters of the first two words ("Priya Nair" → PN), or the
+ *  first two letters of a single word ("Administrator" → AD); any script, as the name is written. */
+export const initials = (name: string) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = words.length > 1 ? [...words[0]].slice(0, 1).concat([...words[1]].slice(0, 1)) : [...(words[0] ?? "?")].slice(0, 2);
+  return letters.join("").toLocaleUpperCase();
+};
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 
 /** Where you are (Console A, 13 Nov 2026): section › page as a small line above the page title; the section leads back. */
@@ -51,7 +58,6 @@ export function TopBar({ api, user, onPage, onSignOut, onShortcuts, onChangePass
       <TopBrand />
       {user.environment && <EnvironmentLabel env={user.environment} />}
       <Search api={api} user={user} onPage={onPage} />
-      <CompanyName />
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">
           <Icon name="bell" size={16} />{alerts > 0 && <span className="cc-badge">{alerts}</span>}</a>}
@@ -66,8 +72,9 @@ export function TopBar({ api, user, onPage, onSignOut, onShortcuts, onChangePass
           // sign-in and phone notifications; My devices the runners you work with
           items={[{ key: "account", label: "My account", description: "Your profile, roles, licence seat and where you are signed in", onSelect: () => setAccount("profile") },
             { key: "devices", label: "My devices", description: "Your default runner and the runners you work with", onSelect: () => setAccount("devices") },
-            { key: "out", label: "Sign out", separatorBefore: true, onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
-          <Icon name="person" size={16} /></button>} />
+            { key: "out", label: "Sign out", separatorBefore: true, onSelect: onSignOut }]} trigger={<button type="button" className="cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
+          {/* item 1 (A2): the person's initials in a round badge, then their name (the name gives way on narrow screens) */}
+          <span className="cc-user-badge" aria-hidden="true">{initials(user.display_name)}</span><span className="cc-user-name" aria-hidden="true">{user.display_name}</span></button>} />
       </div>
       {phone && <PhoneNotificationsDialog api={api} onClose={() => setPhone(false)} />}
       {keys && <ApiKeysDialog api={api} onClose={() => setKeys(false)} />}

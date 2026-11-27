@@ -49,3 +49,21 @@ describe("the console's scrolling and tabs", () => {
     expect(readFileSync(join(__dirname, "../studio/App.tsx"), "utf8")).toContain('"st-app cc-app st-studio"');
   });
 });
+
+describe("the top bar and page heading (fix list 27 Nov 2026, round 2, item 1)", () => {
+  it("makes initials for the account badge from one or two words, in any script", async () => {
+    const { initials } = await import("./TopBar");
+    expect(initials("Administrator")).toBe("AD");
+    expect(initials("Priya Nair")).toBe("PN");
+    expect(initials("  asha   admin  kumar ")).toBe("AA");
+    expect(initials("Ünal Öz")).toBe("ÜÖ");
+    expect(initials("")).toBe("?");
+  });
+  it("lays out every standard page heading in three lines with one set of rules", () => {
+    const css = readFileSync(join(__dirname, "console.css"), "utf8");
+    const at = ":is(header, .st-head-row):has(> .st-page-intro)";
+    for (const part of ["> h1 { order: 0", "> .cc-list-count { order: 1", "::after { content: \"\"; order: 9; flex-basis: 100%", "> .st-page-intro { display: contents",
+      ".st-page-desc { order: 10", "> .ui-help { order: 11", ".st-help-links { order: 12"])
+      expect(css).toContain(at + (part.startsWith("::") ? "" : " ") + part);
+  });
+});

@@ -244,6 +244,15 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-search-head { padding: 6px 8px 2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ui-text-2); }
 .cc-search-results p { margin: 0; padding: 8px; color: var(--ui-text-2); }
 .cc-bell { position: relative; color: var(--ui-frame-text); }
+/* the account button (item 1, A2): initials in a round white badge, then the name in white */
+.cc-user { height: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 0 8px 0 4px; border: 1px solid transparent; border-radius: var(--ui-radius);
+  background: transparent; color: #ffffff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cc-user:hover, .cc-user[data-state="open"] { background: rgba(255, 255, 255, .1); }
+.cc-user:focus-visible { outline: 2px solid #ffffff; outline-offset: 1px; }
+.cc-user-badge { width: 26px; height: 26px; flex: none; border-radius: 50%; background: #ffffff; color: #1c2840; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; }
+.cc-user-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) { .cc-user-name { display: none; } }
 .cc-badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: #d14343; color: #ffffff;
   font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; }
 .cc-main .st-page-head > :first-child { flex: 1 1 320px; min-width: 0; }
@@ -281,7 +290,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
   --ui-frame-line: #46536b;
   --ui-frame-guide: #56637b;
 }
-:root:not([data-theme="dark"]) .cc-app .cc-main h1, :root:not([data-theme="dark"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
+:root:not([data-theme="none"]) .cc-app .cc-main h1, :root:not([data-theme="none"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
 :root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: var(--ui-line); }
 .cc-app .st-page-head, .cc-app .st-table th { border-bottom-color: var(--ui-line, var(--ui-border)); }
 .ov-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
@@ -443,7 +452,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-au-more .ui-input { width: 200px; height: 30px; }
 .cc-au .ov-seg { height: var(--ui-h); }
 .cc-au.has-panel { padding-right: 486px; }
-.cc-au-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 470px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
+.cc-au-panel { position: fixed; top: var(--cc-top-h, 48px); right: 0; bottom: 0; width: 470px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
   box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }
 .cc-au-panel-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-au-panel-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
@@ -565,7 +574,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-table tr.is-open td { background: var(--ui-selected); }
 .cc-run-why { color: var(--ui-error-text); max-width: 340px; display: inline-block; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
 .cc-list.has-run { padding-right: 556px; }
-.cc-run-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 540px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
+.cc-run-panel { position: fixed; top: var(--cc-top-h, 48px); right: 0; bottom: 0; width: 540px; z-index: 20; background: var(--ui-bg); border-left: 1px solid var(--ui-border);
   box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }
 .cc-run-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-run-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
@@ -642,7 +651,7 @@ span.cc-tree-chev { cursor: default; }
 }
 /* An agent line by line, as AA's View (review round 2, approved on the canvas 31 Oct 2026): it opens as a page in place of the
    folder panes, read-only, with numbered steps, open and close on blocks, and the chosen line's settings beside them */
-.cc-agent { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 48px); background: var(--ui-bg); }
+.cc-agent { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - var(--cc-top-h, 48px)); background: var(--ui-bg); }
 .cc-agent-head { display: flex; align-items: center; gap: 10px; min-height: 52px; flex-shrink: 0; padding: 6px 12px 6px 16px; background: var(--ui-soft); border-bottom: 1px solid var(--ui-border); flex-wrap: wrap; }
 .cc-agent-head h1 { margin: 0; font-size: 17px; font-weight: 600; }
 .cc-agent > .st-alert { margin: 8px 16px 0; }
@@ -823,11 +832,13 @@ a.ov-tab { text-decoration: none; }
    A 44 px top bar with the mark and the name on two lines; menu sections as bold white capitals on a line of their own
    with a coloured tile, their pages smaller and lighter under a guide line, the open page with a blue edge; where you
    are as a small line above the page title (not in the top bar). Every colour pair is 4.5:1 or more. */
-.cc-app .cc-top { min-height: 44px; height: 44px; flex-wrap: nowrap; gap: 16px; padding: 0 14px; }
-.cc-app .cc-top .st-brand { width: 214px; flex: none; gap: 9px; }
-.cc-app .cc-search { flex: 0 1 380px; margin: 0; }
-.cc-app .cc-search input { height: 28px; font-size: 12.5px; }
-.cc-app .st-top-icon { width: 28px; height: 28px; }
+/* item 1 of the fix list of 27 Nov, round 2 (option A2): a 56 px bar, the search centred and wider, plain white icons */
+.cc-app { --cc-top-h: 59px; }   /* the bar and its 3 px line: side panels start below it */
+.cc-app .cc-top { min-height: 56px; height: 56px; flex-wrap: nowrap; gap: 16px; padding: 0 16px 0 12px; }
+.cc-app .cc-search { flex: 0 1 560px; margin: 0 auto; }
+.cc-app .cc-search input { height: 32px; font-size: 13px; padding-left: 34px; }
+.cc-app .cc-search > svg { left: 11px; }
+.cc-app .st-top-icon { width: 32px; height: 32px; }
 /* menu: sections and their pages look different (item 3) */
 .cc-app .st-menu.is-console { padding: 8px 6px; }
 .cc-app .st-menu-home { height: 30px; font-size: 13px; }
@@ -900,6 +911,7 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-strip-cell { display: flex; flex-direction: column; justify-content: center; height: 100%; min-height: 54px; padding: 6px 14px; color: inherit; text-decoration: none; }
 .cc-app .cc-strip-cell strong { font-size: 20px; font-weight: 700; line-height: 24px; color: var(--ui-text); white-space: nowrap; }
 .cc-app .cc-strip-cell strong.is-bad { color: #b42318; }
+:root[data-theme="dark"] .cc-app .cc-strip-cell strong.is-bad { color: var(--ui-error-text); }   /* 7.7:1 on the dark page (item 1, A3) */
 .cc-app .cc-strip-cell span { font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-app .cc-strip-cell.is-link:hover { background: #f1f6fe; }
 .cc-app .cc-strip-cell.is-link:hover span { color: var(--ui-accent); }
@@ -952,58 +964,60 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 /* ======================================================================================================================
  * F1 final (22 Nov 2026), chosen on the "Console colour options" canvas: white pages, darker and heavier text, an ink top
  * bar with a brand-blue line, dark table headers with column and row lines everywhere, and a left menu whose section
- * headings stand apart from their pages. Light theme only; the dark theme keeps its own colours.
+ * headings stand apart from their pages. Since item 1 of 27 Nov (round 2) the dark theme (A3) uses the same rules with its
+ * own colours: `:root:not([data-theme="none"])` matches both themes with the specificity the light-only rules had.
  * ==================================================================================================================== */
-:root:not([data-theme="dark"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; font-family: var(--ui-font); color: var(--ui-text); }
+:root:not([data-theme="none"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  font-family: var(--ui-font); color: var(--ui-text); }
 /* Text a step larger and heavier than before (F1): body 14 px medium, tables 13.5 px, page titles 22 px */
-:root:not([data-theme="dark"]) .cc-app .cc-main { font-size: 14px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main h1 { font-size: 22px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main h2 { font-size: 16px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main .ui-btn, :root:not([data-theme="dark"]) .cc-app .cc-main .ui-input,
-:root:not([data-theme="dark"]) .cc-app .cc-main select, :root:not([data-theme="dark"]) .cc-app .cc-main .ui-search-select-field { font-size: 13.5px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main table th { height: 34px; font-size: 13px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main table tbody td { height: 32px; font-size: 13.5px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main [role="tab"], :root:not([data-theme="dark"]) .cc-app .cc-main .st-page-tab,
-:root:not([data-theme="dark"]) .cc-app .cc-main .ov-tab, :root:not([data-theme="dark"]) .cc-app .cc-group-tab { font-size: 13.5px; }
-:root:not([data-theme="dark"]) .cc-app .cc-main .st-muted, :root:not([data-theme="dark"]) .cc-app .cc-main .cc-list-count,
-:root:not([data-theme="dark"]) .cc-app .cc-main .ui-field-hint { font-size: 13px; color: var(--ui-text-2); }
-:root:not([data-theme="dark"]) .cc-app .cc-main { background: #ffffff; font-weight: 500; }
-:root:not([data-theme="dark"]) .cc-app .st-top { border-bottom: 3px solid #0b6ba3; }
+:root:not([data-theme="none"]) .cc-app .cc-main { font-size: 14px; }
+:root:not([data-theme="none"]) .cc-app .cc-main h1 { font-size: 22px; }
+:root:not([data-theme="none"]) .cc-app .cc-main h2 { font-size: 16px; }
+:root:not([data-theme="none"]) .cc-app .cc-main .ui-btn, :root:not([data-theme="none"]) .cc-app .cc-main .ui-input,
+:root:not([data-theme="none"]) .cc-app .cc-main select, :root:not([data-theme="none"]) .cc-app .cc-main .ui-search-select-field { font-size: 13.5px; }
+:root:not([data-theme="none"]) .cc-app .cc-main table th { height: 34px; font-size: 13px; }
+:root:not([data-theme="none"]) .cc-app .cc-main table tbody td { height: 32px; font-size: 13.5px; }
+:root:not([data-theme="none"]) .cc-app .cc-main [role="tab"], :root:not([data-theme="none"]) .cc-app .cc-main .st-page-tab,
+:root:not([data-theme="none"]) .cc-app .cc-main .ov-tab, :root:not([data-theme="none"]) .cc-app .cc-group-tab { font-size: 13.5px; }
+:root:not([data-theme="none"]) .cc-app .cc-main .st-muted, :root:not([data-theme="none"]) .cc-app .cc-main .cc-list-count,
+:root:not([data-theme="none"]) .cc-app .cc-main .ui-field-hint { font-size: 13px; color: var(--ui-text-2); }
+:root:not([data-theme="none"]) .cc-app .cc-main { background: var(--ui-bg); font-weight: 500; }
+:root:not([data-theme="none"]) .cc-app .st-top { border-bottom: 3px solid #0b6ba3; }
 :root:not([data-theme="dark"]) .cc-app .ui-btn-primary:hover:not(:disabled) { background: #063a5a; }
-:root:not([data-theme="dark"]) .cc-app .cc-main a:not(.ui-btn) { color: var(--ui-accent-text); }
-:root:not([data-theme="dark"]) .cc-app .cc-main td a:not(.ui-btn), :root:not([data-theme="dark"]) .cc-app .cc-main td .cc-link { font-weight: 600; }
-:root:not([data-theme="dark"]) .cc-app .cc-main h1 { font-weight: 700; }
+:root:not([data-theme="none"]) .cc-app .cc-main a:not(.ui-btn) { color: var(--ui-accent-text); }
+:root:not([data-theme="none"]) .cc-app .cc-main td a:not(.ui-btn), :root:not([data-theme="none"]) .cc-app .cc-main td .cc-link { font-weight: 600; }
+:root:not([data-theme="none"]) .cc-app .cc-main h1 { font-weight: 700; }
 
 /* Selected tab: a purple underline, the brand's second colour */
-:root:not([data-theme="dark"]) .cc-app .cc-main .ov-tab[aria-selected="true"],
-:root:not([data-theme="dark"]) .cc-app .cc-main .st-page-tab[aria-selected="true"],
-:root:not([data-theme="dark"]) .cc-app .cc-main [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; border-bottom-color: #7148c9; font-weight: 700; color: var(--ui-text); }
+:root:not([data-theme="none"]) .cc-app .cc-main .ov-tab[aria-selected="true"],
+:root:not([data-theme="none"]) .cc-app .cc-main .st-page-tab[aria-selected="true"],
+:root:not([data-theme="none"]) .cc-app .cc-main [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; border-bottom-color: #7148c9; font-weight: 700; color: var(--ui-text); }
 
 /* Tables on every page: a dark header with white bold text, lines between columns and rows, light stripes, an outline */
-:root:not([data-theme="dark"]) .cc-app .cc-main table { border-collapse: collapse; }
-:root:not([data-theme="dark"]) .cc-app .cc-main thead th,
-:root:not([data-theme="dark"]) .cc-app .cc-list-table th,
-:root:not([data-theme="dark"]) .cc-app .ov-t th,
-:root:not([data-theme="dark"]) .cc-app .st-table.cc-table th { background: #1c2840; color: #ffffff; font-weight: 700; border-bottom: 0; }
-:root:not([data-theme="dark"]) .cc-app .cc-main thead th + th,
-:root:not([data-theme="dark"]) .cc-app .cc-list-table th + th,
-:root:not([data-theme="dark"]) .cc-app .ov-t th + th { border-left: 1px solid #4a5874; }
-:root:not([data-theme="dark"]) .cc-app .cc-main thead th button,
-:root:not([data-theme="dark"]) .cc-app .cc-main thead th a,
-:root:not([data-theme="dark"]) .cc-app .cc-main thead th svg { color: #ffffff; }
-:root:not([data-theme="dark"]) .cc-app .cc-main tbody td { border-bottom: 1px solid var(--ui-divider); }
-:root:not([data-theme="dark"]) .cc-app .cc-main tbody td + td,
-:root:not([data-theme="dark"]) .cc-app .cc-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
-:root:not([data-theme="dark"]) .cc-app .cc-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
-:root:not([data-theme="dark"]) .cc-app .cc-main tbody tr:hover > td { background: var(--ui-row-hover); }
-:root:not([data-theme="dark"]) .cc-app .cc-main table:not(.cc-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
+:root:not([data-theme="none"]) .cc-app .cc-main table { border-collapse: collapse; }
+:root:not([data-theme="none"]) .cc-app .cc-main thead th,
+:root:not([data-theme="none"]) .cc-app .cc-list-table th,
+:root:not([data-theme="none"]) .cc-app .ov-t th,
+:root:not([data-theme="none"]) .cc-app .st-table.cc-table th { background: var(--cc-th-bg, #1c2840); color: #ffffff; font-weight: 700; border-bottom: 0; }
+:root:not([data-theme="none"]) .cc-app .cc-main thead th + th,
+:root:not([data-theme="none"]) .cc-app .cc-list-table th + th,
+:root:not([data-theme="none"]) .cc-app .ov-t th + th { border-left: 1px solid #4a5874; }
+:root:not([data-theme="none"]) .cc-app .cc-main thead th button,
+:root:not([data-theme="none"]) .cc-app .cc-main thead th a,
+:root:not([data-theme="none"]) .cc-app .cc-main thead th svg { color: #ffffff; }
+:root:not([data-theme="none"]) .cc-app .cc-main tbody td { border-bottom: 1px solid var(--ui-divider); }
+:root:not([data-theme="none"]) .cc-app .cc-main tbody td + td,
+:root:not([data-theme="none"]) .cc-app .cc-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
+:root:not([data-theme="none"]) .cc-app .cc-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
+:root:not([data-theme="none"]) .cc-app .cc-main tbody tr:hover > td { background: var(--ui-row-hover); }
+:root:not([data-theme="none"]) .cc-app .cc-main table:not(.cc-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
 
 /* Sections inside a page: a clear outline and a line under each section title */
-:root:not([data-theme="dark"]) .cc-app .cc-card,
-:root:not([data-theme="dark"]) .cc-app .cc-main .st-panel,
-:root:not([data-theme="dark"]) .cc-app .cc-main fieldset { border-color: var(--ui-border); }
-:root:not([data-theme="dark"]) .cc-app .cc-main h2,
-:root:not([data-theme="dark"]) .cc-app .cc-main .cc-card > h3:first-child { padding-bottom: 6px; border-bottom: 1px solid var(--ui-line); }
+:root:not([data-theme="none"]) .cc-app .cc-card,
+:root:not([data-theme="none"]) .cc-app .cc-main .st-panel,
+:root:not([data-theme="none"]) .cc-app .cc-main fieldset { border-color: var(--ui-border); }
+:root:not([data-theme="none"]) .cc-app .cc-main h2,
+:root:not([data-theme="none"]) .cc-app .cc-main .cc-card > h3:first-child { padding-bottom: 6px; border-bottom: 1px solid var(--ui-line); }
 
 /* Left menu, kept as it is, with section headings set apart from their pages (an idea from AA's menu): headings in
    bold white capitals on their band with the section's coloured icon; pages indented, lighter and medium weight. */
@@ -1080,3 +1094,31 @@ body .cc-app .cc-sums .cc-sum > span { white-space: normal; overflow: visible; t
 .cc-main .st-page > header, .cc-main .st-page > .cc-list-head, .cc-main .st-page > .cc-sums { flex-shrink: 0; }
 /* period switches keep each choice on one line on a phone ("24 hours" broke onto two lines and spilled out) */
 .cc-main .ov-seg button { white-space: nowrap; }
+
+/* ======================================================================================================================
+ * The page heading (fix list 27 Nov 2026, round 2, item 1; A2 light and A3 dark, chosen on the canvas). Every page
+ * that uses the standard parts (PageTitle, HelpButton, PageIntro) gets the same three lines without changing a page:
+ *   1. where you are (Build › Agents), drawn above the page by the console;
+ *   2. the title, its count as a tag, then the page's own buttons on the right;
+ *   3. the description, then Help · Docs · Video as text links.
+ * Flex order puts each part on its line: a zero-height break (::after) ends line 2; PageIntro opens up (display:
+ * contents) so its description and links can sit either side of Help.
+ * ==================================================================================================================== */
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 2px; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > * { order: 5; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > h1 { order: 0; margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .cc-list-count { order: 1; font-size: 12px; font-weight: 600; line-height: 18px; padding: 1px 9px;
+  border-radius: 10px; background: var(--cc-tag-bg, #e3edfb); color: var(--cc-tag-text, #08507c); white-space: nowrap; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro)::before { content: ""; order: 2; flex: 1 1 0; }   /* pushes the page's buttons to the right */
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ov-fill { order: 2; flex: 0 0 0; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro)::after { content: ""; order: 9; flex-basis: 100%; height: 0; }   /* the end of line 2 */
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .st-page-intro { display: contents; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-page-desc { order: 10; font-size: 13px; line-height: 20px; font-weight: 400; color: var(--ui-text-2); }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help { order: 11; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent;
+  color: var(--ui-accent-text); font-size: 13px; font-weight: 600; line-height: 20px; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help .ui-help-mark { display: none; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help:hover, :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help.is-on { background: transparent; color: var(--ui-accent-text); text-decoration: underline; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-links { order: 12; gap: 0; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link { font-size: 13px; font-weight: 600; line-height: 20px; color: var(--ui-accent-text); }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link > svg { display: none; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link::before { content: "·"; margin: 0 8px; color: var(--ui-text-3, #4b5565); font-weight: 400; }

@@ -334,7 +334,7 @@ describe("new Studio", () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
     const brand = () => document.querySelector(".st-brand")?.textContent;
-    expect([brand(), document.title]).toEqual(["", "One CommandCenter"]);   // round 3 (T1): the logo, no product name on the bar; only the editor names itself, OneAgentStudio
+    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // item 1 (27 Nov round 2, A2): the logo and the product's name; the editor names itself OneAgentStudio
     fireEvent.change(search, { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
@@ -362,7 +362,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't save" }));   // the id and description changed
     expect(await screen.findByRole("heading", { name: "Agents" })).toBeTruthy();
-    expect(brand()).toBe("");   // back on Agents: the logo only (round 3, T1)
+    expect(brand()).toBe("One CommandCenter");   // back on Agents: One CommandCenter again (item 1, A2)
   });
 
   it("opens Create > Agent on the Private tab when One CommandCenter's Agents asks for a new agent (#private/new)", async () => {

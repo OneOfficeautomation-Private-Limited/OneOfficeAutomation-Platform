@@ -236,7 +236,7 @@ const SECTIONS: Section[] = [
           { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 },
           { key: "mcp_runs_per_hour", label: "Runs per person", hint: "0 = no limit.", unit: "an hour", kind: "number", min: 0, max: 10000 }] }] },
   ] },
-  { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "Build > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
+  { id: "documents", title: "Document Automation", mark: "DA", colour: "#0f766e", about: "Build > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [
       { key: "docflow_autostart", label: "Start with One CommandCenter", hint: "Starts DocFlow installed on this server, and stops it with One CommandCenter.", kind: "check" },
       { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085. A path is allowed behind a reverse proxy.", kind: "text", placeholder: "http://127.0.0.1:8085" },

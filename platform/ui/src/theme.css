@@ -60,28 +60,32 @@
 }
 
 /*
- * Dark theme (Display menu): the same tokens on dark panels. The frame, solid buttons and icon tiles stay as they
- * are; every text colour is still at least 4.5:1 on the surface it sits on (tools/check-contrast.mjs).
+ * Dark theme (Display menu), A3 of the fix list of 27 Nov 2026 (round 2, item 1): the same layout as the light theme
+ * (A2) on dark pages. The top bar and the menu are the light theme's, so the logo, the round fold button and the menu
+ * look the same in both; only the page area under the bar turns dark. Every text colour is still at least 4.5:1 on the
+ * surface it sits on (tools/check-contrast.mjs).
  */
 :root[data-theme="dark"] {
-  --ui-text: #e8edf4;
-  --ui-text-2: #c9d1dc;
-  --ui-text-3: #aab4c3;
-  --ui-bg: #1b2230;
-  --ui-row-hover: #253044;
-  --ui-selected: #243c66;
-  --ui-divider: #2e3849;
-  --ui-border: #445066;
-  --ui-col-line: #445066;
-  --ui-field: #7d899c;
-  --ui-accent-text: #8fb6ff;
+  --ui-text: #e8edf5;          /* 15.1:1 on the page */
+  --ui-text-2: #c3cbd8;        /* 10.9:1 */
+  --ui-text-3: #aab4c3;        /* 8.4:1 */
+  --ui-bg: #121826;            /* the page */
+  --ui-row-hover: #1d2a40;
+  --ui-selected: #1d3554;
+  --ui-divider: #263042;
+  --ui-border: #5f6b84;        /* panel and table outlines, 3.3:1 */
+  --ui-line: #5f6b84;          /* under page titles and section titles */
+  --ui-col-line: #3a4558;
+  --ui-field: #8592a8;         /* field and control borders, 5.6:1 */
+  --ui-accent: #1f6fae;        /* white text on it: 5.3:1 */
+  --ui-accent-text: #8cc4f5;   /* 9.6:1 */
   --ui-warning-text: #f5c26b;
   --ui-success: #1d7a46;
   --ui-variable: #c9adff;
-  --ui-soft: #222b3b;
-  --ui-tint: #1f2c45;
-  --ui-pill-text: #cfe0ff;
-  --ui-error-text: #ffa3b4;
+  --ui-soft: #161e2e;          /* striped rows, code boxes */
+  --ui-tint: #1d3554;
+  --ui-pill-text: #b9dcfa;     /* 8.7:1 on the selected colour */
+  --ui-error-text: #ff9b8f;
   --ui-error-bg: #3d1a22;
   --ui-error-line: #7a2f3d;
   --ui-ok-text: #93e2b0;
@@ -91,6 +95,12 @@
   --ui-ai-text: #e2d4ff;
   --ui-offer-bg: #3b3018;
   --ui-guide: #5d6a80;
+  --ui-heading: #ffffff;
+  --ui-frame: #1c2840;         /* the top bar, as the light theme's */
+  --ui-frame-2: #161c27;       /* the menu */
+  --cc-tag-bg: #1d3554;        /* the count tag beside a page title: 8.7:1 */
+  --cc-tag-text: #b9dcfa;
+  --cc-th-bg: #243352;         /* table headers: a step lighter than the page, white text 12.5:1 */
   color-scheme: dark;
 }
 

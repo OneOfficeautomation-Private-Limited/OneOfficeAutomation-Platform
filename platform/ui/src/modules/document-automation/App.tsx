@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon, Menu, usePersistent } from "../../components";
-import { CompanyName, TopBrand } from "../../shell/TopBrand";
+import { TopBrand } from "../../shell/TopBrand";
 import { CommandMenu } from "../../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -91,7 +91,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
             <div className={embedded ? "df-head df-head-embedded" : "df-head"}>
               <div className={embedded ? "df-head-row cc-list-head st-agents-head" : "df-head-row"}>
                 {/* layout fixes 27 Nov, item 4: the title and its intro on the left; the status pills and Help keep together on the right */}
-                <div className="df-head-main"><h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} /></div>
+                <div className="df-head-main st-head-row"><h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} /></div>
                 <div className="df-head-side">
                   {optIn
                     ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
@@ -137,7 +137,6 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           {reviewing ? <span>Task inbox</span> : <span>Document Automation</span>}<Icon name="chevronRight" size={12} />
           <span className="st-crumb-current">{crumb}</span>
         </nav>
-        <CompanyName />
         <div className="st-top-actions">
           {tenants.length > 1 && (
             <label className="df-filter" style={{ color: "var(--ui-frame-text-2)" }}>

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it } from "vitest";
 import { CrApi } from "../api/cr";
 import { ConsoleApp } from "./ConsoleApp";
+import { initials } from "./TopBar";
 import { groupOf, MENU_SECTIONS } from "../shell/menu";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -1331,10 +1332,15 @@ describe("rebuilt One CommandCenter console", () => {
     // Console A (13 Nov 2026): where you are is a line above the page title, not in the top bar; a person lands on Build > Agents
     expect((await screen.findByRole("link", { name: "Open alerts: 1" })).getAttribute("href")).toBe("#/alerts");
     expect((await screen.findByRole("navigation", { name: "You are here" })).textContent).toBe("Build›Agents");
-    // round 3 (T1): ☰, then the company's logo; no product name on the bar; the company name in the free space
-    expect(document.querySelector(".cc-top .st-brand")!.textContent).toBe("");
-    expect(within(document.querySelector(".cc-top .st-brand") as HTMLElement).getByAltText("ONEOFFICEAUTOMATION")).toBeTruthy();
-    expect(document.querySelector(".cc-top .st-company")!.textContent).toBe("OneOfficeAutomation");
+    // fix list 27 Nov round 2, item 1 (A2): the round ‹, the logo (white lettering, no plate) and the product's name; no company name in the bar
+    expect(document.querySelector(".cc-top .st-brand")!.textContent).toBe("One CommandCenter");
+    expect(within(document.querySelector(".cc-top .st-brand") as HTMLElement).getByAltText("ONEOFFICEAUTOMATION").className).toBe("st-brand-logo");
+    expect(document.querySelector(".cc-top .st-brand .st-menu-round")).toBeTruthy();   // the same round button as at the menu's foot
+    expect(document.querySelector(".st-company, .st-brand-plate")).toBeNull();
+    // the account: the person's initials in a badge, then their name
+    const account = screen.getByRole("button", { name: "Account: " + admin.display_name });
+    expect(account.querySelector(".cc-user-badge")!.textContent).toBe(initials(admin.display_name));
+    expect(account.querySelector(".cc-user-name")!.textContent).toBe(admin.display_name);
     await go("Users");
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›People›Users"));   // section › menu entry › page (27 Nov 2026)
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });

@@ -24,7 +24,7 @@ import { ConnectionWizard } from "./ConnectionWizard";
 import { agentRows, allInstalled } from "./toolkits";
 import type { Captured } from "./capture";
 import { oneStep, runOnce } from "./runOnce";
-import { CompanyName, TopBrand } from "../shell/TopBrand";
+import { TopBrand } from "../shell/TopBrand";
 import { loadHelpConfig } from "../shell/helpCatalogue";
 import { HelpLinks } from "../shell/HelpLinks";
 import { upgradeRefs } from "./variables";
@@ -616,7 +616,6 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
         {current ? crumbs : <span className="st-crumbs" />}
         <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
-        {!current && <CompanyName />}
         <Menu label="Display" title="Display" items={displayItems}
           trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         {editActions}
