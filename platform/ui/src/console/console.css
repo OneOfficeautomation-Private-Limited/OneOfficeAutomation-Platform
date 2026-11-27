@@ -838,6 +838,7 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-search { flex: 0 1 560px; margin: 0 auto; }
 .cc-app .cc-search input { height: 32px; font-size: 13px; padding-left: 34px; }
 .cc-app .cc-search > svg { left: 11px; }
+.cc-app .cc-top .st-top-actions { flex: none; flex-wrap: nowrap; }   /* the icons and the account stay on the bar's one line */
 .cc-app .st-top-icon { width: 32px; height: 32px; }
 /* menu: sections and their pages look different (item 3) */
 .cc-app .st-menu.is-console { padding: 8px 6px; }
@@ -907,31 +908,32 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-strip-title { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #4a5568; }
 .cc-app .cc-strip { list-style: none; margin: 0; padding: 0; display: grid; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 6px; overflow: hidden; }
 .cc-app .cc-strip > li { min-width: 0; }
-.cc-app .cc-strip > li + li { border-left: 1px solid #e3e7ed; }
+.cc-app .cc-strip > li + li { border-left: 1px solid var(--ui-divider); }
 .cc-app .cc-strip-cell { display: flex; flex-direction: column; justify-content: center; height: 100%; min-height: 54px; padding: 6px 14px; color: inherit; text-decoration: none; }
 .cc-app .cc-strip-cell strong { font-size: 20px; font-weight: 700; line-height: 24px; color: var(--ui-text); white-space: nowrap; }
 .cc-app .cc-strip-cell strong.is-bad { color: #b42318; }
 :root[data-theme="dark"] .cc-app .cc-strip-cell strong.is-bad { color: var(--ui-error-text); }   /* 7.7:1 on the dark page (item 1, A3) */
 .cc-app .cc-strip-cell span { font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cc-app .cc-strip-cell.is-link:hover { background: #f1f6fe; }
-.cc-app .cc-strip-cell.is-link:hover span { color: var(--ui-accent); }
+.cc-app .cc-strip-cell.is-link:hover { background: var(--ui-row-hover); }
+.cc-app .cc-strip-cell.is-link:hover span { color: var(--ui-accent-text); }
 .cc-app .cc-strip-cell.is-link:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
 .cc-app .cc-list .ui-tile { flex: none; }
 @media (max-width: 900px) { .cc-app .cc-strip { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .cc-app .cc-strip > li:nth-child(3n+1) { border-left: 0; } .cc-app .cc-strip > li:nth-child(n+4) { border-top: 1px solid #e3e7ed; } }
 
 /* 13 Nov 2026 round 2, item 6 (A6): every page's figures as Home's strip (H1): one white strip, equal cells split by
    thin lines, the number over its label. ("body" lifts these above the earlier .cc-app rules.) */
-body .cc-app .cc-sums, body .cc-app .cc-list > .cc-sums { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; margin: 10px 20px 0; padding: 0;
+body .cc-app .cc-sums, body .cc-app .cc-list > .cc-sums { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; margin: 10px 20px 0; padding: 0;
   background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 6px; overflow: hidden; }
 body .cc-app .cc-list > .cc-sums, body .cc-app .cc-sums.cc-sums-flush { margin-left: 0; margin-right: 0; }
 body .cc-app .cc-sums .cc-sum, body .cc-app .cc-list > .cc-sums .cc-sum { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; height: auto; min-height: 50px;
-  min-width: 0; padding: 4px 14px; border: 0; border-left: 1px solid #e3e7ed; border-radius: 0; background: transparent; text-align: left; }
+  min-width: 0; padding: 4px 14px; border: 0; border-radius: 0; background: transparent; text-align: left;
+  box-shadow: -1px 0 0 var(--ui-divider), 0 -1px 0 var(--ui-divider); }   /* lines between cells, also when they wrap onto a second row (27 Nov round 2) */
 body .cc-app .cc-sums .cc-sum:first-child { border-left: 0; }
 body .cc-app .cc-sums .cc-sum strong { font-size: 18px; line-height: 22px; white-space: nowrap; }
 body .cc-app .cc-sums .cc-sum strong.cc-sum-text { font-size: 13px; line-height: 22px; }
 body .cc-app .cc-sums .cc-sum span { max-width: 100%; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body .cc-app .cc-sums button.cc-sum:hover, body .cc-app .cc-sums a.cc-sum:hover { background: #f1f6fe; }
-body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:hover span { color: var(--ui-accent); }
+body .cc-app .cc-sums button.cc-sum:hover, body .cc-app .cc-sums a.cc-sum:hover { background: var(--ui-row-hover); }
+body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:hover span { color: var(--ui-accent-text); }
 /* the agent's mark on the line of its name (A6) */
 .cc-agent-cell { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: middle; }
 .cc-agent-cell strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1118,7 +1120,8 @@ body .cc-app .cc-sums .cc-sum > span { white-space: normal; overflow: visible; t
   color: var(--ui-accent-text); font-size: 13px; font-weight: 600; line-height: 20px; }
 :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help .ui-help-mark { display: none; }
 :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help:hover, :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help.is-on { background: transparent; color: var(--ui-accent-text); text-decoration: underline; }
-:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-links { order: 12; gap: 0; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-links { order: 12; gap: 8px; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) > .ui-help + .st-page-intro .st-help-links { margin-left: -4px; }   /* Help · Docs · Video evenly spaced */
 :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link { font-size: 13px; font-weight: 600; line-height: 20px; color: var(--ui-accent-text); }
 :root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link > svg { display: none; }
-:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link::before { content: "·"; margin: 0 8px; color: var(--ui-text-3, #4b5565); font-weight: 400; }
+:root .cc-app .cc-main :is(header, .st-head-row):has(> .st-page-intro) .st-help-link::before { content: "·"; margin-right: 8px; color: var(--ui-text-3, #4b5565); font-weight: 400; }
