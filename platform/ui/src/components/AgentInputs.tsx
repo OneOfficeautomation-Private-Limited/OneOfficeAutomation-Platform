@@ -269,11 +269,11 @@ export function VaultPicker({ id, value, list, onChange }: { id?: string; value:
   const attrs = uniq(list.filter((r) => r.locker === f && r.name === c).map((r) => r.attribute));
   const keep = (xs: string[], x: string) => x && !xs.includes(x) ? [...xs, x] : xs;
   return <div className="ui-vault" role="group" aria-label="Vault reference">
-    <Select id={id} aria-label="Vault folder" value={f} onChange={(e) => set([e.target.value, "", ""])}
+    <Select id={id} aria-label="Vault folder" value={f} kind="vault" noun="folders" onChange={(e) => set([e.target.value, "", ""])}
       options={[{ value: "", label: "Vault folder…" }, ...keep(folders, f).map((x) => ({ value: x, label: x }))]} />
-    <Select aria-label="Credential" value={c} disabled={!f} onChange={(e) => { const n = e.target.value; const as = list.filter((r) => r.locker === f && r.name === n).map((r) => r.attribute); set([f, n, as.length === 1 ? as[0] : ""]); }}
+    <Select aria-label="Credential" value={c} disabled={!f} kind="vault" noun="credentials" onChange={(e) => { const n = e.target.value; const as = list.filter((r) => r.locker === f && r.name === n).map((r) => r.attribute); set([f, n, as.length === 1 ? as[0] : ""]); }}
       options={[{ value: "", label: "Credential…" }, ...keep(creds, c).map((x) => ({ value: x, label: x }))]} />
-    <Select aria-label="Attribute" value={a} disabled={!c} onChange={(e) => set([f, c, e.target.value])}
+    <Select aria-label="Attribute" value={a} disabled={!c} kind="vault" noun="attributes" onChange={(e) => set([f, c, e.target.value])}
       options={[{ value: "", label: "Attribute…" }, ...keep(attrs, a).map((x) => ({ value: x, label: x }))]} />
   </div>;
 }

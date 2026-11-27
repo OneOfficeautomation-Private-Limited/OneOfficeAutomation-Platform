@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StudioApi } from "../api/client";
 import { App } from "./App";
 import { chooseIn } from "../components/filterTestKit";
+import { choose, valueOf } from "../components/testing";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -546,7 +547,7 @@ describe("new Studio", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     expect(within(dialog).getByRole("alert").textContent).toMatch(/starts with a letter/);
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "$codes" } });
-    fireEvent.change(within(dialog).getByLabelText("Type"), { target: { value: "List" } });
+    choose(within(dialog).getByLabelText("Type"), "List");
     fireEvent.click(within(dialog).getByRole("button", { name: "Item" }));
     fireEvent.change(within(dialog).getByLabelText("Item 1"), { target: { value: "A1" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Item" }));
@@ -651,7 +652,7 @@ describe("new Studio", () => {
     fireEvent.change(keep, { target: { value: "\u0000new" } });
     const dialog = await screen.findByRole("dialog", { name: "New variable" });
     expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("count");
-    expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Number");
+    expect(valueOf(within(dialog).getByLabelText("Type"))).toBe("Number");
     fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.excel/count_rows", out: { count: "count" } });
@@ -671,7 +672,7 @@ describe("new Studio", () => {
     expect([...screen.getByLabelText("Credential variable").querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Choose a credential variable…"]);
     fireEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog", { name: "New variable" });
-    expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Credential");
+    expect(valueOf(within(dialog).getByLabelText("Type"))).toBe("Credential");
     fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { text: "$password$" } });
@@ -704,8 +705,8 @@ describe("new Studio", () => {
   const chooseAgent = async (name: string) => {
     fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
     const finder = await screen.findByRole("dialog", { name: "Find an agent" });
-    fireEvent.click(within(finder).getByRole("radio", { name: "Search" }));
-    fireEvent.change(within(finder).getByLabelText("Find an agent by name"), { target: { value: name } });
+    fireEvent.click(within(finder).getByRole("radio", { name: "Search all folders" }));
+    fireEvent.change(within(finder).getByLabelText("Search all folders"), { target: { value: name } });
     fireEvent.click(within(finder).getByRole("button", { name }));
     fireEvent.click(within(finder).getByRole("button", { name: "Choose" }));
   };
@@ -847,7 +848,7 @@ describe("new Studio", () => {
     const check1 = await screen.findByRole("group", { name: "Check 1" });
     fireEvent.change(within(check1).getByLabelText("Value"), { target: { value: "$total" } });
     fireEvent.blur(within(check1).getByLabelText("Value"));
-    fireEvent.change(within(check1).getByLabelText("Comparison"), { target: { value: "gt" } });
+    choose(within(check1).getByLabelText("Comparison"), "gt");
     fireEvent.change(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"), { target: { value: "1000" } });
     fireEvent.blur(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"));
     expect(screen.getByText("Reads: $total is greater than 1000")).toBeTruthy();
@@ -856,7 +857,7 @@ describe("new Studio", () => {
     const check2 = screen.getByRole("group", { name: "Check 2" });
     fireEvent.change(within(check2).getByLabelText("Value"), { target: { value: "$vendor" } });
     fireEvent.blur(within(check2).getByLabelText("Value"));
-    fireEvent.change(within(check2).getByLabelText("Comparison"), { target: { value: "empty" } });
+    choose(within(check2).getByLabelText("Comparison"), "empty");
     expect(within(screen.getByRole("group", { name: "Check 2" })).queryByLabelText("Compared with")).toBeNull();
     fireEvent.change(screen.getByLabelText("Combine checks"), { target: { value: "any" } });
     expect(screen.getByText("Reads: $total is greater than 1000 or $vendor is empty")).toBeTruthy();
@@ -1027,7 +1028,7 @@ describe("new Studio", () => {
     expect(within(fields).getByText("Invoice number")).toBeTruthy();
     expect(screen.queryByRole("complementary", { name: "Actions" })).toBeNull();   // the action library is for agents only
     expect(within(fields).queryByRole("button", { name: "Move up" })).toBeNull();   // move and delete show once a field is selected
-    fireEvent.change(screen.getByLabelText("Add a field"), { target: { value: "dropdown" } });
+    choose(screen.getByLabelText("Add a field"), "dropdown");
     fireEvent.click(within(fields).getByRole("button", { name: "Add" }));
     expect(within(fields).getByRole("button", { name: "Move up" })).toBeTruthy();
     expect((within(fields).getByRole("button", { name: "Move down" }) as HTMLButtonElement).disabled).toBe(true);   // the new one is last

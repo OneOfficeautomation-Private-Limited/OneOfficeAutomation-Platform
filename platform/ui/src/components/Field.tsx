@@ -1,4 +1,5 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState, type ChangeEvent, type ReactNode } from "react";
+import { SearchSelect } from "./SearchSelect";
 
 /**
  * A labelled field. "beside" puts the label to the left (OneAgentStudio's panels); "above" puts it on top (dialogs).
@@ -42,8 +43,22 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea className="ui-input ui-textarea" {...props} />;
 }
 
-/** A drop-down list; options with a group are shown under that group's heading (an optgroup), in the order given. */
-export function Select({ options, className, ...rest }: { options: { value: string; label: string; group?: string }[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+/** More choices than this and a drop-down becomes a list people can search (item 3 of the fix list of 27 Nov 2026, round 2, 3d). */
+export const SEARCH_AFTER = 12;
+
+/**
+ * A drop-down list; options with a group are shown under that group's heading (an optgroup), in the order given. A long
+ * list (more than SEARCH_AFTER choices, or `searchable`) is a SearchSelect: type to filter, group headings, its height
+ * remembered per `kind`; its onChange gets an event-like object whose target.value is the choice, as a select's does.
+ */
+export function Select({ options, className, searchable, kind, noun, ...rest }: { options: { value: string; label: string; group?: string; description?: string }[];
+  /** true: always the searchable list; false: always the browser's own. */
+  searchable?: boolean;
+  /** The searchable list's height is remembered under this name. */
+  kind?: string;
+  /** What the choices are, for its count ("variables"). */
+  noun?: string } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  if (searchable ?? options.length > SEARCH_AFTER) return <LongSelect options={options} className={className} kind={kind} noun={noun} {...rest} />;
   const parts: (typeof options[number] | { group: string; items: typeof options })[] = [];
   for (const o of options) {
     if (!o.group) { parts.push(o); continue; }
@@ -57,4 +72,19 @@ export function Select({ options, className, ...rest }: { options: { value: stri
         : <option key={p.value} value={p.value}>{p.label}</option>)}
     </select>
   );
+}
+
+/** A long Select: the searchable list, with the select's value, label, disabled state and onChange (or defaultValue). */
+function LongSelect({ options, className, kind, noun, value, defaultValue, onChange, id, disabled, "aria-label": ariaLabel, title }:
+  { options: { value: string; label: string; group?: string; description?: string }[]; kind?: string; noun?: string } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const [own, setOwn] = useState(String(defaultValue ?? ""));
+  const current = value === undefined ? own : String(value);
+  const change = (v: string) => {
+    if (value === undefined) setOwn(v);
+    onChange?.({ target: { value: v }, currentTarget: { value: v } } as unknown as ChangeEvent<HTMLSelectElement>);
+  };
+  return <span className={"ui-select-long" + (className ? " " + className : "")} title={title}>
+    <SearchSelect id={id} value={current} options={options} onChange={change} disabled={disabled} aria-label={ariaLabel} kind={kind} noun={noun}
+      placeholder={options.find((o) => o.value === "")?.label ?? "Type to search"} />
+  </span>;
 }

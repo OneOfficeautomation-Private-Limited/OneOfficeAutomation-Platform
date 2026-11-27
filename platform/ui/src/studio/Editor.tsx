@@ -8,7 +8,7 @@ import { AgentRepoFiles } from "./RepoFiles";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem, reportMinor } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, pointerOf, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, TreeTools, usePanelSize, usePersistent, withKey, type MenuItem, type MenuPoint, reportMinor } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import {
@@ -81,7 +81,9 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
   const packages = (simple ? simplePackages(all) : all).map((p) => ({ ...p, actions: p.actions.filter((a) => !RETIRED_ACTIONS.has(p.id + "/" + a.id)) }));
   if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
+  // the toolkits open (a click opens one and closes the rest; Expand all opens every one, item 3 of the fix list of 27 Nov 2026, 3e)
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const flip = (id: string, on: boolean) => setOpen(on ? new Set([id]) : new Set([...open].filter((x) => x !== id)));
   // 14 Nov usability round, item 11: what the action under the pointer or the keyboard does, shown at the panel's foot
   const [about, setAbout] = useState<{ name: string; text: string } | null>(null);
   const q = query.trim().toLowerCase();
@@ -152,6 +154,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           else if (e.key === "Escape" && query) { e.preventDefault(); setQuery(""); }
           else if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); }
         }} /></div>
+      <div className="st-actions-tools"><TreeTools what="toolkits" onExpandAll={() => setOpen(new Set([...(onTrigger ? ["triggers"] : []), ...list.map((x) => x.p.id)]))}
+        onCollapseAll={() => setOpen(new Set())} /></div>
       <ul className="st-groups" onKeyDown={jump} aria-label="Toolkits: type a letter to jump to a toolkit">
         {onTrigger && (() => {
           // as AA's editor, the triggers that start the agent sit beside its actions
@@ -160,9 +164,9 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
             ...TRIGGER_GROUPS.map(([g, ks]): [string, Item[]] => ["One CommandCenter: " + g.toLowerCase() + " (after check-in)", ks.map((k): Item => [k, KINDS[k]?.label ?? k, "server"])])];
           const kinds = all.map(([g, ks]): [string, Item[]] => [g, ks.filter(([, l]) => !q || l.toLowerCase().includes(q) || "trigger".includes(q))]).filter(([, ks]) => ks.length);
           if (!kinds.length) return null;
-          const isOpen = open === "triggers" || (!!q && list.length <= 3);
+          const isOpen = open.has("triggers") || (!!q && list.length <= 3);
           return <li>
-            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} data-name="Triggers" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
+            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} data-name="Triggers" aria-expanded={isOpen} onClick={() => flip("triggers", !isOpen)}>
               <IconTile name="bolt" color="#b45309" size={18} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
             </button>
             {isOpen && <ul className="st-group-actions">{kinds.map(([g, ks]) => <li key={g}>
@@ -173,13 +177,13 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           </li>;
         })()}
         {list.map(({ p, actions }) => {
-          const isOpen = open === p.id || (!!q && list.length <= 3);
+          const isOpen = open.has(p.id) || (!!q && list.length <= 3);
           const m = toolkitMark(p.id);
           return (
             <li key={p.id}>
               <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} data-name={p.name} aria-expanded={isOpen} title={p.description}
-                onClick={() => setOpen(isOpen ? null : p.id)}
-                onKeyDown={(e) => { if (e.key === "ArrowRight" && !isOpen) { e.preventDefault(); setOpen(p.id); } else if (e.key === "ArrowLeft" && isOpen) { e.preventDefault(); setOpen(null); } }}>
+                onClick={() => flip(p.id, !isOpen)}
+                onKeyDown={(e) => { if (e.key === "ArrowRight" && !isOpen) { e.preventDefault(); setOpen(new Set(open).add(p.id)); } else if (e.key === "ArrowLeft" && isOpen) { e.preventDefault(); flip(p.id, false); } }}>
                 <IconTile name={m.icon} color={m.color} size={18} /><span className="st-group-name">{p.name}</span><span className="st-count">{actions.length}</span>
               </button>
               {isOpen && <ul className="st-group-actions" style={{ "--kit": m.color } as CSSProperties}>{byCategory(p, actions).flatMap(([cat, acts]) => [
@@ -367,6 +371,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const [anchor, setAnchor] = useState<string | null>(null);   // where a Shift range starts
   const [cursor, setCursor] = useState<string | null>(null);   // the end of it that Shift+Up/Down moves
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menuAt, setMenuAt] = useState<MenuPoint | null>(null);   // a right-click opens the step menu at the pointer
   const list = useRef<HTMLOListElement>(null);
   const pasted = useRef(false);
   const [builtins, setBuiltins] = useState<Builtins>({ sys: {}, global: {} });
@@ -585,7 +590,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     else if (is(e, "steps.disable")) act.disable();
     else if (is(e, "run.breakpoint") && chosen.length) chosen.forEach(onToggleBreakpoint);
     else if (is(e, "run.clearBreakpoints") && breakpoints.length) breakpoints.forEach(onToggleBreakpoint);
-    else if (is(e, "steps.menu") && chosen.length) setMenuFor(chosen[chosen.length - 1]);
+    else if (is(e, "steps.menu") && chosen.length) { setMenuAt(null); setMenuFor(chosen[chosen.length - 1]); }
     else return;
     ev.preventDefault();
   };
@@ -683,7 +688,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     const hasParts = innerLists(r.step).length > 0;
     return (
       <li key={r.step.id} className={"st-step-row" + (isSel ? " is-selected" : "")}
-        onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
+        onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuAt(pointerOf(e)); setMenuFor(r.step.id); }}>
         <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
           draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
           onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
@@ -713,8 +718,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
             aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
-          <Menu compact label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
-            onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
+          <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id} at={menuAt}
+            onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); if (o) setMenuAt(null); setMenuFor(o ? r.step.id : null); }}
             trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
         </span>
       </li>
@@ -745,7 +750,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               <button type="button" className="st-tool st-tool-word" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /><span>Duplicate</span></button>
               <button type="button" className="st-tool st-tool-word" aria-label={allOff ? "Enable" : "Disable"} title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /><span>{allOff ? "Enable" : "Disable"}</span></button>
             </>}
-            <Menu label="More step actions" align="start" items={[
+            <Menu label="More step actions" items={[
               ...(chosen.length ? [
                 { key: "up", label: "Move up", shortcut: keyOf("steps.up"), onSelect: act.up },
                 { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
@@ -787,7 +792,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               : <button type="button" className="st-tool-text is-rec" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} aria-label="Record" onClick={record}><span className="st-rec-dot" aria-hidden="true" /><span className="st-tool-label">Record</span></button>}
             {capturing
               ? <span className="st-tool-busy" role="status">Capturing…</span>
-              : <Menu label="Capture" align="start" items={[
+              : <Menu label="Capture" items={[
                   { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
                   { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
                 ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control" aria-label="Capture"><Icon name="target" size={13} /><span className="st-tool-label">Capture</span></button>} />}
@@ -803,7 +808,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
                 title={n === null ? "The agent's main steps" : "Subflow " + n} onClick={() => { if (sub !== n) { setShown(n); onSelect([]); } }}>{n ?? "Main"}</button>)}
             </div>
             <button type="button" className="st-tool st-tool-word" title="Add a subflow: a named list of steps that Run subflow steps run" onClick={() => setSubDialog({})}><Icon name="plus" size={16} /><span>Subflow</span></button>
-            {sub !== null && <Menu label={"Subflow " + sub} align="start" items={[
+            {sub !== null && <Menu label={"Subflow " + sub} items={[
               { key: "rename", label: "Rename subflow…", description: "Run subflow steps follow the new name", onSelect: () => setSubDialog({ rename: sub }) },
               { key: "delete", label: "Delete subflow", description: "With its steps; " + keyOf("app.undo") + " brings it back",
                 onSelect: () => { onEditWhole(removeSubflow(whole, sub), []); setShown(null); onNotice("Deleted subflow " + sub + ". " + keyOf("app.undo") + " undoes it."); } },

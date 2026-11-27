@@ -17,9 +17,9 @@ function savedSize(key: string): { w: number; h: number } | null {
  * `resizable` (Studio defects 21 Nov 2026, item 11): a picker dialog that opens bigger, resizes from its corner,
  * maximises from its header and opens at the size it was left at.
  */
-export function Dialog({ open, onClose, title, icon, children, footer, width = 560, help, resizable = false, height }:
+export function Dialog({ open, onClose, title, icon, children, footer, width = 560, help, resizable = false, height, className }:
   { open: boolean; onClose: () => void; title: string; icon?: ReactNode; children: ReactNode; footer: ReactNode; width?: number; help?: ReactNode;
-    resizable?: boolean; height?: number }) {
+    resizable?: boolean; height?: number; className?: string }) {
   const body = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const [max, setMax] = useState(false);
@@ -44,7 +44,7 @@ export function Dialog({ open, onClose, title, icon, children, footer, width = 5
     <RadixDialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="ui-overlay" />
-        <RadixDialog.Content ref={box} className={"ui-dialog" + (resizable ? " is-resizable" : "") + (max ? " is-max" : "")}
+        <RadixDialog.Content ref={box} className={"ui-dialog" + (resizable ? " is-resizable" : "") + (max ? " is-max" : "") + (className ? " " + className : "")}
           style={resizable ? { width: start?.w ?? width, height: start?.h ?? height, maxWidth: "calc(100vw - 32px)" } : { maxWidth: width }}
           aria-describedby={undefined} onOpenAutoFocus={focusFirstField}
           onEscapeKeyDown={(e) => {

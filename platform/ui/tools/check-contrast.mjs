@@ -52,6 +52,12 @@ for (const [t, fg, bg, need] of LINES) {
   const r = ratio(t[fg], t[bg]);
   if (r < need) { console.error(`console lines: ${fg} ${t[fg]} on ${bg} ${t[bg]} is ${r.toFixed(2)}:1, needs ${need}:1`); failed++; }
 }
+// the pickers' table header (components/picker-layout.css): white text on its colour, in both themes
+const pickerCss = readFileSync(new URL("../src/components/picker-layout.css", import.meta.url), "utf8");
+for (const [, bg] of pickerCss.matchAll(/--ui-picker-th: (#[0-9a-fA-F]{6})/g)) {
+  const r = ratio("#ffffff", bg);
+  if (r < 4.5) { console.error(`picker header: white on ${bg} is ${r.toFixed(2)}:1, needs 4.5:1`); failed++; }
+}
 // the environment name (Settings > General): white text on each of its colours
 const envColours = [...consoleCss.matchAll(/\.cc-env-(\w+) \{ background: (#[0-9a-fA-F]{6}); \}/g)];
 if (envColours.length < 5) { console.error("console.css: the five environment colours are missing"); failed++; }

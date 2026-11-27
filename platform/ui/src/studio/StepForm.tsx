@@ -175,7 +175,7 @@ export function StepForm({ step, packages, onArg, onNote }:
       const value = typeof step.args?.[name] === "string" ? String(step.args[name]) : "";
       const none = step.action === "core/goto" ? "No label it can reach: add a Label step first" : "No subflows: add one from More (⋯)";
       return <Field key={step.id + ":" + name} label={labelOf(name) + " *"} layout="beside" info={props[name]?.description}>{(id) =>
-        <Select id={id} value={value} onChange={(e) => onArg(name, e.target.value || undefined)}
+        <Select id={id} value={value} kind="steps" noun={step.action === "core/goto" ? "labels" : "subflows"} onChange={(e) => onArg(name, e.target.value || undefined)}
           options={[{ value: "", label: choices.length ? "Choose…" : none }, ...choices.map((c) => ({ value: c, label: c })),
             ...(value && !choices.includes(value) ? [{ value, label: value + " (not found)" }] : [])]} />}</Field>;
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, ChoiceFilter, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, choiceText, choicesOf, choiceHas, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, choiceText, choicesOf, choiceHas, pointerOf, SidePanel, Splitter, TextInput, Tree, TreeTools, allIds, usePanelSize, usePersistent, type MenuItem, type MenuPoint, type TreeNode } from "../components";
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
@@ -125,6 +125,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [anchor, setAnchor] = useState<string | null>(null);
   const [clip, setClip] = useState<{ paths: string[]; cut: boolean } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menuAt, setMenuAt] = useState<MenuPoint | null>(null);   // a right-click opens a row's or a folder's menu at the pointer
   const [folderMenu, setFolderMenu] = useState(false);
   const [renaming, setRenaming] = useState<WorkspaceNode | null>(null);
   const uploadInput = useRef<HTMLInputElement | null>(null);
@@ -344,14 +345,15 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
           actions={<>
             <button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
               onClick={() => onNewFolder(folder)}><Icon name="plus" size={14} stroke={2.6} /></button>
+            <TreeTools onExpandAll={() => setExpanded(allIds(nodes))} onCollapseAll={() => setExpanded(new Set([""]))} />
             <Menu label={"Folder " + folderName + " menu"} title={folderName} items={folderItems} open={folderMenu} onOpenChange={setFolderMenu}
               trigger={<button type="button" className="ui-panel-toggle" aria-label={"Folder actions for " + folderName} title="Folder actions (right-click a folder)">
                 <Icon name="more" size={14} stroke={3} /></button>} />
           </>}>
           <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={openFolder} onToggle={toggle}
-            onMenu={(id) => setTreeMenu(id)}
+            onMenu={(id, e) => { setMenuAt(pointerOf(e)); setTreeMenu(id); }}
             renderActions={(n) => <Menu label={"Folder " + (n.id ? n.label : ROOT) + " menu"} title={n.id ? n.label : ROOT} items={folderItemsFor(n.id)}
-              open={treeMenu === n.id} onOpenChange={(o) => setTreeMenu(o ? n.id : null)}
+              open={treeMenu === n.id} at={menuAt} onOpenChange={(o) => { if (o) setMenuAt(null); setTreeMenu(o ? n.id : null); }}
               trigger={<button type="button" className="ui-tree-more" aria-label={"Actions for folder " + (n.id ? n.label : ROOT)} title="Folder actions (right-click)">
                 <Icon name="more" size={14} stroke={3} /></button>} />}
             canDrag={(id) => id !== ""} onDragStart={(id, e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify([id])); e.dataTransfer.effectAllowed = "move"; }}
@@ -391,7 +393,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                 const isSel = selected.includes(n.path);
                 return (
                   <tr key={n.path} className={isSel ? "is-selected" : ""} aria-selected={isSel} onClick={(e) => click(e, n.path)} onDoubleClick={() => open(n)}
-                    onContextMenu={(e) => { e.preventDefault(); if (!isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(n.path); }}
+                    onContextMenu={(e) => { e.preventDefault(); if (!isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuAt(pointerOf(e)); setMenuFor(n.path); }}
                     draggable onDragStart={(e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify(dragPaths(n.path))); e.dataTransfer.effectAllowed = "move"; }}
                     onDragOver={n.type === "folder" ? (e) => e.preventDefault() : undefined} onDrop={n.type === "folder" ? (e) => { e.preventDefault(); dropOn(n.path, e); } : undefined}>
                     <td className="st-tick" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={"Select " + displayName(n)} checked={isSel}
@@ -407,8 +409,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                       {q && <div className="st-item-path">{parentOf(n.path) || ROOT}</div>}</td>
                     {cols.map((c) => <td key={c.key} className={CLASS[c.key]}>{cell(c.key, n, why)}</td>)}
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
-                      <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}
-                        onOpenChange={(o) => { if (o && !isSel) { setSelected([n.path]); setAnchor(n.path); } setMenuFor(o ? n.path : null); }}
+                      <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path} at={menuAt}
+                        onOpenChange={(o) => { if (o && !isSel) { setSelected([n.path]); setAnchor(n.path); } if (o) setMenuAt(null); setMenuFor(o ? n.path : null); }}
                         trigger={<button type="button" className="ui-icon-btn st-row-more" aria-label={"Actions for " + displayName(n)} title="Actions (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
                     </td>
                   </tr>

@@ -8,7 +8,7 @@ import { useEffect } from "react";
 export function useFullTextOnHover() {
   useEffect(() => {
     const on = (e: MouseEvent) => {
-      const el = ((e.target as HTMLElement | null)?.closest?.("td, th, .cc-clip, .cc-hbar-label, .cc-sum span, .st-menu-entry-label") as HTMLElement | null)
+      const el = ((e.target as HTMLElement | null)?.closest?.("td, th, .cc-clip, .cc-hbar-label, .cc-sum span, .st-menu-entry-label, .ui-tree-label") as HTMLElement | null)
         ?? shortenedAncestor(e.target as HTMLElement | null);
       if (!el || el.hasAttribute("title")) return;
       if (el.scrollWidth > el.clientWidth + 1) el.setAttribute("title", (el.innerText || el.textContent || "").trim());

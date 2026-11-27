@@ -100,7 +100,7 @@ export function KeyPicker({ step, name, kind }: { step: FlowStep; name: string; 
     {(kind === "combo" || kind === "bracket") && MODS.map((m) => <label key={m} className="st-check-line st-key-mod">
       <input type="checkbox" checked={mods.includes(m)} disabled={variable} onChange={(e) => toggle(m, e.target.checked)} /> {keyWord(m)}
     </label>)}
-    <Select aria-label={insert ? "Insert a key into the text" : "Pick a key"} value="" disabled={!vars || variable}
+    <Select aria-label={insert ? "Insert a key into the text" : "Pick a key"} value="" kind="keys" noun="keys" disabled={!vars || variable}
       onChange={(e) => e.target.value && put(withKey(kind, cur, e.target.value, mods))}
       options={[{ value: "", label: variable ? "Keys can't be added to a variable" : what }, ...list]} />
   </div>;

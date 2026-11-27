@@ -167,7 +167,7 @@ function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) 
   const open = tabs.find((t) => t.tab === current);
   return (<>
     {open && <span className="df-tab-group-label" aria-hidden="true">Libraries</span>}
-    <Menu label="Libraries" align="start"
+    <Menu label="Libraries"
       trigger={<button type="button" className="df-tab" aria-current={open ? "page" : undefined}>{open ? open.label : "Libraries"}<Icon name="chevronDown" size={12} stroke={2.4} /></button>}
       items={tabs.map((t) => ({ key: t.tab, label: t.label, description: t.about, onSelect: () => { location.hash = dfHash() + "" + t.tab; } }))} />
   </>);

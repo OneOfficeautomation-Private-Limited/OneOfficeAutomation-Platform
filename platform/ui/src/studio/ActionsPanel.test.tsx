@@ -31,6 +31,21 @@ describe("the action library (usage review item 26)", () => {
     expect(screen.queryByText(/Also called/)).toBeNull();
   });
 
+  it("opens and closes every toolkit with Expand all and Collapse all (fix list 27 Nov round 2, 3e)", () => {
+    render(<ActionsPanel packages={PACKAGES} onAdd={() => {}} />);
+    const groups = () => screen.getAllByRole("button").filter((b) => b.classList.contains("st-group"));
+    expect(groups().map((g) => g.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all toolkits" }));
+    expect(groups().map((g) => g.getAttribute("aria-expanded"))).toEqual(["true", "true"]);
+    expect(screen.getByRole("button", { name: "Type text" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all toolkits" }));
+    expect(groups().map((g) => g.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
+    // a click still opens one toolkit and closes the others
+    fireEvent.click(groups()[0]);
+    fireEvent.click(groups()[1]);
+    expect(groups().map((g) => g.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
+  });
+
   it("Down and Enter in the search add the highlighted result (AA's Quick add)", () => {
     const onAdd = vi.fn();
     render(<ActionsPanel packages={PACKAGES} onAdd={onAdd} />);

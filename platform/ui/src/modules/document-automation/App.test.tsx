@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SampleApi, estimate } from "./api";
 import { App, parseRoute } from "./App";
 import { FORMATS } from "./formats";
+import { choicesOf, choose, valueOf } from "../../components/testing";
 
 beforeEach(() => { location.hash = ""; });
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -61,8 +62,9 @@ describe("Document Automation", () => {
     expect(libraries.textContent).toBe("Libraries");
     await act(async () => { libraries.focus(); fireEvent.keyDown(libraries, { key: "ArrowDown" }); });
     const items = within(await screen.findByRole("menu")).getAllByRole("menuitem").map((i) => i.textContent);
-    expect(items).toEqual(["Document typesWhat to read from each kind of document", "Reference dataLists that checks look values up in",
-      "EnginesWhich engines read the pages; cloud opt-in; cost", "Test labTry a document, or compare engines on test sets"]);
+    // one line per entry (3a): what each does shows on hover and is read out with its name
+    expect(items).toEqual(["Document types", "Reference data", "Engines", "Test lab"]);
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Engines, Which engines read the pages; cloud opt-in; cost" }).title).toBe("Which engines read the pages; cloud opt-in; cost");
     await act(async () => { fireEvent.click(screen.getByRole("menuitem", { name: /^Engines/ })); });
     await waitFor(() => expect(location.hash).toBe("#/engines"));
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -694,11 +696,11 @@ describe("Document Automation", () => {
     fireEvent.click(within(fields).getByRole("button", { name: "Add field" }));
     const dialog = await screen.findByRole("dialog", { name: "Add field" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Due date" } });
-    const check = within(dialog).getByLabelText(/^Format check/) as HTMLSelectElement;
-    expect(Array.from(check.options).map((o) => o.text)).toEqual(["No check", ...FORMATS.map((f) => f.label), "Own pattern…"]);
+    const check = within(dialog).getByLabelText(/^Format check/);
+    expect(choicesOf(check).map((o) => o.label)).toEqual(["No check", ...FORMATS.map((f) => f.label), "Own pattern…"]);
     expect(within(dialog).getByText("Any value is accepted.")).toBeTruthy();
     expect(within(dialog).queryByLabelText(/^Own pattern/)).toBeNull();     // no hand-typed pattern unless asked for
-    fireEvent.change(check, { target: { value: "date-dmy" } });
+    choose(within(dialog).getByLabelText(/^Format check/), "date-dmy");
     expect(within(dialog).getByText(/^Accepts: Day, month and year with slashes/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(within(fields).getByText("Date dd/mm/yyyy")).toBeTruthy();         // the table names the format
@@ -711,13 +713,13 @@ describe("Document Automation", () => {
     const row = within(fields).getByText("invoice_number").closest("tr")!;
     fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
     const edit = await screen.findByRole("dialog", { name: "Edit field" });
-    expect((within(edit).getByLabelText(/^Format check/) as HTMLSelectElement).value).toBe("own");
+    expect(valueOf(within(edit).getByLabelText(/^Format check/))).toBe("own");
     const own = within(edit).getByLabelText(/^Own pattern/) as HTMLInputElement;
     expect(own.value).toBe("INV-\\d{4}-\\d+");
     fireEvent.change(own, { target: { value: "(" } });
     expect(within(edit).getByText("This is not a valid pattern.")).toBeTruthy();
     expect((within(edit).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(within(edit).getByLabelText(/^Format check/), { target: { value: "" } });
+    choose(within(edit).getByLabelText(/^Format check/), "");
     expect(within(edit).queryByLabelText(/^Own pattern/)).toBeNull();
     expect((within(edit).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
   });

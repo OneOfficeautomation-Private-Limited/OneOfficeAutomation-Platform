@@ -67,14 +67,15 @@ export function OutputChooser({ step, output, type, label }: { step: FlowStep; o
   const cur = step.out?.[output] ?? "";
   const all = vars.flow.variables ?? [];
   const converts = (v: FlowVariable) => type === "String" && (v.type === "Number" || v.type === "Boolean");
-  const fit = all.filter((v) => holdsType(v.type, type) || converts(v));
-  const opts = [{ value: "", label: "(do not keep)" },
-    ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + (converts(v) ? ", converted from text" : "") + ")" }))];
+  const fit = byType(all.filter((v) => holdsType(v.type, type) || converts(v)));
+  // 3d: a long list is searchable, the variables under their type
+  const opts: { value: string; label: string; group?: string }[] = [{ value: "", label: "(do not keep)" },
+    ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + (converts(v) ? ", converted from text" : "") + ")", group: v.type + " variables" }))];
   const wrong = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
-  if (wrong) opts.push({ value: wrong.name, label: varRef(wrong.name) + " (" + wrong.type + ": does not match " + type + ")" });
-  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)" });
-  opts.push({ value: NEW, label: "+ New " + (type && type !== "Any" ? type + " " : "") + "variable" });
-  return <Select aria-label={label} value={cur} onChange={(e) => {
+  if (wrong) opts.push({ value: wrong.name, label: varRef(wrong.name) + " (" + wrong.type + ": does not match " + type + ")", group: "Other" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)", group: "Other" });
+  opts.push({ value: NEW, label: "+ New " + (type && type !== "Any" ? type + " " : "") + "variable", group: "New" });
+  return <Select aria-label={label} value={cur} kind="variables" noun="variables" onChange={(e) => {
     const v = e.target.value;
     if (v === NEW) vars.newVariable({ type: type && type !== "Any" ? type : "String", name: output, then: (n, f) => setOut(f, step.id, output, n) });
     else applyNow(vars, (f) => setOut(f, step.id, output, v));
@@ -92,18 +93,22 @@ export function VariableChooser({ value, type, label, nameHint, onPick }: { valu
   if (!vars) return null;
   const cur = value ?? "";
   const all = vars.flow.variables ?? [];
-  const fit = all.filter((v) => holdsType(v.type, type) || v.type === "Any");
-  const opts = [{ value: "", label: "(not kept)" }, ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + ")" }))];
+  const fit = byType(all.filter((v) => holdsType(v.type, type) || v.type === "Any"));
+  const opts: { value: string; label: string; group?: string }[] = [{ value: "", label: "(not kept)" },
+    ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + ")", group: v.type + " variables" }))];
   const other = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
-  if (other) opts.push({ value: other.name, label: varRef(other.name) + " (" + other.type + ": does not hold " + type + ")" });
-  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)" });
-  opts.push({ value: NEW, label: "+ New " + type + " variable" });
-  return <Select aria-label={label} value={cur} onChange={(e) => {
+  if (other) opts.push({ value: other.name, label: varRef(other.name) + " (" + other.type + ": does not hold " + type + ")", group: "Other" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)", group: "Other" });
+  opts.push({ value: NEW, label: "+ New " + type + " variable", group: "New" });
+  return <Select aria-label={label} value={cur} kind="variables" noun="variables" onChange={(e) => {
     const v = e.target.value;
     if (v === NEW) vars.newVariable({ type, name: nameHint, then: (n, f) => onPick(f, n) });
     else applyNow(vars, (f) => onPick(f, v || undefined));
   }} options={opts} />;
 }
+
+/** Variables grouped by type (stable within a type), for the type headings of a long list. */
+const byType = (vs: FlowVariable[]) => [...vs].sort((a, b) => (a.type || "").localeCompare(b.type || ""));
 
 /** Steps' fields change the agent through the context's editor, from the agent as it is now. */
 function applyNow(vars: NonNullable<ReturnType<typeof useVars>>, change: (f: Flow) => Flow) { vars.edit(change(vars.flow)); }

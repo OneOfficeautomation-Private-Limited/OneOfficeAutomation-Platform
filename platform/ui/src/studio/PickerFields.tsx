@@ -28,7 +28,7 @@ export function TimeZoneField({ id, value, local, onCommit }: { id: string; valu
     { value: VARIABLE, label: "From a variable…", description: "Its value is read when the step runs" }], [local]);
   const [asVariable, setAsVariable] = useState(text.startsWith("$"));
   if (asVariable) return <CommitInput id={id} initial={text} mono want="String" placeholder="$time_zone$" onCommit={(t) => { if (!t.trim()) setAsVariable(false); onCommit(t.trim() || undefined); }} />;
-  return <SearchSelect id={id} value={text.toLowerCase() === "local" ? "local" : text} options={options} placeholder="Type a city or region"
+  return <SearchSelect id={id} value={text.toLowerCase() === "local" ? "local" : text} options={options} placeholder="Type a city or region" kind="time-zones" noun="time zones"
     onChange={(v) => { if (v === VARIABLE) setAsVariable(true); else onCommit(v || undefined); }} />;
 }
 

@@ -6,13 +6,15 @@ export type TreeNode = { id: string; label: string; children?: TreeNode[] };
 /**
  * A folder tree with the keyboard behaviour people expect: Up and Down move, Right opens or goes in, Left closes or
  * goes to the parent, Enter or Space selects. Only open folders' children are shown. Optionally a menu on right-click
- * (or the menu key), folders that can be dragged, and folders that take a drop.
+ * (or the menu key), folders that can be dragged, and folders that take a drop. `wrap`: long names go onto a second line
+ * instead of being cut (pickers); `titleOf`: what a folder shows on hover (its full path); `indent`: pixels per level.
  */
-export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, renderIcon, renderActions, onMenu, canDrag, onDragStart, onDrop }:
+export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, renderIcon, renderActions, onMenu, canDrag, onDragStart, onDrop, wrap = false, titleOf, indent = 18 }:
   { nodes: TreeNode[]; selected: string; expanded: Set<string>; onSelect: (id: string) => void; onToggle: (id: string) => void; label: string;
     renderIcon?: (n: TreeNode, isSelected: boolean) => ReactNode; renderActions?: (n: TreeNode) => ReactNode;
     onMenu?: (id: string, e: MouseEvent | KeyboardEvent) => void;
-    canDrag?: (id: string) => boolean; onDragStart?: (id: string, e: DragEvent) => void; onDrop?: (id: string, e: DragEvent) => void }) {
+    canDrag?: (id: string) => boolean; onDragStart?: (id: string, e: DragEvent) => void; onDrop?: (id: string, e: DragEvent) => void;
+    wrap?: boolean; titleOf?: (n: TreeNode) => string | undefined; indent?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [over, setOver] = useState<string | null>(null);
   const visible: { node: TreeNode; depth: number; parent: string | null }[] = [];
@@ -39,13 +41,13 @@ export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, ren
   };
 
   return (
-    <div role="tree" aria-label={label} className="ui-tree" ref={ref}>
+    <div role="tree" aria-label={label} className={"ui-tree" + (wrap ? " is-wrap" : "")} ref={ref}>
       {visible.map(({ node, depth }, i) => {
         const isSel = node.id === selected, hasKids = !!node.children?.length, open = expanded.has(node.id);
         return (
           <div key={node.id} role="treeitem" data-id={node.id} aria-level={depth + 1} aria-selected={isSel}
             aria-expanded={hasKids ? open : undefined} tabIndex={isSel || (!selected && i === 0) ? 0 : -1}
-            className={`ui-tree-item${isSel ? " is-selected" : ""}${over === node.id ? " is-drop" : ""}`} style={{ paddingLeft: 6 + depth * 18 }}
+            className={`ui-tree-item${isSel ? " is-selected" : ""}${over === node.id ? " is-drop" : ""}`} style={{ paddingLeft: 6 + depth * indent }}
             onClick={() => onSelect(node.id)} onKeyDown={(e) => onKey(e, i)}
             onContextMenu={onMenu && ((e) => { e.preventDefault(); onMenu(node.id, e); })}
             draggable={!!canDrag?.(node.id)} onDragStart={onDragStart && ((e) => onDragStart(node.id, e))}
@@ -55,7 +57,7 @@ export function Tree({ nodes, selected, expanded, onSelect, onToggle, label, ren
               {hasKids && <Icon name={open ? "chevronDown" : "chevronRight"} size={12} stroke={2.6} />}
             </span>
             {renderIcon?.(node, isSel)}
-            <span className="ui-tree-label">{node.label}</span>
+            <span className="ui-tree-label" title={titleOf?.(node)}>{node.label}</span>
             {renderActions && <span className="ui-tree-acts" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{renderActions(node)}</span>}
           </div>
         );

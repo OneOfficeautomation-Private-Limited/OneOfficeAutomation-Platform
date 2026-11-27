@@ -1,0 +1,66 @@
+/* Every picker dialog (PickerLayout.tsx; item 3 of the fix list of 27 Nov 2026, round 2, artboard 3c). Theme tokens only;
+   contrast (tools/check-contrast.mjs): tree and list text 16.4:1 light / 15.1:1 dark; the list's header white on
+   --ui-picker-th 11.4:1 / 12.6:1; the selected folder white on --ui-accent 4.7:1 / 5.3:1; the pane outlines (--ui-field)
+   3.6:1 / 5.6:1. */
+:root { --ui-picker-th: #2b3a55; }
+:root[data-theme="dark"] { --ui-picker-th: #243352; }
+
+.ui-picker-dialog .ui-dialog-body { padding: 12px 16px; gap: 0; }
+.ui-picker { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.ui-picker-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ui-picker-seg { display: inline-flex; flex: none; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); overflow: hidden; }
+.ui-picker-seg button { height: 28px; padding: 0 10px; border: 0; border-right: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-text);
+  font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.ui-picker-seg button:last-child { border-right: 0; }
+.ui-picker-seg button[aria-checked="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
+.ui-picker-search { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; height: 28px; padding-left: 8px;
+  border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text-2); }
+.ui-picker-search:focus-within { box-shadow: var(--ui-focus); }
+.ui-picker-search .ui-input { height: 26px; border: 0; padding: 0 8px 0 0; background: transparent; font-size: 12.5px; }
+.ui-picker-search .ui-input:focus-visible { box-shadow: none; }
+.ui-picker-count { flex: none; color: var(--ui-text-2); white-space: nowrap; }
+
+.ui-picker-body { flex: 1; min-height: 220px; display: flex; align-items: stretch; }
+.ui-picker-side { flex: none; width: 240px; min-width: 160px; max-width: 70%; display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); overflow: hidden; }
+.ui-picker-body > .ui-splitter-x { flex: none; }
+.ui-picker-list { flex: 1; min-width: 0; min-height: 0; overflow: auto; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); }
+
+/* the tree: Find a folder, Expand all, Collapse all, then full names that wrap */
+.ui-picker-tree { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.ui-picker-tree-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px; border-bottom: 1px solid var(--ui-border); }
+.ui-picker-tree-tools .ui-input { flex: 1 1 100%; height: 28px; font-size: 12.5px; }
+.ui-picker-tree-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
+.ui-picker-empty { margin: 6px; color: var(--ui-text-2); }
+.ui-tree-tools { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.ui-tree-tool { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border: 0; border-radius: 4px; background: transparent;
+  color: var(--ui-accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ui-tree-tool:hover { background: var(--ui-row-hover); }
+.ui-tree.is-wrap .ui-tree-item { height: auto; min-height: 28px; padding-top: 2px; padding-bottom: 2px; font-size: 12.5px; }
+.ui-tree.is-wrap .ui-tree-label { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.3; }
+
+/* the list: a table with row and column lines and a dark header */
+.ui-picker-list table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ui-picker-list thead th { position: sticky; top: 0; z-index: 1; height: 30px; padding: 0 10px; text-align: left; font-weight: 600; white-space: nowrap;
+  background: var(--ui-picker-th); color: #ffffff; border-right: 1px solid var(--ui-field); }
+.ui-picker-list tbody td { height: 30px; padding: 2px 10px; border-bottom: 1px solid var(--ui-border); border-right: 1px solid var(--ui-border); color: var(--ui-text); }
+.ui-picker-list th:last-child, .ui-picker-list td:last-child { border-right: 0; }
+.ui-picker-list tbody tr { cursor: pointer; }
+.ui-picker-list tbody tr:hover td { background: var(--ui-row-hover); }
+.ui-picker-list tbody tr.is-selected td { background: var(--ui-selected); }
+.ui-picker-list tbody tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--ui-accent); }
+.ui-picker-list .ui-picker-empty { padding: 10px; margin: 0; }
+.ui-picker-name { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--ui-accent-text); cursor: pointer; text-align: left; }
+
+/* the foot: what is chosen, then Cancel and Choose */
+.ui-picker-chosen { margin-right: auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--ui-text); }
+.ui-picker-chosen-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-picker-chosen-label { color: var(--ui-text-2); }
+.ui-picker-dialog .ui-dialog-foot { align-items: center; flex-wrap: wrap; }
+
+/* a phone: the tree above the list */
+@media (max-width: 640px) {
+  .ui-picker-body { flex-direction: column; gap: 8px; }
+  .ui-picker-side { width: auto !important; max-width: none; max-height: 40%; }
+  .ui-picker-body > .ui-splitter-x { display: none; }
+}
