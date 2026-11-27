@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, choiceText, choicesOf, choiceHas, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
@@ -148,7 +148,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return rows.filter((r) => (!text || (key(r) + " " + r.attributes.join(" ") + " " + r.userAttrs.join(" ") + " " + r.owner).toLowerCase().includes(text))
-      && (!f.folder || r.folder.name === f.folder) && (!f.mine || r.userAttrs.some((a) => !r.mine.includes(a))) && (!f.expiry || needsCare(r.exp)));
+      && choiceHas(f.folder, r.folder.name) && (!f.mine || r.userAttrs.some((a) => !r.mine.includes(a))) && (!f.expiry || needsCare(r.exp)));
   }, [rows, f]);
   const chosen = rows.filter((r) => selected.includes(key(r)));
   const canDelete = (r: CredRow) => writer(r.folder) || (r.folder.my_role === "participant" && r.owner === user.username);
@@ -202,8 +202,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-list-search"><TextInput type="search" aria-label="Search credentials" placeholder="Search credentials, attributes, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-            <span className={"cc-chip" + (f.folder ? " is-on" : "")}><Select aria-label="Vault folder" value={f.folder ?? ""} onChange={(e) => setF({ ...f, folder: e.target.value })}
-              options={[{ value: "", label: "Folder: Any" }, ...(folders ?? []).map((x) => ({ value: x.name, label: "Folder: " + x.name }))]} /></span>
+            <ChoiceFilter label="Folder" value={choicesOf(f.folder)} onChange={(v) => setF({ ...f, folder: choiceText(v) })} options={(folders ?? []).map((x) => ({ value: x.name, label: x.name }))} />
             <label className={"cc-chip-check" + (f.mine ? " is-on" : "")}><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Needs my own value</label>
             <label className={"cc-chip-check" + (f.expiry ? " is-on" : "")}><input type="checkbox" checked={!!f.expiry} onChange={(e) => setF({ ...f, expiry: e.target.checked ? "1" : "" })} /> Expired or expiring</label>
             {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}

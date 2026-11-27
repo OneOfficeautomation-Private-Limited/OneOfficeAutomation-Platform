@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
 import type { Capacity as CapacityData } from "./consoleApi";
-import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
+import { DateRange, HelpButton, rangeParams, rangeShort, usePersistent, type DateRangeValue, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 import { PageTabs, PageTitle } from "../../shell/PageFrame";
@@ -15,7 +15,6 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
  * Review round 2 (1 Nov 2026): the period as a filter with the refresh icon, busy time under an hour in minutes, and each
  * runner on one line with its state as a pill; a row opens the runner on Runner Machines, with a menu per runner.
  */
-const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 /** Busy time: minutes under an hour (so a short day never reads "0 h"), then hours. */
@@ -29,7 +28,7 @@ const stateOf = (d?: Runner) => !d ? "Removed" : d.status === "disabled" ? "Off"
 const HELP: HelpTopic = { title: "Runner capacity", about: "How much of your runners' time agents use, how long runs wait for a runner, "
   + "and when runners are busy or free. Use it to decide whether you need more runners or can move schedules to quieter hours.",
   items: [
-    { name: "Period", text: "Pick the last 24 hours, 7, 30 or 90 days; every figure and chart covers that period. The page refreshes every minute." },
+    { name: "Period", text: "Pick the last 24 hours, 7, 30 or 90 days, a month or dates you choose; every figure and chart covers that period. The page refreshes every minute." },
     { name: "Online now, Offline now", text: "How many of the switched-on runners are connected now, and how many are not. Click either to open Runner Machines." },
     { name: "Schedules on", text: "How many schedules are switched on, and when the next one runs. Click it to open Schedules." },
     { name: "Of runner time in use", text: "The share of the switched-on runners' time spent running agents. At 80% or more, runs start to wait; "
@@ -66,7 +65,7 @@ function advice(c: CapacityData): string | null {
 }
 
 export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser; title?: string; tabs?: ReactNode }) {
-  const [days, setDays] = usePersistent("capacity.days", "7");
+  const [range, setRange] = usePersistent<DateRangeValue>("capacity.range", { key: "7d" });
   const [c, setC] = useState<CapacityData | null>(null);
   const [devices, setDevices] = useState<Runner[]>([]);
   const [pools, setPools] = useState<RunnerPool[]>([]);
@@ -74,12 +73,12 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
   const can = (p: string) => user.permissions.includes(p);
 
   const load = useCallback(() => {
-    api.capacity({ days, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setC(r); setError(null); }, (e) => setError(message(e)));
+    api.capacity({ ...rangeParams(range), tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setC(r); setError(null); }, (e) => setError(message(e)));
     if (can("devices.view")) { api.devices().then(setDevices, (e) => reportMinor("the devices", e)); api.pools().then(setPools, (e) => reportMinor("the runner pools", e)); }
-  }, [api, days]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, range]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
-  const label = PERIODS.find(([v]) => v === days)?.[1].toLowerCase() ?? "";
+  const label = rangeShort(range);
   const device = (id: string) => devices.find((d) => d.id === id);
   const online = devices.filter((d) => d.status === "online").length;
   const tip = c ? advice(c) : null;
@@ -94,7 +93,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
+          <DateRange label="Period" value={range} onChange={setRange} choices={["24h", "today", "yesterday", "7d", "30d", "90d", "month", "last-month", "custom"]} />
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>

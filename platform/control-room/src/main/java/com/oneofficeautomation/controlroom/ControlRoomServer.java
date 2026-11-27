@@ -691,7 +691,7 @@ public final class ControlRoomServer {
                 }
                 else notFound(ex);
             }
-            case "governance" -> sendJson(ex, 200, cr.platform.aiGovernance(u, ControlRoom.intOr(q.get("days"), 30)));
+            case "governance" -> sendJson(ex, 200, cr.platform.aiGovernance(u, q));
             // help links (13 Nov 2026 round 3, item 6): where the Docs and Video links point, and links changed after
             // a release without rebuilding, from <data>/config/help-links.json ({"links": {"page:activity": {"doc": ".."}}})
             case "help-links" -> {

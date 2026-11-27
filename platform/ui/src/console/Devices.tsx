@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Select, choiceText, choicesOf, choiceHas, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { modulePart } from "../modules/pages";
 import { PageIntro } from "../shell/PageIntro";
@@ -125,7 +125,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     const text = (f.q ?? "").trim().toLowerCase();
     const col = COLS.find((c) => c.key === searchIn)!;
     return (runners ?? []).filter((d) => (!text || col.cell(d, pools).toLowerCase().includes(text) || (searchIn === "name" && (d.hostname ?? "").toLowerCase().includes(text)))
-      && (!f.status || stateOf(d) === f.status) && (!f.pool || pools.some((p) => p.id === f.pool && p.devices.includes(d.id))));
+      && choiceHas(f.status, stateOf(d)) && (!f.pool || pools.some((p) => choicesOf(f.pool).includes(p.id) && p.devices.includes(d.id))));
   }, [runners, pools, f, searchIn]);
   const page = shown.slice(offset, offset + PAGE);
   const chosen = (runners ?? []).filter((d) => selected.includes(d.id));
@@ -186,10 +186,8 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-chip"><Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} /></span>
             <span className="cc-list-search"><TextInput type="search" aria-label="Search runners" placeholder="Search" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-            <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-              options={[{ value: "", label: "Status: Any" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label: "Status: " + label }))]} /></span>
-            {pools.length > 0 && <span className={"cc-chip" + (f.pool ? " is-on" : "")}><Select aria-label="Runner pool" value={f.pool ?? ""} onChange={(e) => setFilter("pool", e.target.value)}
-              options={[{ value: "", label: "Pool: Any" }, ...pools.map((p) => ({ value: p.id, label: "Pool: " + p.name }))]} /></span>}
+            <ChoiceFilter label="Status" value={choicesOf(f.status)} onChange={(v) => setFilter("status", choiceText(v))} options={Object.entries(STATUS).map(([value, label]) => ({ value, label }))} />
+            {pools.length > 0 && <ChoiceFilter label="Pool" value={choicesOf(f.pool)} onChange={(v) => setFilter("pool", choiceText(v))} options={pools.map((p) => ({ value: p.id, label: p.name }))} />}
             {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
           </div>
           <div className="cc-list-right" role="toolbar" aria-label="Runners list tools">

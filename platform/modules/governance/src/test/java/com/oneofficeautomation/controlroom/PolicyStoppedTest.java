@@ -47,6 +47,11 @@ class PolicyStoppedTest {
         assertEquals("AI.MODEL_NOT_ALLOWED", ((List<Map<String, Object>>) s.get("stopped")).get(0).get("code"));
         assertEquals(Map.of("CREDIT_CARD", 1L, "EMAIL", 2L), s.get("masked"));
         assertEquals(1L, s.get("calls_masked"));
+        // a chosen period (tables and filters, item 2b): from and to instead of days
+        assertEquals(1, cr.modules.service(Policies.class).stopped(admin, id, Map.of("from", t.minusSeconds(60).toString(), "to", t.plusSeconds(60).toString())).get("stopped_total"));
+        assertEquals(0, cr.modules.service(Policies.class).stopped(admin, id, Map.of("from", t.plusSeconds(60).toString())).get("stopped_total"), "after the stop");
+        assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.modules.service(Policies.class).stopped(admin, id,
+            Map.of("from", t.toString(), "to", t.minusSeconds(60).toString()))).code());
     }
 
     void run(String id, String bot, String error, Instant created) {

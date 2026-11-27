@@ -47,9 +47,17 @@ public final class Analytics {
         Instant from = pd[0], to = pd[1];
         List<String> where = new ArrayList<>(List.of("r.created >= ?", "r.created <= ?"));
         List<Object> p = new ArrayList<>(List.of(from, to));
-        for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}})
-            if (q.get(f[0]) != null && !q.get(f[0]).isBlank()) { where.add(f[1] + " = ?"); p.add(q.get(f[0])); }
-        if (q.get("source") != null && !q.get("source").isBlank()) { where.add("r.source LIKE ?"); p.add(q.get("source") + "%"); }
+        // bot, device, user and source take one value or several as a comma list (tables and filters, item 2d)
+        for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}}) {
+            List<String> v = listParam(q.get(f[0]));
+            if (!v.isEmpty()) where.add(sqlIn(f[1], v, p));
+        }
+        List<String> sources = listParam(q.get("source"));
+        if (!sources.isEmpty()) {
+            List<String> any = new ArrayList<>();
+            for (String s : sources) { any.add("r.source LIKE ?"); p.add(s + "%"); }
+            where.add("(" + String.join(" OR ", any) + ")");
+        }
         p.add(MAX_ROWS);
         Map<String, Map<String, String>> perms = ctx.folderEntries();
         List<String> mine = ctx.principalsOf(by.username(), by.role());
@@ -345,13 +353,24 @@ public final class Analytics {
         ZoneId zone = zone(q.get("tz"));
         List<String> parts = new ArrayList<>(List.of("ts >= ?", "ts <= ?"));
         List<Object> p = new ArrayList<>(List.of(pd[0], pd[1]));
-        if (q.get("actor") != null && !q.get("actor").isBlank()) {
-            String actor = q.get("actor");
-            if (actor.startsWith("agent:")) { parts.add("(actor = ? OR actor LIKE ?)"); p.add(actor); p.add(actor.replaceAll("[%_\\[\\]\\\\]", "_") + " for %"); }
-            else { parts.add("actor = ?"); p.add(actor); }
+        // who, kind and result take one value or several as a comma list
+        List<String> actors0 = listParam(q.get("actor"));
+        if (!actors0.isEmpty()) {
+            List<String> any = new ArrayList<>();
+            for (String actor : actors0) {
+                if (actor.startsWith("agent:")) { any.add("actor = ? OR actor LIKE ?"); p.add(actor); p.add(actor.replaceAll("[%_\\[\\]\\\\]", "_") + " for %"); }
+                else { any.add("actor = ?"); p.add(actor); }
+            }
+            parts.add("(" + String.join(" OR ", any) + ")");
         }
-        if (q.get("kind") != null && !q.get("kind").isBlank()) { parts.add("action LIKE ?"); p.add(q.get("kind").replaceAll("[%_\\\\]", "") + ".%"); }
-        if (q.get("result") != null && !q.get("result").isBlank()) { parts.add("result = ?"); p.add(q.get("result")); }
+        List<String> kinds0 = listParam(q.get("kind"));
+        if (!kinds0.isEmpty()) {
+            List<String> any = new ArrayList<>();
+            for (String k : kinds0) { any.add("action LIKE ?"); p.add(k.replaceAll("[%_\\\\]", "") + ".%"); }
+            parts.add("(" + String.join(" OR ", any) + ")");
+        }
+        List<String> results0 = listParam(q.get("result"));
+        if (!results0.isEmpty()) parts.add(sqlIn("result", results0, p));
         String where = String.join(" AND ", parts);
         Map<String, Long> kinds = new HashMap<>(), results = new HashMap<>(), days = new TreeMap<>();
         Map<String, Long> actors = new HashMap<>();

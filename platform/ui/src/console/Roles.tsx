@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, HelpButton, Select, choiceText, choicesOf, choiceHas, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { roleName } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
@@ -161,7 +161,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return (data?.roles ?? []).filter((r) => (!text || (r.name + " " + roleName(r.name) + " " + (r.description ?? "")).toLowerCase().includes(text))
-      && (!f.kind || (f.kind === "builtin") === r.builtin) && (!f.perm || r.permissions.includes(f.perm)));
+      && choiceHas(f.kind, r.builtin ? "builtin" : "custom") && (!f.perm || r.permissions.includes(f.perm)));
   }, [data, f]);
   const chosen = (data?.roles ?? []).filter((r) => selected.includes(r.name));
   const cols = COLS.filter((c) => !hidden.includes(c.key));
@@ -223,8 +223,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search roles" placeholder="Search roles" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-          <span className={"cc-chip" + (f.kind ? " is-on" : "")}><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
-            options={[{ value: "", label: "Kind: Any" }, { value: "builtin", label: "Kind: Built-in" }, { value: "custom", label: "Kind: Custom" }]} /></span>
+          <ChoiceFilter label="Kind" value={choicesOf(f.kind)} onChange={(v) => setF({ ...f, kind: choiceText(v) })} options={[{ value: "builtin", label: "Built-in" }, { value: "custom", label: "Custom" }]} />
           {data && <span className={"cc-chip" + (f.perm ? " is-on" : "")}><Select aria-label="Grants" value={f.perm ?? ""} onChange={(e) => setF({ ...f, perm: e.target.value })}
             options={[{ value: "", label: "Grants: Any permission" }, ...[...data.permissions].sort(byOrder).map((p) => ({ value: p, label: "Grants: " + infoOf(p).area + ", " + infoOf(p).label }))]} /></span>}
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}

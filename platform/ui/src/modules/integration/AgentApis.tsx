@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Select, choiceText, choicesOf, choiceHas, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 import { PageIntro } from "../../shell/PageIntro";
@@ -64,7 +64,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   useEffect(() => { load(); }, [load]);
   const where = (t: AgentApi) => t.serverless ? "One CommandCenter (serverless)" : t.pool_id ? "Pool " + (pools.find((p) => p.id === t.pool_id)?.name ?? t.pool_id) : runners.find((r) => r.id === t.device_id)?.name ?? t.device_id ?? "";
   const shown = useMemo(() => (list ?? []).filter((t) => (!q.trim() || (t.name + " " + t.bot_path).toLowerCase().includes(q.trim().toLowerCase()))
-    && (!folder || t.bot_path.startsWith(folder + "/")) && (!state || (state === "on") === t.enabled)), [list, q, folder, state]);
+    && (!folder || t.bot_path.startsWith(folder + "/")) && choiceHas(state, t.enabled ? "on" : "off")), [list, q, folder, state]);
   /** The agents' folders and every folder above them, so the tree has its parents. */
   const folders = useMemo(() => { const out = new Set<string>(); for (const t of list ?? []) { let f = folderOf(t.bot_path); while (f) { out.add(f); f = folderOf(f); } } return [...out].sort(); }, [list]);
   const count = (f: string) => (list ?? []).filter((t) => !f || t.bot_path.startsWith(f + "/")).length;
@@ -107,8 +107,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           <div className="cc-list-tools cc-pane-tools">
             <div className="cc-list-filters" role="group" aria-label="Filters">
               <span className="cc-list-search"><TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}
-                options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: On" }, { value: "off", label: "Status: Off" }]} /></span>
+              <ChoiceFilter label="Status" value={choicesOf(state)} onChange={(v) => setState(choiceText(v))} options={[{ value: "on", label: "On" }, { value: "off", label: "Off" }]} />
               {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Agent APIs list tools"><RefreshButton onClick={load} /></div>

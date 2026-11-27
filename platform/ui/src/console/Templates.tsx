@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Menu, Select, choiceText, choicesOf, choiceHas, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 import { PageIntro } from "../shell/PageIntro";
@@ -76,7 +76,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const installedIn = useCallback((t: AgentTemplate) => [...new Set(repo.filter((p) => t.agents.some((a) => p === a || p.endsWith("/" + a.split("/").pop()))).map((p) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "(top)"))], [repo]);
   const shown = useMemo(() => (data?.templates ?? []).filter((t) => under(t.folder ?? t.category, cat)
     && (!q.trim() || (t.name + " " + (t.description ?? "") + " " + t.publisher).toLowerCase().includes(q.trim().toLowerCase()))
-    && (!state || (state === "installed") === installedIn(t).length > 0)), [data, q, cat, state, installedIn]);
+    && choiceHas(state, installedIn(t).length > 0 ? "installed" : "not")), [data, q, cat, state, installedIn]);
   const all = data?.templates ?? [];
   const folders = data?.categories ?? [];
   const folderOfT = (t: AgentTemplate) => t.folder ?? t.category;
@@ -200,8 +200,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           <div className="cc-list-tools cc-pane-tools">
             <div className="cc-list-filters" role="group" aria-label="Filters">
               <span className="cc-list-search"><TextInput type="search" aria-label="Search templates" placeholder={"Search in " + (cat ? cat.split("/").pop() : "Templates")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
-              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}
-                options={[{ value: "", label: "Status: Any" }, { value: "installed", label: "Status: Installed" }, { value: "not", label: "Status: Not installed yet" }]} /></span>
+              <ChoiceFilter label="Status" value={choicesOf(state)} onChange={(v) => setState(choiceText(v))} options={[{ value: "installed", label: "Installed" }, { value: "not", label: "Not installed yet" }]} />
               {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Templates list tools"><RefreshButton onClick={load} /></div>

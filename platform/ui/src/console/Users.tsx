@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Select, choiceText, choicesOf, choiceHas, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { ROLE_NAMES, roleName } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
@@ -129,7 +129,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     const fields = (u: CrPerson) => searchIn === "any" ? [u.username, u.display_name, fullName(u), u.email, u.description].join(" ")
       : searchIn === "name" ? fullName(u) + " " + (u.display_name ?? "") : String((u as Record<string, unknown>)[searchIn] ?? "");
     return (people ?? []).filter((u) => (!text || fields(u).toLowerCase().includes(text))
-      && (!f.status || stateOf(u) === f.status) && (!f.role || (u.roles ?? [u.role]).includes(f.role)));
+      && choiceHas(f.status, stateOf(u)) && (!f.role || choicesOf(f.role).some((r) => (u.roles ?? [u.role]).includes(r))));
   }, [people, f, searchIn]);
   const page = shown.slice(offset, offset + pageSize);
   const chosen = (people ?? []).filter((u) => selected.includes(u.id));
@@ -202,10 +202,8 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <Select aria-label="Search in" value={searchIn} onChange={(e) => { setSearchIn(e.target.value); setOffset(0); }} options={SEARCH_IN.map(([value, label]) => ({ value, label }))} />
           <span className="cc-list-search"><TextInput type="search" aria-label="Search users" placeholder="Search users" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-          <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-            options={[{ value: "", label: "Status: Any" }, ...Object.entries(STATUS).map(([value, label]) => ({ value, label: "Status: " + label }))]} /></span>
-          {roles.length > 0 && <span className={"cc-chip" + (f.role ? " is-on" : "")}><Select aria-label="Role" value={f.role ?? ""} onChange={(e) => setFilter("role", e.target.value)}
-            options={[{ value: "", label: "Role: Any" }, ...roles.map((r) => ({ value: r, label: "Role: " + roleName(r) }))]} /></span>}
+          <ChoiceFilter label="Status" value={choicesOf(f.status)} onChange={(v) => setFilter("status", choiceText(v))} options={Object.entries(STATUS).map(([value, label]) => ({ value, label }))} />
+          {roles.length > 0 && <ChoiceFilter label="Role" value={choicesOf(f.role)} onChange={(v) => setFilter("role", choiceText(v))} options={roles.map((r) => ({ value: r, label: roleName(r) }))} />}
           {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="Users list tools">

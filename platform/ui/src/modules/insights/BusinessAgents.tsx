@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { AgentStats, BusinessAgent, DashWidget, VariableProfile } from "./consoleApi";
-import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
+import { Button, DateRange, HelpButton, Select, TextInput, rangeDays, rangeParams, resolveRange, usePersistent, type DateRangeValue, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 import { PageTabs, PageTitle } from "../../shell/PageFrame";
@@ -13,7 +13,7 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
  * profile) and Compare (two agents, or one agent in two periods). "Make my own copy" turns the made dashboard into one
  * of the person's dashboards (needs insights.design). Only agents in folders the person may see.
  */
-const PERIODS: [string, string][] = [["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]];
+const CHOICES: DateRangeValue["key"][] = ["today", "yesterday", "7d", "30d", "90d", "365d", "month", "last-month", "custom"];
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -46,17 +46,17 @@ const HELP_PAGE: HelpTopic = { title: "An agent's business figures", about: "A d
   ] };
 
 export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; title: string; tabs: ReactNode }) {
-  const [days, setDays] = usePersistent("business.agents.days", "30");
+  const [range, setRange] = usePersistent<DateRangeValue>("business.agents.range", { key: "30d" });
   const [q, setQ] = useState("");
   const [list, setList] = useState<BusinessAgent[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => api.businessAgents({ days }).then((r) => { setList(r); setError(null); }, (e) => setError(message(e))), [api, days]);
+  const load = useCallback(() => api.businessAgents(rangeParams(range)).then((r) => { setList(r); setError(null); }, (e) => setError(message(e))), [api, range]);
   useEffect(() => { load(); }, [load]);
   const t = q.trim().toLowerCase();
   const rows = (list ?? []).filter((a) => !t || a.bot_path.toLowerCase().includes(t) || a.values.some((v) => v.toLowerCase().includes(t)));
 
-  if (open) return <AgentBusiness api={api} user={user} path={open} agents={(list ?? []).map((a) => a.bot_path)} days={days} onClose={() => setOpen(null)} onNotice={onNotice} />;
+  if (open) return <AgentBusiness api={api} user={user} path={open} agents={(list ?? []).map((a) => a.bot_path)} range={range} onClose={() => setOpen(null)} onNotice={onNotice} />;
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ba-title">
       <header className="cc-list-head">
@@ -67,7 +67,7 @@ export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrAp
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput aria-label="Search agents" placeholder="Search agents or values" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
+          <DateRange label="Period" value={range} onChange={setRange} choices={CHOICES} />
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
@@ -92,25 +92,26 @@ export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrAp
 type Tab = "dashboard" | "profile" | "compare";
 
 /** One agent's own page: Dashboard, Data profile and Compare. */
-function AgentBusiness({ api, user, path, agents, days: initialDays, onClose, onNotice }: { api: CrApi; user: CrUser; path: string; agents: string[]; days: string;
+function AgentBusiness({ api, user, path, agents, range: initialRange, onClose, onNotice }: { api: CrApi; user: CrUser; path: string; agents: string[]; range: DateRangeValue;
   onClose: () => void; onNotice: (t: string) => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [days, setDays] = useState(initialDays);
+  const [range, setRange] = useState(initialRange);
+  const days = Math.min(365, rangeDays(range) ?? 30);
   const [stats, setStats] = useState<AgentStats | null>(null);
   const [prof, setProf] = useState<VariableProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const load = useCallback(() => {
-    api.agentStatsFor({ path, days, tz }).then(setStats, (e) => setError(message(e)));
-    api.agentVariablesFor({ path, days, tz }).then(setProf, (e) => setError(message(e)));
-  }, [api, path, days, tz]);
+    api.agentStatsFor({ path, ...rangeParams(range), tz }).then(setStats, (e) => setError(message(e)));
+    api.agentVariablesFor({ path, ...rangeParams(range), tz }).then(setProf, (e) => setError(message(e)));
+  }, [api, path, range, tz]);
   useEffect(() => { load(); }, [load]);
   const numbers = (prof?.variables ?? []).filter((v) => v.sum != null);
   const copy = async () => {
     const widgets: DashWidget[] = [
-      ...numbers.slice(0, 4).map((v) => ({ title: v.variable + ", total", type: "number" as const, source: "output" as const, kpi: v.variable, bot: path, agg: "sum" as const, days: Number(days) })),
-      ...(numbers[0] ? [{ title: numbers[0].variable + " per day", type: "line" as const, source: "output" as const, kpi: numbers[0].variable, bot: path, agg: "sum" as const, group: "day" as const, days: Number(days) }] : []),
-      { title: "Success rate", type: "number", source: "runs", metric: "success_rate", bot: path, days: Number(days) }];
+      ...numbers.slice(0, 4).map((v) => ({ title: v.variable + ", total", type: "number" as const, source: "output" as const, kpi: v.variable, bot: path, agg: "sum" as const, days })),
+      ...(numbers[0] ? [{ title: numbers[0].variable + " per day", type: "line" as const, source: "output" as const, kpi: numbers[0].variable, bot: path, agg: "sum" as const, group: "day" as const, days }] : []),
+      { title: "Success rate", type: "number", source: "runs", metric: "success_rate", bot: path, days }];
     try {
       await api.saveDashboard(null, { name: name(path) + " (my copy)", shared_with: [], widgets });
       onNotice("Saved as your dashboard " + name(path) + " (my copy), under Business > Dashboards.");
@@ -124,7 +125,7 @@ function AgentBusiness({ api, user, path, agents, days: initialDays, onClose, on
         <h1><span className="cc-aico" aria-hidden="true">A</span>{name(path)}</h1><HelpButton topic={HELP_PAGE} />
         <span className="st-muted">{folderOf(path)}</span>
         <span className="ov-fill" />
-        <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
+        <DateRange label="Period" value={range} onChange={setRange} choices={CHOICES} />
         <RefreshButton onClick={load} />
         {user.permissions.includes("repo.view") && <Button kind="secondary" onClick={() => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); }}>Open in Agents</Button>}
         {user.permissions.includes("insights.design") && numbers.length > 0 && <Button kind="primary" onClick={copy}>Make my own copy</Button>}
@@ -136,7 +137,7 @@ function AgentBusiness({ api, user, path, agents, days: initialDays, onClose, on
       {(!stats || !prof) && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {stats && prof && tab === "dashboard" && <Dashboard stats={stats} prof={prof} />}
       {stats && prof && tab === "profile" && <Profile prof={prof} />}
-      {stats && prof && tab === "compare" && <Compare api={api} path={path} agents={agents} days={days} stats={stats} prof={prof} />}
+      {stats && prof && tab === "compare" && <Compare api={api} path={path} agents={agents} range={range} stats={stats} prof={prof} />}
     </div>
   );
 }
@@ -197,18 +198,19 @@ function Profile({ prof }: { prof: VariableProfile }) {
 }
 
 /** This agent against another agent, or against itself in the period before (UiPath's and AA's Compare). */
-function Compare({ api, path, agents, days, stats, prof }: { api: CrApi; path: string; agents: string[]; days: string; stats: AgentStats; prof: VariableProfile }) {
+function Compare({ api, path, agents, range, stats, prof }: { api: CrApi; path: string; agents: string[]; range: DateRangeValue; stats: AgentStats; prof: VariableProfile }) {
   const [other, setOther] = useState(agents.find((a) => a !== path) ?? path);
   const [when2, setWhen2] = useState<"same" | "before">(agents.some((a) => a !== path) ? "same" : "before");
   const [b, setB] = useState<{ stats: AgentStats; prof: VariableProfile } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const d = Number(days) * 86_400_000, now = Date.now();
-    const p: Record<string, string> = when2 === "same" ? { path: other, days, tz } : { path: other, from: new Date(now - 2 * d).toISOString(), to: new Date(now - d).toISOString(), tz };
+    // the period before: as long as the chosen one, ending where it starts
+    const r = resolveRange(range), end = r.to ?? new Date(), start = r.from ?? new Date(end.getTime() - 30 * 86_400_000), d = end.getTime() - start.getTime();
+    const p: Record<string, string> = when2 === "same" ? { path: other, ...rangeParams(range), tz } : { path: other, from: new Date(start.getTime() - d).toISOString(), to: start.toISOString(), tz };
     setB(null);
     Promise.all([api.agentStatsFor(p), api.agentVariablesFor(p)]).then(([s, v]) => { setB({ stats: s, prof: v }); setError(null); }, (e) => setError(message(e)));
-  }, [api, other, when2, days]);
+  }, [api, other, when2, range]);
   const label = (p: string, w: "same" | "before") => name(p) + (w === "before" ? " (the period before)" : "");
   const sideA = name(path), sideB = label(other, when2);
   const shared = useMemo(() => !b ? [] : prof.variables.filter((v) => v.sum != null).map((v) => [v, b.prof.variables.find((x) => x.variable === v.variable && x.sum != null)] as const).filter(([, x]) => x), [b, prof]);

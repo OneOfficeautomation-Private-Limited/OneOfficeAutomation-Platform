@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, MicrosoftSignInDialog, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, MicrosoftSignInDialog, Select, choiceText, choicesOf, choiceHas, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { ADVANCED_FIELDS, DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 import { PageIntro } from "../shell/PageIntro";
@@ -93,7 +93,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return (list ?? []).filter((t) => (!text || (t.name + " " + t.bot_path + " " + kindName(t.kind) + " " + details(t)).toLowerCase().includes(text))
-      && (!f.where || t.evaluated_on === f.where) && (!f.health || health(t) === f.health));
+      && (!f.where || t.evaluated_on === f.where) && choiceHas(f.health, health(t)));
   }, [list, f]);
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { onNotice(done); load(); }, (e) => setError(message(e)));
 
@@ -122,8 +122,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <span className="cc-list-search"><TextInput type="search" aria-label="Search triggers" placeholder="Search triggers, agents, events" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
           <span className={"cc-chip" + (f.where ? " is-on" : "")}><Select aria-label="Listens on" value={f.where ?? ""} onChange={(e) => setF({ ...f, where: e.target.value })}
             options={[{ value: "", label: "Listens on: Anywhere" }, { value: "runner", label: "Listens on: A runner" }, { value: "server", label: "Listens on: One CommandCenter" }]} /></span>
-          <span className={"cc-chip" + (f.health ? " is-on" : "")}><Select aria-label="Health" value={f.health ?? ""} onChange={(e) => setF({ ...f, health: e.target.value })}
-            options={[{ value: "", label: "Health: Any" }, ...Object.entries(HEALTH).map(([value, label]) => ({ value, label: "Health: " + label }))]} /></span>
+          <ChoiceFilter label="Health" value={choicesOf(f.health)} onChange={(v) => setF({ ...f, health: choiceText(v) })} options={Object.entries(HEALTH).map(([value, label]) => ({ value, label }))} />
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="Triggers list tools">

@@ -6,6 +6,7 @@ import "../theme.css";
 import "../components/components.css";
 import "../studio/studio.css";
 import "./console.css";
+import "../components/tables.css";
 import { ConsoleApp } from "./ConsoleApp";
 import { modulePart } from "../modules/pages";
 

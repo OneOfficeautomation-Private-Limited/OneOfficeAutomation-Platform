@@ -20,4 +20,7 @@ export { MinorNotices, reportMinor } from "./MinorNotices";
 export { PageError, PageRetry } from "./PageError";
 export { useFullTextOnHover } from "./useFullTextOnHover";
 export { PrincipalPicker, principalDirectory, principalLabel, principalTokens, type PrincipalDirectory, type PrincipalKind } from "./PrincipalPicker";
+export { DateRange, RangePanel } from "./DateRange";
+export { AHEAD, BACK, RANGE_NAMES, rangeDays, rangeFrom, rangeLabel, rangeParams, rangeShort, rangeWords, resolveRange, type DateRangeValue, type RangeKey } from "./rangeRules";
+export { ChoiceFilter, choiceParam, choiceText, choicesOf, choiceHas, type ChoiceOption } from "./ChoiceFilter";
 export { AgentInputs, agentFilesBrowse, filesOf, type BrowseFile, ListValue, PairRows, TableValue, TypedValue, VaultPicker, missingInputs, parseCsv, typeWord, vaultRefsFrom, looseValue, type InputSpec, type VaultRef } from "./AgentInputs";

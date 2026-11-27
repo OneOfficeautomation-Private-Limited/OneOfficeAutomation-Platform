@@ -225,6 +225,16 @@ public final class ControlRoom {
     public static String mailAddressChecked(String address) { return Mailer.address(address); }
     public static List<String> csvList(Object value) { return csv(value); }
     public static int intOrDefault(String value, int dflt) { return intOr(value, dflt); }
+    /** The values of a filter that may name several, as a comma list ("failed,stopped"); empty when none is given. */
+    public static List<String> listParam(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return Arrays.stream(value.split(",")).map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();
+    }
+    /** "column = ?" for one value, "column IN (?, ?)" for several, adding the values to the parameters. */
+    public static String sqlIn(String column, List<String> values, List<Object> params) {
+        params.addAll(values);
+        return values.size() == 1 ? column + " = ?" : column + " IN (" + String.join(", ", Collections.nCopies(values.size(), "?")) + ")";
+    }
     public static final java.time.Duration ONLINE_WINDOW = ONLINE;
     public static final String SERVERLESS_DEVICE_ID = ServerlessRuns.DEVICE;
     public static byte[] textPdfOf(String title, List<String> lines) { return TextPdf.of(title, lines); }
@@ -2260,6 +2270,7 @@ public final class ControlRoom {
 
     /**
      * Runs with filters (filter=active|history, status, bot, device, user, source, q, from, to) and paging (offset, limit).
+     * Status, bot, device and source take one value or several as a comma list (tables and filters, item 2d).
      * Running runs carry their progress: steps finished, total steps and the step running now.
      */
     public Map<String, Object> runsPage(User by, Map<String, String> q) {
@@ -2270,14 +2281,20 @@ public final class ControlRoom {
         if ("active".equals(filter)) where.add("r.status IN ('queued', 'running')");
         else if ("history".equals(filter)) where.add("r.status IN ('success', 'failed', 'stopped')");
         else if ("suspended".equals(filter)) where.add("r.status = 'suspended'");
-        String status = q.get("status");
-        if (status != null && Set.of("queued", "running", "success", "failed", "stopped", "suspended").contains(status)) { where.add("r.status = ?"); p.add(status); }
-        for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}}) {
-            String v = q.get(f[0]);
-            if (v != null && !v.isBlank()) { where.add(f[1] + " = ?"); p.add(v); }
+        List<String> statuses = listParam(q.get("status")).stream().filter(Set.of("queued", "running", "success", "failed", "stopped", "suspended")::contains).toList();
+        if (!statuses.isEmpty()) where.add(sqlIn("r.status", statuses, p));
+        for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}}) {
+            List<String> v = listParam(q.get(f[0]));
+            if (!v.isEmpty()) where.add(sqlIn(f[1], v, p));
         }
-        String source = q.get("source");
-        if (source != null && !source.isBlank()) { where.add("(r.source = ? OR r.source LIKE ?)"); p.add(source); p.add(source + ":%"); }
+        String user = q.get("user");
+        if (user != null && !user.isBlank()) { where.add("r.requested_by = ?"); p.add(user); }
+        List<String> sources = listParam(q.get("source"));
+        if (!sources.isEmpty()) {
+            List<String> any = new ArrayList<>();
+            for (String source : sources) { any.add("r.source = ? OR r.source LIKE ?"); p.add(source); p.add(source + ":%"); }
+            where.add("(" + String.join(" OR ", any) + ")");
+        }
         String text = q.get("q");
         if (text != null && !text.isBlank()) {
             String like = "%" + text.toLowerCase(Locale.ROOT) + "%";
@@ -3429,7 +3446,7 @@ public final class ControlRoom {
     /**
      * Audit search: free text (q), who (actor), action (a prefix such as repo. or the exact action), object type and id,
      * result, a date range (from, to: dates or times), sort (newest or oldest first), paging (limit up to 1000, offset)
-     * and the total. The hash chain is unchanged by searching.
+     * and the total. Who, action and result take several values as a comma list. The hash chain is unchanged by searching.
      */
     public Map<String, Object> auditSearch(User by, Map<String, String> f) {
         require(by, "audit.view", "view the audit trail");
@@ -3441,13 +3458,20 @@ public final class ControlRoom {
             where.add("(LOWER(actor) LIKE ? OR LOWER(action) LIKE ? OR LOWER(COALESCE(object_id, '')) LIKE ? OR LOWER(COALESCE(details, '')) LIKE ?)");
             p.add(like); p.add(like); p.add(like); p.add(like);
         }
-        if (f.get("actor") != null && !f.get("actor").isBlank()) { where.add("LOWER(actor) = ?"); p.add(f.get("actor").toLowerCase(Locale.ROOT)); }
-        if (f.get("action") != null && !f.get("action").isBlank()) {
-            String a = f.get("action").trim();
-            if (a.endsWith(".") || a.endsWith("*")) { where.add("action LIKE ?"); p.add(a.replace("*", "") + "%"); } else { where.add("action = ?"); p.add(a); }
+        List<String> actors = listParam(f.get("actor")).stream().map(a -> a.toLowerCase(Locale.ROOT)).toList();
+        if (!actors.isEmpty()) where.add(sqlIn("LOWER(actor)", actors, p));
+        List<String> actions = listParam(f.get("action"));
+        if (!actions.isEmpty()) {
+            List<String> any = new ArrayList<>();
+            for (String a : actions) {
+                if (a.endsWith(".") || a.endsWith("*")) { any.add("action LIKE ?"); p.add(a.replace("*", "") + "%"); } else { any.add("action = ?"); p.add(a); }
+            }
+            where.add("(" + String.join(" OR ", any) + ")");
         }
-        for (String[] k : new String[][] {{"object_type", "object_type"}, {"object_id", "object_id"}, {"result", "result"}})
+        for (String[] k : new String[][] {{"object_type", "object_type"}, {"object_id", "object_id"}})
             if (f.get(k[0]) != null && !f.get(k[0]).isBlank()) { where.add(k[1] + " = ?"); p.add(f.get(k[0])); }
+        List<String> results = listParam(f.get("result"));
+        if (!results.isEmpty()) where.add(sqlIn("result", results, p));
         // checkpoints=hide leaves out the hash checkpoints the system writes after activity (they seal history, but crowd the list)
         if ("hide".equals(f.get("checkpoints"))) { where.add("action <> ?"); p.add("audit.checkpoint"); }
         if (f.get("from") != null && !f.get("from").isBlank()) { where.add("ts >= ?"); p.add(instant(f.get("from"), false)); }

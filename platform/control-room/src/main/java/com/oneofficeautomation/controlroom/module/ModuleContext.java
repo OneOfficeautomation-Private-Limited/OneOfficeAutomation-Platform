@@ -463,6 +463,12 @@ public interface ModuleContext {
     /** A whole number from a request parameter, or the default when it is missing or not a number. */
     static int intOr(String value, int dflt) { return com.oneofficeautomation.controlroom.ControlRoom.intOrDefault(value, dflt); }
 
+    /** The values of a filter that may name several, as a comma list; empty when none is given. */
+    static List<String> listParam(String value) { return com.oneofficeautomation.controlroom.ControlRoom.listParam(value); }
+
+    /** "column = ?" or "column IN (?, ...)" for the values, adding them to the parameters. */
+    static String sqlIn(String column, List<String> values, List<Object> params) { return com.oneofficeautomation.controlroom.ControlRoom.sqlIn(column, values, params); }
+
     /** A time from a request parameter (an ISO instant or a date; a date's end with endOfDay), or null; anything else is CR.BAD_INPUT. */
     static java.time.Instant instant(String value, boolean endOfDay) { return com.oneofficeautomation.controlroom.ControlRoom.instantOf(value, endOfDay); }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, RepoState, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, choiceText, choicesOf, choiceHas, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
@@ -163,7 +163,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     ? [...everything(tree).filter((n) => keep(n) && n.name.toLowerCase().includes(q) && !found.some((f) => f.path === n.path)).map((node) => ({ node, why: "name" })),
        ...found.flatMap((f) => { const node = find(tree, f.path); return node ? [{ node, why: foundBy(f.matches) }] : []; })]
     : (folderNode.children ?? []).filter((c) => c.type !== "folder" && keep(c)).map((node) => ({ node }));
-  const listed = kind ? rows.filter((r) => r.node.type === kind) : rows;
+  const listed = kind ? rows.filter((r) => choiceHas(kind, r.node.type)) : rows;
   const paths = listed.map((r) => r.node.path);
   const chosen = paths.filter((p) => selected.includes(p));
   const chosenNodes = chosen.map((p) => find(tree, p)!).filter(Boolean);
@@ -364,7 +364,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         <div className="st-items">
           <div className="st-items-tools" role="group" aria-label="List tools">
             <span className="st-items-count" aria-live="polite">{listed.length === rows.length ? count(rows.length) : listed.length + " of " + count(rows.length)}</span>
-            <Select aria-label="Type" value={kind} onChange={(e) => setKind(e.target.value)} options={KINDS.map(([value, label]) => ({ value, label }))} />
+            <ChoiceFilter label="Type" value={choicesOf(kind)} onChange={(v) => setKind(choiceText(v))} options={KINDS.slice(1).map(([value, label]) => ({ value, label }))} />
             <span className="st-items-fill" />
             <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
             <button type="button" className="ui-icon-btn" aria-label="Refresh" title="Refresh" onClick={() => { onChanged(); }}><Icon name="loop" size={15} /></button>

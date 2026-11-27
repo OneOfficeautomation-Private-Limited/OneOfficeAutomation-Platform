@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
-import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
+import { DateRange, HelpButton, rangeParams, rangeShort, usePersistent, type DateRangeValue, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { PageTabs, PageTitle } from "../shell/PageFrame";
@@ -14,7 +14,6 @@ import { PageTabs, PageTitle } from "../shell/PageFrame";
  * (processing as a pill first, the target time on hover, short headings explained on hover); a row shows the queue's
  * details below, and a menu per queue opens it in Work queues.
  */
-const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"]];
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const rate = (x?: number | null) => x == null ? "–" : x + "%";
 function dur(ms?: number | null) {
@@ -42,7 +41,7 @@ const HELP: HelpTopic = { title: "Work queue insights",
   about: "How each work queue you may see is keeping up: what waits now, what is late or close to its target time, how fast items finish and how many "
     + "runners it needs. The page refreshes every minute.",
   items: [
-    { name: "Period", text: "The time the finished, completed and in-time figures cover: the last 24 hours, 7 days or 30 days. What waits now is always "
+    { name: "Period", text: "The time the finished, completed and in-time figures cover: the last 24 hours, 7 or 30 days, a month or dates you choose. What waits now is always "
       + "shown as it is now." },
     { name: "Status", text: "Whether processing is on for the queue. When it is off, waiting items are not handed to runners; turn it on in Work queues." },
     { name: "Overdue and At risk", text: "Items waiting longer than the queue's target time, and items waiting more than three quarters of it. They show a "
@@ -60,19 +59,19 @@ const HELP: HelpTopic = { title: "Work queue insights",
   ] };
 
 export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: CrUser; title?: string; tabs?: ReactNode }) {
-  const [days, setDays] = usePersistent("queueinsights.days", "7");
+  const [range, setRange] = usePersistent<DateRangeValue>("queueinsights.range", { key: "7d" });
   const [list, setList] = useState<QueueInsight[] | null>(null);
   const [pools, setPools] = useState<RunnerPool[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.queueInsights({ days, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setList(r); setError(null); }, (e) => setError(message(e)));
+    api.queueInsights({ ...rangeParams(range), tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setList(r); setError(null); }, (e) => setError(message(e)));
     if (user.permissions.includes("devices.view")) api.pools().then(setPools, (e) => reportMinor("the runner pools", e));
-  }, [api, days, user]);
+  }, [api, range, user]);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
-  const label = PERIODS.find(([v]) => v === days)?.[1].toLowerCase() ?? "";
+  const label = rangeShort(range);
   const qs = list ?? [];
   const sum = (f: (q: QueueInsight) => number | null | undefined) => qs.reduce((n, q) => n + (f(q) ?? 0), 0);
   const finished = sum((q) => q.finished), success = sum((q) => q.success);
@@ -89,7 +88,7 @@ export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: C
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
+          <DateRange label="Period" value={range} onChange={setRange} choices={["24h", "today", "yesterday", "7d", "30d", "month", "last-month", "custom"]} />
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>

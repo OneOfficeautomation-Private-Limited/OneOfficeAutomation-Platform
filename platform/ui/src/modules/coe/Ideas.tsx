@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi } from "../../api/cr";
 import type { Idea, IdeaList } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Select, choiceHas, choiceText, choicesOf, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 import { PageTabs, PageTitle } from "../../shell/PageFrame";
@@ -47,7 +47,7 @@ export function Ideas({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   const fail = (e: unknown) => setError(message(e));
   const list = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const l = (data?.ideas ?? []).filter((i) => (!status || i.status === status)
+    const l = (data?.ideas ?? []).filter((i) => choiceHas(status, i.status)
       && (!t || [i.title, i.description, i.department, i.process_owner, i.submitted_by, i.bot_path].join(" ").toLowerCase().includes(t)));
     if (sort === "score") return [...l].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
     if (sort === "votes") return [...l].sort((a, b) => b.votes - a.votes);
@@ -76,8 +76,8 @@ export function Ideas({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search ideas" placeholder="Search ideas" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-          <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}
-            options={[{ value: "", label: "Any status" }, ...(data?.statuses ?? Object.keys(STATUS_LABEL)).map((s) => ({ value: s, label: STATUS_LABEL[s] + (counts[s] ? " (" + counts[s] + ")" : "") }))]} />
+          <ChoiceFilter label="Status" value={choicesOf(status)} onChange={(v) => setStatus(choiceText(v))}
+            options={(data?.statuses ?? Object.keys(STATUS_LABEL)).map((s) => ({ value: s, label: STATUS_LABEL[s] + (counts[s] ? " (" + counts[s] + ")" : "") }))} />
           <Select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}
             options={[{ value: "newest", label: "Newest first" }, { value: "score", label: "Highest score" }, { value: "votes", label: "Most votes" }]} />
         </div>

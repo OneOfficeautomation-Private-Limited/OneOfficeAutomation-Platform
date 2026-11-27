@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
+import { AgentInputs, agentFilesBrowse, filesOf, Button, ChoiceFilter, choiceText, choicesOf, choiceHas, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, SidePanel, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -112,8 +112,8 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
   const cur = folders.find((f) => f.path === folder);
   const inside = cur ? folders.filter((f) => f.path === cur.path || f.path.startsWith(cur.path + "/")).reduce((n, f) => n + f.agents, 0) : 0;
   const shown = useMemo(() => (agents ?? []).filter((a) => (!q.trim() || (a.path + " " + (a.description ?? "") + " " + (a.bot_id ?? "")).toLowerCase().includes(q.trim().toLowerCase()))
-    && (!kind || kindOf(a.path) === kind)
-    && (!show || (show === "live" ? !!a.production_version : show === "notlive" ? !a.production_version : !!a.locked_by))), [agents, q, kind, show]);
+    && choiceHas(kind, kindOf(a.path))
+    && (!show || choicesOf(show).some((s) => s === "live" ? !!a.production_version : s === "notlive" ? !a.production_version : !!a.locked_by))), [agents, q, kind, show]);
   const done = (m: string) => { onNotice(m); setDialog(null); load(); };
   const toDecide = requests.requests.filter((r) => r.can_decide).length;
   const filtered = !!(q.trim() || kind || show);
@@ -251,8 +251,8 @@ export function Repository({ api, user, onNotice, studio = false, onPrivate }: {
             <div className="cc-list-filters" role="group" aria-label="Filters">
               <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder={"Search in " + (folder ? folder.split("/").pop() : "Agents")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
               <label className={"cc-chip-check" + (withSub ? " is-on" : "")}><input type="checkbox" checked={withSub} onChange={(e) => setWithSub(e.target.checked)} /> Include subfolders</label>
-              <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Type: Any" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: "Type: " + k + "s" }))]} /></span>
-              <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Status" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "Status: Any" }, { value: "live", label: "Status: Live" }, { value: "notlive", label: "Status: Not live yet" }, { value: "out", label: "Status: Checked out" }]} /></span>
+              <ChoiceFilter label="Type" value={choicesOf(kind)} onChange={(v) => setKind(choiceText(v))} options={["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: k + "s" }))} />
+              <ChoiceFilter label="Status" value={choicesOf(show)} onChange={(v) => setShow(choiceText(v))} options={[{ value: "live", label: "Live" }, { value: "notlive", label: "Not live yet" }, { value: "out", label: "Checked out" }]} />
               {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button><RefreshButton onClick={load} /></div>
