@@ -48,10 +48,10 @@ export function usePopupPlace(ref: RefObject<HTMLElement | null>, anchor: Box | 
       el.style.left = p.left + "px"; el.style.top = p.top + "px";
       const r = el.getBoundingClientRect();
       const real = r.width > 0;   // (no layout in tests)
-      setPlace((old) => {
-        const next = { ...p, left: real ? p.left - (r.left - p.left) : p.left, top: real ? p.top - (r.top - p.top) : p.top };
-        return old && old.left === next.left && old.top === next.top && old.maxHeight === next.maxHeight ? old : next;
-      });
+      const next = { ...p, left: real ? p.left - (r.left - p.left) : p.left, top: real ? p.top - (r.top - p.top) : p.top };
+      // the measuring moved it: put it where it goes at once (React does not draw it again when nothing changed)
+      el.style.left = next.left + "px"; el.style.top = next.top + "px";
+      setPlace((old) => old && old.left === next.left && old.top === next.top && old.maxHeight === next.maxHeight && old.side === next.side ? old : next);
     };
     run();
     // its content changes (a search narrows the list): placed again, so a pop-up above its field stays against it

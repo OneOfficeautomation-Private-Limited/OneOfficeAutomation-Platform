@@ -51,12 +51,19 @@ export function SearchSelect({ id, value, options, onChange, placeholder = "Type
     if (!open) return;
     const measure = () => { const r = field.current?.getBoundingClientRect(); if (r) setAnchor({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }); };
     measure();
+    const ro = typeof ResizeObserver === "undefined" || !field.current ? null : new ResizeObserver(measure);
+    if (field.current) ro?.observe(field.current);
     window.addEventListener("scroll", measure, true);
     window.addEventListener("resize", measure);
-    return () => { window.removeEventListener("scroll", measure, true); window.removeEventListener("resize", measure); };
+    return () => { ro?.disconnect(); window.removeEventListener("scroll", measure, true); window.removeEventListener("resize", measure); };
   }, [open]);
-  // the highlighted option stays in view
-  useEffect(() => { if (open) document.getElementById(listId + "-" + active)?.scrollIntoView?.({ block: "nearest" }); }, [open, active, listId]);
+  // the highlighted option stays in view, scrolling the list only (never the page or dialog around it)
+  useEffect(() => {
+    const li = open ? document.getElementById(listId + "-" + active) : null, ul = li?.parentElement;
+    if (!li || !ul) return;
+    if (li.offsetTop < ul.scrollTop) ul.scrollTop = li.offsetTop - 4;
+    else if (li.offsetTop + li.offsetHeight > ul.scrollTop + ul.clientHeight) ul.scrollTop = li.offsetTop + li.offsetHeight - ul.clientHeight + 4;
+  }, [open, active, listId]);
 
   const pick = (o: SearchOption) => { onChange(o.value); setQuery(null); };
   const show = () => { if (!open && !disabled) { setQuery(""); setActive(Math.max(0, chosen ? options.indexOf(chosen) : 0)); } };
