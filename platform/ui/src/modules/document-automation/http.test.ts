@@ -68,6 +68,26 @@ describe("HttpDocFlowApi", () => {
     expect(JSON.parse(String(calls[0].body)).values).toEqual({ DOCAUTO_CLOUD_OPT_IN: true, DOCAUTO_ESCALATE_THRESHOLD: "0.8", DOCAUTO_RETRY_LOCAL: "paddleocr", DOCAUTO_ESCALATE_TO: "azure-di" });
   });
 
+  it("reads and saves which engines read the page, read the fields and recognise types (DocFlow 3.4.0)", async () => {
+    const claude = { id: "claude", displayName: "Claude", kind: "extraction", runsLocally: false, optionPack: "tier3_ai", available: true, reason: null,
+      allowedByPolicy: true, policyReason: null, languages: [], capabilities: ["extract_schema", "classify"] };
+    const { api, calls } = fake({ "/providers": { providers: [claude] }, "/costs": { prices: {}, cloudOptIn: true },
+      "/admin/settings": { defaults: [{ key: "DOCAUTO_DEFAULT_CLASSIFY", value: "claude" }, { key: "DOCAUTO_DEFAULT_EXTRACTION", value: "claude" }] },
+      "PUT /admin/settings": {} });
+    const e = await api.engines();
+    expect(e.routing).toMatchObject({ classify: "claude", extraction: "claude" });
+    expect(e.options[2].engines[0].can).toEqual(["extract_schema", "classify"]);
+    await api.saveRouting({ ...e.routing, ocr: "paddleocr", classify: "" });
+    expect(JSON.parse(String(calls.at(-1)!.body)).values).toMatchObject({ DOCAUTO_DEFAULT_OCR: "paddleocr", DOCAUTO_DEFAULT_EXTRACTION: "claude", DOCAUTO_DEFAULT_CLASSIFY: "" });
+  });
+
+  it("does not send the recognise setting to a DocFlow older than 3.4.0, which would refuse it", async () => {
+    const { api, calls } = fake({ "/providers": { providers: [] }, "/costs": { prices: {}, cloudOptIn: false }, "/admin/settings": { defaults: [] }, "PUT /admin/settings": {} });
+    const e = await api.engines();
+    await api.saveRouting(e.routing);
+    expect(JSON.parse(String(calls.at(-1)!.body)).values.DOCAUTO_DEFAULT_CLASSIFY).toBeUndefined();
+  });
+
   it("shows engines to people who may not change them, from the opt-in alone", async () => {
     const { api } = fake({
       "/providers": { providers: [{ id: "tesseract", displayName: "Tesseract", kind: "ocr", runsLocally: true, optionPack: "tier1_opensource", available: true, reason: null, allowedByPolicy: true, policyReason: null, languages: [] },
@@ -76,7 +96,7 @@ describe("HttpDocFlowApi", () => {
       "/admin/settings": new Response(JSON.stringify({ error: { code: "CR.FORBIDDEN", message: "not allowed" } }), { status: 403 }),
     });
     const e = await api.engines();
-    expect(e.routing).toEqual({ ocr: "tesseract", extraction: "builtin-rules", cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" });
+    expect(e.routing).toEqual({ ocr: "tesseract", extraction: "builtin-rules", classify: "", cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" });
     expect(e.options[0].engines[0]).toMatchObject({ id: "tesseract", status: "ready", price: "Free" });
     expect(e.options[1].engines[0]).toMatchObject({ id: "azure-di", status: "optin", runs: "cloud", price: "$1.5 · $10" });
   });

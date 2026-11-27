@@ -86,12 +86,16 @@ export interface ReviewTask {
 export type ReviewValues = Record<string, string | TableRow[]>;
 
 export type EngineStatus = "ready" | "optin" | "setup";
-export interface Engine { id: string; name: string; does: string; status: EngineStatus; runs: "server" | "cloud"; price: string; free: boolean; key: string }
+export interface Engine { id: string; name: string; does: string; status: EngineStatus; runs: "server" | "cloud"; price: string; free: boolean; key: string;
+  /** What it can do, as DocFlow says (classify, extract_schema, ocr_printed...); unknown for older DocFlow. */
+  can?: string[] }
 export interface EngineOption { id: "onecore" | "oneconnect" | "onemind" | "other"; name: string; description: string; color: string; engines: Engine[] }
 /** One setting of an engine (its address, key, model…), as DocFlow's settings describe it. Secrets come back masked. */
 export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; suggestions?: string[]; placeholder?: string }
 /** ocr / extraction: the engines that read every page and the fields by default (DocFlow's defaults; a process may choose its own). */
-export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string; ocr?: string; extraction?: string }
+export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string; ocr?: string; extraction?: string;
+  /** The engine that recognises document types and splits batches (DocFlow 3.4.0); "" = the words on the page. */
+  classify?: string }
 /** Claude's models: the one that reads the fields, and the one that re-reads a document that would go to review (null: off). */
 export interface ClaudeModels { model: string; escalationModel: string | null }
 /** "claude-haiku-5-5" → "Claude Haiku 5.5". */
@@ -564,9 +568,9 @@ const ENGINES: EngineOption[] = [
     { id: "aws-textract", name: "AWS Textract", does: "Text, tables, expenses", status: "optin", runs: "cloud", price: "$1.50 · $10 expenses", free: false, key: "Vault: not set" },
     { id: "abbyy", name: "ABBYY", does: "Depends on your ABBYY product", status: "setup", runs: "cloud", price: "Contract", free: false, key: "—" }] },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e", engines: [
-    { id: "claude", name: "Claude (Anthropic)", does: "Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review", status: "optin", runs: "cloud", price: "$0.8", free: false, key: "Model connection: not set" },
-    { id: "llm-cloud", name: "Cloud AI API", does: "Any OpenAI-compatible service", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Model connection: not set" },
-    { id: "llm-local", name: "Self-hosted model", does: "Your own server, nothing leaves", status: "setup", runs: "server", price: "Free", free: true, key: "—" }] },
+    { id: "claude", can: ["extract_schema", "classify"], name: "Claude (Anthropic)", does: "Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review", status: "optin", runs: "cloud", price: "$0.8", free: false, key: "Model connection: not set" },
+    { id: "llm-cloud", can: ["extract_schema", "classify"], name: "Cloud AI API", does: "Any OpenAI-compatible service", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Model connection: not set" },
+    { id: "llm-local", can: ["extract_schema", "classify"], name: "Self-hosted model", does: "Your own server, nothing leaves", status: "setup", runs: "server", price: "Free", free: true, key: "—" }] },
 ];
 
 const DESIGN_CHECKS: Check[] = [
@@ -716,7 +720,7 @@ function sampleRun(id: string, setId: string, items: TestSetItem[], combos: Comb
 export class SampleApi implements DocFlowApi {
   private processesData = copy(PROCESSES);
   private documentsData = copy(DOCUMENTS);
-  private routing: Routing = { cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" };
+  private routing: Routing = { cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "", classify: "" };
   readonly reviews: { documentId: string; fields: ReviewValues; decision: string }[] = [];
   /** The tenant chosen at the top; the sample data is the same for every tenant. */
   tenant = "";

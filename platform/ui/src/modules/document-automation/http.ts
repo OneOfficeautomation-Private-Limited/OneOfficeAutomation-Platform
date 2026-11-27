@@ -66,7 +66,7 @@ interface DfResult {
 }
 interface DfProvider {
   id: string; displayName: string; kind: string; runsLocally: boolean; optionPack: string; available: boolean; reason: string | null;
-  allowedByPolicy: boolean; policyReason: string | null; languages: string[];
+  allowedByPolicy: boolean; policyReason: string | null; languages: string[]; capabilities?: string[];
 }
 interface DfSetting { key: string; value: string }
 interface DfCosts {
@@ -532,6 +532,9 @@ export class HttpDocFlowApi implements DocFlowApi {
     await this.call("PUT", "/admin/settings", { values });
   }
 
+  /** Whether this DocFlow has the recognise engine setting (3.4.0); read with the engines. */
+  private knowsClassify = false;
+
   async engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: { model: string; escalationModel: string | null }; prices?: PriceList }> {
     const [prov, costs, settings] = await Promise.all([
       this.call<{ providers: DfProvider[] }>("GET", "/providers"), this.call<DfCosts>("GET", "/costs"),
@@ -539,10 +542,12 @@ export class HttpDocFlowApi implements DocFlowApi {
       this.call<{ defaults: DfSetting[] }>("GET", "/admin/settings").catch(() => null),
     ]);
     const v = (k: string, d: string) => settings?.defaults.find((s) => s.key === k)?.value ?? d;
+    this.knowsClassify = !!settings?.defaults.some((s) => s.key === "DOCAUTO_DEFAULT_CLASSIFY");
     const routing: Routing = {
       cloudOptIn: costs.cloudOptIn, retryBelow: Number(v("DOCAUTO_ESCALATE_THRESHOLD", "0.85")),
       localRetry: v("DOCAUTO_RETRY_LOCAL", "paddleocr"), cloudEngine: v("DOCAUTO_ESCALATE_TO", ""),
       ocr: v("DOCAUTO_DEFAULT_OCR", "tesseract"), extraction: v("DOCAUTO_DEFAULT_EXTRACTION", "builtin-rules"),
+      classify: v("DOCAUTO_DEFAULT_CLASSIFY", ""),
     };
     const price = (id: string, local: boolean) => {
       const p = costs.prices[id];
@@ -555,7 +560,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       id: p.id, name: ENGINE_NAMES[p.id] ?? p.displayName, does: p.id === "claude" && costs.claudeModel ? claudeDoes : p.kind === "ocr" ? "Reads pages" : "Reads fields",
       status: !p.available ? "setup" : !p.allowedByPolicy ? "optin" : "ready",
       runs: p.runsLocally ? "server" : "cloud", price: price(p.id, p.runsLocally), free: p.runsLocally,
-      key: p.runsLocally ? "—" : p.available ? "Set" : "Not set",
+      key: p.runsLocally ? "—" : p.available ? "Set" : "Not set", ...(p.capabilities ? { can: p.capabilities } : {}),
     });
     // engines from an option pack the screens do not name (a new or own pack) are listed as Other engines, not dropped
     const others = prov.providers.filter((p) => !PACK_OPTION[p.optionPack]).map(engine);
@@ -571,6 +576,9 @@ export class HttpDocFlowApi implements DocFlowApi {
   async saveRouting(r: Routing): Promise<void> {
     await this.call("PUT", "/admin/settings", { values: {
       DOCAUTO_CLOUD_OPT_IN: r.cloudOptIn, DOCAUTO_ESCALATE_THRESHOLD: String(r.retryBelow), DOCAUTO_RETRY_LOCAL: r.localRetry, DOCAUTO_ESCALATE_TO: r.cloudEngine,
+      ...(r.ocr ? { DOCAUTO_DEFAULT_OCR: r.ocr } : {}), ...(r.extraction ? { DOCAUTO_DEFAULT_EXTRACTION: r.extraction } : {}),
+      // DocFlow 3.4.0 knows this setting; an older DocFlow refuses unknown settings, so it is only sent when it was read
+      ...(r.classify !== undefined && this.knowsClassify ? { DOCAUTO_DEFAULT_CLASSIFY: r.classify } : {}),
     } });
   }
 

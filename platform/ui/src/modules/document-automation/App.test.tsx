@@ -441,9 +441,12 @@ describe("Document Automation", () => {
     expect(within(screen.getByRole("region", { name: "AI models" })).getByText(/OpenAI, Azure OpenAI, Google Gemini/)).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "AI models" })).getByRole("link", { name: "Test or configure ↗" }).getAttribute("href")).toBe("#/engines/catalog/onemind");
     fireEvent.change(within(jobs).getByLabelText("Read the fields"), { target: { value: "claude" } });
-    expect(within(jobs).getByText(/Claude \(Anthropic\), from each type's description/)).toBeTruthy();   // AI recognises from descriptions
+    // I-1: recognising types is a job of its own: the words on the page, or an AI engine that recognises from descriptions
+    const recognise = within(jobs).getByLabelText("Recognise and split") as HTMLSelectElement;
+    expect([...recognise.options].map((o) => o.value)).toEqual(["", "claude", "llm-cloud", "llm-local"]);
+    fireEvent.change(recognise, { target: { value: "claude" } });
     fireEvent.click(within(jobs).getByRole("button", { name: "Save" }));
-    await waitFor(async () => expect((await api.engines()).routing.extraction).toBe("claude"));
+    await waitFor(async () => expect((await api.engines()).routing).toMatchObject({ extraction: "claude", classify: "claude" }));
     await go("#/engines/routing");
     expect(await screen.findByRole("region", { name: "How a page is routed" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Monthly cost estimate" })).toBeNull();      // cost is a section of its own

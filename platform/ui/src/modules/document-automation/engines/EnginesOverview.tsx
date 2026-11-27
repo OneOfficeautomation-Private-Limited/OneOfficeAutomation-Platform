@@ -28,7 +28,8 @@ export function EnginesOverview({ routing, options, dirty, onChange, onSave }:
   const ocr = routing.ocr || "tesseract", fields = routing.extraction || "builtin-rules";
   const retry = routing.localRetry.split(",").map((x) => x.trim()).filter(Boolean)[0];
   const cloud = routing.cloudOptIn && routing.cloudEngine ? byId(routing.cloudEngine) : undefined;
-  const ai = fields !== "builtin-rules";
+  // engines that can recognise a document type (DocFlow says so; 3.4.0 uses the chosen one in processes)
+  const recognisers = all.filter((e) => e.can?.includes("classify"));
   const connections = location.hash.startsWith("#/docautomation") ? "#/connections" : undefined;
   return (
     <div className="df-engines-overview">
@@ -42,8 +43,11 @@ export function EnginesOverview({ routing, options, dirty, onChange, onSave }:
               options={pageReaders.map((e) => ({ value: e.id, label: label(e) }))} />
           </div>
           <div className="df-job">
-            <b>Recognise and split</b><span className="df-small">Which type each document is; batch scans cut into documents.</span>
-            <span className="df-job-fixed">{ai ? `${byId(fields)?.name ?? fields}, from each type's description` : "Words on the page (this server), from each type's advanced settings"}</span>
+            <b>Recognise and split</b><span className="df-small">Which type each document is, from each type's description; batch scans cut into documents.</span>
+            {routing.classify !== undefined && recognisers.length
+              ? <Select aria-label="Recognise and split" value={routing.classify} onChange={(e) => onChange({ ...routing, classify: e.target.value })}
+                  options={[{ value: "", label: "Words on the page (this server)" }, ...recognisers.map((e) => ({ value: e.id, label: label(e) }))]} />
+              : <span className="df-job-fixed">Words on the page (this server). An AI engine can recognise types from DocFlow 3.4.0.</span>}
           </div>
           <div className="df-job">
             <b>Read the fields</b><span className="df-small">Fill each type's fields from the page.</span>
