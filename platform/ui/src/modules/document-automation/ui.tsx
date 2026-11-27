@@ -120,11 +120,11 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="df-empty">{children}</div>;
 }
 
-/** The header button that shows or hides "How to use this page". */
+/** The link that opens or closes "How to use this page" (DA-1, 27 Nov 2026): always there; the steps only when asked for. */
 export function HelpButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <button type="button" className="df-help-btn" aria-expanded={open} aria-controls="df-help" onClick={onToggle}>
-      <span className="df-help-q" aria-hidden="true">?</span>Help
+    <button type="button" className="df-help-link" aria-expanded={open} aria-controls="df-help" onClick={onToggle}>
+      How to use this page<span className="df-help-caret" aria-hidden="true">{open ? "▴" : "▾"}</span>
     </button>
   );
 }
@@ -133,8 +133,8 @@ export function HelpButton({ open, onToggle }: { open: boolean; onToggle: () => 
 export function HelpPanel({ summary, steps, onHide }: { summary: string; steps: string[]; onHide: () => void }) {
   return (
     <section id="df-help" className="df-help" aria-label="How to use this page">
-      <div className="df-help-head"><b>How to use this page.</b><span>{summary}</span><span className="df-grow" />
-        <button type="button" className="df-link" onClick={onHide}>Hide</button></div>
+      <div className="df-help-head"><span>{summary}</span><span className="df-grow" />
+        <button type="button" className="df-help-close" aria-label="Close how to use this page" title="Close" onClick={onHide}>✕</button></div>
       <ol className="df-help-steps">{steps.map((s, i) => <li key={i}><span className="df-help-n" aria-hidden="true">{i + 1}</span>{s}</li>)}</ol>
     </section>
   );

@@ -223,12 +223,16 @@
 }
 
 /* How to use this page, and option hints */
-.df-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 14px;
-  background: var(--ui-bg); color: var(--ui-accent-text); font: inherit; font-weight: 600; cursor: pointer; }
-.df-help-btn:hover, .df-help-btn[aria-expanded="true"] { background: var(--ui-selected); border-color: var(--ui-accent); }
-.df-help-q { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--ui-accent); color: #fff; font-size: 11px; }
+/* DA-1 (27 Nov 2026): a plain link opens the steps; they stay closed until asked for */
+.df-help-link { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 2px; border: 0; background: transparent;
+  color: var(--ui-accent-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.df-help-link:hover { text-decoration: underline; }
+.df-help-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; border-radius: 3px; }
+.df-help-caret { font-size: 11px; }
+.df-help-close { width: 24px; height: 24px; flex: none; border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); cursor: pointer; }
+.df-help-close:hover { border-color: var(--ui-field); }
 .df-help { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--ui-selected); border-radius: var(--ui-radius); background: var(--ui-tint); }
-.df-help-head { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.df-help-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-weight: 600; }
 .df-help-steps { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 16px; margin: 10px 0 0; padding: 0; }
 .df-help-steps li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
 .df-help-n { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-accent); color: #fff; font-size: 11px; font-weight: 700; }
@@ -315,3 +319,23 @@
 .df-langs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 10px; align-items: start; }
 /* the Engines switch: a choice whose words wrap on a narrow screen grows instead of spilling out */
 .df-seg a { height: auto; min-height: 32px; padding-block: 4px; line-height: 1.25; }
+
+/* New process (DA-2 to DA-5, 27 Nov 2026): Start from's details, the folder field, and the ways documents come in as rows */
+.df-start-about { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-soft); }
+.df-start-about p { margin: 0; flex: 1 1 100%; line-height: 1.4; }
+.df-start-about .ui-btn { margin-top: 4px; }
+.df-folder-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.df-folder-path { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; height: var(--ui-h); padding: 0 8px; border: 1px solid var(--ui-field);
+  border-radius: var(--ui-radius); background: var(--ui-bg); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.df-folder-pick-list { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.df-folder-pick-list p { margin: 0; }
+.df-folder-none { text-align: start; padding: 6px 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; cursor: pointer; }
+.df-folder-none.is-on { border-color: var(--ui-accent); background: var(--ui-selected); font-weight: 600; }
+.df-ways { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.df-ways > legend { font-weight: 700; padding: 0; margin-bottom: 8px; }
+.df-way-row { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); }
+.df-way-row-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.df-way-row-head .df-small { flex: 1; min-width: 160px; }
+.df-way-remove { width: 24px; height: 24px; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent;
+  border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); cursor: pointer; align-self: center; }
+.df-way-remove:hover { border-color: var(--ui-field); }

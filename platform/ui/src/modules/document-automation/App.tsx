@@ -67,8 +67,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const tenant = tenants.includes(savedTenant) ? savedTenant : tenants[0] ?? "";
   if (tenant) api.setTenant?.(tenant);   // before the screens below load anything
   const [error, setError] = useState("");
-  // "How to use this page" shows on a person's first visit to each page, until they hide it
-  const [helpHidden, setHelpHidden] = usePersistent<Record<string, boolean>>("docflow.helpHidden", {});
+  // "How to use this page" (DA-1, 27 Nov 2026): closed, only its link shows; opened, it stays open on that page until closed
+  const [helpShown, setHelpShown] = usePersistent<Record<string, boolean>>("docflow.helpShown", {});
   useEffect(() => {
     const onHash = () => { setRoute(parseRoute(location.hash)); setError(""); };
     const onError = (e: Event) => setError((e as CustomEvent<string>).detail);
@@ -81,8 +81,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const reviewing = route.tab === "review";
   const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets"
     : route.tab === "overview" && route.section === "dashboard" ? "dashboard" : route.tab as HelpPage;
-  const helpOpen = !helpHidden[helpPage];
-  const toggleHelp = () => setHelpHidden({ ...helpHidden, [helpPage]: helpOpen });
+  const helpOpen = !!helpShown[helpPage];
+  const toggleHelp = () => setHelpShown({ ...helpShown, [helpPage]: !helpOpen });
   const help = helpOpen && <HelpPanel {...HELP[helpPage]} onHide={toggleHelp} />;
   const crumb = reviewing ? "Review" : route.process ? "Process" : TABS.find((t) => t.tab === route.tab)!.label;
   const initials = user.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();

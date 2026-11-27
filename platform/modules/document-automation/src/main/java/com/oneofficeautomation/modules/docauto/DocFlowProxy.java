@@ -624,6 +624,10 @@ public final class DocFlowProxy {
 
     /** A mailbox secret, as the person who set the inbox up: they must still be active and a consumer of its vault folder. */
     private String secret(String by, String ref) {
+        // DA-B1 (27 Nov 2026): an inbox saved without its password or app secret said "'admin' may not use vault folder 'null'"
+        if (ref == null || ref.isBlank() || "null".equals(ref))
+            throw new OoaException("MAIL.NOT_SET_UP", "This email inbox is not finished: no password or app secret is chosen. Open the process, step 2 (Document ingestion), and choose Sign in with Microsoft or the password from the Vault",
+                    "Open the process, step 2 (Document ingestion): choose Sign in with Microsoft, or the password from the Vault, and save.");
         Map<String, Object> u = ctx.db().one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", by);
         if (u == null) throw new OoaException("VAULT.DENIED", "The person who set up this inbox (" + by + ") is not an active user", "Open the process and save its email inbox again.");
         vaultAccess(by, (String) u.get("role"), ref);

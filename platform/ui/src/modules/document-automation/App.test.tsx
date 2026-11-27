@@ -169,46 +169,69 @@ describe("Document Automation", () => {
     await waitFor(async () => expect((await api.documents("smart-inbox")).some((d) => d.name === "mixed.pdf")).toBe(true));
   });
 
-  it("creates a process with the ways documents come in, then opens the builder", async () => {
+  it("creates a process with the ways documents come in, then opens the builder (DA-2 to DA-5)", async () => {
     const api = start(); await go("#/inbox");
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
     const create = within(dialog).getByRole("button", { name: "Create process" }) as HTMLButtonElement;
-    await waitFor(() => expect(create.disabled).toBe(false));                    // DA-1: the first template fills the name and type
-    expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Supplier invoices");
-    fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "" } });
-    expect(create.disabled).toBe(true);                                         // a name is needed
-    fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "Supplier invoices KSA" } });
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Watched folder/ }));
+    // DA-3: the name starts empty and must be typed; the template picks only the document type
+    const name = within(dialog).getByLabelText("Process name") as HTMLInputElement;
+    expect(name.value).toBe("");
+    await waitFor(() => expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice"));
+    expect(create.disabled).toBe(true);
+    fireEvent.change(name, { target: { value: "Supplier invoices Riyadh" } });
+    expect(create.disabled).toBe(false);
+    // DA-4: the folder is chosen in a tree; the full path shows
+    fireEvent.click(within(dialog).getByRole("button", { name: "Choose…" }));
+    const folders = await screen.findByRole("dialog", { name: "Choose the process's folder" });
+    fireEvent.click(within(folders).getByRole("button", { name: "Expand all folders" }));
+    fireEvent.click(within(within(folders).getByRole("group", { name: "Folders" })).getByText("Expenses"));
+    expect(within(folders).getByText("Chosen:").parentElement!.textContent).toContain("Finance › Expenses");
+    fireEvent.click(within(folders).getByRole("button", { name: "Choose" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose the process's folder" })).toBeNull());
+    expect(within(dialog).getByText("Finance › Expenses")).toBeTruthy();
+    // DA-5: Upload is there; more ways are added from the list, each with only its own inputs, and can be removed
+    expect(within(dialog).getByRole("group", { name: "Upload" })).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "folder" } });
+    const watched = within(dialog).getByRole("group", { name: "Watched folder" });
     expect(create.disabled).toBe(true);                                         // a watched folder needs its path
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Browse for folder path" }));   // DA-1: from the allowed folders
+    fireEvent.click(await within(watched).findByRole("button", { name: "Browse for folder path" }));
     const picker = await screen.findByRole("dialog", { name: "Choose the watched folder" });
     fireEvent.click(await within(picker).findByRole("button", { name: "Open invoices" }));
     fireEvent.click(await within(picker).findByRole("button", { name: "riyadh" }));
     fireEvent.click(within(picker).getByRole("button", { name: "Use this folder" }));
-    expect((within(dialog).getByLabelText("Folder path") as HTMLInputElement).value).toBe("\\\\scan01\\scans\\invoices\\riyadh");
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Email inbox/ }));
+    expect((within(watched).getByLabelText("Folder path") as HTMLInputElement).value).toBe("\\\\scan01\\scans\\invoices\\riyadh");
+    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "bot" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove From an agent" }));
+    expect(within(dialog).queryByRole("group", { name: "From an agent" })).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "email" } });
+    const email = within(dialog).getByRole("group", { name: "Email" });
+    fireEvent.change(within(email).getByLabelText("Mail account"), { target: { value: "mail_1" } });
     fireEvent.click(create);
-    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-ksa/intake"));   // email ticked: set the inbox up next
-    const made = (await api.processes()).find((p) => p.name === "Supplier invoices KSA")!;
-    expect(made.sources).toEqual(["upload", "folder", "email"]);
+    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-riyadh/intake"));   // email chosen: its settings next
+    const made = (await api.processes()).find((p) => p.name === "Supplier invoices Riyadh")!;
+    expect(made.sources).toEqual(["upload", "folder"]);                          // the mail account's rule brings email in
+    expect(made.folder).toBe("Finance/Expenses");
+    expect((await api.processMailRules("supplier-invoices-riyadh")).map((r) => r.account_id)).toEqual(["mail_1"]);
     expect(made.state).toBe("draft");
   });
 
-  it("starts a new process from a template and tries it with a sample, saving nothing", async () => {
+  it("starts a new process from a template and tries it with a sample, saving nothing (DA-2)", async () => {
     const api = start(); await go("#/inbox");
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
-    fireEvent.click(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }));
-    expect(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }).getAttribute("aria-pressed")).toBe("true");
-    await waitFor(() => expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Expense receipts"));
-    expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("receipt");
+    fireEvent.change(within(dialog).getByLabelText("Start from"), { target: { value: "receipts" } });
+    const about = within(dialog).getByRole("region", { name: "About this start" });
+    expect(about.textContent).toContain("Document type");
+    await waitFor(() => expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("receipt"));
+    expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("");   // DA-3: never filled in
     const before = (await api.processes()).length;
-    fireEvent.click(within(dialog).getByRole("button", { name: "Try it with a sample receipt" }));
+    fireEvent.click(within(about).getByRole("button", { name: "Try it with a sample receipt" }));
     expect(await within(dialog).findByRole("region", { name: "What the sample gave" })).toBeTruthy();
     expect((await api.processes()).length).toBe(before);                       // a try saves nothing
-    fireEvent.click(within(dialog).getByRole("button", { name: /Start from scratch/ }));
+    fireEvent.change(within(dialog).getByLabelText("Start from"), { target: { value: "scratch" } });
     expect(within(dialog).queryByRole("button", { name: /Try it with a sample/ })).toBeNull();
+    expect(within(dialog).getByRole("region", { name: "About this start" }).textContent).toContain("An empty process");
   });
 
   it("shows every document of a process, with filters on how it came in, engine and confidence", async () => {
@@ -523,6 +546,7 @@ describe("Document Automation", () => {
     await go("#/testlab/sets");
     expect(await screen.findByRole("region", { name: "Test sets" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Test sets" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(screen.getByRole("button", { name: /^How to use this page/ }));   // closed until asked for (DA-1)
     expect(within(screen.getByRole("region", { name: "How to use this page" })).getByText(/Add our sample set/)).toBeTruthy();
   });
 
@@ -646,19 +670,22 @@ describe("Document Automation", () => {
       expected: { vat_amount: "6,257.13", invoice_number: "INV-2026-3944", total: "47,971.34" } });
   });
 
-  it("shows how to use each page on the first visit, and remembers when it is hidden", async () => {
+  it("keeps how to use each page closed behind its link, and remembers it open per page (DA-1)", async () => {
     start();
     await go("#/inbox");
-    const help = await screen.findByRole("region", { name: "How to use this page" });
+    const link = await screen.findByRole("button", { name: /^How to use this page/ });
+    expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();   // closed on the first visit too
+    expect(link.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(link);
+    const help = screen.getByRole("region", { name: "How to use this page" });
     expect(within(help).getAllByRole("listitem")[0].textContent).toContain("Status column");
-    fireEvent.click(within(help).getByRole("button", { name: "Hide" }));
-    expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
     await go("#/engines");
-    expect(within(await screen.findByRole("region", { name: "How to use this page" })).getByText(/Cloud opt-in off/)).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();   // each page on its own
     await go("#/inbox");
+    expect(screen.getByRole("region", { name: "How to use this page" })).toBeTruthy();   // left open on this page
+    fireEvent.click(screen.getByRole("button", { name: "Close how to use this page" }));
     expect(screen.queryByRole("region", { name: "How to use this page" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Help" }));   // the standard ? Help (27 Nov 2026)
-    expect(screen.getByRole("region", { name: "How to use this page" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^How to use this page/ })).toBeTruthy();   // the link stays
   });
 
   it("explains an option in one line", async () => {
@@ -961,6 +988,7 @@ describe("Document Automation", () => {
     expect(within(screen.getByRole("region", { name: "Review backlog" })).getByText("5 · 1 overdue")).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "Failures" })).getByRole("link", { name: "One Inbox" })).toBeTruthy();
     expect(screen.queryByText("Cloud cost this month")).toBeNull();                      // only with cloud opt-in
+    fireEvent.click(screen.getByRole("button", { name: /^How to use this page/ }));   // closed until asked for (DA-1)
     expect(within(screen.getByRole("region", { name: "How to use this page" })).getByText(/in charts/)).toBeTruthy();
     cleanup();
     await api.saveRouting({ ...(await api.engines()).routing, cloudOptIn: true });

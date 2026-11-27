@@ -1053,6 +1053,12 @@ class DocFlowProxyTest {
             String err = String.valueOf(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
             assertTrue(err.contains("invoices@contoso.com no longer works") && err.contains("revoked"), err);
             assertEquals("expired", cr.db.one("SELECT status FROM ms_signins WHERE id = ?", id).get("status"));
+
+            // DA-B1: an inbox saved without its secret says what is missing, not "'admin' may not use vault folder 'null'"
+            flowsJson = "[{\"id\":\"no-secret\",\"status\":\"live\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"mailbox\":\"x@contoso.com\",\"tenant_id\":\"t\",\"client_id\":\"c\",\"requestedBy\":\"admin\"}}}]";
+            proxy(cr).pollMail();
+            String unfinished = String.valueOf(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'no-secret'").get("last_error"));
+            assertTrue(unfinished.contains("not finished") && unfinished.contains("step 2") && !unfinished.contains("'null'"), unfinished);
         } finally {
             System.clearProperty("ooa.microsoft.login.url");
             System.clearProperty("ooa.microsoft.graph.url");
