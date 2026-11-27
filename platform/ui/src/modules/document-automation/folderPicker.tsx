@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Dialog, Field, IconButton, PathRow, TextInput } from "../../components";
+import { Button, Field, IconButton, PathRow, PickerDialog, TextInput } from "../../components";
 import { NO_FOLDER_LIST, inFolder, type DocFlowApi, type FolderAccess, type FolderEntry, type FolderListing, type FolderRoots, type FolderUse } from "./api";
 import { Chip, type Tone } from "./ui";
 
@@ -139,67 +139,61 @@ export function FolderPicker({ api, title, start, processId, onClose, onPick }: 
   const others = target?.watchedBy.filter((u) => u.id !== processId) ?? [];
   const crumbs = here ? crumbsOf(here) : [];
 
+  // item 3 of the fix list of 27 Nov 2026, round 2 (3c): the shared picker layout, resizable and maximisable; the allowed
+  // folders on the left (full names, the path under each), the folders inside the open one on the right
   return (
-    <Dialog open onClose={onClose} title={title} width={900}
-      footer={<>
-        {naming === null
-          ? <Button icon="plus" disabled={!here || busy} onClick={() => setNaming("")}>New folder</Button>
-          : <span className="df-folder-new">
-              <TextInput aria-label="New folder name" value={naming} placeholder="Folder name" onChange={(e) => setNaming(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void make(); if (e.key === "Escape") { e.stopPropagation(); setNaming(null); } }} />
-              <Button kind="secondary" disabled={!naming.trim()} onClick={() => void make()}>Make folder</Button>
-              <Button kind="plain" onClick={() => setNaming(null)}>Cancel</Button>
-            </span>}
-        <span className="df-folder-chosen" aria-live="polite">
-          {target && <><span><span className="df-small">Chosen:</span> <b>{target.path}</b></span>
-            <span>{target.access && <Chip tone={ACCESS[target.access].tone}>{ACCESS[target.access].text}</Chip>}
-              {target.waiting > 0 && <span className="df-small"> · {count(target.waiting)} file{target.waiting === 1 ? "" : "s"} waiting, read once the process is live</span>}</span>
-            {others.length > 0 && <span className="df-text-warn">Already watched by {names(others)}: each file goes to whichever process reads it first.</span>}</>}
-        </span>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button kind="primary" disabled={!target || busy} onClick={() => target && onPick(target.path)}>Use this folder</Button>
-      </>}>
-      <p className="df-small" style={{ margin: 0 }}>Only folders your administrator allowed are shown. New files put in the chosen folder are read one by one; each read file moves to its <b>processed</b> folder.</p>
-      {problem && <p className="df-text-warn" role="alert" style={{ margin: 0 }}>{problem}</p>}
-      <div className="df-folder-pick">
-        <div className="df-folder-roots" role="group" aria-label="Allowed folders">
-          <div className="df-folder-label">Allowed folders</div>
-          {(roots?.roots ?? []).map((r) => (
-            <button key={r.path} type="button" className={`df-folder-root${here?.root.path === r.path ? " is-on" : ""}`} aria-pressed={here?.root.path === r.path}
-              onClick={() => void open(r.path)}>
-              <b>{r.name}</b><span className="df-small">{r.path}</span>
-              {r.access !== "ok" && <span className={r.access === "read" ? "df-text-warn" : "df-text-bad"}>{ACCESS[r.access].text}</span>}
-            </button>))}
-        </div>
-        <div className="df-folder-main">
-          <div className="df-folder-crumb">
-            <IconButton icon="up" label="Up one folder" disabled={!here?.parent || busy} onClick={() => here?.parent && void open(here.parent)} />
-            <nav aria-label="Where you are">{crumbs.map((c, i) => i === crumbs.length - 1
-              ? <b key={c.path} aria-current="location">{c.name}</b>
-              : <span key={c.path}><button type="button" className="df-link" onClick={() => void open(c.path)}>{c.name}</button><span className="df-small" aria-hidden="true"> › </span></span>)}</nav>
-          </div>
-          {here && <input className="ui-input" aria-label="Find a folder by name" placeholder="Find a folder by name" value={find}
-            onChange={(e) => { const v = e.target.value; setFind(v); void api.folderList(here.path, v).then((l) => setHere(l), () => undefined); }} />}
-          <div className="df-folder-list">
-            <table className="df-table">
-              <thead><tr><th>Folder</th><th>Files waiting</th><th>Watched by</th><th><span className="sr-only">Open</span></th></tr></thead>
-              <tbody>
-                {here?.folders.map((f) => (
-                  <tr key={f.path} className={selected?.path === f.path ? "is-selected" : undefined} aria-selected={selected?.path === f.path}>
-                    <td><button type="button" className="df-folder-name" onClick={() => select(f)} onDoubleClick={() => void open(f.path)}>{f.name}</button></td>
-                    <td>{count(f.waiting)}</td>
-                    <td>{f.watchedBy.length ? <Chip tone={f.watchedBy.some((u) => u.id !== processId) ? "warn" : "info"} dot={false}>{names(f.watchedBy, processId)}</Chip> : <span className="df-muted">None</span>}</td>
-                    <td><IconButton icon="chevronRight" label={"Open " + f.name} onClick={() => void open(f.path)} /></td>
-                  </tr>))}
-              </tbody>
-            </table>
-            {here && !here.folders.length && <p className="df-empty" style={{ margin: 8 }}>No folders inside. Use this folder, or make a new one.</p>}
-            {here?.truncated && <p className="df-small" style={{ margin: 8 }}>Only the first {here.shownMax ?? 300} folders are shown: search above to find the one you want.</p>}
-          </div>
-          <p className="df-small" style={{ margin: 0 }}>Choose a folder, then Use this folder; double-click, or ›, opens it. Files waiting: PDF, image and XML files that would be read straight away.</p>
-        </div>
+    <PickerDialog id="docflow-folders" title={title} width={900} height={560} onClose={onClose}
+      chosen={target?.path} chooseLabel="Use this folder" canChoose={!!target && !busy} onChoose={() => target && onPick(target.path)}
+      chosenExtra={target && <>
+        {(target.access || target.waiting > 0) && <span>{target.access && <Chip tone={ACCESS[target.access].tone}>{ACCESS[target.access].text}</Chip>}
+          {target.waiting > 0 && <span className="df-small"> · {count(target.waiting)} file{target.waiting === 1 ? "" : "s"} waiting, read once the process is live</span>}</span>}
+        {others.length > 0 && <span className="df-text-warn">Already watched by {names(others)}: each file goes to whichever process reads it first.</span>}</>}
+      footerStart={naming === null
+        ? <Button icon="plus" disabled={!here || busy} onClick={() => setNaming("")}>New folder</Button>
+        : <span className="df-folder-new">
+            <TextInput aria-label="New folder name" value={naming} placeholder="Folder name" onChange={(e) => setNaming(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void make(); if (e.key === "Escape") { e.stopPropagation(); setNaming(null); } }} />
+            <Button kind="secondary" disabled={!naming.trim()} onClick={() => void make()}>Make folder</Button>
+            <Button kind="plain" onClick={() => setNaming(null)}>Cancel</Button>
+          </span>}
+      top={<>
+        <p className="df-small" style={{ margin: 0 }}>Only folders your administrator allowed are shown. New files put in the chosen folder are read one by one; each read file moves to its <b>processed</b> folder.</p>
+        {problem && <p className="df-text-warn" role="alert" style={{ margin: 0 }}>{problem}</p>}</>}
+      search={here ? { value: find, label: "Find a folder in " + (crumbs[crumbs.length - 1]?.name ?? "this folder"), placeholder: "Find a folder in " + (crumbs[crumbs.length - 1]?.name ?? "this folder"),
+        onChange: (v) => { setFind(v); void api.folderList(here.path, v).then((l) => setHere(l), () => undefined); } } : undefined}
+      count={here ? here.folders.length + (here.truncated ? "+" : "") + (here.folders.length === 1 ? " folder" : " folders") : undefined}
+      sideLabel="Allowed folders"
+      side={<div className="df-folder-roots">
+        {(roots?.roots ?? []).map((r) => (
+          <button key={r.path} type="button" className={`df-folder-root${here?.root.path === r.path ? " is-on" : ""}`} aria-pressed={here?.root.path === r.path}
+            title={r.path} onClick={() => void open(r.path)}>
+            <b>{r.name}</b><span className="df-small">{r.path}</span>
+            {r.access !== "ok" && <span className={r.access === "read" ? "df-text-warn" : "df-text-bad"}>{ACCESS[r.access].text}</span>}
+          </button>))}
+      </div>}>
+      <div className="df-folder-crumb">
+        <IconButton icon="up" label="Up one folder" disabled={!here?.parent || busy} onClick={() => here?.parent && void open(here.parent)} />
+        <nav aria-label="Where you are">{crumbs.map((c, i) => i === crumbs.length - 1
+          ? <b key={c.path} aria-current="location">{c.name}</b>
+          : <span key={c.path}><button type="button" className="df-link" onClick={() => void open(c.path)}>{c.name}</button><span className="df-small" aria-hidden="true"> › </span></span>)}</nav>
       </div>
-    </Dialog>
+      <table>
+        <thead><tr><th>Folder</th><th>Files waiting</th><th>Watched by</th><th><span className="sr-only">Open</span></th></tr></thead>
+        <tbody>
+          {here?.folders.map((f) => (
+            <tr key={f.path} className={selected?.path === f.path ? "is-selected" : undefined} aria-selected={selected?.path === f.path}
+              onClick={() => select(f)} onDoubleClick={() => void open(f.path)}>
+              <td><button type="button" className="ui-picker-name" title={f.path} onClick={(e) => { e.stopPropagation(); select(f); }} onDoubleClick={() => void open(f.path)}>{f.name}</button></td>
+              <td>{count(f.waiting)}</td>
+              <td>{f.watchedBy.length ? <Chip tone={f.watchedBy.some((u) => u.id !== processId) ? "warn" : "info"} dot={false}>{names(f.watchedBy, processId)}</Chip> : <span className="df-muted">None</span>}</td>
+              <td onClick={(e) => e.stopPropagation()}><IconButton icon="chevronRight" label={"Open " + f.name} onClick={() => void open(f.path)} /></td>
+            </tr>))}
+        </tbody>
+      </table>
+      {here && !here.folders.length && <p className="ui-picker-empty">No folders inside. Use this folder, or make a new one.</p>}
+      {here?.truncated && <p className="ui-picker-empty df-small">Only the first {here.shownMax ?? 300} folders are shown: search above to find the one you want.</p>}
+      <p className="ui-picker-empty df-small">Choose a folder, then Use this folder; double-click, or ›, opens it. Files waiting: PDF, image and XML files that would be read straight away.</p>
+    </PickerDialog>
   );
 }
 

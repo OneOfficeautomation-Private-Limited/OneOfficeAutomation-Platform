@@ -4,6 +4,7 @@ import type { Flow, PackageManifest } from "../api/client";
 import { enumWord } from "./enumWords";
 import { newStep } from "./flowEdit";
 import { DatePatternField, DelimiterField, EncodingField, LocaleField, sample, SizeField, TimeZoneField } from "./PickerFields";
+import { choicesOf, choose } from "../components/testing";
 
 describe("plain words in lists (command review X1)", () => {
   it("has words for common codes and tidies the rest; the value is not touched", () => {
@@ -41,9 +42,9 @@ describe("pickers (command review D1, D2, D8)", () => {
     expect(sample("d MMM yyyy, EEEE", new Date(2026, 10, 9))).toBe("9 Nov 2026, Monday");
     const onCommit = vi.fn();
     render(<DatePatternField id="p" value={undefined} fallback="yyyy-MM-dd" onCommit={onCommit} />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "dd/MM/yyyy" } });
+    choose(screen.getByRole("combobox"), "dd/MM/yyyy");
     expect(onCommit).toHaveBeenLastCalledWith("dd/MM/yyyy");
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "\u0000own" } });
+    choose(screen.getByRole("combobox"), "\u0000own");
     const own = screen.getByLabelText("Your own pattern");
     fireEvent.change(own, { target: { value: "yyyy/MM" } });
     fireEvent.blur(own);
@@ -53,9 +54,9 @@ describe("pickers (command review D1, D2, D8)", () => {
   it("names languages and regions", () => {
     const onCommit = vi.fn();
     render(<LocaleField id="l" value="en-IN" fallback="en-US" onCommit={onCommit} />);
-    const pick = screen.getByRole("combobox") as HTMLSelectElement;
-    expect(pick.selectedOptions[0].text).toBe("English (India) (en-IN)");
-    expect(pick.options[0].text).toBe("Default: English (United States)");
+    const pick = screen.getByRole("combobox") as HTMLInputElement;   // a long list: the searchable one (3d)
+    expect(pick.value).toBe("English (India) (en-IN)");
+    expect(choicesOf(pick)[0].label).toBe("Default: English (United States)");
   });
 });
 

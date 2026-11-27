@@ -2,7 +2,7 @@ import { errorText } from "../api/client";
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, PackageManifest, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Icon, Menu, PathRow, Select, TextArea, TextInput, VaultPicker, type VaultRef } from "../components";
+import { Button, Dialog, Field, Icon, Menu, PathRow, Select, TextArea, TextInput, VaultPicker, usePopupPlace, type VaultRef } from "../components";
 import { PathBrowse } from "./FieldKinds";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
@@ -66,6 +66,8 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, type
   const q = globalsOnly ? query.slice(1) : query;
   const [all, setAll] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  // under the field (above it when there is no room below), moved in from the window's edges: the menus' rule (3b)
+  const at = usePopupPlace(box, anchor, { side: "bottom", align: "start" }).style;
   useEffect(() => { box.current?.querySelector("input")?.focus(); }, []);
   // closes on a click outside it
   useEffect(() => {
@@ -100,10 +102,6 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, type
     </button>
   );
   const previewText = shown ? (previewOf ? previewOf(shown) : shown) : previewOf ? previewOf("") : "";
-  // above the page, next to the field, so a scrolling panel does not cut it off
-  const W = 380, H = 420;
-  const at = anchor ? { left: Math.max(8, Math.min(anchor.left, window.innerWidth - W - 8)),
-    top: anchor.bottom + H + 8 > window.innerHeight ? Math.max(8, anchor.top - H - 4) : anchor.bottom + 4 } : undefined;
   return createPortal(
     <div className="st-vp" role="dialog" aria-label="Insert a value" ref={box} onKeyDown={keys} style={at}>
       <div className="st-vp-top"><strong>Insert a value</strong>

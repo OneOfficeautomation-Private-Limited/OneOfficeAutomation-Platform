@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type RunWindowSize, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
+import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, pointerOf, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type MenuPoint, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode, showInList, STATUS as FILE_STATUS } from "./Automation";
 import { FileProperties } from "./FileProperties";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
@@ -437,6 +437,7 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
   // ---- item 2: File properties (rename, description, folder) of an open item ----
   const [propsFor, setPropsFor] = useState<string | null>(null);
   const [tabMenu, setTabMenu] = useState<string | null>(null);
+  const [tabMenuAt, setTabMenuAt] = useState<MenuPoint | null>(null);   // a right-click on a tab opens its menu at the pointer
   const baseName = (path: string) => path.split("/").pop()!.replace(/\.(flow|form|process|doc|objects)\.json$/i, "").replace(/\.[^.]+$/, (e) => /\.(py|ps1|vbs|js|txt|csv|json)$/i.test(e) ? "" : e);
   const saveProps = async (path: string, next: { name: string; description: string; folder: string }) => {
     const tab = tabsRef.current.find((t) => t.path === path);
@@ -663,8 +664,8 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
               {tabs.map((t) => (
-                <div key={t.path} className={`st-tab${t.path === active ? " is-active" : ""}`} onContextMenu={(e) => { e.preventDefault(); setTabMenu(t.path); }}>
-                  <Menu compact label={"Tab " + t.name + " menu"} open={tabMenu === t.path} onOpenChange={(o) => setTabMenu(o ? t.path : null)} align="start"
+                <div key={t.path} className={`st-tab${t.path === active ? " is-active" : ""}`} onContextMenu={(e) => { e.preventDefault(); setTabMenuAt(pointerOf(e)); setTabMenu(t.path); }}>
+                  <Menu label={"Tab " + t.name + " menu"} open={tabMenu === t.path} at={tabMenuAt} onOpenChange={(o) => setTabMenu(o ? t.path : null)}
                     items={[
                       { key: "rename", label: "Rename…", onSelect: () => setPropsFor(t.path) },
                       { key: "props", label: "File properties…", onSelect: () => setPropsFor(t.path) },

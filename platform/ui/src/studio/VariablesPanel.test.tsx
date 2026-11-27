@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Flow } from "../api/client";
 import { VariableDialog } from "./VariablesPanel";
+import { choicesOf, choose } from "../components/testing";
 
 afterEach(() => cleanup());
 
@@ -11,7 +12,7 @@ const empty = (): Flow => ({ kind: "TaskBot", id: "a", name: "A", variables: [],
 function create(type: string, fill: (input: HTMLElement) => void) {
   let saved: Flow | null = null;
   render(<VariableDialog flow={empty()} onClose={() => {}} onSave={(f) => { saved = f; }} />);
-  fireEvent.change(screen.getByLabelText("Type"), { target: { value: type } });
+  choose(screen.getByLabelText("Type"), type);
   fill(screen.getByLabelText("Default value"));
   fireEvent.click(screen.getByRole("button", { name: "Create variable" }));
   return saved!.variables![0];
@@ -20,7 +21,7 @@ function create(type: string, fill: (input: HTMLElement) => void) {
 describe("variable types Time, TimeSpan, Image and Binary", () => {
   it("offers the four types in the type list", () => {
     render(<VariableDialog flow={empty()} onClose={() => {}} onSave={() => {}} />);
-    const labels = [...(screen.getByLabelText("Type") as HTMLSelectElement).options].map((o) => o.value);
+    const labels = choicesOf(screen.getByLabelText("Type")).map((o) => o.value);
     expect(labels).toEqual(expect.arrayContaining(["Time", "TimeSpan", "Image", "Binary"]));
   });
 

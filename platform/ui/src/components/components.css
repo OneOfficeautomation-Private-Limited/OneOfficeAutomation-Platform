@@ -48,17 +48,7 @@
 .ui-tab:hover { background: var(--ui-row-hover); }
 .ui-tab-panel { min-height: 0; overflow: auto; }
 
-/* Menu */
-.ui-menu { min-width: 300px; background: var(--ui-bg); border: 1px solid var(--ui-field); border-radius: 8px; padding: 6px;
-  box-shadow: 0 12px 28px rgba(15, 20, 29, .22); z-index: 50; }
-.ui-menu-title { padding: 4px 8px 6px; font-weight: 700; color: var(--ui-text); }
-.ui-menu-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--ui-radius); cursor: pointer; outline: none; }
-.ui-menu-item[data-highlighted] { background: var(--ui-selected); }
-.ui-menu-item[data-disabled] { cursor: not-allowed; opacity: .6; }
-.ui-menu-text { display: flex; flex-direction: column; }
-.ui-menu-sep { height: 1px; margin: 4px 2px; background: var(--ui-divider); }
-.ui-menu-key { margin-left: auto; padding-left: 16px; font: 12px var(--ui-mono, monospace); color: var(--ui-text-2); }
-.ui-menu-text span { color: var(--ui-text-2); font-size: 12px; }
+/* Menu: components/menu.css (imported by Menu.tsx) */
 
 /* Dialog */
 .ui-overlay { position: fixed; inset: 0; background: rgba(15, 20, 29, .6); z-index: 40; }
@@ -193,13 +183,6 @@ body.ui-resizing * { cursor: inherit !important; }
 /* 14 Nov usability round, item 12: tree arrows and menus at least 24 px to click */
 .ui-tree-caret { width: 24px; height: 24px; align-items: center; cursor: pointer; flex: none; }
 .ui-tree-more { width: 24px; height: 24px; }
-/* 14 Nov defects r3, item 2: compact menus (one line per entry, descriptions on hover) and submenus */
-.ui-menu.is-compact { min-width: 240px; padding: 4px; max-height: calc(100vh - 24px); overflow: auto; }
-.ui-menu.is-compact .ui-menu-item { padding: 3px 8px; min-height: 26px; gap: 8px; font-size: 12.5px; }
-.ui-menu.is-compact .ui-menu-text strong { font-weight: 500; }
-.ui-menu.is-compact .ui-menu-sep { margin: 3px 0; }
-.ui-menu-sub[data-state="open"] { background: var(--ui-selected); }
-.ui-menu-arrow { margin-left: auto; color: var(--ui-text-2); font-size: 11px; }
 /* Sign in with Microsoft (MicrosoftSignIn.tsx): the steps and the code to type at Microsoft */
 .ui-ms-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .ui-ms-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-soft); color: var(--ui-text); }
@@ -211,6 +194,6 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-ms-account-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* Resizable picker dialogs (Studio defects 21 Nov 2026, item 11): drag the corner, maximise from the header */
-.ui-dialog.is-resizable { resize: both; overflow: hidden; min-width: 420px; min-height: 280px; max-height: calc(100vh - 32px); }
+.ui-dialog.is-resizable { resize: both; overflow: hidden; min-width: min(420px, calc(100vw - 16px)); min-height: 280px; max-height: calc(100vh - 32px); }
 .ui-dialog.is-resizable .ui-dialog-body { flex: 1; min-height: 0; }
 .ui-dialog.is-max { top: 16px; width: calc(100vw - 32px) !important; height: calc(100vh - 32px) !important; max-width: none !important; resize: none; }

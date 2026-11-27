@@ -111,12 +111,12 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
                 {!tools.length && <tr><td colSpan={3} className="st-empty">No tools yet: add the agents it may use.</td></tr>}
               </tbody>
             </table>
-            <Field label="Add an agent as a tool">{(id) => <SearchSelect id={id} value="" placeholder="Search your agents"
+            <Field label="Add an agent as a tool">{(id) => <SearchSelect id={id} value="" placeholder="Search your agents" kind="agents" noun="agents"
               options={agents.filter((x) => x.id && x.id !== flow.id && !tools.includes(x.id)).map((x) => ({ value: x.id, label: x.name, description: agentFolder(x) }))}
               onChange={(v) => { if (v) put("tools", [...tools, v]); }} />}</Field>
           </div></TabPanel>
           <TabPanel value="model"><div className="st-ai-fields">
-            <Field label="Model connection">{(id) => <Select id={id} value={str(a.connection)} onChange={(e) => put("connection", e.target.value)}
+            <Field label="Model connection">{(id) => <Select id={id} value={str(a.connection)} kind="models" noun="connections" onChange={(e) => put("connection", e.target.value)}
               options={[{ value: "", label: connections?.default ? "The default connection (" + connections.default + ")" : "No connection yet" },
                 ...conns.map((c) => ({ value: c.name, label: c.name + " · " + c.provider + (c.model ? " · " + c.model : "") }))]} />}</Field>
             <div><Button kind="secondary" icon="plus" onClick={onNewConnection}>New connection</Button></div>

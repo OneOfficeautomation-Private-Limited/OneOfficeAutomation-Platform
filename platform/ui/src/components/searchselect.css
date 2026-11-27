@@ -1,0 +1,27 @@
+/* The searchable list of a long dropdown (SearchSelect.tsx; item 3 of the fix list of 27 Nov 2026, round 2, artboard 3d):
+   28 px rows at 12.5 px, group headings, the count, ⤢ and a grip to set its height. Contrast (tools/check-contrast.mjs):
+   option text 16.4:1 light / 15.1:1 dark (14.3:1 / 10.6:1 on the highlight); descriptions, headings and the count
+   (--ui-text-2) 10.8:1 / 10.9:1; the chosen option (--ui-accent-text) 6.8:1 / 9.6:1 (6.0:1 / 6.7:1 highlighted); the outline
+   (--ui-field) 3.6:1 / 5.6:1. */
+.ui-select-long { display: block; width: 100%; min-width: 0; }
+.ui-search-select-field.is-disabled { opacity: .6; }
+.ui-search-select-field input:disabled { cursor: not-allowed; }
+.ui-ss-pop { z-index: 70; display: flex; flex-direction: column; box-sizing: border-box; min-width: 240px; max-width: calc(100vw - 16px);
+  background: var(--ui-bg); color: var(--ui-text); border: 1px solid var(--ui-field); border-radius: 6px; box-shadow: 0 10px 24px rgba(15, 20, 29, .24);
+  font-size: 12.5px; overflow: hidden; }
+.ui-ss-list { flex: 0 1 auto; min-height: 36px; margin: 0; padding: 4px; list-style: none; overflow-y: auto; overscroll-behavior: contain; }
+.ui-ss-option { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.ui-ss-option.is-active { background: var(--ui-selected); }
+.ui-ss-option.is-chosen .ui-ss-label { color: var(--ui-accent-text); font-weight: 600; }
+.ui-ss-label { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ui-ss-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ui-text-2); font-size: 12px; text-align: right; }
+.ui-ss-group { height: 24px; padding: 6px 8px 0; font-size: 11.5px; font-weight: 700; color: var(--ui-text-2); }
+.ui-ss-none { padding: 6px 8px; color: var(--ui-text-2); }
+.ui-ss-foot { flex: none; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px 0 10px; border-top: 1px solid var(--ui-border); }
+.ui-ss-count { flex: 1; color: var(--ui-text-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-ss-size { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 4px;
+  background: transparent; color: var(--ui-text); cursor: pointer; }
+.ui-ss-size:hover { background: var(--ui-row-hover); }
+.ui-ss-grip { flex: none; height: 8px; cursor: ns-resize; touch-action: none; position: relative; }
+.ui-ss-grip::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 2px; margin-left: -16px; border-radius: 1px; background: var(--ui-field); }
+.ui-ss-grip:hover { background: var(--ui-row-hover); }

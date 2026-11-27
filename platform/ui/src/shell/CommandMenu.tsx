@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon, IconTile, Splitter, usePanelSize, usePersistent } from "../components";
+import { Icon, IconTile, Splitter, usePanelSize, usePersistent, usePopupPlace, type Box } from "../components";
 import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
 import { menuFold, MENU_TOGGLE } from "./TopBrand";
 
@@ -54,11 +54,14 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   useEffect(() => { const s = sectionOf(current); if (s) setOpenOne(s); }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
   const isOpen = (label: string) => groups || inConsole ? openOne === label : !closed.includes(label);
   // folded to icons: the section whose pages show in a fly-out beside its icon, and where
-  const [fly, setFly] = useState<{ label: string; top: number; left: number } | null>(null);
+  const [fly, setFly] = useState<{ label: string; box: Box } | null>(null);
+  // right of the icon, moved up from the window's foot and over to the left when there is no room: the menus' rule (3b)
+  const flyRef = useRef<HTMLDivElement>(null);
+  const flyAt = usePopupPlace(flyRef, fly?.box, { side: "right", align: "start", gap: 4 }).style;
   const flyTimer = useRef<number | undefined>(undefined);
   useEffect(() => { if (!mini) setFly(null); }, [mini]);
   useEffect(() => { setFly(null); }, [current]);
-  const showFly = (label: string, el: HTMLElement) => { window.clearTimeout(flyTimer.current); const r = el.getBoundingClientRect(); setFly({ label, top: r.top, left: r.right + 4 }); };
+  const showFly = (label: string, el: HTMLElement) => { window.clearTimeout(flyTimer.current); const r = el.getBoundingClientRect(); setFly({ label, box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }); };
   const hideFly = () => { window.clearTimeout(flyTimer.current); flyTimer.current = window.setTimeout(() => setFly(null), 150); };
   // the entries of a section: its groups with a page the person may see (a page goes where its group is), then its pages in no group
   const visible = new Map(shown.flatMap((s) => s.pages.map((p) => [p.id, p] as const)));
@@ -139,7 +142,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
                   onClick={(ev) => flying ? setFly(null) : showFly(sec.label, ev.currentTarget.parentElement!)}>
                   <Icon name={sec.icon} size={18} />
                 </button>
-                {flying && <div className="st-menu-fly" style={{ top: fly.top, left: fly.left }} onMouseEnter={() => window.clearTimeout(flyTimer.current)}>
+                {flying && <div className="st-menu-fly" ref={flyRef} style={flyAt} onMouseEnter={() => window.clearTimeout(flyTimer.current)}>
                   <div className="st-menu-fly-title">{sec.label}</div>
                   <ul className="st-menu-items" aria-label={sec.label}>{entriesOf(sec).map((e) => <li key={e.id}>{entry(e)}</li>)}</ul>
                 </div>}

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SampleApi, estimate, money, parseAmount, type PriceList } from "./api";
 import { App } from "./App";
 import { AccuracyView } from "./accuracy";
+import { choicesOf } from "../../components/testing";
 import { freeKey, keyOf, list } from "./DocTypes";
 import { FORMATS } from "./formats";
 import { pageList } from "./splitDialog";
@@ -107,8 +108,8 @@ describe("the screens", () => {
   it("lists every kind of field, Yes/No, Ticked and Signed among them", async () => {
     start(); await go("#/types");
     fireEvent.click(within(await screen.findByRole("region", { name: "Fields to read" })).getByRole("button", { name: "Add field" }));
-    const type = within(await screen.findByRole("dialog", { name: "Add field" })).getByLabelText("Type") as HTMLSelectElement;
-    expect(Array.from(type.options).map((o) => o.value)).toEqual(expect.arrayContaining(["Yes/No", "Ticked", "Signed", "Percentage", "Several choices", "Email", "Phone", "Address"]));
+    const type = within(await screen.findByRole("dialog", { name: "Add field" })).getByLabelText("Type");
+    expect(choicesOf(type).map((o) => o.value)).toEqual(expect.arrayContaining(["Yes/No", "Ticked", "Signed", "Percentage", "Several choices", "Email", "Phone", "Address"]));
   });
 
   it("asks why a document is rejected, with an own reason allowed", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentSummary, Flow, FlowVariable, WorkspaceNode } from "../api/client";
-import { Button, Dialog, TextInput, Tree, type TreeNode } from "../components";
+import { Button, Dialog, PickerDialog, type TreeNode } from "../components";
 import { TypeBadge, useVars } from "./VariablesPanel";
 import { compatible, holdsType, isInput, isOutput, varRef } from "./variables";
 
@@ -75,43 +75,32 @@ export function AgentFinder({ agents, current, onPick, onClose }:
     : agents.filter((a) => !f || (a.name || a.id).toLowerCase().includes(f) || folderOf(a.path).toLowerCase().includes(f));
   const sorted = [...rows].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
   const count = (a: AgentSummary, dir: (v: FlowVariable) => boolean) => (a.variables ?? []).filter(dir).length;
+  const place = (path: string) => [AGENTS_ROOT, ...path.split("/").filter(Boolean)].join(" › ");
+  const picked = chosen ? agents.find((a) => a.id === chosen) : undefined;
+  const folderName = folder ? folder.split("/").pop()! : AGENTS_ROOT;
+  // item 3 of the fix list of 27 Nov 2026, round 2 (3c): the shared picker layout
   return (
-    <Dialog open title="Find an agent" width={860} height={540} resizable onClose={onClose} footer={<>
-      {chosen && agents.find((a) => a.id === chosen) && <span className="st-finder-chosen" title={agentPlace(agents.find((a) => a.id === chosen)!)}>Chosen: {agentPlace(agents.find((a) => a.id === chosen)!)}</span>}
-      <Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!chosen} onClick={() => chosen && onPick(chosen)}>Choose</Button></>}>
-      <div className="st-finder">
-        <div className="st-finder-top">
-          <div className="st-seg st-finder-tabs" role="radiogroup" aria-label="Find by">
-            <button type="button" role="radio" className="st-seg-btn" aria-checked={tab === "browse"} onClick={() => setTab("browse")}>Browse</button>
-            <button type="button" role="radio" className="st-seg-btn" aria-checked={tab === "search"} onClick={() => setTab("search")}>Search</button>
-          </div>
-          <TextInput type="search" aria-label="Find an agent by name" placeholder={tab === "browse" ? "Name in this folder" : "Name or folder, in every folder"}
-            value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
-        <div className={"st-finder-body" + (tab === "search" ? " is-search" : "")}>
-          {tab === "browse" && <div className="st-finder-tree">
-            <Tree label="Folders" nodes={[tree]} selected={folder} expanded={open}
-              onSelect={(id) => { setFolder(id); setOpen((o) => new Set(o).add(id)); }}
-              onToggle={(id) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; })} />
-          </div>}
-          <div className="st-finder-list">
-            <table className="st-table" aria-label="Agents">
-              <thead><tr><th scope="col">Name</th>{tab === "search" && <th scope="col">Folder</th>}<th scope="col">Inputs</th><th scope="col">Outputs</th></tr></thead>
-              <tbody>
-                {sorted.map((a) => <tr key={a.id} className={a.id === chosen ? "is-selected" : undefined} aria-selected={a.id === chosen}
-                  onClick={() => setChosen(a.id)} onDoubleClick={() => onPick(a.id)}>
-                  <td><button type="button" className="st-link" onClick={() => setChosen(a.id)}>{a.name || a.id}</button></td>
-                  {tab === "search" && <td className="st-muted">{[AGENTS_ROOT, ...folderOf(a.path).split("/").filter(Boolean)].join(" › ")}</td>}
-                  <td>{count(a, isInput)}</td><td>{count(a, isOutput)}</td>
-                </tr>)}
-              </tbody>
-            </table>
-            {!sorted.length && <p className="st-muted st-finder-empty">{f ? "No agent matches." : "No agents in this folder."}</p>}
-          </div>
-        </div>
-      </div>
-    </Dialog>
+    <PickerDialog id="agents" title="Find an agent" width={860} height={540} onClose={onClose}
+      chosen={picked ? agentPlace(picked) : undefined} canChoose={!!picked} onChoose={() => picked && onPick(picked.id)}
+      mode={tab} onMode={setTab}
+      search={{ value: q, onChange: setQ, label: tab === "browse" ? "Search in " + folderName : "Search all folders",
+        placeholder: tab === "browse" ? "Search in " + folderName : "Name or folder, in every folder" }}
+      count={sorted.length + (sorted.length === 1 ? " agent" : " agents")}
+      tree={{ label: "Folders", nodes: [tree], selected: folder, onSelect: setFolder, expanded: open, onExpanded: setOpen,
+        pathOf: (n) => place(n.id) }}>
+      <table aria-label="Agents">
+        <thead><tr><th scope="col">Name</th>{tab === "search" && <th scope="col">Folder</th>}<th scope="col">Inputs</th><th scope="col">Outputs</th></tr></thead>
+        <tbody>
+          {sorted.map((a) => <tr key={a.id} className={a.id === chosen ? "is-selected" : undefined} aria-selected={a.id === chosen}
+            onClick={() => setChosen(a.id)} onDoubleClick={() => onPick(a.id)}>
+            <td><button type="button" className="ui-picker-name" onClick={() => setChosen(a.id)}>{a.name || a.id}</button></td>
+            {tab === "search" && <td>{place(folderOf(a.path))}</td>}
+            <td>{count(a, isInput)}</td><td>{count(a, isOutput)}</td>
+          </tr>)}
+        </tbody>
+      </table>
+      {!sorted.length && <p className="ui-picker-empty">{f ? "No agent matches." : "No agents in this folder."}</p>}
+    </PickerDialog>
   );
 }
 

@@ -37,8 +37,8 @@ describe("Run Agent (14 Nov 2026, items D and E, as AA's Task Bot Run)", () => {
     fireEvent.click(within(finder).getByText("Onboarding"));
     expect(within(finder).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["Welcome mail00"]);
     // Search: every folder, with the folder shown
-    fireEvent.click(within(finder).getByRole("radio", { name: "Search" }));
-    fireEvent.change(within(finder).getByLabelText("Find an agent by name"), { target: { value: "inv" } });
+    fireEvent.click(within(finder).getByRole("radio", { name: "Search all folders" }));
+    fireEvent.change(within(finder).getByLabelText("Search all folders"), { target: { value: "inv" } });
     const rows = within(finder).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.textContent)).toEqual(["InvoiceAgents › Finance21"]);
     expect(finder.textContent).not.toContain(".flow.json");

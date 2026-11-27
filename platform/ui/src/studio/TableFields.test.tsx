@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Flow } from "../api/client";
 import { knownColumns, MoreConditions } from "./TableFields";
+import { choose } from "../components/testing";
 
 describe("Data Table fields (command review D3, D4)", () => {
   afterEach(cleanup);
@@ -22,11 +23,11 @@ describe("Data Table fields (command review D3, D4)", () => {
     fireEvent.change(column, { target: { value: "amount" } });
     fireEvent.blur(column);
     expect(onCommit).toHaveBeenLastCalledWith([{ operator: "eq", column: "amount" }]);
-    fireEvent.change(screen.getByRole("combobox", { name: "Comparison" }), { target: { value: "gt" } });
+    choose(screen.getByRole("combobox", { name: "Comparison" }), "gt");
     const value = screen.getByRole("textbox", { name: "Value" });
     fireEvent.change(value, { target: { value: "1000" } });
     fireEvent.blur(value);
     expect(onCommit).toHaveBeenLastCalledWith([{ operator: "gt", column: "amount", value: 1000 }]);
-    expect((screen.getByRole("combobox", { name: "Comparison" }) as HTMLSelectElement).selectedOptions[0].text).toBe("is greater than");
+    expect((screen.getByRole("combobox", { name: "Comparison" }) as HTMLInputElement).value).toBe("is greater than");
   });
 });

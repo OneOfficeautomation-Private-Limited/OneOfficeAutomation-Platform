@@ -1,7 +1,7 @@
 import { errorText } from "../api/client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Flow, FsEntry, FsListing, OpenWindow, StudioApi, VaultCredentialRef } from "../api/client";
-import { BrowseButton, Button, Dialog, Icon, IconButton, PathRow, Select, TextInput, type BrowseSource } from "../components";
+import { BrowseButton, Button, Icon, IconButton, PathRow, PickerDialog, Select, TextInput, type BrowseSource } from "../components";
 import { showValue } from "./flowEdit";
 import { RepoFileBrowser, withRepoFile } from "./RepoFiles";
 import { CommitInput } from "./ValueSources";
@@ -217,24 +217,32 @@ export function FileBrowser({ folder, start, onPick, onClose, api: given }: { fo
   };
   useEffect(() => { go(start ? start.replace(/[\\/][^\\/]*\.[^\\/]+$/, "") : ""); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const entries: FsEntry[] = at?.entries ?? [];
+  const [q, setQ] = useState("");
+  const f = q.trim().toLowerCase();
+  const shown = f ? entries.filter((e) => e.name.toLowerCase().includes(f)) : entries;
+  const here = at?.path ? at.path.split(/[\\/]/).filter(Boolean).pop() ?? at.path : "Places";
+  // item 3 of the fix list of 27 Nov 2026, round 2 (3c): the shared picker layout; the places on the left
   return (
-    <Dialog open title={folder ? "Choose a folder" : "Choose a file"} width={720} height={500} resizable onClose={onClose} footer={<>
-      <Button kind="plain" onClick={onClose}>Cancel</Button>
-      {at?.path && <Button kind={folder ? "primary" : "secondary"} onClick={() => onPick(at.path!)}>Use this folder</Button>}</>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
-      <div className="st-fs-places" role="group" aria-label="Places">
-        {(at?.places ?? []).map((p) => <Button key={p.path} kind="plain" onClick={() => go(p.path)}>{p.name}</Button>)}
-      </div>
+    <PickerDialog id="this-computer" title={folder ? "Choose a folder" : "Choose a file"} width={760} height={520} onClose={onClose}
+      chosen={at?.path || undefined} chooseLabel="Use this folder" canChoose={!!at?.path} onChoose={() => at?.path && onPick(at.path)}
+      top={error && <p className="st-alert" role="alert">{error}</p>}
+      search={{ value: q, onChange: setQ, label: "Find in " + here }}
+      count={shown.length + (shown.length === 1 ? " item" : " items")}
+      sideLabel="Places"
+      side={<div className="st-fs-places">
+        {(at?.places ?? []).map((p) => <button key={p.path} type="button" className="st-fs-place" title={p.path} onClick={() => { setQ(""); go(p.path); }}>
+          <Icon name="folder" size={14} /><span>{p.name}</span></button>)}
+      </div>}>
       {at?.path && <div className="st-row-tight st-fs-where">
-        <IconButton icon="up" label="Up one folder" disabled={!at.parent} onClick={() => at.parent && go(at.parent)} />
-        <span className="ui-mono" title={at.path}>{at.path.length > 64 ? "…" + at.path.slice(-63) : at.path}</span></div>}
+        <IconButton icon="up" label="Up one folder" disabled={!at.parent} onClick={() => { setQ(""); if (at.parent) go(at.parent); }} />
+        <span className="ui-mono" title={at.path}>{at.path}</span></div>}
       <ul className="st-fs-list" role="listbox" aria-label={at?.path ? "In " + at.path : "Places"}>
-        {entries.map((e) => <li key={e.path}>
-          <button type="button" role="option" aria-selected="false" className={"st-fs-item" + (e.dir ? " is-dir" : "")} disabled={!e.dir && folder}
-            onClick={() => e.dir ? go(e.path) : onPick(e.path)}><Icon name={e.dir ? "folder" : "doc"} size={14} />{e.name}</button></li>)}
-        {at && !entries.length && <li className="st-muted">Nothing here.</li>}
+        {shown.map((e) => <li key={e.path}>
+          <button type="button" role="option" aria-selected="false" className={"st-fs-item" + (e.dir ? " is-dir" : "")} disabled={!e.dir && folder} title={e.path}
+            onClick={() => { if (e.dir) { setQ(""); go(e.path); } else onPick(e.path); }}><Icon name={e.dir ? "folder" : "doc"} size={14} />{e.name}</button></li>)}
+        {at && !shown.length && <li className="st-muted">{f ? "Nothing matches." : "Nothing here."}</li>}
       </ul>
-    </Dialog>
+    </PickerDialog>
   );
 }
 
@@ -264,7 +272,7 @@ export function CredentialField({ id, name, value, onCommit, apply }: FieldProps
   return <div className="st-source">
     <SourceSwitch label="Vault or a variable" value={mode} options={[["vault", "Vault"], ["variable", "Variable"]]} onChange={setMode} />
     {mode === "vault" ? <>
-      {list && list.length > 0 && <Select id={id} aria-label="Credential from the vault" value={ref ?? ""}
+      {list && list.length > 0 && <Select id={id} aria-label="Credential from the vault" value={ref ?? ""} kind="vault" noun="credentials"
         onChange={(e) => { const [f, c, a] = e.target.value.split("/"); if (e.target.value) set(f, c, a); else onCommit(undefined); }}
         options={[{ value: "", label: "Choose a credential…" }, ...list.map((r) => ({ value: key(r), label: r.locker + " / " + r.name + " / " + r.attribute })),
           ...(ref && !list.some((r) => key(r) === ref) ? [{ value: ref, label: ref.replace(/\//g, " / ") + " (not in the list)" }] : [])]} />}
