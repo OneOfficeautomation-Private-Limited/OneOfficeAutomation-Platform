@@ -60,7 +60,8 @@ export function RecentUploads({ api, processId, n, max = 5 }: { api: DocFlowApi;
     <section aria-label="Last uploads" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <b>Last documents</b>
       {!last.length ? <span className="df-muted">No documents yet.</span> : (
-        <table className="df-table">
+        <table className="df-table" aria-label="Last documents">
+          <thead><tr><th scope="col">File and how it came in</th><th scope="col">When</th><th scope="col" className="df-right">Status</th></tr></thead>
           <tbody>
             {last.map((d) => (
               <tr key={d.id}>

@@ -320,22 +320,51 @@
 /* the Engines switch: a choice whose words wrap on a narrow screen grows instead of spilling out */
 .df-seg a { height: auto; min-height: 32px; padding-block: 4px; line-height: 1.25; }
 
-/* New process (DA-2 to DA-5, 27 Nov 2026): Start from's details, the folder field, and the ways documents come in as rows */
-.df-start-about { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-soft); }
-.df-start-about p { margin: 0; flex: 1 1 100%; line-height: 1.4; }
-.df-start-about .ui-btn { margin-top: 4px; }
-.df-folder-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.df-folder-path { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; height: var(--ui-h); padding: 0 8px; border: 1px solid var(--ui-field);
-  border-radius: var(--ui-radius); background: var(--ui-bg); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* New process (27 Nov 2026, artboard "DA step 1"): three fields, labels beside them */
+.df-new-process { display: flex; flex-direction: column; gap: 12px; }
+.df-new-process .ui-field-beside { grid-template-columns: 130px minmax(0, 1fr); align-items: start; }
+.df-new-process .ui-field-beside > label, .df-new-process .ui-field-beside .ui-field-label > label { padding-top: 6px; font-weight: 600; }
+.df-start-about { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ui-text-2); }
+.df-start-about .df-link { font-weight: 600; }
+
+/* The process's folder: the full path and Change… in one box (step 2, Where this process is kept) */
+.df-proc-folder { display: flex; align-items: center; gap: 8px; min-width: 0; height: var(--ui-h); padding: 0 4px 0 10px; border: 1px solid var(--ui-field);
+  border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); }
+.df-proc-folder > svg { flex: none; color: #b7791f; }
+.df-proc-folder-path { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.df-proc-folder-change { flex: none; height: 24px; padding: 0 10px; border: 1px solid var(--ui-accent); border-radius: 5px; background: var(--ui-bg);
+  color: var(--ui-accent-text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.df-proc-folder-change:hover { background: var(--ui-selected); }
 .df-folder-pick-list { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
 .df-folder-pick-list p { margin: 0; }
 .df-folder-none { text-align: start; padding: 6px 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; cursor: pointer; }
 .df-folder-none.is-on { border-color: var(--ui-accent); background: var(--ui-selected); font-weight: 600; }
-.df-ways { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.df-ways > legend { font-weight: 700; padding: 0; margin-bottom: 8px; }
-.df-way-row { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); }
-.df-way-row-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.df-way-row-head .df-small { flex: 1; min-width: 160px; }
-.df-way-remove { width: 24px; height: 24px; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent;
-  border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); cursor: pointer; align-self: center; }
-.df-way-remove:hover { border-color: var(--ui-field); }
+
+/* Step 2, Document ingestion (27 Nov 2026, artboard "DA step 2"): outlined sections; the ways in as one table */
+.df-intake { display: flex; flex-direction: column; gap: 12px; }
+.df-sec { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); overflow: hidden; }
+.df-sec-head { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.df-sec-row { display: grid; grid-template-columns: 130px minmax(0, 560px) minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px 12px; }
+.df-sec-label { font-weight: 600; }
+.df-way-line { display: grid; grid-template-columns: 170px minmax(0, 1fr) 40px; border-bottom: 1px solid var(--ui-divider); }
+.df-way-line:nth-of-type(even) { background: var(--ui-soft); }
+.df-way-name { padding: 10px 12px; font-weight: 700; border-right: 1px solid var(--ui-col-line); }
+.df-way-body { padding: 8px 12px; min-width: 0; display: flex; flex-direction: column; gap: 8px; justify-content: center; border-right: 1px solid var(--ui-col-line); }
+.df-way-body .df-mail-rules { border: 0; padding: 0; margin: 0; background: transparent; }
+.df-way-remove { width: 26px; height: 26px; align-self: center; justify-self: center; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); cursor: pointer; }
+button.df-way-remove:hover { border-color: var(--ui-field); }
+.df-mailbox { display: flex; flex-direction: column; gap: 10px; }
+.df-way-none, .df-way-note { margin: 0; padding: 8px 12px; }
+.df-way-note { border-top: 0; }
+.df-einvoice { display: flex; align-items: center; gap: 10px; padding: 8px 12px; flex-wrap: wrap; }
+.df-einvoice .df-grow { min-width: 200px; }
+.df-try { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); }
+.df-try-upload { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-right: 1px solid var(--ui-divider); }
+.df-try-recent { padding: 12px; min-width: 0; }
+@media (max-width: 900px) {
+  .df-sec-row, .df-way-line, .df-try { grid-template-columns: minmax(0, 1fr); }
+  .df-way-name, .df-way-body, .df-try-upload { border-right: 0; }
+  .df-way-line { position: relative; }
+  .df-way-line > .df-way-remove { position: absolute; top: 6px; right: 6px; }
+}

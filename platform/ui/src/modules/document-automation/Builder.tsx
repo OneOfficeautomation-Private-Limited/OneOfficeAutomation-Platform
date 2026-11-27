@@ -36,6 +36,9 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   const [inbox, setInbox] = useState<InboxStatus | null>(null);
   const [vaultRefs, setVaultRefs] = useState<{ ref: string; label: string }[] | null>(null);
   useEffect(() => { api.vaultRefs().then(setVaultRefs, () => setVaultRefs([])); }, [api]);
+  // the platform folders a process may be kept in (step 2, Where this process is kept)
+  const [folders, setFolders] = useState<string[]>([]);
+  useEffect(() => { api.folders().then(setFolders, () => setFolders([])); }, [api]);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
   const [onOff, setOnOff] = useState<"all" | "on" | "off">("all");
@@ -195,12 +198,15 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
             <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
               {stage === INTAKE && <>
-                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} api={api} processId={design.id} processName={design.name} />
-                <section aria-label="Upload files" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
-                  <div><b>Upload files</b><span className="df-small" style={{ display: "block" }}>
-                    Into {design.name}{live ? "" : ", while it is a draft too"}{dirty ? ". They are read with the saved settings" : ""}.</span></div>
-                  <UploadFiles api={api} process={design} inbox={design.id === INBOX_ID} inputId="df-step-files" onAdded={() => setUploads((n) => n + 1)} />
-                  <RecentUploads api={api} processId={design.id} n={uploads} />
+                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} api={api} processId={design.id} processName={design.name}
+                  folder={design.folder} folders={folders} onFolder={(folder) => change({ folder })} />
+                {/* Try it (27 Nov 2026, artboard "DA step 2"): the upload box and the last documents side by side */}
+                <section className="df-sec df-try" aria-label="Try it">
+                  <div className="df-try-upload">
+                    <b>Try it: upload files</b><span className="df-small">Into {design.name}{live ? "" : ", while it is a draft too"}{dirty ? ". They are read with the saved settings" : ""}.</span>
+                    <UploadFiles api={api} process={design} inbox={design.id === INBOX_ID} inputId="df-step-files" onAdded={() => setUploads((n) => n + 1)} />
+                  </div>
+                  <div className="df-try-recent"><RecentUploads api={api} processId={design.id} n={uploads} /></div>
                 </section>
               </>}
               {stage === EXTRACT && <>

@@ -8,6 +8,14 @@ import { choicesOf, choose, valueOf } from "../../components/testing";
 beforeEach(() => { location.hash = ""; });
 afterEach(() => { cleanup(); localStorage.clear(); });
 
+/** Step 2's "+ Add a way in" (27 Nov 2026): adds a way documents come in, unless its row is there already. */
+async function addWay(intake: HTMLElement, name: string) {
+  if (within(intake).queryByRole("group", { name })) return;
+  fireEvent.pointerDown(within(intake).getByRole("button", { name: "+ Add a way in ▾" }), { button: 0, ctrlKey: false });
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
+  await within(intake).findByRole("group", { name });
+}
+
 const go = async (hash: string) => { await act(async () => { location.hash = hash; window.dispatchEvent(new HashChangeEvent("hashchange")); }); };
 const start = (api = new SampleApi()) => { render(<App api={api} />); return api; };
 const table = (name: string) => screen.findByRole("region", { name });
@@ -169,51 +177,44 @@ describe("Document Automation", () => {
     await waitFor(async () => expect((await api.documents("smart-inbox")).some((d) => d.name === "mixed.pdf")).toBe(true));
   });
 
-  it("creates a process with the ways documents come in, then opens the builder (DA-2 to DA-5)", async () => {
+  it("creates a process from three fields, then sets where it is kept and how documents come in, in step 2", async () => {
     const api = start(); await go("#/inbox");
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
+    // the dialog (27 Nov 2026, artboard "DA step 1"): Start from, the name and the document type; nothing else
+    expect(within(dialog).queryByText("Folder")).toBeNull();
+    expect(within(dialog).queryByText("How documents come in")).toBeNull();
     const create = within(dialog).getByRole("button", { name: "Create process" }) as HTMLButtonElement;
-    // DA-3: the name starts empty and must be typed; the template picks only the document type
     const name = within(dialog).getByLabelText("Process name") as HTMLInputElement;
-    expect(name.value).toBe("");
+    expect(name.value).toBe("");                                                  // DA-3: typed, never filled in
     await waitFor(() => expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice"));
     expect(create.disabled).toBe(true);
     fireEvent.change(name, { target: { value: "Supplier invoices Riyadh" } });
-    expect(create.disabled).toBe(false);
-    // DA-4: the folder is chosen in a tree; the full path shows
-    fireEvent.click(within(dialog).getByRole("button", { name: "Choose…" }));
+    fireEvent.click(create);
+    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-riyadh/intake"));   // step 2 next
+    // step 2: where it is kept, in the folder tree
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    const kept = within(intake).getByRole("region", { name: "Where this process is kept" });
+    fireEvent.click(within(kept).getByRole("button", { name: "Change…" }));
     const folders = await screen.findByRole("dialog", { name: "Choose the process's folder" });
     fireEvent.click(within(folders).getByRole("button", { name: "Expand all folders" }));
     fireEvent.click(within(within(folders).getByRole("group", { name: "Folders" })).getByText("Expenses"));
     expect(within(folders).getByText("Chosen:").parentElement!.textContent).toContain("Finance › Expenses");
     fireEvent.click(within(folders).getByRole("button", { name: "Choose" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose the process's folder" })).toBeNull());
-    expect(within(dialog).getByText("Finance › Expenses")).toBeTruthy();
-    // DA-5: Upload is there; more ways are added from the list, each with only its own inputs, and can be removed
-    expect(within(dialog).getByRole("group", { name: "Upload" })).toBeTruthy();
-    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "folder" } });
-    const watched = within(dialog).getByRole("group", { name: "Watched folder" });
-    expect(create.disabled).toBe(true);                                         // a watched folder needs its path
-    fireEvent.click(await within(watched).findByRole("button", { name: "Browse for folder path" }));
-    const picker = await screen.findByRole("dialog", { name: "Choose the watched folder" });
-    fireEvent.click(await within(picker).findByRole("button", { name: "Open invoices" }));
-    fireEvent.click(await within(picker).findByRole("button", { name: "riyadh" }));
-    fireEvent.click(within(picker).getByRole("button", { name: "Use this folder" }));
-    expect((within(watched).getByLabelText("Folder path") as HTMLInputElement).value).toBe("\\\\scan01\\scans\\invoices\\riyadh");
-    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "bot" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Remove From an agent" }));
-    expect(within(dialog).queryByRole("group", { name: "From an agent" })).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText("Add a way in"), { target: { value: "email" } });
-    const email = within(dialog).getByRole("group", { name: "Email" });
-    fireEvent.change(within(email).getByLabelText("Mail account"), { target: { value: "mail_1" } });
-    fireEvent.click(create);
-    await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-riyadh/intake"));   // email chosen: its settings next
-    const made = (await api.processes()).find((p) => p.name === "Supplier invoices Riyadh")!;
-    expect(made.sources).toEqual(["upload", "folder"]);                          // the mail account's rule brings email in
-    expect(made.folder).toBe("Finance/Expenses");
-    expect((await api.processMailRules("supplier-invoices-riyadh")).map((r) => r.account_id)).toEqual(["mail_1"]);
-    expect(made.state).toBe("draft");
+    expect(within(kept).getByText("Finance › Expenses")).toBeTruthy();
+    // how documents come in: Upload is there; a watched folder is added with its own inputs, and removed with ✕
+    expect(within(intake).getByRole("group", { name: "Upload" })).toBeTruthy();
+    await addWay(intake, "Watched folder");
+    const watched = within(intake).getByRole("group", { name: "Watched folder" });
+    expect(within(watched).getByLabelText("Folder path")).toBeTruthy();
+    expect(within(watched).getByLabelText("Check every")).toBeTruthy();
+    fireEvent.click(within(watched).getByRole("button", { name: "Remove Watched folder" }));
+    expect(within(intake).queryByRole("group", { name: "Watched folder" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-riyadh")).folder).toBe("Finance/Expenses");
+    expect((await api.processDesign("supplier-invoices-riyadh")).state).toBe("draft");
   });
 
   it("starts a new process from a template and tries it with a sample, saving nothing (DA-2)", async () => {
@@ -221,17 +222,16 @@ describe("Document Automation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
     fireEvent.change(within(dialog).getByLabelText("Start from"), { target: { value: "receipts" } });
-    const about = within(dialog).getByRole("region", { name: "About this start" });
-    expect(about.textContent).toContain("Document type");
     await waitFor(() => expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("receipt"));
+    expect(within(dialog).getByText(/Reads/)).toBeTruthy();                          // what it does, one line under the list
     expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("");   // DA-3: never filled in
     const before = (await api.processes()).length;
-    fireEvent.click(within(about).getByRole("button", { name: "Try it with a sample receipt" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Try it with a sample receipt" }));
     expect(await within(dialog).findByRole("region", { name: "What the sample gave" })).toBeTruthy();
     expect((await api.processes()).length).toBe(before);                       // a try saves nothing
     fireEvent.change(within(dialog).getByLabelText("Start from"), { target: { value: "scratch" } });
     expect(within(dialog).queryByRole("button", { name: /Try it with a sample/ })).toBeNull();
-    expect(within(dialog).getByRole("region", { name: "About this start" }).textContent).toContain("An empty process");
+    expect(within(dialog).getByText("An empty process: choose each step yourself.")).toBeTruthy();
   });
 
   it("shows every document of a process, with filters on how it came in, engine and confidence", async () => {
@@ -774,7 +774,7 @@ describe("Document Automation", () => {
   it("sets up a process's email inbox in step 2, Document ingestion", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    await addWay(intake, "Own mailbox settings");
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "email" } });
     fireEvent.change(within(intake).getByLabelText("Mail server"), { target: { value: "imap.example.com" } });
     fireEvent.change(within(intake).getByLabelText("User name"), { target: { value: "invoices@example.com" } });
@@ -790,7 +790,7 @@ describe("Document Automation", () => {
   it("signs a Microsoft 365 inbox in with Microsoft: a code to type, then who is signed in (DA-1)", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    await addWay(intake, "Own mailbox settings");
     expect((within(intake).getByLabelText("Mailbox kind") as HTMLSelectElement).value).toBe("outlook");
     expect(within(intake).queryByLabelText("Directory (tenant) id")).toBeNull();          // your own app is advanced
     fireEvent.click(await within(intake).findByRole("button", { name: "Sign in with Microsoft" }));
@@ -814,9 +814,10 @@ describe("Document Automation", () => {
   it("chooses the watched folder from the folders processes may use (DA-1)", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    const field = await within(intake).findByLabelText("Watched folder") as HTMLInputElement;
+    await addWay(intake, "Watched folder");                                         // step 2's table of ways in (27 Nov 2026)
+    const field = await within(intake).findByLabelText("Folder path") as HTMLInputElement;
     await waitFor(() => expect(field.readOnly).toBe(true));                       // a list exists: choose, do not type
-    fireEvent.click(within(intake).getByRole("button", { name: "Browse for watched folder" }));
+    fireEvent.click(within(intake).getByRole("button", { name: "Browse for folder path" }));
     const picker = await screen.findByRole("dialog", { name: "Choose the watched folder" });
     const allowed = within(picker).getByRole("group", { name: "Allowed folders" });
     expect(within(allowed).getAllByRole("button").map((b) => b.textContent)).toEqual(["Scans\\\\scan01\\scans", "Accounts payableD:\\AP"]);
@@ -842,11 +843,11 @@ describe("Document Automation", () => {
     expect((await api.processDesign("supplier-invoices-ksa")).settings.inputFolder).toBe("\\\\scan01\\scans\\invoices\\returns");
     // a folder outside the list says so; typing stays one click away
     fireEvent.click(within(intake).getByRole("button", { name: "Type the path" }));
-    fireEvent.change(within(intake).getByLabelText("Watched folder"), { target: { value: "\\\\old\\scans" } });
+    fireEvent.change(within(intake).getByLabelText("Folder path"), { target: { value: "\\\\old\\scans" } });
     fireEvent.click(within(intake).getByRole("button", { name: "Choose from the folders processes may use" }));
     expect(within(intake).getByText(/Not one of the folders processes may use/)).toBeTruthy();
     fireEvent.click(within(intake).getByRole("button", { name: "Clear" }));
-    expect((within(intake).getByLabelText("Watched folder") as HTMLInputElement).value).toBe("");
+    expect((within(intake).getByLabelText("Folder path") as HTMLInputElement).value).toBe("");
   });
 
   it("takes a process's emails from mail accounts set up once, by rules (MA-4)", async () => {
@@ -876,9 +877,10 @@ describe("Document Automation", () => {
     start(api); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
     await act(async () => { await api.folderRoots(); });
-    const field = within(intake).getByLabelText("Watched folder") as HTMLInputElement;
+    await addWay(intake, "Watched folder");
+    const field = within(intake).getByLabelText("Folder path") as HTMLInputElement;
     expect(field.readOnly).toBe(false);
-    expect(within(intake).queryByRole("button", { name: "Browse for watched folder" })).toBeNull();
+    expect(within(intake).queryByRole("button", { name: "Browse for folder path" })).toBeNull();
     fireEvent.change(field, { target: { value: "\\\\scan01\\ksa" } });
     expect(field.value).toBe("\\\\scan01\\ksa");
   });
@@ -888,7 +890,7 @@ describe("Document Automation", () => {
     api.msSignInReady = async () => false;
     start(api); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    await addWay(intake, "Own mailbox settings");
     expect(await within(intake).findByText(/Sign in with Microsoft is not set up on this server/)).toBeTruthy();
     expect(within(intake).queryByRole("button", { name: "Sign in with Microsoft" })).toBeNull();
   });
@@ -926,7 +928,7 @@ describe("Document Automation", () => {
 
   it("uploads files into a draft process in step 2 and shows its last documents", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
-    const upload = await screen.findByRole("region", { name: "Upload files" });
+    const upload = await screen.findByRole("region", { name: "Try it" });       // the upload box and the last documents (27 Nov 2026)
     expect(await within(upload).findByText("No documents yet.")).toBeTruthy();
     fireEvent.change(within(upload).getByLabelText("Choose files for Supplier invoices KSA"), { target: { files: [new File(["x"], "try-1.pdf")] } });
     fireEvent.click(within(upload).getByRole("button", { name: "Start processing" }));

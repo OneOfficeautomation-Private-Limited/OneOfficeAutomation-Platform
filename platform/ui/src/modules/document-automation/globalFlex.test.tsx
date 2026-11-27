@@ -14,6 +14,14 @@ import { ChoiceOrOwn, duration } from "./ui";
 /** Global and flexible (25 Nov 2026): names in any script, own values beside every list, numbers and money in any style. */
 beforeEach(() => { location.hash = ""; });
 afterEach(() => { cleanup(); localStorage.clear(); });
+
+/** Step 2's "+ Add a way in" (27 Nov 2026): adds a way documents come in, unless its row is there already. */
+async function addWay(intake: HTMLElement, name: string) {
+  if (within(intake).queryByRole("group", { name })) return;
+  fireEvent.pointerDown(within(intake).getByRole("button", { name: "+ Add a way in ▾" }), { button: 0, ctrlKey: false });
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
+  await within(intake).findByRole("group", { name });
+}
 const go = async (hash: string) => { await act(async () => { location.hash = hash; window.dispatchEvent(new HashChangeEvent("hashchange")); }); };
 const start = (api = new SampleApi()) => { render(<App api={api} />); return api; };
 
@@ -140,6 +148,7 @@ describe("the screens", () => {
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
     expect(within(intake).getByRole("switch", { name: "Read e-invoice data first" })).toBeTruthy();
     expect(within(intake).queryByText(/ZATCA XML/)).toBeNull();
+    fireEvent.click(within(intake).getByRole("button", { name: "Choose standards…" }));   // on one line; the list on request (27 Nov 2026)
     expect(await within(intake).findByText(/Standards read: all that DocFlow knows/)).toBeTruthy();
   });
 });
@@ -186,14 +195,14 @@ describe("the leftovers (25 Nov 2026)", () => {
   it("reads Gmail with an app password and POP3 inboxes", async () => {
     start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    await addWay(intake, "Own mailbox settings");
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "gmail" } });
     expect(within(intake).getByLabelText(/^Gmail address/)).toBeTruthy();
     expect(within(intake).queryByLabelText(/^Mail server/)).toBeNull();
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "pop3" } });
     expect((within(intake).getByLabelText(/^Port/) as HTMLInputElement).placeholder).toBe("995");
     expect(within(intake).getByText(/POP3 reads the inbox only/)).toBeTruthy();
-    fireEvent.click(within(intake).getByRole("checkbox", { name: /People may upload documents here/ }));
-    expect((within(intake).getByRole("checkbox", { name: /People may upload documents here/ }) as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(within(intake).getByRole("button", { name: "Remove Upload" }));
+    expect(within(intake).queryByRole("group", { name: "Upload" })).toBeNull();
   });
 });

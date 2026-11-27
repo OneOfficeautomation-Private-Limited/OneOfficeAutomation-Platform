@@ -10,17 +10,20 @@ import { Chip, reportError } from "./ui";
  * of that account become documents here. Laid out as the design plan's MA-Use and MA-RuleEdit artboards. The account
  * is read once for all its rules; its own page orders them and keeps the emails no rule took.
  */
-export function ProcessMailAccounts({ api, processId, processName }: { api: DocFlowApi; processId: string; processName?: string }) {
+export function ProcessMailAccounts({ api, processId, processName, bare = false, onCount }: { api: DocFlowApi; processId: string; processName?: string;
+  /** Inside step 2's Email row (27 Nov 2026): no heading of its own. */ bare?: boolean;
+  /** How many mail accounts send emails here, once loaded. */ onCount?: (n: number) => void }) {
   const [rules, setRules] = useState<ProcessMailRule[] | null>(null);
   const [accounts, setAccounts] = useState<MailAccountBrief[]>([]);
   const [editing, setEditing] = useState<ProcessMailRule | "new" | null>(null);
   const load = useCallback(() => Promise.all([api.processMailRules(processId), api.mailAccounts()]).then(([r, a]) => { setRules(r); setAccounts(a); }, reportError), [api, processId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (rules) onCount?.(rules.length); }, [rules]);   // eslint-disable-line react-hooks/exhaustive-deps
   const remove = (r: ProcessMailRule) => api.deleteMailRule(r.id).then(load, reportError);
   return (
     <section className="df-mail-rules" aria-label="Mail accounts">
-      <div className="df-head-row"><b>Mail accounts</b>
-        <span className="df-small">Emails from these accounts that match come in here. Accounts are set up once in Manage &gt; Connections; no server, password or sign-in here.</span></div>
+      {!bare && <div className="df-head-row"><b>Mail accounts</b>
+        <span className="df-small">Emails from these accounts that match come in here. Accounts are set up once in Manage &gt; Connections; no server, password or sign-in here.</span></div>}
       {rules?.map((r) => (
         <div key={r.id} className="df-mail-rule">
           <span className="df-mail-rule-main"><b>{r.account_name}</b> <span className="df-small">{r.account_address}</span>

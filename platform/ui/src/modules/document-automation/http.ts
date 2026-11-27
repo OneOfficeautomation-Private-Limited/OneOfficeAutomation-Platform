@@ -611,6 +611,8 @@ export class HttpDocFlowApi implements DocFlowApi {
     const s = d.settings;
     const saved = await this.call<DfFlow>("PUT", `/df/flows/${encodeURIComponent(d.id)}`, {
       ...(cur.isInbox || !d.docTypeIds.length ? {} : { docTypes: d.docTypeIds }),
+      // step 2, Where this process is kept (27 Nov 2026): the server checks the person may edit the new folder
+      ...((cur.folder ?? "") !== d.folder ? { folder: d.folder } : {}),
       intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [], upload: s.upload !== false },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split, whenNoType: s.whenNoType ?? "review", checkType: !!s.checkType },
       engine: { ...cur.engine, extractionProvider: s.extraction, monthlyBudget: s.monthlyBudget ?? null, extractionByType: s.extractionByType ?? {} },

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, Field, Select, TextInput } from "../../components";
+import { Button, Dialog, Field, Menu, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
 import { FolderField } from "./folderPicker";
 import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
-import { AdvancedToggle, ChoiceOrOwn, duration } from "./ui";
+import { AdvancedToggle, ChoiceOrOwn, Hint, duration } from "./ui";
+import { PlatformFolderField } from "./dialogs";
 import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EInvoiceStandard, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
@@ -60,8 +61,18 @@ function EInvoiceStandards({ api, value, onChange }: { api: DocFlowApi; value: s
   );
 }
 
-export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, processName }:
-  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string; processName?: string }) {
+/** The ways documents come in (step 2, redesign of 27 Nov 2026, artboard "DA step 2"). Agents can always send documents. */
+type Way = "upload" | "folder" | "mail" | "mailbox";
+const WAY_NAMES: Record<Way, string> = { upload: "Upload", folder: "Watched folder", mail: "Email", mailbox: "Own mailbox settings" };
+
+/**
+ * Step 2, Document ingestion (redesign of 27 Nov 2026, artboard "DA step 2"): where the process is kept (its folder,
+ * Change… opens the folder tree), how documents come in as one table (a row per way, + Add a way in, ✕ to remove), and
+ * Read e-invoice data first on one line. The builder adds "Try it" (upload and the last documents) under it.
+ */
+export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, processName, folder, folders, onFolder }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string; processName?: string;
+    folder?: string; folders?: string[]; onFolder?: (f: string) => void }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
@@ -82,34 +93,65 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
       {(id) => <Select id={id} value={value} onChange={(e) => setEmail({ [key]: e.target.value } as Partial<EmailInbox>)}
         options={[{ value: "", label: refs.length ? "Choose a saved value" : "None saved yet" }, ...refs.map((r) => ({ value: r.ref, label: r.label }))]} />}</Field>;
   };
+  // ways added on this screen and not filled in yet (a watched folder without its path, a mail account not chosen yet)
+  const [added, setAdded] = useState<Way[]>(s.inputFolder ? ["folder"] : []);
+  // a row stays until its ✕: clearing the folder path keeps the Watched folder row
+  useEffect(() => { if (s.inputFolder && !added.includes("folder")) setAdded((a) => [...a, "folder"]); }, [s.inputFolder]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [mailCount, setMailCount] = useState(0);
+  const [standards, setStandards] = useState(false);
+  const on: Record<Way, boolean> = {
+    upload: s.upload !== false, folder: !!s.inputFolder || added.includes("folder"),
+    mail: mailCount > 0 || added.includes("mail"), mailbox: !!email?.enabled,
+  };
+  const offered: Way[] = api && processId ? ["upload", "folder", "mail", "mailbox"] : ["upload", "folder", "mailbox"];
+  const add = (w: Way) => {
+    if (w === "upload") set({ upload: true });
+    else if (w === "mailbox") setEmail({ enabled: true });
+    else setAdded([...added, w]);
+  };
+  const remove = (w: Way) => {
+    setAdded(added.filter((x) => x !== w));
+    if (w === "upload") set({ upload: false });
+    if (w === "folder") set({ inputFolder: "" });
+    if (w === "mailbox") setEmail({ enabled: false });
+  };
+  const rows = offered.filter((w) => on[w]);
+  const free = offered.filter((w) => !on[w]);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <div className="df-grid df-g2">
-      {/* DA-1 item 5: chosen from the folders processes may use (DocFlow 3.2.0); typed while there is no list */}
-      <FolderField api={api} label="Watched folder" title="Choose the watched folder" hint="DocFlow reads every new file put here. Empty: upload only."
-        value={s.inputFolder} placeholder="\\scan01\invoices" empty="No folder chosen: upload only" processId={processId} onChange={(v) => set({ inputFolder: v })} />
-      <Field label="Check the folder every">
-        {(id) => <ChoiceOrOwn id={id} value={s.pollSeconds} onChange={(v) => set({ pollSeconds: Math.round(v) })} options={POLL_SECONDS} label={duration} unit="seconds" min={5} />}
-      </Field>
-      <label style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center" }}>
-        <input type="checkbox" checked={s.upload !== false} onChange={(e) => set({ upload: e.target.checked })} />
-        People may upload documents here (agents send them with the "Send document to process" action either way)</label>
-    </div>
-    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-      <button type="button" role="switch" className="df-switch" aria-checked={s.einvoiceFirst} aria-labelledby="df-einvoice-label"
-        onClick={() => set({ einvoiceFirst: !s.einvoiceFirst })} />
-      <span><b id="df-einvoice-label">Read e-invoice data first</b>
-        <span className="df-small" style={{ display: "block" }}>{HINTS.einvoiceFirst}</span></span>
-    </div>
-    {s.einvoiceFirst && api && <EInvoiceStandards api={api} value={s.einvoiceStandards ?? []} onChange={(einvoiceStandards) => set({ einvoiceStandards })} />}
-    {api && processId && <ProcessMailAccounts api={api} processId={processId} processName={processName} />}
-    <div className={`df-way${email?.enabled ? " is-on" : ""}`}>
-      <label style={{ display: "flex", gap: 10 }}>
-        <input type="checkbox" checked={!!email?.enabled} onChange={(e) => setEmail({ enabled: e.target.checked })} />
-        <span><b>Email inbox</b><span className="df-small" style={{ display: "block" }}>The Command Center reads new emails and sends their PDF and image attachments here{live ? "" : " once the process is live"}.</span></span>
-      </label>
-      {email?.enabled && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "10px 0 0 24px" }}>
+    <div className="df-intake">
+      {onFolder && (
+        <section className="df-sec" aria-label="Where this process is kept">
+          <div className="df-sec-head"><b>Where this process is kept</b></div>
+          <div className="df-sec-row">
+            <span className="df-sec-label">Folder</span>
+            <PlatformFolderField id="df-process-folder" folders={folders ?? []} value={folder ?? ""} onChange={onFolder} />
+            <span className="df-small">Only people with access to this folder see the process and its documents.</span>
+          </div>
+        </section>
+      )}
+      <section className="df-sec" aria-label="How documents come in">
+        <div className="df-sec-head"><b>How documents come in</b><span className="df-grow" />
+          {free.length > 0 && <Menu label="Add a way in" trigger={<button type="button" className="ui-btn ui-btn-secondary">+ Add a way in ▾</button>}
+            items={free.map((w) => ({ key: w, label: WAY_NAMES[w], onSelect: () => add(w),
+              description: w === "mailbox" ? "A mailbox set up for this process only (server, password); mail accounts are usually simpler" : undefined }))} />}
+        </div>
+        {/* the mail accounts load on their own; mounted while hidden too, so a process with mail rules shows its Email row */}
+        {api && processId && !on.mail && <div hidden><ProcessMailAccounts api={api} processId={processId} processName={processName} bare onCount={setMailCount} /></div>}
+        {rows.map((w) => (
+          <div key={w} className="df-way-line" role="group" aria-label={WAY_NAMES[w]}>
+            <span className="df-way-name">{WAY_NAMES[w]}{w === "folder" && <Hint about="Watched folder" text={HINTS.watchedFolder} />}</span>
+            <div className="df-way-body">
+              {w === "upload" && <span className="df-small">People drop files on the process page, or in Try it below.</span>}
+              {w === "folder" && <div className="df-grid" style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(140px, 1fr)", gap: 12, alignItems: "end" }}>
+                <FolderField api={api} label="Folder path" title="Choose the watched folder" value={s.inputFolder} placeholder="\\scan01\invoices"
+                  empty="No folder chosen yet" processId={processId} onChange={(v) => set({ inputFolder: v })} />
+                <Field label="Check every">
+                  {(id) => <ChoiceOrOwn id={id} value={s.pollSeconds} onChange={(v) => set({ pollSeconds: Math.round(v) })} options={POLL_SECONDS} label={duration} unit="seconds" min={5} />}
+                </Field>
+              </div>}
+              {w === "mail" && api && processId && <ProcessMailAccounts api={api} processId={processId} processName={processName} bare onCount={setMailCount} />}
+              {w === "mailbox" && email?.enabled && <div className="df-mailbox">
+                <span className="df-small">The Command Center reads new emails and sends their PDF and image attachments here{live ? "" : " once the process is live"}.</span>
           <Field label="Mailbox kind">{(id) => <Select id={id} value={email.kind} onChange={(e) => setEmail({ kind: e.target.value as EmailInbox["kind"] })}
             options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "gmail", label: "Gmail or Google Workspace" },
               { value: "email", label: "IMAP (any other mail server)" }, { value: "pop3", label: "POP3 (servers without IMAP)" }]} />}</Field>
@@ -155,9 +197,23 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, pr
           </div>
           {inbox && <p className={`df-small ${inbox.error ? "df-text-bad" : ""}`} role="status" style={{ margin: 0 }}>
             {inbox.lastCheck ? `Last checked ${new Date(inbox.lastCheck).toLocaleString()}` : "Not checked yet"}{inbox.error ? `: ${inbox.error}` : ` · ${inbox.documents} document${inbox.documents === 1 ? "" : "s"} read so far`}</p>}
-        </div>
-      )}
-    </div>
+              </div>}
+            </div>
+            {(w !== "mail" || mailCount === 0) ? <button type="button" className="df-way-remove" aria-label={"Remove " + WAY_NAMES[w]} title="Remove" onClick={() => remove(w)}>✕</button>
+              : <span className="df-way-remove" aria-hidden="true" />}
+          </div>
+        ))}
+        {!rows.length && <p className="df-small df-way-none">No way in yet. Add one; agents can still send documents.</p>}
+        <p className="df-small df-way-note">Agents can always send documents here with the "Send document to process" action.</p>
+      </section>
+      <section className="df-sec df-einvoice" aria-label="E-invoices">
+        <button type="button" role="switch" className="df-switch" aria-checked={s.einvoiceFirst} aria-labelledby="df-einvoice-label"
+          onClick={() => set({ einvoiceFirst: !s.einvoiceFirst })} />
+        <b id="df-einvoice-label">Read e-invoice data first</b>
+        <span className="df-small df-grow">{HINTS.einvoiceFirst}</span>
+        {s.einvoiceFirst && api && <button type="button" className="df-link" aria-expanded={standards} onClick={() => setStandards(!standards)}>Choose standards…</button>}
+      </section>
+      {standards && s.einvoiceFirst && api && <EInvoiceStandards api={api} value={s.einvoiceStandards ?? []} onChange={(einvoiceStandards) => set({ einvoiceStandards })} />}
     </div>
   );
 }
