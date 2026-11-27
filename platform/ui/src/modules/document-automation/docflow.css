@@ -372,3 +372,35 @@ button.df-way-remove:hover { border-color: var(--ui-field); }
   .df-way-line { position: relative; }
   .df-way-line > .df-way-remove { position: absolute; top: 6px; right: 6px; }
 }
+
+/* Document types (DA-10 to DA-13, 28 Nov 2026, artboard "DA-10 to 13"): name and description first, fields, advanced folded */
+.df-type-what { display: flex; flex-direction: column; gap: 10px; }
+.df-type-grid, .df-type-adv-body { display: grid; grid-template-columns: 150px minmax(0, 640px); gap: 10px 14px; align-items: start; }
+.df-type-label { font-weight: 600; line-height: var(--ui-h); }
+.df-type-name { max-width: 420px; font-size: 15px; font-weight: 600; }
+.df-type-desc { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.df-req { color: var(--ui-error-text); }
+.df-row-menu { width: 26px; height: 26px; border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); font-weight: 700; cursor: pointer; }
+.df-row-menu:hover, .df-row-menu[data-state="open"] { border-color: var(--ui-field); }
+.df-type-adv { overflow: hidden; }
+.df-type-adv-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0 14px; border: 0; background: transparent; color: var(--ui-text); font: inherit; text-align: start; cursor: pointer; }
+.df-type-adv-head:hover { background: var(--ui-row-hover); }
+.df-type-adv-body { padding: 10px 14px 14px; border-top: 1px solid var(--ui-divider); }
+.df-type-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.df-type-foot > span { flex: 1 1 320px; }
+@media (max-width: 760px) { .df-type-grid, .df-type-adv-body { grid-template-columns: minmax(0, 1fr); } .df-type-label { line-height: 1.3; } }
+
+/* Step 3 (28 Nov 2026, artboard "DA step 3"): what arrives on the left, the type read-only on the right */
+.df-classify { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.df-sec-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.df-arrive { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); cursor: pointer; }
+.df-arrive.is-on { border: 1.5px solid var(--ui-accent); background: var(--ui-tint); }
+.df-arrive > input { margin-top: 3px; }
+.df-arrive-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.df-arrive-type { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.df-arrive-type > .ui-select, .df-arrive-type > select { flex: 1 1 220px; max-width: 320px; }
+.df-arrive-check { display: flex; gap: 8px; align-items: center; margin-top: 6px; color: var(--ui-text); }
+.df-arrive-rows { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 12px; align-items: center; padding-top: 8px; border-top: 1px solid var(--ui-divider); }
+.df-arrive-switch { display: flex; align-items: center; gap: 8px; }
+.df-type-quote { margin: 0; color: var(--ui-text-2); font-style: italic; }
+@media (max-width: 1100px) { .df-classify { grid-template-columns: minmax(0, 1fr); } }

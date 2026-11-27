@@ -112,8 +112,7 @@ describe("the screens", () => {
     fireEvent.change(within(dialog).getByLabelText(/^Choices/), { target: { value: "Travel, Meals" } });
     fireEvent.click(within(dialog).getByLabelText(/Keep other values too/));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    const editor = screen.getByRole("region", { name: "Supplier invoice" });
-    fireEvent.click(within(editor).getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save type" }));
     await waitFor(async () => {
       const t = (await api.docTypes()).find((x) => x.id === "supplier-invoice");
       expect(t?.fields.find((f) => f.key === "kind_of_expense")).toMatchObject({ method: "pick", choices: ["Travel", "Meals"], allowOther: true });

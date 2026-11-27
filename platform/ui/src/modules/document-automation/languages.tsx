@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "../../components";
+import { Button, ChoiceFilter } from "../../components";
 import type { DocFlowApi, Language } from "./api";
 import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
@@ -16,21 +16,9 @@ export function LanguagePicker({ api, value, onChange }: { api: DocFlowApi; valu
   const shown: Language[] = [...known.filter((l) => l.offered),
     ...value.filter((c) => !known.some((l) => l.code === c && l.offered))
       .map((c) => known.find((l) => l.code === c) ?? { code: c, name: c, engines: [], installed: !all, offered: false })];
-  return (
-    <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-      <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>Languages{!value.length ? ": none ticked reads every language offered" : ""}</legend>
-      <div className="df-langs">
-        {shown.map((l) => (
-          <label key={l.code} title={l.installed ? "Read by " + readBy(l) : "No engine on this server reads it yet"}>
-            <input type="checkbox" checked={value.includes(l.code)}
-              onChange={(e) => onChange(e.target.checked ? [...value, l.code] : value.filter((c) => c !== l.code))} />{l.name}
-            {!l.installed && <span className="df-small df-text-warn">not installed</span>}
-            {all && !l.offered && <span className="df-small">not offered</span>}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
+  // DA-13 (28 Nov 2026): a short searchable pick that shows only the chosen languages, not a wall of tick boxes
+  return <ChoiceFilter label="Languages" any="Every language offered" search value={value} onChange={onChange}
+    options={shown.map((l) => ({ value: l.code, label: l.name + (!l.installed ? " (not installed)" : all && !l.offered ? " (not offered)" : "") }))} />;
 }
 
 /**

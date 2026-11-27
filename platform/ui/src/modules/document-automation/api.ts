@@ -592,7 +592,7 @@ const DESIGN: ProcessDesign = { ...DESIGN_BASE, stages: stagesOf(DESIGN_BASE, (i
 const f = (key: string, label: string, aliases: string[], type: FieldType, required: boolean, regex = "", learned: string[] = []): DocTypeField =>
   ({ key, label, aliases, type, required, regex, learned });
 const DOC_TYPES: DocType[] = [
-  { id: "supplier-invoice", name: "Supplier invoice", origin: "built-in", meta: "Built in · 2 processes", keywords: ["Tax invoice", "فاتورة ضريبية", "VAT No"],
+  { id: "supplier-invoice", name: "Supplier invoice", description: "A bill from a supplier asking for payment for goods or services, with an invoice number, dates, amounts and tax.", origin: "built-in", meta: "Built in · 2 processes", keywords: ["Tax invoice", "فاتورة ضريبية", "VAT No"],
     languages: ["en", "ar"], usedBy: ["AP invoices", "Supplier invoices KSA"], fields: [
       f("invoice_number", "Invoice number", ["Invoice No", "رقم الفاتورة"], "Text", true, "INV-\\d{4}-\\d+", ["Inv #"]),
       f("invoice_date", "Invoice date", ["Date", "تاريخ الفاتورة"], "Date", true),
@@ -602,15 +602,15 @@ const DOC_TYPES: DocType[] = [
       f("vat_amount", "VAT amount", ["VAT 15%", "VAT", "ضريبة القيمة المضافة"], "Amount", false),
       f("total", "Total", ["Grand Total", "الإجمالي"], "Amount", true, "", ["Amount due"]),
       f("line_items", "Line items", ["Description", "Qty", "Amount"], "Table", false)] },
-  { id: "receipt", name: "Receipt", origin: "built-in", meta: "Built in · Expense claims", keywords: ["Receipt", "Total"], languages: ["en"], usedBy: ["Expense claims"],
+  { id: "receipt", name: "Receipt", description: "Proof of a payment already made, from a shop or service, with the date, the seller and the total paid.", origin: "built-in", meta: "Built in · Expense claims", keywords: ["Receipt", "Total"], languages: ["en"], usedBy: ["Expense claims"],
     fields: [f("merchant_name", "Merchant", [], "Text", true), f("total", "Total", [], "Amount", true)] },
-  { id: "delivery-note", name: "Delivery note", origin: "built-in", meta: "Built in · Deliveries", keywords: ["Delivery note", "GRN"], languages: ["en"], usedBy: ["Deliveries"],
+  { id: "delivery-note", name: "Delivery note", description: "A note that comes with delivered goods, listing what was delivered and how many, for checking against the order.", origin: "built-in", meta: "Built in · Deliveries", keywords: ["Delivery note", "GRN"], languages: ["en"], usedBy: ["Deliveries"],
     fields: [f("note_number", "Delivery note number", [], "Text", true)] },
-  { id: "credit-note", name: "Credit note", origin: "built-in", meta: "Built in · not used", keywords: ["Credit note"], languages: ["en"], usedBy: [],
+  { id: "credit-note", name: "Credit note", description: "A document from a supplier that reduces what we owe, usually for returned goods or a corrected invoice.", origin: "built-in", meta: "Built in · not used", keywords: ["Credit note"], languages: ["en"], usedBy: [],
     fields: [f("credit_note_number", "Credit note number", [], "Text", true)] },
-  { id: "customs", name: "Customs declaration", origin: "made-here", meta: "Made here · not used", keywords: ["Declaration", "HS code"], languages: ["en", "ar"], usedBy: [],
+  { id: "customs", name: "Customs declaration", description: "A form declaring goods that cross a border, with their codes, values and origin, for customs clearance.", origin: "made-here", meta: "Made here · not used", keywords: ["Declaration", "HS code"], languages: ["en", "ar"], usedBy: [],
     fields: [f("declaration_number", "Declaration number", [], "Text", true), f("hs_code", "HS code", [], "Text", false)] },
-  { id: "bank-statement", name: "Bank statement", origin: "made-here", meta: "Made here · not used", keywords: ["Statement", "IBAN"], languages: ["en"], usedBy: [],
+  { id: "bank-statement", name: "Bank statement", description: "A list of a bank account's payments in and out over a period, with the opening and closing balance.", origin: "made-here", meta: "Made here · not used", keywords: ["Statement", "IBAN"], languages: ["en"], usedBy: [],
     fields: [f("iban", "IBAN", [], "Text", true)] },
 ];
 

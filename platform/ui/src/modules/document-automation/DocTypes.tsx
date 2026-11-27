@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Button, Dialog, Field, Select, SidePanel, TextInput, usePersistent } from "../../components";
+import { Button, Dialog, Field, Menu, Select, SidePanel, TextInput, usePersistent } from "../../components";
 import type { CheckStrictness, DocFlowApi, DocType, DocTypeField, FieldMethod, FieldType } from "./api";
 import { FORMATS, READABLE_FILES, formatOf } from "./formats";
 import { LanguagePicker } from "./languages";
@@ -10,7 +10,7 @@ export function checkText(f: Pick<DocTypeField, "regex" | "type">): string {
   return ({ Date: "A date", "Date and time": "A date and time", Amount: "An amount", Number: "A number", Percentage: "A percentage", Choice: "One of the choices",
     "Several choices": "Some of the choices", Email: "An email address", Phone: "A phone number", "Yes/No": "Yes or no", Ticked: "Ticked or not", Signed: "Signed or not" } as Record<string, string>)[f.type] ?? "None";
 }
-import { AdvancedToggle, Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad, dfHash } from "./ui";
+import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad, dfHash } from "./ui";
 
 export const TYPES: FieldType[] = ["Text", "Date", "Date and time", "Amount", "Number", "Percentage", "Yes/No", "Ticked", "Signed", "Choice",
   "Several choices", "Email", "Phone", "Address", "Table", "Group"];
@@ -28,9 +28,9 @@ export const keyOf = (label: string) => label.toLowerCase().replace(/[^\p{L}\p{N
 /** The key for a new field: its own, or with _2, _3... when another field has it already. */
 export const freeKey = (key: string, taken: string[]) => { let k = key, n = 2; while (taken.includes(k)) k = `${key}_${n++}`; return k; };
 const METHODS: { value: FieldMethod; label: string; short: string; hint: string }[] = [
-  { value: "copy", label: "Copy it as printed", short: "Copied", hint: "The value is on the page, such as an invoice number." },
-  { value: "work-out", label: "Work it out from the document", short: "Worked out", hint: "AI reading answers it from the whole document, such as \"Is it overdue?\" or a one-line summary. Write the question in What it is." },
-  { value: "pick", label: "Pick one of the choices", short: "Picked", hint: "AI reading chooses the choice that fits best, such as the kind of expense." },
+  { value: "copy", label: "Copy it as printed", short: "From the page", hint: "The value is on the page, such as an invoice number." },
+  { value: "work-out", label: "Work it out from the document", short: "By AI", hint: "AI reading answers it from the whole document, such as \"Is it overdue?\" or a one-line summary. Write the question in What it is." },
+  { value: "pick", label: "Pick one of the choices", short: "Picked by AI", hint: "AI reading chooses the choice that fits best, such as the kind of expense." },
 ];
 const STRICTNESS: { value: CheckStrictness; label: string }[] = [
   { value: "error", label: "Send to review" }, { value: "warn", label: "Only note it" }, { value: "off", label: "Ignore" },
@@ -47,9 +47,9 @@ const same = (a: DocType, b: DocType) => JSON.stringify(a) === JSON.stringify(b)
 const OWN = "own";
 
 /** Document types: what is read from each kind of document and how it is checked; learned labels come from reviews. */
-export function DocTypes({ api }: { api: DocFlowApi }) {
+export function DocTypes({ api, typeId }: { api: DocFlowApi; typeId?: string }) {
   const [types, reload] = useLoad(() => api.docTypes(), [api]);
-  const [chosen, setChosen] = useState("");
+  const [chosen, setChosen] = useState(typeId ?? "");
   // a type not saved yet: a new one (its first field is added straight away) or one proposed from samples
   const [pending, setPending] = useState<{ type: DocType; addField: boolean; n: number } | null>(null);
   const [listQ, setListQ] = useState("");
@@ -129,66 +129,65 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
     try { const s = await api.saveDocType(t); setDraft(structuredClone(s)); onSaved(s); } catch (e) { reportError(e); } finally { setBusy(false); }
   };
 
+  // DA-10 (28 Nov 2026): the description is how AI engines recognise the type, so a type is saved with one
+  const noDescription = !(t.description ?? "").trim();
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   return (
     <>
-      <section className="df-card df-pad" aria-label={t.name}>
+      {/* DA-10 to DA-13 (28 Nov 2026, artboard "DA-10 to 13"): what it is (name, description), the fields, then advanced, folded */}
+      <section className="df-card df-pad df-type-what" aria-label={t.name || "New document type"}>
         <div className="df-head-row">
-          <input className="ui-input df-title-select" aria-label="Type name" value={t.name} onChange={(e) => set({ name: e.target.value })} />
           <Chip tone="mute" dot={false}>{!t.id ? "New" : t.origin === "built-in" ? "Built in" : "Made here"}</Chip>
           <span className="df-grow" />
-          {dirty && <span className="df-text-warn" role="status">Unsaved changes</span>}
+          {dirty && <span className="df-unsaved" role="status">Unsaved changes</span>}
           {showTest && t.id && <a className="ui-btn ui-btn-secondary" href={dfHash() + "testlab"}>Test on a document</a>}
           {t.id && t.origin === "made-here" && onDeleted && <Button kind="plain" disabled={t.usedBy.length > 0} title={t.usedBy.length ? "Used by a process" : undefined} onClick={() => setDeleting(true)}>Delete</Button>}
           {!t.id && onDiscard && <Button onClick={onDiscard}>Discard</Button>}
-          <Button kind="primary" disabled={!dirty || busy || !t.name.trim()} title={!t.fields.length ? "Saved with no fields: add them before a process uses it" : undefined} onClick={save}>{t.id ? "Save" : "Create type"}</Button>
         </div>
-        <div className="df-grid df-g3" style={{ marginTop: 12 }}>
-          <Field label="Recognised by" hint="Words on the page that identify this type, comma separated.">
-            {(id) => <TextInput id={id} value={t.keywords.join(", ")} onChange={(e) => set({ keywords: list(e.target.value) })} />}
-          </Field>
-          <LanguagePicker api={api} value={t.languages} onChange={(languages) => set({ languages })} />
-          <div><div className="df-small">Used by</div>{t.usedBy.length ? t.usedBy.join(", ") : "No process yet"}</div>
-        </div>
-        <div className="df-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
-          <Field label="What it is (optional)" hint="A sentence about this kind of document. AI reading uses it to recognise the type and read it.">
-            {(id) => <TextInput id={id} value={t.description ?? ""} placeholder="Bills from suppliers asking us to pay for goods or services" onChange={(e) => set({ description: e.target.value })} />}
-          </Field>
-          <Field label="Dates written as" hint="For dates with numbers only, such as 03/04/2026.">
-            {(id) => <Select id={id} value={t.dateOrder ?? ""} onChange={(e) => set({ dateOrder: e.target.value })}
-              options={[{ value: "", label: "Server setting" }, { value: "DMY", label: "Day first (14/11/2026)" }, { value: "MDY", label: "Month first (11/14/2026)" }, { value: "YMD", label: "Year first (2026/11/14)" }]} />}
-          </Field>
-          <Field label="Decimal mark" hint="Whether 1.234 means one thousand two hundred and thirty-four.">
-            {(id) => <Select id={id} value={t.decimalMark ?? ""} onChange={(e) => set({ decimalMark: e.target.value })}
-              options={[{ value: "", label: "Server setting" }, { value: ".", label: "Point (1,234.50)" }, { value: ",", label: "Comma (1.234,50)" }]} />}
-          </Field>
+        <div className="df-type-grid">
+          <label htmlFor="df-type-name" className="df-type-label">Name</label>
+          <input id="df-type-name" className="ui-input df-type-name" aria-label="Type name" value={t.name} onChange={(e) => set({ name: e.target.value })} />
+          <label htmlFor="df-type-desc" className="df-type-label">Description <span className="df-req" aria-hidden="true">*</span></label>
+          <div className="df-type-desc">
+            <textarea id="df-type-desc" className="ui-input ui-textarea" rows={2} aria-required="true" value={t.description ?? ""}
+              placeholder="A bill from a supplier asking for payment for goods or services, with an invoice number, dates, amounts and tax."
+              onChange={(e) => set({ description: e.target.value })} />
+            <span className={noDescription ? "df-small df-text-warn" : "df-small"}>In plain words, what this document is and how it differs from others. AI engines recognise the type from it.</span>
+          </div>
         </div>
       </section>
 
       <section className="df-card" aria-label="Fields to read" style={{ overflow: "hidden" }}>
-        <div className="df-head-row df-pad" style={{ paddingBottom: 0 }}><b>Fields to read</b><span className="df-grow" /><Button icon="plus" onClick={() => setEditing("new")}>Add field</Button></div>
-        <FilterBar onClear={() => { setQ(""); setType("all"); setReq("all"); }} count={`${fields.length} of ${t.fields.length} fields`}>
-          <SearchBox value={q} onChange={setQ} placeholder="Search fields or labels" />
-          <FilterSelect label="Type" value={type} onChange={setType} options={[{ value: "all", label: "All types" }, ...TYPES.map((v) => ({ value: v, label: v }))]} />
+        <div className="df-head-row df-pad" style={{ paddingBottom: 8 }}><b>Fields to read</b><span className="df-grow" />
+          <span className="df-small">{t.fields.length} field{t.fields.length === 1 ? "" : "s"}</span>
+          <Button icon="plus" onClick={() => setEditing("new")}>Add field</Button></div>
+        {t.fields.length > 10 && <FilterBar onClear={() => { setQ(""); setType("all"); setReq("all"); }} count={`${fields.length} of ${t.fields.length} fields`}>
+          <SearchBox value={q} onChange={setQ} placeholder="Search fields" />
+          <FilterSelect label="Kind" value={type} onChange={setType} options={[{ value: "all", label: "All kinds" }, ...TYPES.map((v) => ({ value: v, label: v }))]} />
           <FilterSelect label="Required" value={req} onChange={setReq} options={[{ value: "all", label: "All" }, { value: "required", label: "Required" }, { value: "optional", label: "Optional" }]} />
-        </FilterBar>
+        </FilterBar>}
         <div className="df-table-wrap">
-          <table className="df-table">
-            <thead><tr><th>What to read</th><th>Words next to it on the page</th><th>Kind</th><th>How it is read</th><th>Must be there</th><th>Check</th>
-              {advanced && <><th>Pattern</th><th title="Labels learned from reviews">Learned labels</th></>}<th><span className="sr-only">Actions</span></th></tr></thead>
+          <table className="df-table df-fields-table" aria-label="Fields to read">
+            <thead><tr><th>Field</th><th>Kind</th><th>Description</th><th>Read</th><th>Required</th>
+              {advanced && <><th>Words next to it</th><th>Check</th><th>Pattern</th><th title="Labels learned from reviews">Learned labels</th></>}<th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {fields.map((f) => (
                 <tr key={f.key}>
                   <td><b>{f.label}</b>{advanced && <div className="df-small ui-mono">{f.key}</div>}</td>
-                  <td className="df-muted">{[...new Set([f.label, ...f.aliases])].join(", ")}</td><td>{f.type}</td>
+                  <td>{f.type}</td>
+                  <td className="df-muted">{f.description || <span className="df-text-warn">No description yet</span>}</td>
                   <td>{METHODS.find((m) => m.value === (f.method ?? "copy"))?.short}</td><td>{f.required ? "Yes" : "No"}</td>
-                  <td title={formatOf(f.regex)?.accepts}>{checkText(f)}{f.regex && f.strictness && f.strictness !== "error" ? ` (${STRICTNESS.find((x) => x.value === f.strictness)?.label.toLowerCase()})` : ""}</td>
-                  {advanced && <><td className="ui-mono">{f.regex || "—"}</td>
-                  <td className="df-muted">{f.learned.length ? f.learned.map((l) => (
-                    <span key={l} className="df-learned">"{l}"<button type="button" className="df-link" aria-label={`Forget "${l}"`}
-                      onClick={() => set({ fields: t.fields.map((x) => x.key === f.key ? { ...x, learned: x.learned.filter((y) => y !== l) } : x) })}>×</button></span>)) : "—"}</td></>}
-                  <td className="df-right" style={{ whiteSpace: "nowrap" }}>
-                    <Button kind="plain" onClick={() => setEditing(f)}>Edit</Button>
-                    <Button kind="plain" aria-label={"Remove " + f.label} onClick={() => set({ fields: t.fields.filter((x) => x.key !== f.key) })}>Remove</Button>
+                  {advanced && <><td className="df-muted">{[...new Set([f.label, ...f.aliases])].join(", ")}</td>
+                    <td title={formatOf(f.regex)?.accepts}>{checkText(f)}{f.regex && f.strictness && f.strictness !== "error" ? ` (${STRICTNESS.find((x) => x.value === f.strictness)?.label.toLowerCase()})` : ""}</td>
+                    <td className="ui-mono">{f.regex || "—"}</td>
+                    <td className="df-muted">{f.learned.length ? f.learned.map((l) => (
+                      <span key={l} className="df-learned">"{l}"<button type="button" className="df-link" aria-label={`Forget "${l}"`}
+                        onClick={() => set({ fields: t.fields.map((x) => x.key === f.key ? { ...x, learned: x.learned.filter((y) => y !== l) } : x) })}>×</button></span>)) : "—"}</td></>}
+                  <td className="df-right">
+                    <Menu label={"Field " + f.label} open={menuFor === f.key} onOpenChange={(o) => setMenuFor(o ? f.key : null)}
+                      trigger={<button type="button" className="df-row-menu" aria-label={"More for " + f.label}>⋮</button>}
+                      items={[{ key: "edit", label: "Edit", onSelect: () => setEditing(f) },
+                        { key: "remove", label: "Remove", separatorBefore: true, onSelect: () => set({ fields: t.fields.filter((x) => x.key !== f.key) }) }]} />
                   </td>
                 </tr>
               ))}
@@ -204,10 +203,35 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           {(t.examples ?? []).map((d) => <span key={d} className="df-learned">{d.slice(0, 8)}<button type="button" className="df-link" aria-label={`Stop using ${d} as an example`}
             onClick={() => api.removeTeachingExample(t.id, d).then(() => setDraft({ ...t, examples: (t.examples ?? []).filter((x) => x !== d) }), reportError)}>×</button></span>)}
         </div>}
-        <div className="df-pad" style={{ paddingTop: 8, paddingBottom: 10 }}>
-          <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="the pattern behind each check, field names and labels learned from reviews" />
-        </div>
       </section>
+
+      {/* DA-13: rarely changed, folded; languages a short searchable pick */}
+      <section className="df-card df-type-adv" aria-label="Advanced">
+        <button type="button" className="df-type-adv-head" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>
+          <span aria-hidden="true">{advanced ? "▾" : "▸"}</span><b>Advanced</b><span className="df-small">Languages, dates, decimal mark, words on the page, and each field's check</span></button>
+        {advanced && <div className="df-type-adv-body">
+          <span className="df-type-label">Languages</span>
+          <LanguagePicker api={api} value={t.languages} onChange={(languages) => set({ languages })} />
+          <label htmlFor="df-type-dates" className="df-type-label">Dates written as</label>
+          <Select id="df-type-dates" value={t.dateOrder ?? ""} onChange={(e) => set({ dateOrder: e.target.value })}
+            options={[{ value: "", label: "Server setting" }, { value: "DMY", label: "Day first (14/11/2026)" }, { value: "MDY", label: "Month first (11/14/2026)" }, { value: "YMD", label: "Year first (2026/11/14)" }]} />
+          <label htmlFor="df-type-words" className="df-type-label">Words on the page</label>
+          <div className="df-type-desc">
+            <TextInput id="df-type-words" value={t.keywords.join(", ")} placeholder="Invoice, Tax invoice, Bill" onChange={(e) => set({ keywords: list(e.target.value) })} />
+            <span className="df-small">Recognise the type when no AI engine is used (on this server, offline). Comma separated.</span>
+          </div>
+          <label htmlFor="df-type-decimal" className="df-type-label">Decimal mark</label>
+          <Select id="df-type-decimal" value={t.decimalMark ?? ""} onChange={(e) => set({ decimalMark: e.target.value })}
+            options={[{ value: "", label: "Server setting" }, { value: ".", label: "Point (1,234.50)" }, { value: ",", label: "Comma (1.234,50)" }]} />
+        </div>}
+      </section>
+
+      <div className="df-type-foot">
+        <span className="df-muted">{t.usedBy.length ? <>Used by {t.usedBy.length} process{t.usedBy.length === 1 ? "" : "es"}: {t.usedBy.join(", ")}. Saving changes them all.</> : "No process uses it yet."}</span>
+        <Button kind="primary" disabled={!dirty || busy || !t.name.trim() || noDescription}
+          title={noDescription ? "Add a description first: AI engines recognise the type from it" : !t.fields.length ? "Saved with no fields: add them before a process uses it" : undefined}
+          onClick={save}>{t.id ? "Save type" : "Create type"}</Button>
+      </div>
 
       {editing && <FieldDialog key={editing === "new" ? "new" : editing.key} value={editing === "new" ? null : editing} taken={t.fields.map((f) => f.key)}
         onClose={() => setEditing(null)}
@@ -255,7 +279,7 @@ function FieldDialog({ value, taken, onClose, onSave }: { value: DocTypeField | 
         <Field label="Type" hint={TYPE_HINT[f.type]}>{(id) => <Select id={id} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as FieldType, writeAs: "" })}
           options={TYPES.map((v) => ({ value: v, label: v }))} />}</Field>
       </div>
-      <Field label="What it is (optional)" hint="In plain words; AI reading follows it. For Work it out, write the question here.">
+      <Field label="Description" hint="In plain words, what this field is; AI engines read it from this. For Work it out, write the question here.">
         {(id) => <TextInput id={id} value={f.description ?? ""} placeholder="The amount the customer must pay, after discounts and tax" onChange={(e) => setF({ ...f, description: e.target.value })} />}
       </Field>
       <Field label="How it is read" hint={method.hint}>

@@ -103,30 +103,41 @@ describe("Document Automation", () => {
     expect(within(test).getByText("This process is live: new documents use this version.")).toBeTruthy();
   });
 
-  it("chooses and edits the document type in step 3, on the same screen", async () => {
+  it("shows this process's choices in step 3, and its document type read-only with Edit this type", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
     const step = await screen.findByRole("region", { name: "Document classification" });
     expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice");
-    expect(await screen.findByRole("region", { name: "Fields to read" })).toBeTruthy();      // its fields, here: no other page
-    expect(location.hash).toBe("#/processes/supplier-invoices-ksa/classify");
+    // the type is shared: read-only here, edited in Libraries (28 Nov 2026, artboard "DA step 3")
+    const read = within(step).getByRole("region", { name: "What is read" });
+    expect(within(read).getByRole("table", { name: "Fields of Supplier invoice" })).toBeTruthy();
+    expect(within(read).getByText(/A bill from a supplier asking for payment/)).toBeTruthy();
+    expect(within(read).getByRole("link", { name: "Edit this type ↗" }).getAttribute("href")).toBe("#/types/supplier-invoice");
+    expect(screen.queryByRole("region", { name: "Fields to read" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add field" })).toBeNull();
     fireEvent.change(within(step).getByLabelText("Document type"), { target: { value: "receipt" } });
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Receipt" })).toBeTruthy();
+    expect(within(step).getByRole("region", { name: "What is read" }).textContent).toContain("Receipt");
     fireEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]);
     await screen.findByRole("button", { name: "Saved" });
     expect(await api.processDesign("supplier-invoices-ksa")).toMatchObject({ docTypeIds: ["receipt"], docType: "Receipt" });
+    // Edit this type opens that type in Libraries, Document types
+    await go("#/types/receipt");
+    expect((await screen.findByLabelText("Type name") as HTMLInputElement).value).toBe("Receipt");
   });
 
   it("makes a new document type in step 3, and the process reads it", async () => {
     const api = start(); await go("#/processes/supplier-invoices-ksa/classify");
-    fireEvent.click(await screen.findByRole("button", { name: "New document type" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New type…" }));
     const naming = await screen.findByRole("dialog", { name: "New document type" });
     fireEvent.change(within(naming).getByLabelText("Name"), { target: { value: "Customs declaration" } });
     fireEvent.click(within(naming).getByRole("button", { name: "Next: add fields" }));
     const field = await screen.findByRole("dialog", { name: "Add field" });
     fireEvent.change(within(field).getByLabelText("Name"), { target: { value: "Declaration number" } });
     fireEvent.click(within(field).getByRole("button", { name: "Save" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create type" }));
+    const create = screen.getByRole("button", { name: "Create type" }) as HTMLButtonElement;
+    expect(create.disabled).toBe(true);                                         // DA-10: a description first
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: "A form declaring goods that cross a border." } });
+    fireEvent.click(create);
     await waitFor(() => expect((screen.getByLabelText("Document type") as HTMLSelectElement).value).toBe("customs-declaration"));
     fireEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]);
     await screen.findByRole("button", { name: "Saved" });
@@ -520,8 +531,8 @@ describe("Document Automation", () => {
   it("filters document type fields and reference data rows", async () => {
     start(); await go("#/types");
     const fields = await screen.findByRole("region", { name: "Fields to read" });
-    fireEvent.change(within(fields).getByLabelText("Type"), { target: { value: "Amount" } });
-    expect(within(fields).getByText("3 of 8 fields")).toBeTruthy();
+    expect(within(fields).getByText("8 fields")).toBeTruthy();
+    expect(within(fields).queryByLabelText("Kind")).toBeNull();               // filters only past 10 fields (28 Nov 2026)
     await go("#/refdata");
     const rows = await screen.findByRole("region", { name: "Rows" });
     await within(rows).findByText("Summit Facilities LLC");
@@ -717,11 +728,11 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Other labels on the page"), { target: { value: "Purchase order, PO No" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Required/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // field names and learned labels
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));   // field names and learned labels, folded (DA-13)
     expect(within(fields).getByText("po_number")).toBeTruthy();
     fireEvent.click(within(fields).getByRole("button", { name: 'Forget "Inv #"' }));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save type" }));
     await waitFor(async () => {
       const t = (await api.docTypes()).find((x) => x.id === "supplier-invoice")!;
       expect(t.fields.at(-1)).toMatchObject({ key: "po_number", label: "PO number", aliases: ["Purchase order", "PO No"], required: true });
@@ -732,7 +743,7 @@ describe("Document Automation", () => {
   it("offers common formats for a field's format check, says what each accepts, and keeps an own pattern", async () => {
     const api = start(); await go("#/types");
     const fields = await screen.findByRole("region", { name: "Fields to read" });
-    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // the pattern column and field names
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));   // the pattern column and field names
     fireEvent.click(within(fields).getByRole("button", { name: "Add field" }));
     const dialog = await screen.findByRole("dialog", { name: "Add field" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Due date" } });
@@ -744,14 +755,15 @@ describe("Document Automation", () => {
     expect(within(dialog).getByText(/^Accepts: Day, month and year with slashes/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(within(fields).getByText("Date dd/mm/yyyy")).toBeTruthy();         // the table names the format
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save type" }));
     await waitFor(async () => {
       const t = (await api.docTypes()).find((x) => x.id === "supplier-invoice")!;
       expect(t.fields.at(-1)).toMatchObject({ key: "due_date", regex: "^(?:0[1-9]|[12]\\d|3[01])/(?:0[1-9]|1[0-2])/\\d{4}$" });
     });
     // a pattern not in the list opens as an own pattern, in its text box
     const row = within(fields).getByText("invoice_number").closest("tr")!;
-    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    fireEvent.pointerDown(within(row).getByRole("button", { name: /^More for / }), { button: 0, ctrlKey: false });   // the row's ⋮ menu
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
     const edit = await screen.findByRole("dialog", { name: "Edit field" });
     expect(valueOf(within(edit).getByLabelText(/^Format check/))).toBe("own");
     const own = within(edit).getByLabelText(/^Own pattern/) as HTMLInputElement;
@@ -780,6 +792,7 @@ describe("Document Automation", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Read samples" }));
     expect(await screen.findByText("Not saved yet")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Type name"), { target: { value: "Pro forma invoice" } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: "An invoice sent before the goods, to ask for payment in advance." } });
     fireEvent.click(screen.getByRole("button", { name: "Create type" }));
     await waitFor(async () => expect((await api.docTypes()).some((t) => t.id === "pro-forma-invoice" && t.fields.length === 3)).toBe(true));
   });
@@ -1013,9 +1026,14 @@ describe("Document Automation", () => {
 
   it("offers the administrator's languages for a document type, marking those not installed", async () => {
     const api = start(); await go("#/types");
-    const type = await screen.findByRole("region", { name: "Supplier invoice" });
-    const langs = within(type).getByRole("group", { name: "Languages" });
-    await waitFor(() => expect(within(langs).getAllByRole("checkbox").map((c) => c.parentElement!.textContent)).toEqual(["English", "Arabic"]));
+    await screen.findByRole("region", { name: "Supplier invoice" });
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));       // DA-13: languages are advanced, a short pick
+    const pick = (await screen.findByRole("button", { name: /^Languages: / }));
+    expect(pick.textContent).toContain("English, Arabic");
+    fireEvent.click(pick);
+    let pop = screen.getByRole("dialog", { name: "Languages" });
+    await waitFor(() => expect(within(pop).getAllByRole("checkbox").map((c) => c.closest("label")!.textContent!.trim())).toEqual(["English", "Arabic"]));
+    fireEvent.click(within(pop).getByRole("button", { name: "Done" }));
 
     await go("#/engines/languages");
     const panel = await screen.findByRole("region", { name: "Languages" });
@@ -1028,11 +1046,15 @@ describe("Document Automation", () => {
     await waitFor(async () => expect((await api.languages()).filter((l) => l.offered).map((l) => l.code)).toEqual(["en", "ar", "ur", "bn"]));
 
     await go("#/types");
-    const again = within(await screen.findByRole("region", { name: "Supplier invoice" })).getByRole("group", { name: "Languages" });
-    await waitFor(() => expect(within(again).getAllByRole("checkbox")).toHaveLength(4));
-    expect(within(again).getByText("Bengali").parentElement!.textContent).toContain("not installed");
-    fireEvent.click(within(again).getByRole("checkbox", { name: /Urdu/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("region", { name: "Supplier invoice" });
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Languages: / }));
+    pop = screen.getByRole("dialog", { name: "Languages" });
+    await waitFor(() => expect(within(pop).getAllByRole("checkbox")).toHaveLength(4));
+    expect(within(pop).getByText(/Bengali/).textContent).toContain("not installed");
+    fireEvent.click(within(pop).getByLabelText(/Urdu/));
+    fireEvent.click(within(pop).getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save type" }));
     await waitFor(async () => expect((await api.docTypes()).find((t) => t.id === "supplier-invoice")!.languages).toEqual(["en", "ar", "ur"]));
   });
 
@@ -1040,8 +1062,11 @@ describe("Document Automation", () => {
     const api = new SampleApi();
     await api.saveOfferedLanguages(["en"]);
     start(api); await go("#/types");
-    const langs = within(await screen.findByRole("region", { name: "Supplier invoice" })).getByRole("group", { name: "Languages" });
-    await waitFor(() => expect(within(langs).getByText("not offered")).toBeTruthy());
-    expect((within(langs).getByRole("checkbox", { name: /Arabic/ }) as HTMLInputElement).checked).toBe(true);
+    await screen.findByRole("region", { name: "Supplier invoice" });
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Languages: / }));
+    const pop = screen.getByRole("dialog", { name: "Languages" });
+    await waitFor(() => expect(within(pop).getByText(/not offered/)).toBeTruthy());
+    expect((within(pop).getByLabelText(/Arabic/) as HTMLInputElement).checked).toBe(true);
   });
 });

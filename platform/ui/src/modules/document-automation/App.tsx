@@ -35,6 +35,7 @@ export function parseRoute(hash: string): Route {
   if (first === "overview" && second) return { tab: "overview", section: second };
   if (first === "engines" && second) return { tab: "engines", section: second, ...(third ? { item: third } : {}) };
   if (first === "testlab" && second) return { tab: "testlab", section: second, ...(third ? { item: third } : {}) };
+  if (first === "types" && second) return { tab: "types", item: second };   // one type open (step 3's "Edit this type", 28 Nov 2026)
   return { tab: (TAB_IDS as readonly string[]).includes(first) ? first as typeof TAB_IDS[number] : "overview" };
 }
 
@@ -179,7 +180,7 @@ function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptI
     case "review": return <Review api={api} documentId={route.document!} />;
     case "inbox": return <Inbox api={api} />;
     case "processes": return <Builder key={route.design ?? ""} api={api} processId={route.design} stage={route.stage} />;
-    case "types": return <DocTypes api={api} />;
+    case "types": return <DocTypes api={api} typeId={route.item} />;
     case "refdata": return <RefData api={api} />;
     case "engines": return <Engines api={api} onOptIn={onOptIn} section={route.section} option={route.item} />;
     case "testlab": return <TestLab api={api} section={route.section} item={route.item} />;
