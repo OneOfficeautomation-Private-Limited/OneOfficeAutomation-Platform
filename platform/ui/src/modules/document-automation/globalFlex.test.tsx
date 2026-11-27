@@ -16,6 +16,13 @@ beforeEach(() => { location.hash = ""; });
 afterEach(() => { cleanup(); localStorage.clear(); });
 
 /** Step 2's "+ Add a way in" (27 Nov 2026): adds a way documents come in, unless its row is there already. */
+/** DA-8: own mailbox settings show only for a process that already uses them; these tests start with one. */
+async function mailboxApi(api = new SampleApi()) {
+  const d = await api.processDesign("supplier-invoices-ksa");
+  await api.saveProcess({ ...d, settings: { ...d.settings, email: { enabled: true, kind: "outlook" } } });
+  return api;
+}
+
 async function addWay(intake: HTMLElement, name: string) {
   if (within(intake).queryByRole("group", { name })) return;
   fireEvent.pointerDown(within(intake).getByRole("button", { name: "+ Add a way in ▾" }), { button: 0, ctrlKey: false });
@@ -143,13 +150,11 @@ describe("the screens", () => {
     expect(within(card).getByText("25%")).toBeTruthy();
   });
 
-  it("chooses which e-invoice standards a process reads, under a neutral switch", async () => {
+  it("shows no e-invoice settings in step 2: e-invoices are read from their own data (DA-9)", async () => {
     start(); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
-    expect(within(intake).getByRole("switch", { name: "Read e-invoice data first" })).toBeTruthy();
-    expect(within(intake).queryByText(/ZATCA XML/)).toBeNull();
-    fireEvent.click(within(intake).getByRole("button", { name: "Choose standards…" }));   // on one line; the list on request (27 Nov 2026)
-    expect(await within(intake).findByText(/Standards read: all that DocFlow knows/)).toBeTruthy();
+    expect(within(intake).queryByRole("switch", { name: "Read e-invoice data first" })).toBeNull();
+    expect(within(intake).queryByText(/Standards read/)).toBeNull();
   });
 });
 
@@ -193,7 +198,7 @@ describe("the leftovers (25 Nov 2026)", () => {
   });
 
   it("reads Gmail with an app password and POP3 inboxes", async () => {
-    start(); await go("#/processes/supplier-invoices-ksa/intake");
+    start(await mailboxApi()); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });
     await addWay(intake, "Own mailbox settings");
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "gmail" } });

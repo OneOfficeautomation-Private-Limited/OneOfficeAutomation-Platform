@@ -344,7 +344,11 @@
 .df-intake { display: flex; flex-direction: column; gap: 12px; }
 .df-sec { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); overflow: hidden; }
 .df-sec-head { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
-.df-sec-row { display: grid; grid-template-columns: 130px minmax(0, 560px) minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px 12px; }
+.df-sec-row { display: grid; grid-template-columns: 130px minmax(0, 620px); gap: 12px; align-items: start; padding: 8px 12px; }
+.df-sec-row > .df-sec-label { line-height: var(--ui-h); }
+.df-sec-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.df-unsaved { margin-inline-start: 8px; padding: 1px 6px; border-radius: 9px; background: var(--ui-running-bg); color: var(--ui-warning-text); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.df-intake-foot { display: flex; justify-content: flex-end; }
 .df-sec-label { font-weight: 600; }
 .df-way-line { display: grid; grid-template-columns: 170px minmax(0, 1fr) 40px; border-bottom: 1px solid var(--ui-divider); }
 .df-way-line:nth-of-type(even) { background: var(--ui-soft); }

@@ -115,7 +115,8 @@ describe("column tools on every table", () => {
   });
 
   it("dates: quick choices and From / To", async () => {
-    const now = new Date(), day = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n); d.setHours(10, 0, 0, 0); return d; };
+    // today's row at the current minute (not 10:00, which is still to come before ten in the morning: "Last 30 days" ends now)
+    const now = new Date(), day = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n); if (n) d.setHours(10, 0, 0, 0); else d.setSeconds(0, 0); return d; };
     const fmt = (d: Date) => d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     table(["Start time"], [[fmt(day(0))], [fmt(day(1))], [fmt(day(10))], [fmt(day(40))]]);
     stop = enableTableTools(document);

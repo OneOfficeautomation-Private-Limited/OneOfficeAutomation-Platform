@@ -65,7 +65,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   useEffect(() => { if (firstStage) setStage(firstStep(processId, firstStage)); }, [processId, firstStage]);
 
   const newProcess = <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-    onCreated={(id) => { setCreating(false); location.hash = dfHash() + "processes/" + id.split("/").map(encodeURIComponent).join("/") + "/intake"; }} />;
+    onCreated={(id) => { setCreating(false); location.hash = dfHash() + "processes/" + encodeURIComponent(id) + "/intake"; }} />;
   const choose = (id: string) => { location.hash = dfHash() + "processes/" + encodeURIComponent(id); };
   if (!processes || (processId && (!design || !saved))) return <Loading />;
   if (!design || !saved)
@@ -199,7 +199,8 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
               <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
               {stage === INTAKE && <>
                 <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} api={api} processId={design.id} processName={design.name}
-                  folder={design.folder} folders={folders} onFolder={(folder) => change({ folder })} />
+                  folder={design.folder} folders={folders} onFolder={(folder) => change({ folder })} saved={saved.settings} savedFolder={saved.folder}
+                  saveButton={dirty ? <Button kind="primary" disabled={busy} onClick={saveDraft}>{live ? "Save changes" : "Save draft"}</Button> : undefined} />
                 {/* Try it (27 Nov 2026, artboard "DA step 2"): the upload box and the last documents side by side */}
                 <section className="df-sec df-try" aria-label="Try it">
                   <div className="df-try-upload">

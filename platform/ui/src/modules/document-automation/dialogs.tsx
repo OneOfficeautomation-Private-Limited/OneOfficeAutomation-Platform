@@ -51,7 +51,7 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
   const create = async () => {
     const r = await api.createProcess({ name: name.trim(), docType, folder, upload: true, fromBot: false });
     setName("");
-    onCreated(r.id + "/intake");   // step 2 next: where it is kept and how documents come in
+    onCreated(r.id);   // the page opens step 2 next: where it is kept and how documents come in
   };
 
   return (

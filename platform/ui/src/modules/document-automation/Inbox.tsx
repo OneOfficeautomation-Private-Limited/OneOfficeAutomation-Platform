@@ -86,7 +86,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
         <a href={dfHash() + "process/" + INBOX_ID}>Add them in {processes.find((p) => p.id === INBOX_ID)!.name}</a>: it recognises each one and sends it to its process.</p>}
 
       <NewProcessDialog api={api} open={creating} onClose={() => setCreating(false)}
-        onCreated={(id) => { setCreating(false); reload(); location.hash = dfHash() + "processes/" + id.split("/").map(encodeURIComponent).join("/"); }} />
+        onCreated={(id) => { setCreating(false); reload(); location.hash = dfHash() + "processes/" + encodeURIComponent(id) + "/intake"; }} />
     </div>
   );
 }
