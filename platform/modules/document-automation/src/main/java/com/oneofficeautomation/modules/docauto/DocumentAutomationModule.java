@@ -79,13 +79,15 @@ public final class DocumentAutomationModule implements CommandCenterModule {
             if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting 'mcp_documents' must be from 0 to 1");
         });
 
+        // I-4: which Model connection each AI engine takes its key from (JSON: engine id to connection name)
+        ctx.defineSetting(EngineConnections.SETTING, "", (v, saas) -> EngineConnections.check(ctx, v));
         DocFlowProxy docflow = new DocFlowProxy(ctx);
         // Mail accounts (MA-2): a mail rule can send emails to a process; its readable attachments become documents there
         ctx.mailTarget("process", new ModuleContext.MailTarget() {
             public String check(com.oneofficeautomation.controlroom.ControlRoom.User u, String target) { return docflow.checkMailTarget(u, target); }
             public void deliver(ModuleContext.MailDelivery d) { docflow.deliverMail(d); }
         });
-        ctx.route("docflow", (ex, u, method, route, ip) -> docflow.forward(ex, u, method, route));
+        ctx.route("docflow", (ex, u, method, route, ip) -> docflow.forward(ex, u, method, route, ip));
         // Setup > Install and set up (26 Nov 2026): DocFlow's own step of the install guide, checked live
         ctx.setupStep(u -> {
             Map<String, Object> v = docflow.version();
@@ -109,6 +111,7 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         ctx.callbackRoute("docflow-callback/events", docflow::event);
         ctx.callbackRoute("docflow-callback/send-mail", docflow::sendMail);
         ctx.callbackRoute("docflow-callback/secret", docflow::deliverySecret);
+        ctx.callbackRoute("docflow-callback/credentials", docflow::credentials);
         int rs = ctx.intSetting("docflow_review_sync_seconds"), rm = ctx.intSetting("docflow_mail_poll_seconds");
         ctx.every(Duration.ofSeconds(10), Duration.ofSeconds(rs <= 0 ? 20 : Math.max(5, rs)), docflow::syncReviews);
         ctx.every(Duration.ofSeconds(15), Duration.ofSeconds(rm <= 0 ? 30 : Math.max(10, rm)), docflow::pollMail);

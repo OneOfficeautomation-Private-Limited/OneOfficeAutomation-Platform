@@ -91,7 +91,7 @@ Designs on the canvas first, then:
 Done when: a person who has never seen it can make a process from a template, try a sample, and review a document
 without typing any technical value (walk-through in the browser at full width), and all tests pass.
 
-## DA-2 One place for AI keys, every AI call audited — status: Not started
+## DA-2 One place for AI keys, every AI call audited — status: items 1-2 done (I-4, 28 Nov 2026); 3-4 open
 
 1. DocFlow asks the Command Center for an engine's credentials when it needs them: `POST
    /api/docflow-callback/credentials` (service token + tenant) with the engine id; the Command Center answers from

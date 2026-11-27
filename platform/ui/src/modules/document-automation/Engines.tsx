@@ -51,7 +51,7 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
       {current === "routing" && <RoutingSection routing={routing} cloudEngines={cloudEngines} engines={data.options.flatMap((o) => o.engines)} saved={saved} claude={data.claude}
         onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
-        onOption={(id) => { location.hash = dfHash() + "engines/catalog/" + id; }} />}
+        onOption={(id) => { location.hash = dfHash() + "engines/catalog/" + id; }} onChanged={reload} />}
       {current === "languages" && <LanguagesPanel api={api} />}
       {current === "cost" && <CostSection optIn={routing.cloudOptIn} claude={data.claude} prices={data.prices} />}
     </div>

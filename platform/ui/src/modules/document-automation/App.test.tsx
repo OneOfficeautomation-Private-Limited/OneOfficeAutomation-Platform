@@ -416,7 +416,7 @@ describe("Document Automation", () => {
   });
 
   it("names Claude's models where Claude is set up: Haiku reads the fields, Sonnet re-reads for review", async () => {
-    start(); await go("#/engines/routing");
+    const api = start(); await go("#/engines/routing");
     const note = await screen.findByLabelText("Claude models");
     expect(note.textContent).toContain("Claude Haiku 5.5 reads them; Claude Sonnet 5.5 re-reads a document that would otherwise go to review");
     await go("#/engines/catalog/onemind");
@@ -426,6 +426,19 @@ describe("Document Automation", () => {
     const dialog = await screen.findByRole("dialog", { name: "Configure Claude (Anthropic)" });
     expect((within(dialog).getByLabelText("Model") as HTMLSelectElement).value).toBe("claude-haiku-5-5");
     expect((within(dialog).getByLabelText("Escalation model") as HTMLSelectElement).value).toBe("claude-sonnet-5-5");
+    // I-4: the key may come from a Model connection: the key and model fields give way, the escalation model stays
+    const from = await within(dialog).findByLabelText("Where the key comes from") as HTMLSelectElement;
+    expect([...from.options].map((o) => o.value)).toEqual(["", "claude-prod"]);       // only anthropic connections fit Claude
+    expect(within(dialog).getByLabelText("Anthropic API key")).toBeTruthy();
+    fireEvent.change(from, { target: { value: "claude-prod" } });
+    expect(within(dialog).queryByLabelText("Anthropic API key")).toBeNull();
+    expect(within(dialog).queryByLabelText("Model")).toBeNull();
+    expect(within(dialog).getByLabelText("Escalation model")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Configure Claude (Anthropic)" })).toBeNull());
+    expect((await api.engineConnections()).choices).toEqual({ claude: "claude-prod" });
+    await go("#/engines/catalog/onemind");
+    expect(within(await screen.findByRole("article", { name: "Claude (Anthropic)" })).getByText(/Model connection: claude-prod/)).toBeTruthy();
     await go("#/engines/cost");
     const card = await screen.findByRole("region", { name: "Monthly cost estimate" });
     fireEvent.click(within(card).getByRole("button", { name: "Claude Haiku 5.5 (Claude default)" }));

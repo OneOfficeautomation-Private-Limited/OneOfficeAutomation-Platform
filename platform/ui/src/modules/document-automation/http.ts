@@ -2,7 +2,7 @@ import type { MailConditions, MailTry } from "../../api/cr";
 import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type EInvoice, type EmailInbox, type EngineConnections, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
@@ -537,14 +537,24 @@ export class HttpDocFlowApi implements DocFlowApi {
     await this.call("PUT", "/admin/settings", { values });
   }
 
+  // I-4: kept by One CommandCenter itself (/api/docflow/engine-connections), not by DocFlow
+  async engineConnections(): Promise<EngineConnections> {
+    return this.call<EngineConnections>("GET", "/engine-connections");
+  }
+
+  async saveEngineConnection(engine: string, connection: string): Promise<void> {
+    await this.call("PUT", "/engine-connections", { engine, connection });
+  }
+
   /** Whether this DocFlow has the recognise engine setting (3.4.0); read with the engines. */
   private knowsClassify = false;
 
   async engines(): Promise<{ routing: Routing; options: EngineOption[]; claude?: { model: string; escalationModel: string | null }; prices?: PriceList }> {
-    const [prov, costs, settings] = await Promise.all([
+    const [prov, costs, settings, conns] = await Promise.all([
       this.call<{ providers: DfProvider[] }>("GET", "/providers"), this.call<DfCosts>("GET", "/costs"),
       // routing details are for people who may change engines; everyone else still sees the opt-in from /costs
       this.call<{ defaults: DfSetting[] }>("GET", "/admin/settings").catch(() => null),
+      this.engineConnections().catch(() => null),
     ]);
     const v = (k: string, d: string) => settings?.defaults.find((s) => s.key === k)?.value ?? d;
     this.knowsClassify = !!settings?.defaults.some((s) => s.key === "DOCAUTO_DEFAULT_CLASSIFY");
@@ -565,7 +575,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       id: p.id, name: ENGINE_NAMES[p.id] ?? p.displayName, does: p.id === "claude" && costs.claudeModel ? claudeDoes : p.kind === "ocr" ? "Reads pages" : p.kind === "classify" ? SPLITS : "Reads fields",
       status: !p.available ? "setup" : !p.allowedByPolicy ? "optin" : "ready",
       runs: p.runsLocally ? "server" : "cloud", price: price(p.id, p.runsLocally), free: p.runsLocally,
-      key: p.runsLocally ? "—" : p.available ? "Set" : "Not set", ...(p.capabilities ? { can: p.capabilities } : {}),
+      key: conns?.choices[p.id] ? "Model connection: " + conns.choices[p.id] : p.runsLocally ? "—" : p.available ? "Set" : "Not set", ...(p.capabilities ? { can: p.capabilities } : {}),
     });
     // engines from an option pack the screens do not name (a new or own pack) are listed as Other engines, not dropped
     const others = prov.providers.filter((p) => !PACK_OPTION[p.optionPack]).map(engine);

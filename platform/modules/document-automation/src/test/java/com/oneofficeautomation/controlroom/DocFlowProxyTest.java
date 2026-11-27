@@ -399,6 +399,56 @@ class DocFlowProxyTest {
                 .POST(HttpRequest.BodyPublishers.ofString("{\"requestedBy\":\"admin\",\"ref\":\"docflow/service/token\"}")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
     }
 
+    /**
+     * I-4 (28 Nov 2026): an AI engine takes its key from a Model connection. The key exists only in the vault; DocFlow
+     * gets it at /api/docflow-callback/credentials, only for a connection chosen for that engine and fitting it.
+     */
+    @Test void aiEnginesTakeTheirKeysFromModelConnections() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        cr.createLocker(admin, "ai", "AI keys", "user:admin", null);
+        cr.setCredential(admin, "ai", "anthropic", "key", "sk-ant-vault-only", null);
+        cr.setCredential(admin, "ai", "aws", "key", "AKIA123:aws-secret", null);
+        cr.platform.saveModelConnection(admin, new HashMap<>(Map.of("name", "claude-prod", "provider", "anthropic", "model", "claude-haiku-5-5", "key_ref", "ai/anthropic/key")), null);
+        cr.platform.saveModelConnection(admin, new HashMap<>(Map.of("name", "bedrock-eu", "provider", "aws_bedrock", "model", "eu.anthropic.claude-test",
+                "base_url", "https://bedrock-runtime.eu-central-1.amazonaws.com", "key_ref", "ai/aws/key")), null);
+
+        // nothing chosen: DocFlow is told nothing, and uses a key typed on its Engines page
+        Map<?, ?> none = (Map<?, ?>) JsonLite.parse(callbackOf("credentials", "{\"engines\":[\"claude\",\"bedrock\"]}").body());
+        assertEquals(Map.of(), none.get("engines"));
+
+        // a connection that does not fit the engine is refused; one that fits is chosen, and DocFlow is told to reload
+        HttpResponse<String> wrong = call("PUT", "/api/docflow/engine-connections", "{\"engine\":\"claude\",\"connection\":\"bedrock-eu\"}");
+        assertEquals(400, wrong.statusCode(), wrong.body());
+        assertTrue(wrong.body().contains("takes anthropic"), wrong.body());
+        seen.clear();
+        assertEquals(200, call("PUT", "/api/docflow/engine-connections", "{\"engine\":\"claude\",\"connection\":\"claude-prod\"}").statusCode());
+        assertEquals(200, call("PUT", "/api/docflow/engine-connections", "{\"engine\":\"bedrock\",\"connection\":\"bedrock-eu\"}").statusCode());
+        assertNotNull(got("POST", "/api/docs/v1/admin/reload"));
+        Map<?, ?> listed = (Map<?, ?>) JsonLite.parse(call("GET", "/api/docflow/engine-connections", null).body());
+        assertEquals(Map.of("claude", "claude-prod", "bedrock", "bedrock-eu"), listed.get("choices"));
+        assertTrue(listed.get("connections").toString().contains("claude-prod"));
+
+        // DocFlow gets the keys from the vault: the Bedrock key split, its region from the connection's address
+        HttpResponse<String> r = callbackOf("credentials", "{\"engines\":[\"claude\",\"bedrock\",\"gemini\"]}");
+        assertEquals(200, r.statusCode(), r.body());
+        Map<?, ?> engines = (Map<?, ?>) ((Map<?, ?>) JsonLite.parse(r.body())).get("engines");
+        Map<?, ?> claude = (Map<?, ?>) engines.get("claude"), bedrock = (Map<?, ?>) engines.get("bedrock");
+        assertEquals("sk-ant-vault-only", claude.get("apiKey"));
+        assertEquals("claude-haiku-5-5", claude.get("model"));
+        assertEquals("AKIA123", bedrock.get("accessKeyId"));
+        assertEquals("aws-secret", bedrock.get("secretAccessKey"));
+        assertEquals("eu-central-1", bedrock.get("region"));
+        assertFalse(engines.containsKey("gemini"));
+        assertNotNull(cr.db.one("SELECT seq FROM audit WHERE action = 'vault.use' AND object_id = 'ai/anthropic/key'"));
+        assertEquals(401, HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/docflow-callback/credentials")).header("Authorization", "Bearer nope")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"engine\":\"claude\"}")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+
+        // cleared: back to the typed key
+        assertEquals(200, call("PUT", "/api/docflow/engine-connections", "{\"engine\":\"claude\",\"connection\":\"\"}").statusCode());
+        assertFalse(((Map<?, ?>) ((Map<?, ?>) JsonLite.parse(callbackOf("credentials", "{\"engine\":\"claude\"}").body())).get("engines")).containsKey("claude"));
+        assertEquals(200, call("PUT", "/api/docflow/engine-connections", "{\"engine\":\"bedrock\",\"connection\":\"\"}").statusCode());
+    }
+
     @Test void attachmentsAreReadFromARawMessage() {
         String raw = "From: a@example.com\r\nSubject: Invoices\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n"
                 + "--outer\r\nContent-Type: multipart/alternative; boundary=\"inner\"\r\n\r\n"

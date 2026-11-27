@@ -60,6 +60,15 @@ All are under DocFlow's `/api/docs/v1/`.
   checks that tell people; sent through Settings > Mail as the process's author) and `docflow-callback/secret` (a
   vault entry for a cloud storage delivery, only one its author may use). Both need DocFlow's service token and are
   audited (`docflow.mail`, `vault.use`). An older DocFlow simply never calls them; the minimum stays 3.1.0.
+- **AI engine keys from Model connections** (DocFlow 3.4.0, I-4): an administrator (`connections.manage`) chooses the
+  Model connection each AI engine takes its key from at `/api/docflow/engine-connections` (GET: choices,
+  connections that fit, providers per engine; PUT `{engine, connection}`, empty clears). Kept in setting
+  `docflow_engine_connections`; audited `docflow.engine_connection`; DocFlow is then told `POST admin/reload`.
+  DocFlow asks `docflow-callback/credentials` (`{"engines": [...]}`, service token) when it loads its engines and
+  gets each chosen, fitting connection's provider, model, address and key (`vault.use` audited); it keeps them in
+  memory only. Engines and providers: claude-anthropic, gemini-google_vertex (an API key), bedrock-aws_bedrock
+  (`ACCESS_KEY_ID:SECRET`, region from the address), azure-openai-azure_openai, llm-cloud-openai or
+  openai_compatible, llm-local-openai_compatible. An engine with no connection keeps its typed key.
   - Engines and settings: `providers`, `costs`, `usage`, `admin/settings`, `admin/providers/{id}/test`
 - **Also allowed by the proxy**: `documents/{id}/page/{n}.png`, `documents/{id}/file` and any other `df/...` route.
 - **Never forwarded**: DocFlow's self-update (`admin/update`, `admin/installer.bat`).

@@ -28,8 +28,8 @@ type Tested = Record<string, { ok: boolean; message: string } | "running">;
  * OneMind labels. Choosing one opens it across the page: what it is, whether it is ready, and each engine as a card with
  * its state, where it reads, its cost and key, and Test / Configure.
  */
-export function EngineCatalog({ api, options, optionId, optIn, onOption }:
-  { api: DocFlowApi; options: EngineOption[]; optionId: EngineOption["id"]; optIn: boolean; onOption: (id: EngineOption["id"]) => void }) {
+export function EngineCatalog({ api, options, optionId, optIn, onOption, onChanged }:
+  { api: DocFlowApi; options: EngineOption[]; optionId: EngineOption["id"]; optIn: boolean; onOption: (id: EngineOption["id"]) => void; onChanged?: () => void }) {
   const option = options.find((o) => o.id === optionId) ?? options[0];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
@@ -46,12 +46,12 @@ export function EngineCatalog({ api, options, optionId, optIn, onOption }:
           );
         })}
       </div>
-      <OptionDetail key={option.id} api={api} option={option} optIn={optIn} />
+      <OptionDetail key={option.id} api={api} option={option} optIn={optIn} onChanged={onChanged} />
     </div>
   );
 }
 
-function OptionDetail({ api, option, optIn }: { api: DocFlowApi; option: EngineOption; optIn: boolean }) {
+function OptionDetail({ api, option, optIn, onChanged }: { api: DocFlowApi; option: EngineOption; optIn: boolean; onChanged?: () => void }) {
   const [tested, setTested] = useState<Tested>({});
   const [configuring, setConfiguring] = useState<Engine | null>(null);
   const [q, setQ] = useState("");
@@ -88,7 +88,7 @@ function OptionDetail({ api, option, optIn }: { api: DocFlowApi; option: EngineO
         {rows.map((e) => <EngineCard key={e.id} engine={e} tested={tested[e.id]} onTest={() => test(e.id)} onConfigure={() => setConfiguring(e)} />)}
         {!rows.length && <div className="df-empty" style={{ gridColumn: "1 / -1" }}>No engine matches these filters.</div>}
       </div>
-      {configuring && <EngineSettings key={configuring.id} api={api} engine={configuring} onClose={() => setConfiguring(null)} />}
+      {configuring && <EngineSettings key={configuring.id} api={api} engine={configuring} onClose={() => setConfiguring(null)} onSaved={onChanged} />}
     </section>
   );
 }

@@ -78,6 +78,7 @@ public final class DocFlowProxy {
         // and over HTTP/1.1: DocFlow (uvicorn) does not take the HTTP/2 upgrade and logged a warning for every request
         this.http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
         this.microsoft = ctx.microsoftSignIn();
+        this.engineConnections = new EngineConnections(ctx);
     }
 
     /** The permission a request needs. */
@@ -102,7 +103,21 @@ public final class DocFlowProxy {
         });
     }
 
-    public void forward(HttpExchange ex, User u, String method, String route) throws IOException {
+    /** I-4: the Model connection each AI engine takes its key from (EngineConnections). */
+    final EngineConnections engineConnections;
+
+    public void forward(HttpExchange ex, User u, String method, String route) throws IOException { forward(ex, u, method, route, null); }
+
+    public void forward(HttpExchange ex, User u, String method, String route, String ip) throws IOException {
+        if (route.equals("engine-connections")) {
+            if (method.equals("GET")) ctx.sendJson(ex, 200, engineConnections.list(u));
+            else if (method.equals("PUT")) {
+                engineConnections.save(u, ctx.jsonBody(ex), ip);
+                reloadEngines();
+                ctx.sendJson(ex, 200, engineConnections.list(u));
+            } else throw new OoaException("CR.NOT_FOUND", "Not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
+            return;
+        }
         if (route.equals("mail-status") && method.equals("GET")) {
             ctx.require(u, "docs.view", "see Document Automation");
             ctx.sendJson(ex, 200, Map.of("inboxes", ctx.db().query("SELECT process_id, last_check, last_error, documents FROM docflow_mail ORDER BY process_id")));
@@ -1105,6 +1120,25 @@ public final class DocFlowProxy {
      * A call back from DocFlow (Start a bot, document events): it must carry the service token and be for this tenant
      * (X-OOA-Tenant, URL-encoded as the Command Center sends it).
      */
+    /** DocFlow asks for its AI engines' keys from Model connections (I-4): POST /api/docflow-callback/credentials. */
+    Map<String, Object> credentials(HttpExchange ex, String ip) throws IOException {
+        fromDocFlow(ex);
+        return engineConnections.credentials(ctx.jsonBody(ex), ip);
+    }
+
+    /**
+     * DocFlow loads its engines again, so a connection chosen or cleared is used at once (POST admin/reload, DocFlow
+     * 3.4.0). An older DocFlow, or one that is not running, picks it up when it next starts.
+     */
+    void reloadEngines() {
+        try {
+            HttpResponse<byte[]> r = send("POST", "admin/reload", null, "{}".getBytes(StandardCharsets.UTF_8), Map.of("Content-Type", "application/json"), "One CommandCenter");
+            if (r.statusCode() >= 300) System.getLogger("docflow").log(System.Logger.Level.INFO, "DocFlow did not reload its engines: HTTP " + r.statusCode());
+        } catch (RuntimeException e) {
+            System.getLogger("docflow").log(System.Logger.Level.INFO, "DocFlow did not reload its engines: " + e.getMessage());
+        }
+    }
+
     private void fromDocFlow(HttpExchange ex) {
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         String token = token();

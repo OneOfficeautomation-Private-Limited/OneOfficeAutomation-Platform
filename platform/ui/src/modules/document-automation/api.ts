@@ -91,6 +91,8 @@ export interface Engine { id: string; name: string; does: string; status: Engine
   can?: string[] }
 export interface EngineOption { id: "onecore" | "oneconnect" | "onemind" | "other"; name: string; description: string; color: string; engines: Engine[] }
 /** One setting of an engine (its address, key, model…), as DocFlow's settings describe it. Secrets come back masked. */
+/** I-4: the Model connection each AI engine takes its key from (choices), the connections that may be chosen, and the providers each engine takes. */
+export interface EngineConnections { choices: Record<string, string>; connections: { name: string; provider: string; model?: string | null }[]; fits: Record<string, string[]> }
 export interface EngineField { key: string; label: string; type: string; value: string; help?: string; options?: string[]; suggestions?: string[]; placeholder?: string }
 /** ocr / extraction: the engines that read every page and the fields by default (DocFlow's defaults; a process may choose its own). */
 export interface Routing { cloudOptIn: boolean; retryBelow: number; localRetry: string; cloudEngine: string; ocr?: string; extraction?: string;
@@ -435,6 +437,10 @@ export interface DocFlowApi {
   engineSettings(id: string): Promise<EngineField[]>;
   /** Server-wide engine settings (keys, addresses); only for the server's administrators. */
   saveEngineSettings(values: Record<string, string>): Promise<void>;
+  /** I-4: which Model connection each AI engine takes its key from, and the connections that fit. */
+  engineConnections(): Promise<EngineConnections>;
+  /** I-4: chooses (an empty name: clears) an engine's Model connection; DocFlow then loads its engines again. */
+  saveEngineConnection(engine: string, connection: string): Promise<void>;
   processDesign(id: string): Promise<ProcessDesign>;
   /** Saves stages, checks and deliveries; DocFlow counts a new version when anything changed. */
   saveProcess(d: ProcessDesign): Promise<ProcessDesign>;
@@ -879,9 +885,21 @@ export class SampleApi implements DocFlowApi {
   async saveEngineSettings(values: Record<string, string>) {
     if (values.CLAUDE_MODEL) this.claude = { model: values.CLAUDE_MODEL, escalationModel: values.CLAUDE_ESCALATION_MODEL === "none" ? null : values.CLAUDE_ESCALATION_MODEL ?? this.claude.escalationModel };
   }
+  private connectionsData: EngineConnections = {
+    choices: {},
+    connections: [{ name: "claude-prod", provider: "anthropic", model: "claude-haiku-5-5" }, { name: "openai-prod", provider: "openai", model: "gpt-4.1" }],
+    fits: { claude: ["anthropic"], gemini: ["google_vertex"], bedrock: ["aws_bedrock"], "azure-openai": ["azure_openai"], "llm-cloud": ["openai", "openai_compatible"], "llm-local": ["openai_compatible"] },
+  };
+  async engineConnections() { return copy(this.connectionsData); }
+  async saveEngineConnection(engine: string, connection: string) {
+    const choices = { ...this.connectionsData.choices };
+    if (connection) choices[engine] = connection; else delete choices[engine];
+    this.connectionsData = { ...this.connectionsData, choices };
+  }
   async engines() {
     const options = copy(ENGINES);
     if (this.routing.cloudOptIn) options.forEach((o) => o.engines.forEach((e) => { if (e.status === "optin") e.status = "setup"; }));
+    options.forEach((o) => o.engines.forEach((e) => { const c = this.connectionsData.choices[e.id]; if (c) e.key = "Model connection: " + c; }));
     return { routing: { ...this.routing }, options, claude: { ...this.claude } };
   }
   async saveRouting(r: Routing) { this.routing = { ...r }; }
