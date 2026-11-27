@@ -279,6 +279,37 @@ Document Automation makes no country the default. Country rules are choices, and
 - Review stays in One CommandCenter's Task inbox: it does not depend on a cloud review service (Amazon A2I stopped
   taking new customers in July 2026).
 
+## 8c. Engines for every cloud and AI model (DocFlow 3.4, November 2026)
+
+DocFlow 3.4 makes Document Automation a simple integrator: each job can be done by an engine on this server, a cloud
+document service or an AI model, chosen on **Engines › Overview › Who does each job**.
+
+**Recognise and split** (which type each document is; batch scans cut into documents). Choose one:
+
+| Choice | What it uses | What you set up |
+| --- | --- | --- |
+| Words on the page (default) | Each type's recognition words, on this server, offline | Nothing |
+| An AI model (Claude, Google Gemini, Amazon Bedrock, Azure OpenAI, any OpenAI-compatible or self-hosted model) | Each type's **name and description** (Document types: the description says what the document is) | The model's key |
+| Azure Content Understanding | The types' names and descriptions, no training; the whole file is sent | Endpoint, key, a completion model |
+| Google Document AI splitter or classifier | Kinds of document set up in Google, **named as your types** | Project, location, processor, service-account file |
+| Amazon Bedrock Data Automation | A project with one blueprint per type, **named as the type**; the file is sent directly (no S3) | Region, project ARN |
+
+When the chosen engine cannot run or fails, the document is recognised by the words on the page and a note on it
+says so. A part a cloud service leaves out becomes a document with no type, so no page is lost.
+
+**Read the fields** can now also use **Google Gemini** (AI Studio or Vertex AI), **Amazon Bedrock** (Claude, Nova and
+other models in your AWS account) and **Azure OpenAI** (a model deployed in your Azure resource), beside Claude and
+any OpenAI-compatible or self-hosted model. They read with the same instructions and the same check that every value
+is on the page.
+
+**Keys once, in Model connections.** On **Engines**, open an AI engine and **Configure**: *Where the key comes from*
+is **Typed here** or **Model connection: ‹name›** (only connections whose provider fits: Claude takes anthropic,
+Gemini google_vertex with an API key, Bedrock aws_bedrock with the key stored as `ACCESS_KEY_ID:SECRET`, Azure
+OpenAI azure_openai with the endpoint as address and the deployment as model, the cloud AI API openai or
+openai_compatible). Choosing needs **connections.manage**. DocFlow then asks One CommandCenter for the key when it
+loads its engines (each hand-out is audited as a vault use) and keeps it in memory only. After changing the key in the
+vault, save the engine's dialog again (or restart DocFlow) so it is read again.
+
 ## 9. Troubleshooting
 
 | You see | Do |

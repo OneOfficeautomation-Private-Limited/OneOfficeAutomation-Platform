@@ -15,7 +15,7 @@
   The result is large (about 0.5 to 1 GB with PaddleOCR).
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Ref v3.3.1 -Out D:\releases
+  powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Ref v3.4.0 -Out D:\releases
   powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Source C:\OOA\oneoffice-docauto -NoPaddle
 #>
 param(
