@@ -443,7 +443,9 @@ describe("Document Automation", () => {
     fireEvent.change(within(jobs).getByLabelText("Read the fields"), { target: { value: "claude" } });
     // I-1: recognising types is a job of its own: the words on the page, or an AI engine that recognises from descriptions
     const recognise = within(jobs).getByLabelText("Recognise and split") as HTMLSelectElement;
-    expect([...recognise.options].map((o) => o.value)).toEqual(["", "claude", "gemini", "bedrock", "azure-openai", "llm-cloud", "llm-local"]);
+    expect([...recognise.options].map((o) => o.value)).toEqual(["", "azure-content-understanding", "google-docai-split", "aws-bda", "claude", "gemini", "bedrock", "azure-openai", "llm-cloud", "llm-local"]);
+    // I-3: the cloud recognise-and-split services only recognise: they are not offered to read pages or fields
+    for (const job of ["Read the page", "Read the fields"]) expect([...(within(jobs).getByLabelText(job) as HTMLSelectElement).options].map((o) => o.value)).not.toContain("aws-bda");
     fireEvent.change(recognise, { target: { value: "claude" } });
     fireEvent.click(within(jobs).getByRole("button", { name: "Save" }));
     await waitFor(async () => expect((await api.engines()).routing).toMatchObject({ extraction: "claude", classify: "claude" }));

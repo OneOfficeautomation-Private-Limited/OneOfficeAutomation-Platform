@@ -566,6 +566,9 @@ const ENGINES: EngineOption[] = [
     { id: "azure-di", name: "Azure Document Intelligence", does: "Read, layout, prebuilt invoice", status: "optin", runs: "cloud", price: "$1.50 · $10 prebuilt", free: false, key: "Vault: not set" },
     { id: "google-docai", name: "Google Document AI", does: "OCR, form parser", status: "optin", runs: "cloud", price: "$1.50", free: false, key: "Vault: not set" },
     { id: "aws-textract", name: "AWS Textract", does: "Text, tables, expenses", status: "optin", runs: "cloud", price: "$1.50 · $10 expenses", free: false, key: "Vault: not set" },
+    { id: "azure-content-understanding", can: ["classify", "split"], name: "Azure Content Understanding", does: "Recognises and splits whole files", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Vault: not set" },
+    { id: "google-docai-split", can: ["classify", "split"], name: "Google Document AI splitter", does: "Recognises and splits whole files", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Vault: not set" },
+    { id: "aws-bda", can: ["classify", "split"], name: "Amazon Bedrock Data Automation", does: "Recognises and splits whole files", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Vault: not set" },
     { id: "abbyy", name: "ABBYY", does: "Depends on your ABBYY product", status: "setup", runs: "cloud", price: "Contract", free: false, key: "—" }] },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e", engines: [
     { id: "claude", can: ["extract_schema", "classify"], name: "Claude (Anthropic)", does: "Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review", status: "optin", runs: "cloud", price: "$0.8", free: false, key: "Model connection: not set" },

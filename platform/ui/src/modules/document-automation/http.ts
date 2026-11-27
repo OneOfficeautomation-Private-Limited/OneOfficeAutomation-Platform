@@ -105,7 +105,11 @@ const ENGINE_NAMES: Record<string, string> = {
   tesseract: "Tesseract", paddleocr: "PaddleOCR", "pdf-text": "PDF text layer", "builtin-rules": "Rules extractor", "azure-di": "Azure Document Intelligence",
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
   gemini: "Google Gemini", bedrock: "Amazon Bedrock", "azure-openai": "Azure OpenAI",
+  "azure-content-understanding": "Azure Content Understanding", "google-docai-split": "Google Document AI splitter",
+  "aws-bda": "Amazon Bedrock Data Automation",
 };
+/** What a cloud recognise-and-split service does (DocFlow 3.4.0, kind "classify"). */
+const SPLITS = "Recognises and splits whole files";
 const OPTIONS: Omit<EngineOption, "engines">[] = [
   { id: "onecore", name: "OneCore", description: "Free engines that read pages here; nothing leaves this server", color: "#2f6fde" },
   { id: "oneconnect", name: "OneConnect", description: "Paid cloud services read weak pages again", color: "#8b6ae8" },
@@ -558,7 +562,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     const escalation = costs.claudeEscalationModel ?? null;
     const claudeDoes = `${modelName(costs.claudeModel)} reads the fields` + (escalation ? `; ${modelName(escalation)} re-reads documents that would go to review` : "");
     const engine = (p: DfProvider): Engine => ({
-      id: p.id, name: ENGINE_NAMES[p.id] ?? p.displayName, does: p.id === "claude" && costs.claudeModel ? claudeDoes : p.kind === "ocr" ? "Reads pages" : "Reads fields",
+      id: p.id, name: ENGINE_NAMES[p.id] ?? p.displayName, does: p.id === "claude" && costs.claudeModel ? claudeDoes : p.kind === "ocr" ? "Reads pages" : p.kind === "classify" ? SPLITS : "Reads fields",
       status: !p.available ? "setup" : !p.allowedByPolicy ? "optin" : "ready",
       runs: p.runsLocally ? "server" : "cloud", price: price(p.id, p.runsLocally), free: p.runsLocally,
       key: p.runsLocally ? "—" : p.available ? "Set" : "Not set", ...(p.capabilities ? { can: p.capabilities } : {}),

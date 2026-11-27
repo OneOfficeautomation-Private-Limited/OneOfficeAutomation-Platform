@@ -25,7 +25,8 @@ export function EnginesOverview({ routing, options, dirty, onChange, onSave }:
   const all = options.flatMap((o) => o.engines);
   const byId = (id: string) => all.find((e) => e.id === id);
   const label = (e: Engine) => e.name + (e.runs === "cloud" && !routing.cloudOptIn ? " (cloud opt-in is off)" : e.status === "setup" ? " (needs setting up)" : "");
-  const pageReaders = all.filter((e) => !NOT_A_READER.has(e.id));
+  // cloud recognise-and-split services (they can "split") only recognise; they do not read pages or fields
+  const pageReaders = all.filter((e) => !NOT_A_READER.has(e.id) && !e.can?.includes("split"));
   const fieldReaders = FIELD_READERS.map(byId).filter((e): e is Engine => !!e);
   const ocr = routing.ocr || "tesseract", fields = routing.extraction || "builtin-rules";
   const retry = routing.localRetry.split(",").map((x) => x.trim()).filter(Boolean)[0];
