@@ -4,7 +4,7 @@ import { AHEAD, BACK, RANGE_NAMES, firstWeekday, isoDay, localTime, monthWeeks, 
 
 /**
  * The one date filter of every page that filters by time (tables and filters, item 2b, 27 Nov 2026). The button shows
- * the choice and its days ("Last 7 days Â· 21 Nov â€“ 27 Nov â–¾"); its panel has the quick choices on the left and a month
+ * the choice and its days ("Last 7 days · 21 Nov – 27 Nov ▾"); its panel has the quick choices on the left and a month
  * calendar with From and To (times optional) on the right, then Cancel and Apply. Looking back, days still to come are
  * dimmed; looking ahead (upcoming runs), days gone are. Keys: arrows move on the calendar, Enter picks the day, Esc closes.
  */
@@ -19,7 +19,7 @@ export function DateRange({ value, onChange, choices, ahead = false, label = "Da
       <button ref={button} type="button" className={"ui-fbtn" + (value.key !== "any" ? " is-set" : "")} aria-haspopup="dialog" aria-expanded={open}
         aria-label={label + ": " + text} title={label + ": " + text} onClick={() => setOpen(!open)}>
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-        <span className="ui-fbtn-text">{text}</span><span className="ui-fbtn-caret" aria-hidden="true">â–¾</span>
+        <span className="ui-fbtn-text">{text}</span><span className="ui-fbtn-caret" aria-hidden="true">▾</span>
       </button>
       {open && <FilterPopover anchor={button} label={label} onClose={() => setOpen(false)} className="ui-dr-pop">
         <RangePanel value={value} choices={choices ?? (ahead ? AHEAD : BACK)} ahead={ahead} now={now}
@@ -106,9 +106,9 @@ export function RangePanel({ value, choices, ahead, now, onApply, onCancel }: { 
       </div>
       <div className="ui-dr-side">
         <div className="ui-dr-month">
-          <button type="button" className="ui-dr-nav" aria-label="Previous month" onClick={() => setMonth(month.m ? { y: month.y, m: month.m - 1 } : { y: month.y - 1, m: 11 })}>â€¹</button>
+          <button type="button" className="ui-dr-nav" aria-label="Previous month" onClick={() => setMonth(month.m ? { y: month.y, m: month.m - 1 } : { y: month.y - 1, m: 11 })}>‹</button>
           <strong aria-live="polite">{monthName}</strong>
-          <button type="button" className="ui-dr-nav" aria-label="Next month" onClick={() => setMonth(month.m === 11 ? { y: month.y + 1, m: 0 } : { y: month.y, m: month.m + 1 })}>â€º</button>
+          <button type="button" className="ui-dr-nav" aria-label="Next month" onClick={() => setMonth(month.m === 11 ? { y: month.y + 1, m: 0 } : { y: month.y, m: month.m + 1 })}>›</button>
         </div>
         <table ref={grid} className="ui-dr-cal cc-bare" role="grid" aria-label={monthName} onKeyDown={onGridKey}>
           <thead><tr>{weekdays.map((w) => <th key={w} scope="col" abbr={w}>{w.slice(0, 2)}</th>)}</tr></thead>
