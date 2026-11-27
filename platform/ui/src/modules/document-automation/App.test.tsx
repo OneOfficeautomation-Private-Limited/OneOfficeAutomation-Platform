@@ -432,8 +432,19 @@ describe("Document Automation", () => {
     expect(within(card).getByText(/read again by Claude Sonnet 5.5/)).toBeTruthy();
   });
 
-  it("shows Engines in sections: routing first, then engines by option, each option across the page", async () => {
-    start(); await go("#/engines");
+  it("shows Engines in sections: the overview first, then routing and engines by option, each option across the page", async () => {
+    const api = start(); await go("#/engines");
+    // DA-14 (28 Nov 2026): who does each job, then the engines in three groups
+    const jobs = await screen.findByRole("region", { name: "Who does each job" });
+    expect(within(jobs).getByText("Recognise and split")).toBeTruthy();
+    for (const g of ["On this server", "Cloud document services", "AI models"]) expect(screen.getByRole("region", { name: g })).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "AI models" })).getByText(/OpenAI, Azure OpenAI, Google Gemini/)).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "AI models" })).getByRole("link", { name: "Test or configure ↗" }).getAttribute("href")).toBe("#/engines/catalog/onemind");
+    fireEvent.change(within(jobs).getByLabelText("Read the fields"), { target: { value: "claude" } });
+    expect(within(jobs).getByText(/Claude \(Anthropic\), from each type's description/)).toBeTruthy();   // AI recognises from descriptions
+    fireEvent.click(within(jobs).getByRole("button", { name: "Save" }));
+    await waitFor(async () => expect((await api.engines()).routing.extraction).toBe("claude"));
+    await go("#/engines/routing");
     expect(await screen.findByRole("region", { name: "How a page is routed" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Monthly cost estimate" })).toBeNull();      // cost is a section of its own
     await go("#/engines/catalog");

@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import type { DocFlowApi, EngineOption, Routing } from "./api";
 import { CostSection } from "./engines/CostSection";
 import { EngineCatalog } from "./engines/EngineCatalog";
+import { EnginesOverview } from "./engines/EnginesOverview";
 import { OptInSwitch } from "./engines/OptInSwitch";
 import { RoutingSection } from "./engines/RoutingSection";
 import { LanguagesPanel } from "./languages";
 import { Loading, reportError, useLoad, dfHash } from "./ui";
 
 export const ENGINE_SECTIONS = [
-  { id: "routing", label: "How pages are routed" }, { id: "catalog", label: "Engines" }, { id: "languages", label: "Languages" }, { id: "cost", label: "Monthly cost" },
+  { id: "overview", label: "Overview" }, { id: "routing", label: "How pages are routed" }, { id: "catalog", label: "Engines" }, { id: "languages", label: "Languages" }, { id: "cost", label: "Monthly cost" },
 ] as const;
 type SectionId = typeof ENGINE_SECTIONS[number]["id"];
 const OPTION_IDS: EngineOption["id"][] = ["onecore", "oneconnect", "onemind"];
@@ -25,7 +26,7 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
   useEffect(() => { if (data) setRouting(data.routing); }, [data]);
   if (!data || !routing) return <Loading />;
 
-  const current: SectionId = ENGINE_SECTIONS.some((s) => s.id === section) ? section as SectionId : "routing";
+  const current: SectionId = ENGINE_SECTIONS.some((s) => s.id === section) ? section as SectionId : "overview";
   const optionId = OPTION_IDS.includes(option as EngineOption["id"]) ? option as EngineOption["id"] : "onecore";
   const save = async (r: Routing) => {
     try { await api.saveRouting(r); setSaved(true); onOptIn?.(r.cloudOptIn); reload(); } catch (e) { reportError(e); }
@@ -45,6 +46,8 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
           <a key={s.id} href={dfHash() + "engines/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>
         ))}
       </nav>
+      {current === "overview" && <EnginesOverview routing={routing} options={data.options} dirty={JSON.stringify(routing) !== JSON.stringify(data.routing)}
+        onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "routing" && <RoutingSection routing={routing} cloudEngines={cloudEngines} engines={data.options.flatMap((o) => o.engines)} saved={saved} claude={data.claude}
         onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
