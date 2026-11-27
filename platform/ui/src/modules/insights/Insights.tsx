@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi, CrUser } from "../../api/cr";
 import type { AuditFigures } from "./consoleApi";
-import { Button, HelpButton, Select, usePersistent, type HelpTopic, PageError } from "../../components";
+import { Button, ChoiceFilter, DateRange, HelpButton, choiceParam, choiceText, choicesOf, rangeParams, rangeShort, usePersistent, type DateRangeValue, type HelpTopic, PageError } from "../../components";
 import { AREAS, wordsOf } from "../../console/Audit";
 import { BusinessAgents } from "./BusinessAgents";
 import { Capacity } from "./Capacity";
@@ -68,7 +68,6 @@ export function BusinessPage({ api, user, onNotice }: { api: CrApi; user: CrUser
   return <section className="st-page cc-list"><header className="cc-list-head"><h1>Business</h1></header><p className="cc-none cc-pad">You may not see business figures.</p></section>;
 }
 
-const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]];
 const RESULTS: [string, string][] = [["ok", "Done"], ["failed", "Failed"], ["denied", "Denied"]];
 const HELP_AUDIT: HelpTopic = { title: "Audit", about: "Who did what over a period, from the Audit Trail: what kind of activity, by whom, with what result, "
   + "and on which days; and the latest actions that failed or were denied. You need the Audit Trail's permission.",
@@ -98,18 +97,18 @@ function CountBars({ items, label, onPick, tone }: { items: { key: string; label
 
 /** Operations > Audit: AA's Audit dashboard over our Audit Trail. */
 function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs: ReactNode }) {
-  const [days, setDays] = usePersistent("insights.audit.days", "30");
+  const [range, setRange] = usePersistent<DateRangeValue>("insights.audit.range", { key: "30d" });
   const [f, setF] = useState<Record<string, string>>({});
   const [a, setA] = useState<AuditFigures | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => api.auditFigures({ days, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)) })
-    .then((r) => { setA(r); setError(null); }, (e) => setError(message(e))), [api, days, f]);
+  const load = useCallback(() => api.auditFigures({ ...rangeParams(range), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v).map(([k, v]) => [k, choiceParam(v)])) })
+    .then((r) => { setA(r); setError(null); }, (e) => setError(message(e))), [api, range, f]);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
-  const label = PERIODS.find(([v]) => v === days)?.[1].toLowerCase() ?? "";
+  const label = rangeShort(range);
   /** The Audit Trail with the same filters (and a record's own object, when given). */
-  const trail = (extra: Record<string, string> = {}) => "#/audit?" + new URLSearchParams({ range: ["1", "7", "30"].includes(days) ? days : "all",
-    ...(f.actor ? { actor: f.actor } : {}), ...(f.kind ? { area: f.kind + "." } : {}), ...(f.result ? { result: f.result } : {}), ...extra }).toString();
+  const trail = (extra: Record<string, string> = {}) => "#/audit?" + new URLSearchParams({ range: range.key, ...(range.from ? { from: range.from } : {}), ...(range.to ? { to: range.to } : {}),
+    ...(f.actor ? { actor: f.actor } : {}), ...(f.kind ? { area: choiceText(choicesOf(f.kind).map((k) => k + ".")) } : {}), ...(f.result ? { result: f.result } : {}), ...extra }).toString();
   const count = (r: string) => a?.by_result.find((x) => x.result === r)?.entries ?? 0;
   const actorsShown = a ? a.by_actor.slice(0, 7) : [];
   const days14 = a ? a.by_day.slice(-14).reverse() : [];
@@ -125,13 +124,12 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
-          <Select aria-label="Who" value={f.actor ?? ""} onChange={(e) => setF({ ...f, actor: e.target.value })}
-            options={[{ value: "", label: "Everyone" }, ...[...new Set([...(f.actor ? [f.actor] : []), ...(a?.by_actor ?? []).map((x) => x.actor)])].map((x) => ({ value: x, label: whoName(x) }))]} />
-          <Select aria-label="Activity" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
-            options={[{ value: "", label: "Any activity" }, ...[...new Set([...(f.kind ? [f.kind] : []), ...(a?.by_kind ?? []).map((x) => x.kind)])].map((x) => ({ value: x, label: kindName(x) }))]} />
-          <Select aria-label="Result" value={f.result ?? ""} onChange={(e) => setF({ ...f, result: e.target.value })}
-            options={[{ value: "", label: "Any result" }, ...RESULTS.map(([v, l]) => ({ value: v, label: l }))]} />
+          <DateRange label="Period" value={range} onChange={setRange} choices={["24h", "today", "yesterday", "7d", "30d", "90d", "365d", "month", "last-month", "custom"]} />
+          <ChoiceFilter label="Who" any="Everyone" value={choicesOf(f.actor)} onChange={(v) => setF({ ...f, actor: choiceText(v) })}
+            options={[...new Set([...choicesOf(f.actor), ...(a?.by_actor ?? []).map((x) => x.actor)])].map((x) => ({ value: x, label: whoName(x) }))} />
+          <ChoiceFilter label="Activity" value={choicesOf(f.kind)} onChange={(v) => setF({ ...f, kind: choiceText(v) })}
+            options={[...new Set([...choicesOf(f.kind), ...(a?.by_kind ?? []).map((x) => x.kind)])].map((x) => ({ value: x, label: kindName(x) }))} />
+          <ChoiceFilter label="Result" value={choicesOf(f.result)} onChange={(v) => setF({ ...f, result: choiceText(v) })} options={RESULTS.map(([value, label]) => ({ value, label }))} />
           {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>

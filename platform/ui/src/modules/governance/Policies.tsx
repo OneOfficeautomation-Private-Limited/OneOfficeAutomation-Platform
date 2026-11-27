@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CodePolicy, CrApi, CrUser, ModelConnection, RepoFolder } from "../../api/cr";
 import type { Policy } from "./consoleApi";
-import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
+import { Button, ChoiceFilter, DateRange, HelpButton, Menu, Select, choiceText, choicesOf, choiceHas, TextArea, TextInput, rangeParams, type DateRangeValue, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "../../console/ListParts";
 import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/RepoTools";
 import { PageIntro } from "../../shell/PageIntro";
@@ -77,7 +77,7 @@ export function Policies({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const load = useCallback(() => { api.policies().then((l) => { setList(l); setError(null); }, (e) => setError(message(e))); }, [api]);
   useEffect(() => { load(); }, [load]);
   const text = q.trim().toLowerCase();
-  const shown = (list ?? []).filter((p) => (!kind || p.kind === kind) && (!text || (p.name + " " + p.folders.join(" ")).toLowerCase().includes(text)));
+  const shown = (list ?? []).filter((p) => choiceHas(kind, p.kind) && (!text || (p.name + " " + p.folders.join(" ")).toLowerCase().includes(text)));
   const remove = async (p: Policy) => {
     setAsking(null);
     try { await api.deletePolicy(p.id); onNotice("Deleted the policy " + p.name + "."); load(); } catch (e) { setError(message(e)); }
@@ -102,8 +102,7 @@ export function Policies({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search policies" placeholder="Search policies" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-          <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)}
-            options={[{ value: "", label: "Kind: Any" }, ...Object.entries(KINDS).map(([value, l]) => ({ value, label: "Kind: " + l }))]} /></span>
+          <ChoiceFilter label="Kind" value={choicesOf(kind)} onChange={(v) => setKind(choiceText(v))} options={Object.entries(KINDS).map(([value, label]) => ({ value, label }))} />
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="Policies list tools">
           <Button kind="plain" onClick={() => codeReportCsv(api).catch((e) => setError(message(e)))}>Report (CSV)</Button>
@@ -245,15 +244,14 @@ function PolicyPage({ api, policy, kind, edit, taken, onClose, onSaved, onDelete
 
 /** An AI guardrails policy's What it stopped: the steps it stopped and the personal data it masked, over a period. */
 function Stopped({ api, policy }: { api: CrApi; policy: Policy }) {
-  const [days, setDays] = useState("30");
+  const [range, setRange] = useState<DateRangeValue>({ key: "30d" });
   const [s, setS] = useState<Awaited<ReturnType<CrApi["policyStopped"]>> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { setS(null); api.policyStopped(policy.id, days).then((r) => { setS(r); setError(null); }, (e) => setError(message(e))); }, [api, policy.id, days]);
+  useEffect(() => { setS(null); api.policyStopped(policy.id, rangeParams(range)).then((r) => { setS(r); setError(null); }, (e) => setError(message(e))); }, [api, policy.id, range]);
   const masked = s ? Object.entries(s.masked).sort((a, b) => b[1] - a[1]) : [];
   return <div className="cc-agent-tab">
     <div className="cc-list-filters" role="group" aria-label="Period">
-      <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)}
-        options={[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([value, label]) => ({ value, label }))} /></span>
+      <DateRange label="Period" value={range} onChange={setRange} choices={["today", "yesterday", "7d", "30d", "90d", "365d", "month", "last-month", "custom"]} />
     </div>
     {error && <PageError text={error} />}
     {!s && !error && <p className="cc-none" role="status">Loading…</p>}

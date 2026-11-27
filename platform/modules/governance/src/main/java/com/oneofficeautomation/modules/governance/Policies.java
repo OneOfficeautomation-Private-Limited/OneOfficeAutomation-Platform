@@ -150,20 +150,24 @@ public final class Policies {
     }
 
     /**
-     * What an AI guardrails policy stopped over the last days (30): the steps it stopped (a model not allowed, an answer
-     * flagged), latest first, and the personal data it masked by kind, for the agents whose folders it applies to.
+     * What an AI guardrails policy stopped over the last days (30), or between from and to (ISO times or dates): the steps
+     * it stopped (a model not allowed, an answer flagged), latest first, and the personal data it masked by kind, for the
+     * agents whose folders it applies to.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> stopped(User by, String id, Map<String, String> q) {
         ctx.require(by, "settings.manage", "see what a policy stopped");
         Map<String, Object> p = get(by, id);
         if (!"ai".equals(p.get("kind"))) throw new OoaException("CR.BAD_INPUT", "Only AI guardrails stop steps");
-        java.time.Instant since = now().minus(java.time.Duration.ofDays(Math.max(1, Math.min(365, intOr(q.get("days"), 30)))));
+        java.time.Instant until = q.get("to") == null || q.get("to").isBlank() ? now() : instant(q.get("to"), true);
+        java.time.Instant since = q.get("from") == null || q.get("from").isBlank() ? until.minus(java.time.Duration.ofDays(Math.max(1, Math.min(365, intOr(q.get("days"), 30)))))
+            : instant(q.get("from"), false);
+        if (since.isAfter(until)) throw new OoaException("CR.BAD_INPUT", "The start of the period is after its end");
         Map<String, Boolean> mine = new HashMap<>();   // agent path -> this policy applies to it
         java.util.function.Predicate<String> applies = path -> mine.computeIfAbsent(path, x -> { Map<String, Object> f = find("ai", ModuleContext.folderOf(x)); return f != null && id.equals(f.get("id")); });
         List<Map<String, Object>> steps = new ArrayList<>();
         int total = 0;
-        for (Map<String, Object> r : db.query("SELECT id, bot_path, created, error FROM runs WHERE status = 'failed' AND created >= ? AND error IS NOT NULL ORDER BY created DESC", since)) {
+        for (Map<String, Object> r : db.query("SELECT id, bot_path, created, error FROM runs WHERE status = 'failed' AND created >= ? AND created < ? AND error IS NOT NULL ORDER BY created DESC", since, until)) {
             String path = (String) r.get("bot_path");
             if (!applies.test(path)) continue;
             Object e;

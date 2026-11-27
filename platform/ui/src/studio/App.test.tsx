@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it } from "vitest";
 import { StudioApi } from "../api/client";
 import { App } from "./App";
+import { chooseIn } from "../components/filterTestKit";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -1164,9 +1165,9 @@ describe("new Studio", () => {
     await goToFolder("Finance", "Invoices");
     await waitFor(() => row("Invoice check"));
     expect(screen.queryByRole("toolbar", { name: "Selected items" })).toBeNull();   // no greyed-out buttons: the bar shows once something is ticked
-    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "form" } });   // the Type filter
+    chooseIn("Type", "Forms");   // the Type filter
     expect(row("Approve")).toBeUndefined();
-    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear Type" }));
     fireEvent.click(row("Invoice check").querySelectorAll("td")[1]);
     fireEvent.click(row("Approve").querySelectorAll("td")[1], { ctrlKey: true });
     const bar = screen.getByRole("toolbar", { name: "Selected items" });

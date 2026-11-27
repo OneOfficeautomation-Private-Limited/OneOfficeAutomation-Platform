@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Dialog, Field, HelpButton, Select, choiceText, choicesOf, choiceHas, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { PageTabs, PageTitle } from "../shell/PageFrame";
@@ -61,7 +61,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const load = useCallback(async () => { try { setList(await api.toolkits()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   const shown = useMemo(() => (list ?? []).filter((t) => (!f.q?.trim() || (t.name + " " + t.id + " " + (t.description ?? "")).toLowerCase().includes(f.q.trim().toLowerCase()))
-    && (!f.state || (f.state === "on") === t.enabled) && (!f.source || (f.source === "own") === !!t.custom) && (!f.used || t.used_by > 0)), [list, f]);
+    && choiceHas(f.state, t.enabled ? "on" : "off") && (!f.source || (f.source === "own") === !!t.custom) && (!f.used || t.used_by > 0)), [list, f]);
   const toggle = (t: Toolkit) => api.setToolkitEnabled(t.id, !t.enabled).then(() => { onNotice((t.enabled ? "Switched off " : "Switched on ") + t.name + "."); setDialog(null); load(); }, (e) => setError(message(e)));
   /** Switching on happens at once; switching off a toolkit agents use asks first. */
   const switchIt = (t: Toolkit) => { if (t.enabled && t.used_by) setDialog({ kind: "off", t }); else toggle(t); };
@@ -94,7 +94,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search toolkits" placeholder="Search toolkits" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-        <span className="cc-chip"><Select aria-label="Status" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: On" }, { value: "off", label: "Status: Off" }]} /></span>
+        <ChoiceFilter label="Status" value={choicesOf(f.state)} onChange={(v) => setF({ ...f, state: choiceText(v) })} options={[{ value: "on", label: "On" }, { value: "off", label: "Off" }]} />
         <span className="cc-chip"><Select aria-label="Source" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })} options={[{ value: "", label: "Built-in and your own" }, { value: "builtin", label: "Built-in" }, { value: "own", label: "Your own" }]} /></span>
         <label className="cc-chip-check"><input type="checkbox" checked={!!f.used} onChange={(e) => setF({ ...f, used: e.target.checked ? "1" : "" })} /> Used by agents</label>
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}

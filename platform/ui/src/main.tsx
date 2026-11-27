@@ -6,6 +6,7 @@ import "./theme.css";
 import "./components/components.css";
 import "./studio/studio.css";
 import "./console/console.css";
+import "./components/tables.css";
 import { App } from "./studio/App";
 
 // Dialogs add one style element (to stop the page scrolling behind them). Studio's security policy refuses inline

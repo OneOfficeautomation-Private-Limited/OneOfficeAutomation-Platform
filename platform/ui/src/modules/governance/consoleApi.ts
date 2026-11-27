@@ -14,11 +14,11 @@ export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; o
 
 declare module "../../api/cr" {
   interface CrApi {
-    governance(days: number): Promise<AiGovernance>;
+    governance(params: Record<string, string>): Promise<AiGovernance>;
     codePolicy(): Promise<CodePolicy>;
     policies(): Promise<Policy[]>;
     /** What an AI guardrails policy stopped (steps, latest first) and masked (by kind) over the last days. */
-    policyStopped(id: string, days: string): Promise<{
+    policyStopped(id: string, params: Record<string, string>): Promise<{
       stopped: {
         run_id: string;
         agent: string;
@@ -49,14 +49,15 @@ declare module "../../api/cr" {
   }
 }
 
-CrApi.prototype.governance = function (days: number) { return this.request<AiGovernance>("GET", "governance?days=" + days); };
+/** AI calls over a period: from and to (ISO times), or the last days (30). */
+CrApi.prototype.governance = function (params: Record<string, string>) { return this.request<AiGovernance>("GET", "governance?" + new URLSearchParams(params).toString()); };
 CrApi.prototype.codePolicy = function () { return this.request<CodePolicy>("GET", "repo/policy"); };
 CrApi.prototype.policies = async function () { return (await this.request<{ policies?: Policy[] }>("GET", "policies")).policies ?? []; };
 /** What an AI guardrails policy stopped (steps, latest first) and masked (by kind) over the last days. */
 
-CrApi.prototype.policyStopped = function (id: string, days: string) {
+CrApi.prototype.policyStopped = function (id: string, params: Record<string, string>) {
   return this.request<{ stopped: { run_id: string; agent: string; created: string; code: string; message: string }[]; stopped_total: number; masked: Record<string, number>; calls_masked: number }>(
-    "GET", "policies/" + encodeURIComponent(id) + "/stopped?days=" + encodeURIComponent(days));
+    "GET", "policies/" + encodeURIComponent(id) + "/stopped?" + new URLSearchParams(params).toString());
 };
 CrApi.prototype.savePolicy = function (id: string | null, b: { name?: string; kind?: string; description?: string; folders?: string[]; rules: unknown }) {
   return id ? this.request<Policy>("PUT", "policies/" + encodeURIComponent(id), b) : this.request<Policy>("POST", "policies", b);

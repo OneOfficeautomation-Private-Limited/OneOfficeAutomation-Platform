@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
-import { Button, Dialog, HelpButton, IconTile, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, ChoiceFilter, DateRange, Dialog, HelpButton, IconTile, Select, TextInput, choiceHas, choiceParam, choiceText, choicesOf, rangeFrom, rangeParams, rangeWords, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when as whenLong, CloseView } from "./ListParts";
 /** A run's time, short enough for the list at 1366 px: "13 Nov, 08:49" (the year only when it is not this year); in full on hover. */
 function when(t?: string | null) {
@@ -89,7 +89,10 @@ const COMPLETED_COLS: Col[] = [
   { key: "steps", label: "Steps", cell: (r) => r.steps == null ? "" : String(r.steps) },
   { key: "error", label: "Error message", cell: (r) => errorText(r.error) },
 ];
-const PERIODS: [string, string, number][] = [["24h", "Last 24 hours", 1], ["7d", "Last 7 days", 7], ["", "Last 90 days", 90], ["dates", "Chosen dates", 0]];
+/** Completed covers the last 90 days unless another period is chosen (f.period, and f.from / f.to for chosen dates). */
+const rangeOf = (f: Record<string, string>) => rangeFrom(f.period, f.from, f.to, { key: "90d" });
+/** Filters that take several values: the server takes them as a comma list. */
+const MULTI = ["status", "bot", "device", "source"];
 const PAGE = 25;
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped", suspended: "pending" };
@@ -104,7 +107,7 @@ function save(fileName: string, text: string, type: string) {
 /** What the address asks for: #/activity?run=<id> opens a run; tab, status, period, q (search), bot and device set the list. */
 const linked = () => new URLSearchParams(location.hash.split("?")[1] ?? "");
 const linkedRun = () => linked().get("run");
-const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot", "device"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
+const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "from", "to", "q", "bot", "device", "source"].filter((k) => l.get(k)).map((k) => [k, k === "period" && l.get(k) === "90d" ? "" : l.get(k)!])); };
 
 type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null;
   suspended: number | null; completed: number };
@@ -121,9 +124,9 @@ const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, 
     { name: "Suspended", text: "Long-running agents that stopped to wait for a time, a task, a work item, another run or a callback; "
       + "their runner is free meanwhile. A new run carries on from the waiting step when the wait is over. Resume one now or stop it here." },
     { name: "Completed", text: "Every run that ended in the chosen period, newest first, with its error message. Select runs to run them again." },
-    { name: "Period", text: "On Completed, choose how far back to look: "
-      + "24 hours, 7 days, 90 days (the default) or Chosen dates, which asks for a From and To date." },
-    { name: "Status, Agent, Runner, Trigger", text: "Narrow the list to the runs you want; Clear filters shows every run again. "
+    { name: "Period", text: "On Completed, choose how far back to look: today, yesterday, the last 24 hours, 7, 30 or 90 days (the default), "
+      + "this or last month, or Custom… to pick days on the calendar or type a From and To date, with times if you like." },
+    { name: "Status, Agent, Runner, Trigger", text: "Narrow the list to the runs you want: tick one or several in each; × clears one, Clear filters shows every run again. "
       + "The search box finds an agent, run id, user or error." },
     { name: "More filters", text: "Adds Started by, to find the runs one person started." },
     { name: "Columns", text: "Choose which columns the list shows; your choice is kept for next time." },
@@ -190,12 +193,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   /** The query for the tab: Completed covers the chosen period, the last 90 days unless changed. */
   const params = useCallback((limit: number, off: number) => {
     const p: Record<string, string> = { filter: tab === "progress" ? "active" : "history", limit: String(limit), offset: String(off) };
-    for (const [k, v] of Object.entries(f)) if (v && !["from", "to", "period", "state"].includes(k)) p[k] = v;
-    if (tab === "completed") {
-      const day = (v: string, next: boolean) => { const d = new Date(v + "T00:00:00"); if (next) d.setDate(d.getDate() + 1); return d.toISOString(); };
-      if (f.period === "dates") { if (f.from) p.from = day(f.from, false); if (f.to) p.to = day(f.to, true); }
-      else p.from = new Date(Date.now() - (PERIODS.find(([k]) => k === (f.period ?? ""))?.[2] ?? 90) * DAY).toISOString();
-    }
+    for (const [k, v] of Object.entries(f)) if (v && !["from", "to", "period", "state"].includes(k)) p[k] = MULTI.includes(k) ? choiceParam(v) : v;
+    if (tab === "completed") Object.assign(p, rangeParams(rangeOf(f)));
     return p;
   }, [tab, f]);
 
@@ -263,7 +262,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["suspended", "Suspended"], ["completed", "Completed"]];
 
   const filtered = Object.values(f).some(Boolean);
-  const periodWords = (PERIODS.find(([k]) => k === (f.period ?? ""))?.[1] ?? "").toLowerCase();
+  const periodWords = rangeWords(rangeOf(f));
   const byOutcome = data && data.runs.length === data.total && tab === "completed"
     ? ([["success", "completed"], ["failed", "failed"], ["stopped", "stopped"]] as const).map(([k, l]) => [runs.filter((r) => r.status === k).length, l] as const).filter(([n]) => n > 0) : [];
   const cell = (c: Col, r: Run) => {
@@ -302,7 +301,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <header className="cc-list-head">
         <PageTitle id="cc-act-title" name="Agent Activity" />
         <HelpButton topic={HELP} /><PageIntro k="page:activity" />
-        {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {f.period === "dates" ? "between the chosen dates" : "in the " + periodWords}
+        {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {periodWords}
           {byOutcome.map(([n, l]) => " · " + n + " " + l).join("")}</span>}
         {summary && tab === "progress" && <span className="cc-list-count">{summary.running} running · {summary.queued} waiting for a runner</span>}
         <span className="ov-fill" />
@@ -327,13 +326,12 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">
             <span className="cc-list-search"><TextInput type="search" aria-label="Search runs" placeholder="Search agent, run id, user or error" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-            {tab === "completed" && <span className={"cc-chip" + (f.period ? " is-on" : "")}><Select aria-label="Period" value={f.period ?? ""} onChange={(e) => setFilter("period", e.target.value)}
-              options={PERIODS.map(([v, l]) => ({ value: v, label: "Period: " + l }))} /></span>}
-            <span className={"cc-chip" + (f.status ? " is-on" : "")}><Select aria-label="Status" value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}
-              options={[{ value: "", label: "Status: Any" }, ...(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([v, l]) => ({ value: v, label: "Status: " + l }))]} /></span>
-            {agents.length > 0 && <span className={"cc-chip" + (f.bot ? " is-on" : "")}><Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setFilter("bot", e.target.value)}
-              options={[{ value: "", label: "Agent: Any" }, ...agents.map((p) => ({ value: p, label: "Agent: " + name(p) }))]} /></span>}
-            <Button kind="plain" aria-expanded={more || !!f.user || !!f.device || !!f.source || f.period === "dates"} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
+            {tab === "completed" && <DateRange label="Period" value={rangeOf(f)} choices={["today", "yesterday", "24h", "7d", "30d", "90d", "month", "last-month", "custom"]}
+              onChange={(v) => { setF({ ...f, period: v.key === "90d" ? "" : v.key, from: v.from ?? "", to: v.to ?? "" }); setOffset(0); }} />}
+            <ChoiceFilter label="Status" value={choicesOf(f.status)} onChange={(v) => setFilter("status", choiceText(v))}
+              options={(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([value, label]) => ({ value, label }))} />
+            {agents.length > 0 && <ChoiceFilter label="Agent" value={choicesOf(f.bot)} onChange={(v) => setFilter("bot", choiceText(v))} options={agents.map((p) => ({ value: p, label: name(p) }))} />}
+            <Button kind="plain" aria-expanded={more || !!f.user || !!f.device || !!f.source} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
             {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
           </div>
           <div className="cc-list-right" role="toolbar" aria-label="Runs list tools">
@@ -342,16 +340,10 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
             <RefreshButton onClick={() => { load(); loadSummary(); }} />
           </div>
         </div>
-        {(more || !!f.user || !!f.device || !!f.source || f.period === "dates") && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
-          {runners.length > 0 && <span className={"cc-chip" + (f.device ? " is-on" : "")}><Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
-            options={[{ value: "", label: "Runner: Any" }, ...runners.map((d) => ({ value: d.id, label: "Runner: " + d.name }))]} /></span>}
-          <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="Trigger" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
-            options={[{ value: "", label: "Trigger: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "Trigger: " + l }))]} /></span>
+        {(more || !!f.user || !!f.device || !!f.source) && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+          {runners.length > 0 && <ChoiceFilter label="Runner" value={choicesOf(f.device)} onChange={(v) => setFilter("device", choiceText(v))} options={runners.map((d) => ({ value: d.id, label: d.name }))} />}
+          <ChoiceFilter label="Trigger" value={choicesOf(f.source)} onChange={(v) => setFilter("source", choiceText(v))} options={SOURCES.map(([value, label]) => ({ value, label }))} />
           <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
-          {tab === "completed" && f.period === "dates" && <>
-            <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
-            <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
-          </>}
         </div>}
         {error && <PageError text={error} />}
         <div className="cc-list-panel">
@@ -425,7 +417,7 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
     Promise.all([api.runners().catch(() => []), api.pools().catch(() => [])]).then(([d, p]) =>
       setTargets(Object.fromEntries([...d.map((x) => ["d:" + x.id, x.name]), ...p.map((x) => ["p:" + x.id, x.name + " (pool)"])])));
   }, [api]);
-  const shown = useMemo(() => (list ?? []).filter((s) => (!bot || s.bot_path === bot) && (!state || (state === "on") === s.enabled)
+  const shown = useMemo(() => (list ?? []).filter((s) => choiceHas(bot, s.bot_path) && choiceHas(state, s.enabled ? "on" : "off")
     && (!q.trim() || (s.name + " " + s.bot_path).toLowerCase().includes(q.trim().toLowerCase())))
     .sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.next_run ? Date.parse(a.next_run) : Infinity) - (b.next_run ? Date.parse(b.next_run) : Infinity)), [list, bot, state, q]);
   const chosen = shown.filter((s) => selected.includes(s.id));
@@ -441,8 +433,8 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
   return <>
     <div className="cc-filters" role="group" aria-label="Filters">
       <TextInput type="search" aria-label="Search schedules" placeholder="Search schedule or agent" value={q} onChange={(e) => setQ(e.target.value)} />
-      {agents.length > 0 && <Select aria-label="Agent" value={bot} onChange={(e) => setBot(e.target.value)} options={[{ value: "", label: "Any agent" }, ...agents.map((p) => ({ value: p, label: name(p) }))]} />}
-      <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)} options={[{ value: "", label: "On and off" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
+      {agents.length > 0 && <ChoiceFilter label="Agent" value={choicesOf(bot)} onChange={(v) => setBot(choiceText(v))} options={agents.map((p) => ({ value: p, label: name(p) }))} />}
+      <ChoiceFilter label="State" any="On and off" value={choicesOf(state)} onChange={(v) => setState(choiceText(v))} options={[{ value: "on", label: "On" }, { value: "off", label: "Off" }]} />
     </div>
     <div className="cc-bar" role="toolbar" aria-label="Schedules actions">
       {chosen.length > 0 && <span className="cc-chosen">{chosen.length} selected</span>}

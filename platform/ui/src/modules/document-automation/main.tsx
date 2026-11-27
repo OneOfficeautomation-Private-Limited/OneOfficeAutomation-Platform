@@ -5,6 +5,7 @@ import "../../theme.css";
 import "../../components/components.css";
 import "../../studio/studio.css";
 import "../../console/console.css";
+import "../../components/tables.css";
 import "./docflow.css";
 import { SampleApi } from "./api";
 import { App } from "./App";

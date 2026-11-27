@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { Operations as OpsData } from "./consoleApi";
 import type { AgentStats, RunStats, VariableProfile } from "./consoleApi";
-import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
+import { Button, ChoiceFilter, DateRange, Dialog, HelpButton, choiceParam, choiceText, choicesOf, rangeParams, rangeShort, usePersistent, type DateRangeValue, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";
 import { PageIntro } from "../../shell/PageIntro";
@@ -18,8 +18,6 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
  * Review round 2 (31 Oct 2026): the three charts in one row and the six lists in one full-width tabbed panel, one line per
  * row (they were squeezed into narrow cards at 1366 px); an agent's row opens its statistics, with a menu per row.
  */
-const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]];
-const ACTIVITY_PERIOD: Record<string, string> = { "1": "24h", "7": "7d" };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SOURCES = ["manual", "schedule", "trigger", "queue", "api", "rerun", "mcp"];
 /** The lists, by the report each one's CSV comes from ("failed" has none). */
@@ -27,8 +25,8 @@ type ListTab = "failed" | "most_failed" | "most_run" | "longest" | "by_runner" |
 const HELP: HelpTopic = { title: "Operations", about: "How agents ran over a period: volumes, success and run time compared with the period before, "
   + "when runs start, which agents run most, take longest and fail most, and each runner's use. The page refreshes every minute.",
   items: [
-    { name: "Period", text: "Pick a period from the last 24 hours to the last year; each figure is compared with the period of the same length before it." },
-    { name: "All agents, All runners, Started any way", text: "Narrow every figure, chart and list to one agent, one runner or one way of starting runs." },
+    { name: "Period", text: "Pick a period from the last 24 hours to the last year, a month or dates you choose; each figure is compared with the period of the same length before it." },
+    { name: "Agent, Runner, Trigger", text: "Narrow every figure, chart and list to the agents, runners or ways of starting runs you tick (one or several)." },
     { name: "Runs, Completed", text: "How many runs there were and the share that completed. Click a figure to see those runs in Agent Activity." },
     { name: "95% of runs finish within", text: "The time within which almost all runs finish, and the longest run; "
       + "a better guide than the average when a few runs are slow." },
@@ -66,7 +64,7 @@ function save(fileName: string, text: string) {
 
 /** part (item 12): the agents' lists, or the trends (the charts), each its own tab of Operations rather than both on one screen. */
 export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; user: CrUser; tabs?: ReactNode; part?: "lists" | "trends" }) {
-  const [days, setDays] = usePersistent("operations.days", "30");
+  const [range, setRange] = usePersistent<DateRangeValue>("operations.range", { key: "30d" });
   const [tab, setTab] = usePersistent<ListTab>("operations.list", "most_run");
   const [f, setF] = useState<Record<string, string>>({});
   const [o, setO] = useState<OpsData | null>(null);
@@ -75,7 +73,7 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
   const [runners, setRunners] = useState<{ id: string; name: string }[]>([]);
   const [stats, setStats] = useState<string | null>(null);
   const can = (p: string) => user.permissions.includes(p);
-  const params = useCallback(() => ({ days, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)) }), [days, f]);
+  const params = useCallback(() => ({ ...rangeParams(range), ...Object.fromEntries(Object.entries(f).filter(([, v]) => v).map(([k, v]) => [k, choiceParam(v)])) }), [range, f]);
 
   const load = useCallback(() => api.operations({ ...params(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
     .then((r) => { setO(r); setError(null); }, (e) => setError(message(e))), [api, params]);
@@ -87,8 +85,8 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
 
   const csv = (report: string) => api.operationsCsv(report, params()).then((t) => save("operations-" + report + ".csv", t), (e) => setError(message(e)));
   const t = o?.totals, p = o?.previous;
-  const label = PERIODS.find(([v]) => v === days)?.[1].toLowerCase() ?? "";
-  const activity = (q: Record<string, string>) => "#/activity?" + new URLSearchParams({ tab: "completed", ...(ACTIVITY_PERIOD[days] ? { period: ACTIVITY_PERIOD[days] } : {}), ...q }).toString();
+  const label = rangeShort(range);
+  const activity = (q: Record<string, string>) => "#/activity?" + new URLSearchParams({ tab: "completed", ...q, period: range.key, ...(range.from ? { from: range.from } : {}), ...(range.to ? { to: range.to } : {}) }).toString();
   /** An agent's row: its statistics, its runs, and the agent in Automation. */
   const agentMenu = (path: string) => [{ key: "stats", label: "Statistics", onSelect: () => setStats(path) },
     { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = activity({ bot: path }); } },
@@ -110,11 +108,10 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
       {tabs}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
-        <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
-        {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setF({ ...f, bot: e.target.value })} options={[{ value: "", label: "All agents" }, ...agents.map((x) => ({ value: x, label: name(x) }))]} />}
-        {runners.length > 0 && <Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setF({ ...f, device: e.target.value })} options={[{ value: "", label: "All runners" }, ...runners.map((d) => ({ value: d.id, label: d.name }))]} />}
-        <Select aria-label="Trigger" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })}
-          options={[{ value: "", label: "Trigger: Any" }, ...SOURCES.map((v) => ({ value: v, label: "Trigger: " + howStarted(v) }))]} />
+        <DateRange label="Period" value={range} onChange={setRange} choices={["24h", "today", "yesterday", "7d", "30d", "90d", "365d", "month", "last-month", "custom"]} />
+        {agents.length > 0 && <ChoiceFilter label="Agent" any="All" value={choicesOf(f.bot)} onChange={(v) => setF({ ...f, bot: choiceText(v) })} options={agents.map((x) => ({ value: x, label: name(x) }))} />}
+        {runners.length > 0 && <ChoiceFilter label="Runner" any="All" value={choicesOf(f.device)} onChange={(v) => setF({ ...f, device: choiceText(v) })} options={runners.map((d) => ({ value: d.id, label: d.name }))} />}
+        <ChoiceFilter label="Trigger" value={choicesOf(f.source)} onChange={(v) => setF({ ...f, source: choiceText(v) })} options={SOURCES.map((v) => ({ value: v, label: howStarted(v) }))} />
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
@@ -171,7 +168,7 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
           </div>
         </div>}
       </>}
-      {stats && <AgentStatistics api={api} path={stats} days={days} label={label} onClose={() => setStats(null)} />}
+      {stats && <AgentStatistics api={api} path={stats} range={range} label={label} onClose={() => setStats(null)} />}
     </section>
   );
 }
@@ -257,14 +254,15 @@ function Heatmap({ h }: { h: NonNullable<OpsData["by_hour"]> }) {
 }
 
 /** An agent's statistics for the period: totals, errors, runners and its output profile (AA's Bot Insight Profile dashboard). */
-function AgentStatistics({ api, path, days, label, onClose }: { api: CrApi; path: string; days: string; label: string; onClose: () => void }) {
+function AgentStatistics({ api, path, range, label, onClose }: { api: CrApi; path: string; range: DateRangeValue; label: string; onClose: () => void }) {
   const [a, setA] = useState<AgentStats | null>(null);
   const [vp, setVp] = useState<VariableProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    api.agentStats(path, days).then(setA, (e) => setError(message(e)));
-    api.agentVariables(path, days).then(setVp, () => setVp(null));
-  }, [api, path, days]);
+    const p = { path, ...rangeParams(range), tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    api.agentStatsFor(p).then(setA, (e) => setError(message(e)));
+    api.agentVariablesFor(p).then(setVp, () => setVp(null));
+  }, [api, path, range]);
   const t = a?.totals;
   return (
     <Dialog open title={"Statistics of " + name(path)} width={760} onClose={onClose} footer={<a className="ui-btn ui-btn-plain" href={"#/activity?" + new URLSearchParams({ tab: "completed", bot: path }).toString()}>Its runs in Agent Activity</a>}>

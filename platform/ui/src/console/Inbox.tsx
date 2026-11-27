@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
-import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, Field, HelpButton, Select, choiceText, choicesOf, choiceHas, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { PageTabs, PageTitle } from "../shell/PageFrame";
@@ -76,7 +76,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return (tasks ?? []).filter((t) => (!text || (t.title + " " + (t.description ?? "") + " " + (t.assignee ?? "") + " " + assigneeText(t.assignee) + " " + (t.workflow ?? "") + " " + (t.reference ?? "")).toLowerCase().includes(text))
-      && (!f.kind || t.kind === f.kind) && (!f.overdue || t.overdue) && (!f.mine || t.claimed_by === user.username));
+      && choiceHas(f.kind, t.kind) && (!f.overdue || t.overdue) && (!f.mine || t.claimed_by === user.username));
   }, [tasks, f, user.username]);
 
   const overdue = (tasks ?? []).filter((t) => t.overdue).length;
@@ -106,8 +106,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-          <span className={"cc-chip" + (f.kind ? " is-on" : "")}><Select aria-label="Kind" value={f.kind ?? ""} onChange={(e) => setF({ ...f, kind: e.target.value })}
-            options={[{ value: "", label: "Kind: Any" }, ...Object.entries(KIND).map(([value, label]) => ({ value, label: "Kind: " + label }))]} /></span>
+          <ChoiceFilter label="Kind" value={choicesOf(f.kind)} onChange={(v) => setF({ ...f, kind: choiceText(v) })} options={Object.entries(KIND).map(([value, label]) => ({ value, label }))} />
           {tab === "open" && <>
             <label className={"cc-chip-check" + (f.overdue ? " is-on" : "")}><input type="checkbox" checked={!!f.overdue} onChange={(e) => setF({ ...f, overdue: e.target.checked ? "1" : "" })} /> Overdue only</label>
             <label className={"cc-chip-check" + (f.mine ? " is-on" : "")}><input type="checkbox" checked={!!f.mine} onChange={(e) => setF({ ...f, mine: e.target.checked ? "1" : "" })} /> Taken by me</label>

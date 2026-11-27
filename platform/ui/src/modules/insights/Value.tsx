@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { ValueReport, ValueRow } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
+import { Button, DateRange, Dialog, Field, HelpButton, TextInput, rangeParams, rangeShort, usePersistent, type DateRangeValue, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 import { PageTabs, PageTitle } from "../../shell/PageFrame";
@@ -17,7 +17,6 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
  * tabbed panel, one line per row; minutes saved changed in a small dialog from the row or its menu; a folder row shows
  * that folder's agents.
  */
-const PERIODS: [string, string][] = [["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"], ["year", "This year"]];
 const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -57,7 +56,7 @@ const HELP: HelpTopic = { title: "Value",
   ] };
 
 export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user: CrUser; onNotice: (t: string) => void; title?: string; tabs?: ReactNode }) {
-  const [days, setDays] = usePersistent("value.days", "30");
+  const [range, setRange] = usePersistent<DateRangeValue>("value.range", { key: "30d" });
   const [tab, setTab] = useState<"agents" | "queues" | "folders">("agents");
   const [folder, setFolder] = useState("");   // By agent, only this top folder's agents (a folder row's choice)
   const [v, setV] = useState<ValueReport | null>(null);
@@ -71,9 +70,8 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
 
   const load = useCallback(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString();
-    return api.value(days === "year" ? { from: jan1, tz } : { days, tz }).then((r) => { setV(r); setError(null); }, (e) => setError(message(e)));
-  }, [api, days]);
+    return api.value({ ...rangeParams(range), tz }).then((r) => { setV(r); setError(null); }, (e) => setError(message(e)));
+  }, [api, range]);
   useEffect(() => { load(); }, [load]);
 
   const money = (n: number) => {
@@ -81,7 +79,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
     try { return v.currency ? new Intl.NumberFormat(undefined, { style: "currency", currency: v.currency, maximumFractionDigits: 0 }).format(n) : n.toLocaleString(); }
     catch { return n.toLocaleString() + " " + v.currency; }
   };
-  const label = PERIODS.find(([d]) => d === days)?.[1].toLowerCase() ?? "";
+  const label = rangeShort(range);
   const unvalued = v ? v.agents.filter((a) => !a.own_value).length : 0;
   // a long period shows weeks (Monday first) rather than days
   const series = !v ? [] : v.by_day.length <= 45 ? v.by_day.map((d) => ({ label: d.day.slice(5), hours: d.hours })) : Object.entries(v.by_day.reduce<Record<string, number>>((acc, d) => {
@@ -108,7 +106,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
       {tabs}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([d, l]) => ({ value: d, label: l }))} /></span>
+          <DateRange label="Period" value={range} onChange={setRange} choices={["7d", "30d", "90d", "365d", "month", "last-month", "year", "custom"]} />
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>

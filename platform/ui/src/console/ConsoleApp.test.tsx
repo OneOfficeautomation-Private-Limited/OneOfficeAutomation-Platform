@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CrApi } from "../api/cr";
 import { ConsoleApp } from "./ConsoleApp";
 import { initials } from "./TopBar";
+import { chooseIn, dayStartParam, filterButton, pickPeriod } from "../components/filterTestKit";
 import { groupOf, MENU_SECTIONS } from "../shell/menu";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -400,7 +401,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       const all = [
         { seq: 12, ts: "2026-10-31T09:00:00Z", actor: "admin", action: "user.create", object_type: "user", object_id: "ravi", details: JSON.stringify({ role: "bot_creator" }), result: "ok", ip: "10.0.0.5" },
         { seq: 11, ts: "2026-10-31T08:00:00Z", actor: "vic", action: "auth.login", object_type: "user", object_id: "vic", details: null, result: "failed", ip: "10.0.0.9" }];
-      const list = all.filter((a) => (!q.get("result") || a.result === q.get("result")) && (!q.get("object_id") || a.object_id === q.get("object_id")));
+      const list = all.filter((a) => (!q.get("result") || q.get("result")!.split(",").includes(a.result)) && (!q.get("object_id") || a.object_id === q.get("object_id")));
       return ok({ records: list, total: list.length });
     }
     if (route === "audit/verify") return ok({ valid: true, records: 12 });
@@ -440,7 +441,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       const q = new URLSearchParams(url.split("?")[1]);
       calls.push({ method: "GET", route: "runs?" + q.toString() });
       const list = runs.filter((r) => (q.get("filter") === "active" ? ["queued", "running"] : ["success", "failed", "stopped"]).includes(r.status)
-        && (!q.get("status") || r.status === q.get("status")));
+        && (!q.get("status") || q.get("status")!.split(",").includes(r.status)));
       return ok({ runs: list.slice(0, Number(q.get("limit") ?? 100)), total: list.length });
     }
     if (route === "catalog") return ok({ actions: { "ooa.excel/open": "Open workbook" } });
@@ -723,7 +724,9 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("filter=history") && c.route.includes("from="))).toBe(true);   // the last 90 days
     const agentCell = (name: string) => (_: string, el: Element | null) => el?.tagName === "TD" && !!el.textContent?.endsWith(name);
     expect(within(done).getAllByText(agentCell("Onboard v1")).length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
+    chooseIn("Status", "Failed", "Stopped");   // several statuses at once (item 2d), as one comma list to the server
+    expect(filterButton("Status").textContent).toContain("Failed, Stopped");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("status=failed%2Cstopped"))).toBe(true));
     await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText(agentCell("Onboard v1"))).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Duration"));
@@ -819,14 +822,15 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
     expect(screen.getByRole("link", { name: "Create alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
     // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it
-    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
-    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7"))).toBe(true));
+    pickPeriod("Period", "Last 7 days");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes(dayStartParam(6)))).toBe(true));
     fireEvent.click(screen.getByRole("tab", { name: /^Failed runs/ }));
     const link = within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" });
     expect(link.getAttribute("href")).toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND&period=7d");
     await act(async () => { location.hash = link.getAttribute("href")!; });
     expect(await screen.findByRole("table", { name: "Completed runs" })).toBeTruthy();
-    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("failed");
+    expect(filterButton("Status").textContent).toContain("Failed");
+    expect(filterButton("Period").textContent).toContain("Last 7 days");
     expect((screen.getByLabelText("Search runs") as HTMLInputElement).value).toBe("EXCEL.NOT_FOUND");
     await waitFor(() => expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("status=failed") && c.route.includes("q=EXCEL.NOT_FOUND"))).toBe(true));
     expect(location.hash).toBe("#/activity");
@@ -918,14 +922,14 @@ describe("rebuilt One CommandCenter console", () => {
     expect((await screen.findByRole("tab", { name: /^Agents run most/ })).getAttribute("aria-selected")).toBe("true");
     fireEvent.click(screen.getByRole("tab", { name: /^Why runs failed/ }));
     expect(within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" }).getAttribute("href"))
-      .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND");
+      .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND&period=30d");
     expect(screen.queryByRole("button", { name: /^CSV of/ })).toBeNull();   // no CSV of failure reasons
     fireEvent.click(screen.getByRole("tab", { name: /^Agents run most/ }));
-    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "7" } });
-    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes("days=7") && c.route.includes("tz="))).toBe(true));
+    pickPeriod("Period", "Last 7 days");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics?") && c.route.includes(dayStartParam(6)) && c.route.includes("tz="))).toBe(true));
     URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "CSV of agents run most" })); });
-    expect(calls.some((c) => c.route.startsWith("analytics/export?") && c.route.includes("report=most_run") && c.route.includes("days=7"))).toBe(true);
+    expect(calls.some((c) => c.route.startsWith("analytics/export?") && c.route.includes("report=most_run") && c.route.includes(dayStartParam(6)))).toBe(true);
     fireEvent.click(screen.getByRole("tab", { name: /^Agents that fail most/ }));
     const failing = within(screen.getByRole("table", { name: "Agents that fail most" })).getByRole("row", { name: /Invoice intake/ }) as HTMLTableRowElement;
     expect(within(failing).getByText("Finance")).toBeTruthy();   // its folder
@@ -934,6 +938,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await within(d).findByText("10 – 90 (average 50)")).toBeTruthy();
     expect(within(d).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["#/activity?run=r4", "#/activity?run=r3",   // last run, last failure
       "#/activity?tab=completed&bot=Finance%2FInvoice+intake.flow.json"]);
+    expect(calls.some((c) => c.route === "analytics/agent" && String((c as { url?: string }).url).includes(dayStartParam(6)))).toBe(true);   // the statistics cover the page's period
   });
 
   it("shows Operations > Audit as AA's Audit dashboard, and opens the old Insights pages' addresses in their tabs", async () => {
@@ -983,8 +988,8 @@ describe("rebuilt One CommandCenter console", () => {
     const heat = screen.getByRole("table", { name: "Runner time in use, by weekday and hour (UTC)" });
     expect(within(heat).getByTitle("Mon 09:00 · 95% in use").className).toBe("cc-heat-l4");
     expect(within(heat).getByTitle("Sun 09:00 · not in the period").className).toBe("cc-heat-l0");
-    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "30" } });
-    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/capacity?") && c.route.includes("days=30"))).toBe(true));
+    pickPeriod("Period", "Last 30 days");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("analytics/capacity?") && c.route.includes(dayStartParam(29)))).toBe(true));
     // a runner's state as a pill; its row opens the runner on Runner Machines
     expect(within(a).getByText("Busy (limit)").closest(".cc-pill")!.className).toContain("is-failed");
     await act(async () => { fireEvent.click((a as HTMLTableRowElement).cells[3]); });
@@ -1417,7 +1422,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(screen.getByLabelText("Search runners"), { target: { value: "server" } });
     await waitFor(() => expect(within(list).queryByText("Runner A")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "online" } });
+    chooseIn("Status", "Online");
     await waitFor(() => expect(within(list).queryByText("Runner B")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     // settings for the selected runners: only what is chosen changes
@@ -1471,7 +1476,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(pools).getByText("1 runner").getAttribute("title")).toBe("Runner A");   // counted, named on hover
     fireEvent.keyDown(within(pools).getByRole("button", { name: "Actions for Finance pool" }), { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Show its runners" }));
-    expect((await screen.findByLabelText("Runner pool") as HTMLSelectElement).value).toBe("p1");
+    expect((await screen.findByRole("button", { name: "Pool: Finance pool" }))).toBeTruthy();
   });
 
   it("asks the server once at start, with its own client: no request loop", async () => {
@@ -1498,7 +1503,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(list).getByText("Runner A")).toBeTruthy();              // the default runner
     expect(screen.queryByRole("toolbar", { name: "User actions" })).toBeNull();   // the bulk bar shows only while rows are ticked
     expect(screen.getByText(/^1–\d+ of \d+$/)).toBeTruthy();            // the pager under the table
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "disabled" } });
+    chooseIn("Status", "Disabled");
     await waitFor(() => expect(within(list).queryByText("vic")).toBeNull());
     fireEvent.click(within(list).getByLabelText("Select old"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enable" })); });
@@ -1723,7 +1728,8 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(list).getAllByRole("row").some((r) => /^(Today|Yesterday) · |^\w{3},? \w/.test(r.textContent ?? ""))).toBe(true);   // a day heading, whatever today is
     expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from=") && c.route.includes("checkpoints=hide"))).toBe(true);   // the last 24 hours
     fireEvent.click(screen.getByRole("button", { name: "More filters" }));   // 13 Nov 2026: Who and Result are under More filters
-    fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
+    chooseIn("Result", "Failed", "Refused");
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("result=failed%2Cdenied"))).toBe(true));
     await waitFor(() => expect(within(list).queryByText("user.create")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     // a record opens in a side panel beside the list, with its details by name
@@ -2112,7 +2118,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(mail).getByText("Sign-in failed").closest("td")).toBeTruthy();
     expect(within(mail).getByText("Never")).toBeTruthy();
     expect(within(within(list).getByText("New invoices").closest("tr")!).getByText("3")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Health"), { target: { value: "error" } });
+    chooseIn("Health", "Error");
     await waitFor(() => expect(within(list).queryByText("New invoices")).toBeNull());
     fireEvent.keyDown(within(list).getByRole("button", { name: "Actions for Support mail" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Check now" })); });

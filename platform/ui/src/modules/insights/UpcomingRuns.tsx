@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, Schedule } from "../../api/cr";
-import { HelpButton, TextInput, type HelpTopic, PageError } from "../../components";
+import { DateRange, HelpButton, TextInput, resolveRange, type DateRangeValue, type HelpTopic, PageError } from "../../components";
 import { RefreshButton } from "../../console/ListParts";
 import { name, time } from "./Overview";
 import { PageIntro } from "../../shell/PageIntro";
@@ -12,25 +12,23 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
  */
 const HELP: HelpTopic = { title: "Upcoming runs", about: "The runs schedules will start, soonest first.",
   items: [
-    { name: "Today, Next 7 days, All", text: "How far ahead to look." },
+    { name: "Period", text: "How far ahead to look: today, tomorrow, the next 7 or 30 days, any time, or dates you choose." },
     { name: "Last run", text: "How the schedule's last run ended." },
     { name: "Schedules", text: "Where schedules are made, changed, paused and removed." },
   ] };
 const HOW: Record<Schedule["kind"], string> = { every: "Every few minutes", daily: "Daily", weekly: "Weekly", monthly: "Monthly", cron: "By a rule" };
 const LAST: Record<string, [string, string]> = { success: ["Completed", "success"], failed: ["Failed", "failed"], stopped: ["Stopped", "stopped"], running: ["Running", "active"], queued: ["Queued", "pending"] };
-const RANGES: [string, string, number | null][] = [["today", "Today", 1], ["week", "Next 7 days", 7], ["all", "All", null]];
 
 export function UpcomingRuns({ api }: { api: CrApi }) {
   const [list, setList] = useState<Schedule[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [range, setRange] = useState("week");
+  const [range, setRange] = useState<DateRangeValue>({ key: "next7" });
   const load = useCallback(() => api.schedules().then((s) => { setList(s); setError(null); }, (e) => setError(e instanceof Error ? e.message : String(e))), [api]);
   useEffect(() => { load(); }, [load]);
-  const days = RANGES.find(([k]) => k === range)![2];
-  const until = days == null ? null : (() => { const d = new Date(); if (days === 1) d.setHours(23, 59, 59, 999); else d.setDate(d.getDate() + days); return d; })();
+  const { from, to } = resolveRange(range);
   const f = q.trim().toLowerCase();
-  const shown = (list ?? []).filter((s) => s.enabled && s.next_run && (!until || new Date(s.next_run) <= until)
+  const shown = (list ?? []).filter((s) => s.enabled && s.next_run && (!from || range.key === "today" || range.key === "next7" || range.key === "next30" || new Date(s.next_run) >= from) && (!to || new Date(s.next_run) < to)
     && (!f || (s.name + " " + s.bot_path).toLowerCase().includes(f))).sort((x, y) => x.next_run!.localeCompare(y.next_run!));
   return (
     <section className="st-page cc-home cc-list" aria-labelledby="cc-up-title">
@@ -43,8 +41,7 @@ export function UpcomingRuns({ api }: { api: CrApi }) {
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="ov-seg" role="group" aria-label="How far ahead">{RANGES.map(([k, l]) =>
-            <button key={k} type="button" aria-pressed={range === k} onClick={() => setRange(k)}>{l}</button>)}</span>
+          <DateRange label="How far ahead" ahead value={range} onChange={setRange} choices={["today", "tomorrow", "next7", "next30", "any", "custom"]} />
           <span className="cc-list-search"><TextInput type="search" aria-label="Search upcoming runs" placeholder="Search schedules and agents" value={q} onChange={(e) => setQ(e.target.value)} /></span>
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>

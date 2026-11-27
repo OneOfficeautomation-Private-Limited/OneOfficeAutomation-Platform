@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
+import { Button, ChoiceFilter, DateRange, Dialog, HelpButton, Select, TextInput, choiceParam, choiceText, choicesOf, rangeFrom, rangeParams, rangeWords, usePersistent, type DateRangeValue, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { PageTabs, PageTitle } from "../shell/PageFrame";
@@ -45,8 +45,6 @@ const WORDS: Record<string, string> = {
 const DETAIL_NAMES: Record<string, string> = { bot: "Agent", version: "Version", mode: "How it ran", source: "Started by", device: "Runner", status: "Status", run: "Run",
   upto_seq: "Covers records up to", upto_hash: "Hash", widgets: "Widgets", name: "Name", shared_with: "Shared with", role: "Role" };
 const RESULTS: [string, string, string][] = [["ok", "Succeeded", "success"], ["failed", "Failed", "failed"], ["denied", "Refused", "failed"], ["not_found", "Not found", "pending"]];
-const RANGES: [string, string][] = [["1", "24 hours"], ["7", "7 days"], ["30", "30 days"], ["all", "Any time"], ["custom", "Dates…"]];
-const RANGE_WORDS: Record<string, string> = { "1": "in the last 24 hours", "7": "in the last 7 days", "30": "in the last 30 days", all: "in all", custom: "between the chosen dates" };
 const areaOf = (action: string) => AREAS.find(([p]) => action.startsWith(p));
 export const wordsOf = (action: string) => WORDS[action] ?? ((areaOf(action)?.[1] ?? action.split(".")[0]) + ": " + action.split(".").slice(1).join(" ").replace(/_/g, " "));
 const resultOf = (r: string) => RESULTS.find(([k]) => k === r) ?? [r, r, "pending"];
@@ -86,13 +84,13 @@ const COLS: Col[] = [
 ];
 const SIZE = 100;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
-const dayStart = (v: string, next: boolean) => { const d = new Date(v + "T00:00:00"); if (next) d.setDate(d.getDate() + 1); return d.toISOString(); };
 
 const HELP: HelpTopic = { title: "Audit Trail", about: "Every sign-in, change, run and credential use, grouped by day. "
   + "Records are chained by hashes, so any edit to history shows. Click a record to open it beside the list.",
   items: [
     { name: "Check history", text: "Checks the whole chain of records and says whether history is intact or where it was changed." },
-    { name: "24 hours, 7 days, 30 days, Any time, Dates…", text: "Pick how far back to look. Dates… asks for a From and To date." },
+    { name: "Period", text: "Pick how far back to look: today, yesterday, the last 24 hours, 7, 30 or 90 days, this or last month, any time, "
+      + "or Custom… to pick days on the calendar or type a From and To date, with times if you like." },
     { name: "Search everything", text: "Finds records by any word in them: a person, an action, an object or a detail." },
     { name: "Area, Who, Result", text: "Narrow the list to one part of One CommandCenter (such as Runs or Users), one person or runner, "
       + "or records that succeeded, failed or were refused." },
@@ -141,13 +139,13 @@ const fromAddress = () => {
 
 export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => void }) {
   const [hidden, setHidden] = usePersistent<string[]>("audit.hidden2", ["details"]);
-  const [range, setRange] = usePersistent<string>("audit.range", "1");
+  const [range, setRange] = usePersistent<DateRangeValue>("audit.period", { key: "24h" });
   const [hideCheckpoints, setHideCheckpoints] = usePersistent<boolean>("audit.hideCheckpoints", true);
   const [f, setF] = useState<Record<string, string>>(fromAddress);
   const [more, setMore] = useState(() => { const a = fromAddress(); return !!(a.object_type || a.object_id || a.action); });
   useEffect(() => {   // a period given in the address, as Operations > Audit links here
-    const r = new URLSearchParams(location.hash.split("?")[1] ?? "").get("range");
-    if (r && RANGES.some(([v]) => v === r)) setRange(r);
+    const q = new URLSearchParams(location.hash.split("?")[1] ?? ""), r = q.get("range");
+    if (r) setRange(rangeFrom(r, q.get("from"), q.get("to"), { key: "24h" }));
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ records: AuditRecord[]; total: number } | null>(null);
@@ -160,13 +158,13 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   /** The query: filters, then the time (5 minutes around a record, or the range; Any time adds nothing). */
   const params = useCallback(() => {
     const p: Record<string, string> = {};
-    for (const k of ["q", "actor", "object_type", "object_id", "result", "sort"]) if (f[k]?.trim()) p[k] = f[k].trim();
-    const action = f.action?.trim() || f.area || "";
+    for (const k of ["q", "object_type", "object_id", "sort"]) if (f[k]?.trim()) p[k] = f[k].trim();
+    for (const k of ["actor", "result"]) if (f[k]) p[k] = choiceParam(f[k]);   // several, as a comma list
+    const action = f.action?.trim() || choiceParam(f.area);
     if (action) p.action = action;
-    if (hideCheckpoints && !action.startsWith("audit.")) p.checkpoints = "hide";
+    if (hideCheckpoints && !action.split(",").some((x) => x.startsWith("audit."))) p.checkpoints = "hide";
     if (f.around) { const t = new Date(f.around).getTime(); p.from = new Date(t - 300_000).toISOString(); p.to = new Date(t + 300_000).toISOString(); }
-    else if (range === "custom") { if (f.from) p.from = dayStart(f.from, false); if (f.to) p.to = dayStart(f.to, true); }
-    else if (range !== "all") p.from = new Date(Date.now() - Number(range) * 86_400_000).toISOString();
+    else Object.assign(p, rangeParams(range));
     return p;
   }, [f, range, hideCheckpoints]);
   const load = useCallback(async () => {
@@ -201,7 +199,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
   };
   const records = data?.records ?? [];
   /** Searches from a record: about its object, by its person that day, or 5 minutes around it. */
-  const search = (next: Record<string, string>, nextRange?: string) => { setF(next); if (nextRange) setRange(nextRange); setOffset(0); setOpen(null); };
+  const search = (next: Record<string, string>, nextRange?: DateRangeValue) => { setF(next); if (nextRange) setRange(nextRange); setOffset(0); setOpen(null); };
   const cell = (c: Col, a: AuditRecord) => {
     if (c.key === "ts") return <span title={new Date(a.ts).toLocaleString()}>{hhmm(a.ts)}</span>;
     if (c.key === "actor") return <Who actor={a.actor} />;
@@ -220,7 +218,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         {cols.map((c) => <td key={c.key} className={CELL_CLASS[c.key]} title={c.key in CELL_CLASS && c.key !== "details" ? c.cell(a) : undefined}>{cell(c, a)}</td>)}
         <td className="cc-list-menu"><RowMenu label={"Actions for record " + a.seq} items={[
           { key: "open", label: "Open", onSelect: () => setOpen(a) },
-          ...(a.object_type && a.object_id ? [{ key: "about", label: "Every record about this " + a.object_type, onSelect: () => search({ object_type: a.object_type!, object_id: a.object_id! }, "all") }] : []),
+          ...(a.object_type && a.object_id ? [{ key: "about", label: "Every record about this " + a.object_type, onSelect: () => search({ object_type: a.object_type!, object_id: a.object_id! }, { key: "any" }) }] : []),
           { key: "around", label: "5 minutes around it", onSelect: () => search({ around: a.ts }) }]} /></td>
       </tr>);
   });
@@ -231,7 +229,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
       <header className="cc-list-head">
         <PageTitle id="cc-audit-title" name="Audit Trail" />
         <HelpButton topic={HELP} /><PageIntro k="page:audit" />
-        {data && <span className="cc-list-count">{data.total} record{data.total === 1 ? "" : "s"} {f.around ? "within 5 minutes of " + hhmm(f.around) : RANGE_WORDS[range]}</span>}
+        {data && <span className="cc-list-count">{data.total} record{data.total === 1 ? "" : "s"} {f.around ? "within 5 minutes of " + hhmm(f.around) : rangeWords(range)}</span>}
         {check && <span className={"cc-pill is-" + (check.valid ? "success" : "failed")} role="status"><span className="cc-pill-dot" />{check.text}</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={verify}>Check history</Button>
@@ -239,16 +237,10 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
-          <span className="ov-seg" role="group" aria-label="Time">
-            {RANGES.map(([v, l]) => <button key={v} type="button" aria-pressed={!f.around && range === v} onClick={() => { setRange(v); setF({ ...f, around: "" }); setOffset(0); }}>{l}</button>)}
-          </span>
-          {range === "custom" && !f.around && <>
-            <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
-            <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
-          </>}
+          <DateRange label="Period" value={range} choices={["today", "yesterday", "24h", "7d", "30d", "90d", "month", "last-month", "any", "custom"]}
+            onChange={(v) => { setRange(v); setF({ ...f, around: "" }); setOffset(0); }} />
           <span className="cc-list-search"><TextInput type="search" aria-label="Search the audit trail" placeholder="Search everything" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
-          <span className={"cc-chip" + (f.area ? " is-on" : "")}><Select aria-label="Area" value={f.area ?? ""} onChange={(e) => setFilter("area", e.target.value)}
-            options={[{ value: "", label: "Area: Any" }, ...AREAS.map(([value, label]) => ({ value, label: "Area: " + label }))]} /></span>
+          <ChoiceFilter label="Area" value={choicesOf(f.area)} onChange={(v) => setFilter("area", choiceText(v))} options={AREAS.map(([value, label]) => ({ value, label }))} />
           <Button kind="plain" aria-expanded={more || !!f.actor || !!f.result} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
           {(f.object_type || f.object_id) && <span className="cc-tag">Object: {[f.object_type, f.object_id].filter(Boolean).join(" ")}</span>}
           {f.around && <span className="cc-tag">Within 5 minutes of {new Date(f.around).toLocaleString()}</span>}
@@ -261,10 +253,9 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         </div>
       </div>
       {(more || !!f.actor || !!f.result) && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
-        <span className={"cc-chip" + (f.actor ? " is-on" : "")}><Select aria-label="Who" value={f.actor ?? ""} onChange={(e) => setFilter("actor", e.target.value)}
-          options={[{ value: "", label: "Who: Anyone" }, ...[...new Set([...actors, ...(f.actor ? [f.actor] : [])])].map((a) => ({ value: a, label: "Who: " + (a === "system" ? "System" : cut(a)) }))]} /></span>
-        <span className={"cc-chip" + (f.result ? " is-on" : "")}><Select aria-label="Result" value={f.result ?? ""} onChange={(e) => setFilter("result", e.target.value)}
-          options={[{ value: "", label: "Result: Any" }, ...RESULTS.map(([value, label]) => ({ value, label: "Result: " + label }))]} /></span>
+        <ChoiceFilter label="Who" any="Anyone" value={choicesOf(f.actor)} onChange={(v) => setFilter("actor", choiceText(v))}
+          options={[...new Set([...actors, ...choicesOf(f.actor)])].map((a) => ({ value: a, label: a === "system" ? "System" : cut(a) }))} />
+        <ChoiceFilter label="Result" value={choicesOf(f.result)} onChange={(v) => setFilter("result", choiceText(v))} options={RESULTS.map(([value, label]) => ({ value, label }))} />
         <TextInput aria-label="Action" placeholder="Action, e.g. user.create" value={f.action ?? ""} onChange={(e) => setFilter("action", e.target.value)} />
         <TextInput aria-label="Object type" placeholder="Object type, e.g. run" value={f.object_type ?? ""} onChange={(e) => setFilter("object_type", e.target.value)} />
         <TextInput aria-label="Object id" placeholder="Object id" value={f.object_id ?? ""} onChange={(e) => setFilter("object_id", e.target.value)} />
@@ -311,7 +302,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
  * links), the run's other records in order, searches from it, and the checkpoint that seals it.
  */
 function RecordPanel({ api, record: a, onClose, newer, older, onSearch }: { api: CrApi; record: AuditRecord; onClose: () => void;
-  newer: (() => void) | null; older: (() => void) | null; onSearch: (f: Record<string, string>, range?: string) => void }) {
+  newer: (() => void) | null; older: (() => void) | null; onSearch: (f: Record<string, string>, range?: DateRangeValue) => void }) {
   const run = runOf(a);
   const [runRecords, setRunRecords] = useState<AuditRecord[] | null>(null);
   const [seal, setSeal] = useState<AuditRecord | null | undefined>(undefined);
@@ -368,8 +359,8 @@ function RecordPanel({ api, record: a, onClose, newer, older, onSearch }: { api:
         </section>}
         <div className="cc-au-links">
           {run && <a className="ui-btn ui-btn-secondary" href={"#/activity?run=" + encodeURIComponent(run)}>Open the run in Agent Activity</a>}
-          {a.object_type && a.object_id && <Button kind="secondary" onClick={() => onSearch({ object_type: a.object_type!, object_id: a.object_id! }, "all")}>Every record about this {a.object_type}</Button>}
-          {a.actor !== "system" && <Button kind="secondary" onClick={() => onSearch({ actor: a.actor, from: isoDay(a.ts), to: isoDay(a.ts) }, "custom")}>Everything {a.actor.replace(/^agent:/, "")} did that day</Button>}
+          {a.object_type && a.object_id && <Button kind="secondary" onClick={() => onSearch({ object_type: a.object_type!, object_id: a.object_id! }, { key: "any" })}>Every record about this {a.object_type}</Button>}
+          {a.actor !== "system" && <Button kind="secondary" onClick={() => onSearch({ actor: a.actor }, { key: "custom", from: isoDay(a.ts), to: isoDay(a.ts) })}>Everything {a.actor.replace(/^agent:/, "")} did that day</Button>}
           <Button kind="secondary" onClick={() => onSearch({ around: a.ts })}>5 minutes around it</Button>
         </div>
         <p className="cc-au-seal">

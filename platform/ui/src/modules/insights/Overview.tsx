@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Alert, CrApi, CrUser, Dashboard, ModelConnection, Run, Runner, Schedule, WorkQueue } from "../../api/cr";
 import type { AlertRule, Operations } from "./consoleApi";
-import { HelpButton, type HelpTopic } from "../../components";
+import { DateRange, HelpButton, rangeParams, rangeShort, rangeWords, type DateRangeValue, type HelpTopic } from "../../components";
 import { rowClick } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 import { PageTabs, PageTitle } from "../../shell/PageFrame";
@@ -22,7 +22,7 @@ import { PageTabs, PageTitle } from "../../shell/PageFrame";
 const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, work queues and AI connections are doing now, and what needs attention. "
   + "It refreshes every 30 seconds and shows only what you may see.",
   items: [
-    { name: "24 hours, 7 days", text: "The period for the run figures, failed runs and why they failed. "
+    { name: "Period", text: "The period for the run figures (the last 24 hours unless changed), failed runs and why they failed. "
       + "Alerts, runners and queues always show how they are now." },
     { name: "Figures", text: "Open alerts, runs going on, the share completed, failed runs, runners online, queue items waiting, AI tokens and hours saved. "
       + "Click a figure to open the page behind it; red means it needs a look." },
@@ -35,7 +35,6 @@ const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, w
     { name: "Set up next", text: "Things not set up yet, such as work queues, model connections, alert rules or minutes saved, with a link to do it." },
     { name: "Create alert rule", text: "Opens Alerts with a new rule ready to fill in. It needs the Manage alert rules permission." },
   ] };
-const PERIODS: [string, string, string][] = [["1", "24 hours", "24h"], ["7", "7 days", "7d"]];
 export const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
 export const time = (t?: string | null) => {
   if (!t) return "";
@@ -81,7 +80,7 @@ const Tile = ({ kind }: { kind: Kind }) => <span className="ov-ic" style={{ back
 type Tab = "summary" | "alerts" | "failed" | "runners" | "queues";
 
 export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
-  const [days, setDays] = useState("1");
+  const [range, setRange] = useState<DateRangeValue>({ key: "24h" });
   const [d, setD] = useState<Dashboard | null>(null);
   const [ops, setOps] = useState<Operations | null>(null);
   const [runners, setRunners] = useState<Runner[] | null>(null);
@@ -95,13 +94,14 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
   const [error, setError] = useState<string | null>(null);
   const [at, setAt] = useState<Date | null>(null);
   const can = (p: string) => user.permissions.includes(p);
-  const period = PERIODS.find(([v]) => v === days)!;
+  /** The same period in Agent Activity's address. */
+  const pq: Record<string, string> = { period: range.key, ...(range.from ? { from: range.from } : {}), ...(range.to ? { to: range.to } : {}) };
 
   const load = useCallback(async () => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const no = Promise.reject();
     no.catch(() => {});
-    const [a, b, c, q, m, al, ru, la, sc] = await Promise.allSettled([api.dashboard(tz), api.operations({ days, top: "6" }),
+    const [a, b, c, q, m, al, ru, la, sc] = await Promise.allSettled([api.dashboard(tz), api.operations({ ...rangeParams(range), top: "6" }),
       can("devices.view") ? api.devices() : no, can("queues.view") ? api.queues() : no,
       can("connections.manage") ? api.modelConnections() : no, api.alerts({ status: "open", limit: "50" }), api.alertRules(),
       can("runs.view") ? api.runs({ limit: "6" }) : no, can("schedules.view") ? api.schedules() : no]);
@@ -116,7 +116,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
     setLatest(la.status === "fulfilled" ? la.value.runs : null);
     setSchedules(sc.status === "fulfilled" ? sc.value : null);
     setAt(new Date());
-  }, [api, days]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, range]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
 
   const t = ops?.totals;
@@ -142,8 +142,8 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
   const figs: { kind: Kind; label: string; value: string; meta: string; href?: string; bad?: boolean }[] = [
     ...(alerts ? [{ kind: "alert" as Kind, label: "Open alerts", value: String(alerts.open), meta: critical ? critical + " critical" : "none critical", href: "#/alerts", bad: alerts.open > 0 }] : []),
     ...(d && can("runs.view") ? [{ kind: "run" as Kind, label: "Running", value: String(d.running), meta: d.queued + " waiting", href: activity({ tab: "progress" }) }] : []),
-    ...(t ? [{ kind: "ok" as Kind, label: "Completed", value: t.success_rate == null ? "–" : t.success_rate + "%", meta: finished ? "of " + finished + " finished" : "no run finished", href: activity({ tab: "completed", period: period[2] }) },
-      { kind: "failed" as Kind, label: "Failed", value: String(t.failed), meta: "last " + period[1], href: activity({ tab: "completed", status: "failed", period: period[2] }), bad: t.failed > 0 }] : []),
+    ...(t ? [{ kind: "ok" as Kind, label: "Completed", value: t.success_rate == null ? "–" : t.success_rate + "%", meta: finished ? "of " + finished + " finished" : "no run finished", href: activity({ tab: "completed", ...pq }) },
+      { kind: "failed" as Kind, label: "Failed", value: String(t.failed), meta: rangeShort(range), href: activity({ tab: "completed", status: "failed", ...pq }), bad: t.failed > 0 }] : []),
     ...(runners ? [{ kind: "runner" as Kind, label: "Runners", value: online + " / " + live.length, meta: attention.length ? attention.length + " need attention" : "all fine", href: "#/devices", bad: attention.length > 0 }] : []),
     ...(queues ? [{ kind: "queue" as Kind, label: "Queue items", value: String(queues.reduce((n, q) => n + waiting(q), 0)), meta: overdue + " overdue", href: "#/operations?tab=queues", bad: overdue > 0 }] : []),
     ...(ai ? [{ kind: "ai" as Kind, label: "AI tokens", value: short(tokens), meta: budget ? Math.round(100 * tokens / budget) + "% of budget" : "this month", href: "#/connections", bad: budget > 0 && tokens >= 0.8 * budget }] : []),
@@ -161,8 +161,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
         <HelpButton topic={HELP} /><PageIntro k="page:insights" />
         <span className="ov-fill" />
         {at && <span className="ov-meta" role="status">Updated {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
-        <span className="ov-seg" role="group" aria-label="Period">{PERIODS.map(([v, l]) =>
-          <button key={v} type="button" aria-pressed={days === v} onClick={() => setDays(v)}>{l}</button>)}</span>
+        <DateRange label="Period" value={range} onChange={setRange} choices={["24h", "today", "yesterday", "7d", "30d", "custom"]} />
         <button type="button" className="ov-icon-btn" aria-label="Refresh" title="Refresh" onClick={load}>
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
         {can("alerts.manage") && <a className="ui-btn ui-btn-primary" href="#/alerts?new=1">Create alert rule</a>}
@@ -187,12 +186,12 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
             })}</div>
             {tab === "summary" && (problems ? <ul className="ov-rows" aria-label="What needs attention">
               {(alerts?.alerts ?? []).slice(0, 3).map((a) => <li key={a.id}><Tile kind="alert" />{a.link ? <a href={a.link}>{a.message}</a> : a.message}<span className="ov-r">{time(a.raised)}</span></li>)}
-              {t && t.failed > 0 && <li><Tile kind="failed" /><a href={activity({ tab: "completed", status: "failed", period: period[2] })}>{t.failed} run{t.failed === 1 ? "" : "s"} failed in the last {period[1]}</a>
+              {t && t.failed > 0 && <li><Tile kind="failed" /><a href={activity({ tab: "completed", status: "failed", ...pq })}>{t.failed} run{t.failed === 1 ? "" : "s"} failed {rangeWords(range)}</a>
                 <span className="ov-r">{reasons[0] ? "mostly " + reasons[0].code : ""}</span></li>}
               {attention.map(({ x, why }) => <li key={x.id}><Tile kind="runner" /><a href="#/devices">{x.nickname || x.name}</a><span className="ov-r ov-bad">{why}</span></li>)}
               {lateQueues.map((q) => <li key={q.id}><Tile kind="queue" /><a href="#/operations?tab=queues">{q.name}</a>
                 <span className="ov-r ov-bad">{q.overdue ? q.overdue + " overdue" : "processing is off, " + waiting(q) + " waiting"}</span></li>)}
-            </ul> : <p className="ov-ok"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="m5 12 5 5 9-10" /></svg>Nothing needs attention in the last {period[1]}.</p>)}
+            </ul> : <p className="ov-ok"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="m5 12 5 5 9-10" /></svg>Nothing needs attention {rangeWords(range)}.</p>)}
             {tab === "alerts" && ((alerts?.alerts.length ?? 0) ? <table className="ov-t" aria-label="Open alerts">
               <thead><tr><th>Severity</th><th>Alert</th><th>Rule</th><th className="n">Raised</th></tr></thead>
               <tbody>{alerts!.alerts.slice(0, 8).map((a) => <tr key={a.id}><td><span className={"ov-pill is-" + a.severity}>{a.severity === "critical" ? "Critical" : "Warning"}</span></td>
@@ -200,9 +199,9 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
             </table> : <p className="ov-ok">No open alerts.</p>)}
             {tab === "failed" && (reasons.length ? <table className="ov-t" aria-label="Why runs failed">
               <thead><tr><th>Error</th><th className="n">Runs</th><th>Mostly in</th><th className="n">Last</th></tr></thead>
-              <tbody>{reasons.map((r) => <tr key={r.code}><td><a href={activity({ tab: "completed", status: "failed", q: r.code, period: period[2] })}>{r.code}</a></td>
+              <tbody>{reasons.map((r) => <tr key={r.code}><td><a href={activity({ tab: "completed", status: "failed", q: r.code, ...pq })}>{r.code}</a></td>
                 <td className="n">{r.runs}</td><td>{r.agent ? name(r.agent) : ""}</td><td className="n">{time(r.last)}</td></tr>)}</tbody>
-            </table> : <p className="ov-ok">No run failed in the last {period[1]}.</p>)}
+            </table> : <p className="ov-ok">No run failed {rangeWords(range)}.</p>)}
             {tab === "runners" && (attention.length ? <table className="ov-t" aria-label="Runners needing attention">
               <thead><tr><th>Runner</th><th>Why</th><th className="n">CPU</th><th className="n">Memory</th></tr></thead>
               <tbody>{attention.map(({ x, why }) => <tr key={x.id}><td><a href="#/devices">{x.nickname || x.name}</a></td><td className="ov-bad">{why}</td>

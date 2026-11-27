@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type CrApi, type CrUser, type FlowVariable, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
-import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
+import { AgentInputs, agentFilesBrowse, filesOf, Button, ChoiceFilter, choiceText, choicesOf, choiceHas, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
@@ -119,7 +119,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
     return (list ?? []).filter((s) => (!text || (s.name + " " + s.bot_path + " " + (s.created_by ?? "") + " " + (s.run_as ?? "")).toLowerCase().includes(text))
-      && (!f.state || (f.state === "on") === s.enabled) && (!f.agent || s.bot_path === f.agent));
+      && choiceHas(f.state, s.enabled ? "on" : "off") && choiceHas(f.agent, s.bot_path));
   }, [list, f]);
   const chosen = (list ?? []).filter((s) => selected.includes(s.id));
   const each = async (what: string, fn: (s: Schedule) => Promise<unknown>) => {
@@ -165,10 +165,8 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search schedules" placeholder="Search schedules, agents, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-          <span className={"cc-chip" + (f.state ? " is-on" : "")}><Select aria-label="Status" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })}
-            options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: Enabled" }, { value: "off", label: "Status: Disabled" }]} /></span>
-          {agents.length > 1 && <span className={"cc-chip" + (f.agent ? " is-on" : "")}><Select aria-label="Agent" value={f.agent ?? ""} onChange={(e) => setF({ ...f, agent: e.target.value })}
-            options={[{ value: "", label: "Agent: Any" }, ...agents.map((a) => ({ value: a, label: "Agent: " + agentName(a) }))]} /></span>}
+          <ChoiceFilter label="Status" value={choicesOf(f.state)} onChange={(v) => setF({ ...f, state: choiceText(v) })} options={[{ value: "on", label: "Enabled" }, { value: "off", label: "Disabled" }]} />
+          {agents.length > 1 && <ChoiceFilter label="Agent" value={choicesOf(f.agent)} onChange={(v) => setF({ ...f, agent: choiceText(v) })} options={agents.map((a) => ({ value: a, label: agentName(a) }))} />}
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="Schedules list tools">

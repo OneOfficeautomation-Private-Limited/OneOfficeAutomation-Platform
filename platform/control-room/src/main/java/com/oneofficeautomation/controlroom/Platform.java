@@ -768,21 +768,29 @@ public final class Platform {
     }
 
     /** Totals by model, agent and day, masking and tool use, and the latest calls, for the last N days. */
-    public Map<String, Object> aiGovernance(User by, int days) {
+    public Map<String, Object> aiGovernance(User by, int days) { return aiGovernance(by, Map.of("days", String.valueOf(days))); }
+
+    /** AI calls over a period: from and to (ISO times or dates), or the last days (30, at most 365) up to now. */
+    public Map<String, Object> aiGovernance(User by, Map<String, String> q) {
         cr.require(by, "audit.view", "view AI governance");
-        Instant since = now().minus(Duration.ofDays(Math.max(1, Math.min(365, days))));
+        int days = Math.max(1, Math.min(365, intOr(q.get("days"), 30)));
+        Instant until = q.get("to") == null || q.get("to").isBlank() ? now() : instant(q.get("to"), true);
+        Instant since = q.get("from") == null || q.get("from").isBlank() ? until.minus(Duration.ofDays(days)) : instant(q.get("from"), false);
+        if (since.isAfter(until)) throw new OoaException("CR.BAD_INPUT", "The start of the period is after its end");
         Map<String, Object> m = new LinkedHashMap<>();
         Map<String, Object> t = db.one("SELECT COUNT(*) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, AVG(latency_ms) AS avg_latency_ms, " +
                 "SUM(CASE WHEN masked IS NOT NULL AND masked <> '[]' AND masked <> '' THEN 1 ELSE 0 END) AS masked_calls, " +
-                "SUM(CASE WHEN tool_calls IS NOT NULL AND tool_calls <> '[]' THEN 1 ELSE 0 END) AS tool_calls FROM ai_calls WHERE ts >= ?", since);
+                "SUM(CASE WHEN tool_calls IS NOT NULL AND tool_calls <> '[]' THEN 1 ELSE 0 END) AS tool_calls FROM ai_calls WHERE ts >= ? AND ts < ?", since, until);
         m.put("totals", t);
         m.put("by_model", db.query("SELECT provider, model, COUNT(*) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, AVG(latency_ms) AS avg_latency_ms " +
-                "FROM ai_calls WHERE ts >= ? GROUP BY provider, model ORDER BY calls DESC", since));
-        m.put("by_agent", db.query("SELECT bot_path, COUNT(*) AS calls, SUM(input_tokens) + SUM(output_tokens) AS tokens FROM ai_calls WHERE ts >= ? GROUP BY bot_path ORDER BY calls DESC LIMIT 20", since));
-        m.put("by_user", db.query("SELECT requested_by, COUNT(*) AS calls FROM ai_calls WHERE ts >= ? GROUP BY requested_by ORDER BY calls DESC LIMIT 20", since));
+                "FROM ai_calls WHERE ts >= ? AND ts < ? GROUP BY provider, model ORDER BY calls DESC", since, until));
+        m.put("by_agent", db.query("SELECT bot_path, COUNT(*) AS calls, SUM(input_tokens) + SUM(output_tokens) AS tokens FROM ai_calls WHERE ts >= ? AND ts < ? GROUP BY bot_path ORDER BY calls DESC LIMIT 20", since, until));
+        m.put("by_user", db.query("SELECT requested_by, COUNT(*) AS calls FROM ai_calls WHERE ts >= ? AND ts < ? GROUP BY requested_by ORDER BY calls DESC LIMIT 20", since, until));
         m.put("recent", db.query("SELECT id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256 " +
-                "FROM ai_calls WHERE ts >= ? ORDER BY ts DESC LIMIT 200", since));
+                "FROM ai_calls WHERE ts >= ? AND ts < ? ORDER BY ts DESC LIMIT 200", since, until));
         m.put("days", days);
+        m.put("from", since.toString());
+        m.put("to", until.toString());
         return m;
     }
 

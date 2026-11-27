@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
 import type { WorkflowRun, WorkflowStepInfo } from "./consoleApi";
-import { AgentInputs, Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
+import { AgentInputs, Button, ChoiceFilter, choiceText, choicesOf, choiceHas, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
 import { PageIntro } from "../../shell/PageIntro";
@@ -70,7 +70,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const load = useCallback(async () => { try { setRuns(await api.workflowRuns()); setError(null); } catch (e) { setError(message(e)); } }, [api]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { const t = setInterval(() => { if (!dialog) load(); }, 10_000); return () => clearInterval(t); }, [load, dialog]);
-  const shown = useMemo(() => (runs ?? []).filter((r) => (quick ? matches(r, quick) : (tab === "progress") === going(r)) && (!flow || r.path === flow)
+  const shown = useMemo(() => (runs ?? []).filter((r) => (quick ? matches(r, quick) : (tab === "progress") === going(r)) && choiceHas(flow, r.path)
     && (!q.trim() || (r.id + " " + (r.reference ?? "") + " " + flowName(r.path) + " " + (r.stage_name ?? r.stage ?? "") + " " + (r.started_by ?? "") + " " + (r.waiting_on ?? "")).toLowerCase().includes(q.trim().toLowerCase()))),
     [runs, tab, quick, q, flow]);
   const flows = [...new Set((runs ?? []).map((r) => r.path))].sort();
@@ -101,7 +101,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search workflow runs" placeholder="Search reference, run id, step, who started it, who it waits on" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-        {flows.length > 1 && <span className={"cc-chip" + (flow ? " is-on" : "")}><Select aria-label="Workflow" value={flow} onChange={(e) => setFlow(e.target.value)} options={[{ value: "", label: "Workflow: Any" }, ...flows.map((p) => ({ value: p, label: "Workflow: " + flowName(p) }))]} /></span>}
+        {flows.length > 1 && <ChoiceFilter label="Workflow" value={choicesOf(flow)} onChange={(v) => setFlow(choiceText(v))} options={flows.map((p) => ({ value: p, label: flowName(p) }))} />}
         <span className="cc-wf-counts" role="group" aria-label="Counts">
           {chips.map(([k, l]) => <button key={k} type="button" className={"cc-wf-count" + (quick === k ? " is-on" : "") + (k === "late" || k === "failed" ? " is-bad" : "")} aria-pressed={quick === k}
             onClick={() => setQuick(quick === k ? "" : k)}>{l} <strong>{runs ? counted(k) : "–"}</strong></button>)}

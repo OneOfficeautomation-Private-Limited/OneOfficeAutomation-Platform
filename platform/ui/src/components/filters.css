@@ -1,0 +1,71 @@
+/* Filters above tables (item 2b and 2d, 27 Nov 2026): the date filter and the multi-choice filter share one button,
+   30 px high, and one panel. A set filter turns quiet blue: light #174ba6 on #e3edfb (7.4:1), dark #b9dcfa on #1d3554
+   (8.7:1); its border is the accent colour (light 4.6:1, dark 3.2:1 on the page). */
+:root { --ui-fset-bg: #e3edfb; --ui-fset-text: #174ba6; --ui-fset-line: var(--ui-accent); --ui-cal-in: #d6e4fa; --ui-cal-in-text: #10357a; }
+:root[data-theme="dark"] { --ui-fset-bg: #1d3554; --ui-fset-text: #b9dcfa; --ui-fset-line: #5a9fd8; --ui-cal-in: #1d3554; --ui-cal-in-text: #d6ebfd; }
+
+.ui-fbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; max-width: 100%; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--ui-field);
+  border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ui-fbtn:hover { background: var(--ui-row-hover); }
+.ui-fbtn:focus-visible, .ui-fclear:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.ui-fbtn.is-set { border-color: var(--ui-fset-line); background: var(--ui-fset-bg); color: var(--ui-fset-text); font-weight: 600; }
+.ui-fbtn svg { flex: none; }
+.ui-fbtn-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-fbtn-caret { flex: none; font-size: 11px; }
+.ui-fgroup { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; }
+.ui-fgroup.is-set .ui-fbtn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.ui-fclear { flex: none; width: 26px; height: 30px; box-sizing: border-box; padding: 0; border: 1px solid var(--ui-fset-line); border-left: 0; border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+  background: var(--ui-fset-bg); color: var(--ui-fset-text); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.ui-fclear:hover { background: var(--ui-bg); }
+
+/* the panel: over the page, never wider than the window */
+.ui-fpop { position: fixed; z-index: 70; top: 0; left: 0; box-sizing: border-box; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto;
+  padding: 10px; background: var(--ui-bg); color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 8px; box-shadow: 0 8px 28px rgba(15, 20, 29, .25); font-size: 13px; }
+.ui-fpop-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ui-divider); }
+.ui-fpop-foot .ui-btn { height: 30px; }
+
+/* date filter: quick choices left, calendar right; one column under 560 px */
+.ui-dr { display: flex; gap: 12px; }
+.ui-dr-choices { display: flex; flex-direction: column; gap: 2px; min-width: 132px; padding-right: 10px; border-right: 1px solid var(--ui-divider); }
+.ui-dr-choice { height: 30px; padding: 0 10px; border: 0; border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
+.ui-dr-choice:hover { background: var(--ui-row-hover); }
+.ui-dr-choice.is-on { background: var(--ui-fset-bg); color: var(--ui-fset-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--ui-accent); }
+.ui-dr-choice:focus-visible, .ui-dr-nav:focus-visible, .ui-dr-day:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.ui-dr-side { display: flex; flex-direction: column; min-width: 0; }
+.ui-dr-month { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.ui-dr-nav { width: 30px; height: 30px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font-size: 16px; cursor: pointer; }
+.ui-dr-nav:hover { background: var(--ui-row-hover); }
+table.ui-dr-cal { border-collapse: collapse; outline: 0; }
+table.ui-dr-cal th { height: 24px; padding: 0; font-size: 12px; font-weight: 600; color: var(--ui-text-2); background: transparent; text-align: center; border: 0; }
+table.ui-dr-cal td { padding: 1px 0; border: 0; background: transparent; }
+.ui-dr-day { width: 34px; height: 30px; border: 0; border-radius: 0; background: transparent; color: var(--ui-text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ui-dr-day:hover { background: var(--ui-row-hover); }
+.ui-dr-day.is-other { color: var(--ui-text-3); }
+.ui-dr-day.is-today { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.ui-dr-day.is-in { background: var(--ui-cal-in); color: var(--ui-cal-in-text); }
+.ui-dr-day.is-end { background: var(--ui-accent); color: #ffffff; font-weight: 700; border-radius: var(--ui-radius); }
+/* days that cannot be chosen: still readable (text-3 is 7.5:1 light, 8.4:1 dark), struck through rather than greyed out */
+.ui-dr-day.is-blocked { color: var(--ui-text-3); text-decoration: line-through; cursor: default; background: transparent; }
+.ui-dr-fields { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: end; margin-top: 8px; }
+.ui-dr-fields label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; font-weight: 600; color: var(--ui-text-2); }
+.ui-dr-fields .ui-input { height: 30px; }
+.ui-dr-time { width: 110px; }
+.ui-dr-error { margin: 6px 0 0; color: var(--ui-error-text); font-weight: 600; }
+@media (max-width: 560px) {
+  .ui-dr { flex-direction: column; }
+  .ui-dr-choices { flex-direction: row; flex-wrap: wrap; border-right: 0; padding-right: 0; border-bottom: 1px solid var(--ui-divider); padding-bottom: 8px; }
+  .ui-dr-choice { padding: 0 8px; }
+  .ui-dr-day { width: 100%; min-width: 30px; }
+  table.ui-dr-cal { width: 100%; }
+}
+
+/* multi-choice filter */
+.ui-cf-pop { width: 280px; display: flex; flex-direction: column; gap: 6px; max-height: min(420px, calc(100vh - 16px)); }
+.ui-cf-search { height: 30px; }
+.ui-cf-count { font-size: 12px; font-weight: 600; color: var(--ui-text-2); }
+.ui-cf-list { overflow: auto; min-height: 0; flex: 1; max-height: 280px; }
+.ui-cf-row { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 4px; border-radius: 4px; cursor: pointer; }
+.ui-cf-row:hover { background: var(--ui-row-hover); }
+.ui-cf-row input { margin: 0; accent-color: var(--ui-accent); flex: none; }
+.ui-cf-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-cf-none { margin: 6px 4px; color: var(--ui-text-2); }
