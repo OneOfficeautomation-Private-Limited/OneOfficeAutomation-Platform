@@ -104,6 +104,7 @@ export function lastDays<D extends { day: string; total: number; stp: number; hu
 const ENGINE_NAMES: Record<string, string> = {
   tesseract: "Tesseract", paddleocr: "PaddleOCR", "pdf-text": "PDF text layer", "builtin-rules": "Rules extractor", "azure-di": "Azure Document Intelligence",
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
+  gemini: "Google Gemini", bedrock: "Amazon Bedrock", "azure-openai": "Azure OpenAI",
 };
 const OPTIONS: Omit<EngineOption, "engines">[] = [
   { id: "onecore", name: "OneCore", description: "Free engines that read pages here; nothing leaves this server", color: "#2f6fde" },

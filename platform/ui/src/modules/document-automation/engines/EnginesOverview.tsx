@@ -9,9 +9,11 @@ const GROUPS: { id: EngineOption["id"]; title: string; note: string }[] = [
   { id: "oneconnect", title: "Cloud document services", note: "need cloud opt-in" },
   { id: "onemind", title: "AI models", note: "through model connections" },
 ];
+/** AI models read fields and recognise types; they do not read pages on their own. */
+const AI_MODELS = ["claude", "gemini", "bedrock", "azure-openai", "llm-cloud", "llm-local"];
 /** Engines that only support others (the PDF text layer) are not offered as a job's engine. */
-const NOT_A_READER = new Set(["pdf-text", "builtin-rules", "abbyy", "claude", "llm-cloud", "llm-local"]);
-const FIELD_READERS = ["builtin-rules", "claude", "llm-cloud", "llm-local", "azure-di", "aws-textract", "google-docai"];
+const NOT_A_READER = new Set(["pdf-text", "builtin-rules", "abbyy", ...AI_MODELS]);
+const FIELD_READERS = ["builtin-rules", ...AI_MODELS, "azure-di", "aws-textract", "google-docai"];
 
 /**
  * Engines, Overview (28 Nov 2026, DA-14, artboard "Engines and AI connections"): who does each job for every process

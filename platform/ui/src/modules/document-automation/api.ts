@@ -569,6 +569,9 @@ const ENGINES: EngineOption[] = [
     { id: "abbyy", name: "ABBYY", does: "Depends on your ABBYY product", status: "setup", runs: "cloud", price: "Contract", free: false, key: "—" }] },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e", engines: [
     { id: "claude", can: ["extract_schema", "classify"], name: "Claude (Anthropic)", does: "Claude Haiku 5.5 reads the fields; Claude Sonnet 5.5 re-reads documents that would go to review", status: "optin", runs: "cloud", price: "$0.8", free: false, key: "Model connection: not set" },
+    { id: "gemini", can: ["extract_schema", "classify"], name: "Google Gemini", does: "Gemini through Google AI Studio or Vertex AI", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Not set" },
+    { id: "bedrock", can: ["extract_schema", "classify"], name: "Amazon Bedrock", does: "Claude, Nova and other models in your AWS account", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Not set" },
+    { id: "azure-openai", can: ["extract_schema", "classify"], name: "Azure OpenAI", does: "A model deployed in your Azure resource", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Not set" },
     { id: "llm-cloud", can: ["extract_schema", "classify"], name: "Cloud AI API", does: "Any OpenAI-compatible service", status: "optin", runs: "cloud", price: "Depends", free: false, key: "Model connection: not set" },
     { id: "llm-local", can: ["extract_schema", "classify"], name: "Self-hosted model", does: "Your own server, nothing leaves", status: "setup", runs: "server", price: "Free", free: true, key: "—" }] },
 ];
