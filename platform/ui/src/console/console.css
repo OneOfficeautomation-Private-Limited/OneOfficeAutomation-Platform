@@ -264,7 +264,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
  * --ui-border frames panels, dialogs and tab rows (3:1 on white); --ui-line sits under page titles and table headers;
  * --ui-divider is the light line between rows.
  */
-:root:not([data-theme="dark"]) .cc-app {
+:root .cc-app {
   /* F1 final (chosen on the canvas, 22 Nov 2026): white pages, near-black text, brand blue #08507c for links and the
      main button, brand purple #7148c9 for the selected tab, an ink top bar and dark table headers. */
   --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
@@ -290,8 +290,8 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
   --ui-frame-line: #46536b;
   --ui-frame-guide: #56637b;
 }
-:root:not([data-theme="none"]) .cc-app .cc-main h1, :root:not([data-theme="none"]) .cc-app .cc-main h2 { color: var(--ui-heading); }
-:root:not([data-theme="dark"]) .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: var(--ui-line); }
+:root .cc-app .cc-main h1, :root .cc-app .cc-main h2 { color: var(--ui-heading); }
+:root .cc-app .cc-home .st-page-head { background: transparent; border-bottom-color: var(--ui-line); }
 .cc-app .st-page-head, .cc-app .st-table th { border-bottom-color: var(--ui-line, var(--ui-border)); }
 .ov-info { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--ui-text-2); color: var(--ui-text-2); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
 .ov-fill { flex: 1; }
@@ -912,7 +912,6 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-strip-cell { display: flex; flex-direction: column; justify-content: center; height: 100%; min-height: 54px; padding: 6px 14px; color: inherit; text-decoration: none; }
 .cc-app .cc-strip-cell strong { font-size: 20px; font-weight: 700; line-height: 24px; color: var(--ui-text); white-space: nowrap; }
 .cc-app .cc-strip-cell strong.is-bad { color: #b42318; }
-:root[data-theme="dark"] .cc-app .cc-strip-cell strong.is-bad { color: var(--ui-error-text); }   /* 7.7:1 on the dark page (item 1, A3) */
 .cc-app .cc-strip-cell span { font-size: 12px; color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-app .cc-strip-cell.is-link:hover { background: var(--ui-row-hover); }
 .cc-app .cc-strip-cell.is-link:hover span { color: var(--ui-accent-text); }
@@ -966,60 +965,60 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 /* ======================================================================================================================
  * F1 final (22 Nov 2026), chosen on the "Console colour options" canvas: white pages, darker and heavier text, an ink top
  * bar with a brand-blue line, dark table headers with column and row lines everywhere, and a left menu whose section
- * headings stand apart from their pages. Since item 1 of 27 Nov (round 2) the dark theme (A3) uses the same rules with its
- * own colours: `:root:not([data-theme="none"])` matches both themes with the specificity the light-only rules had.
+ * headings stand apart from their pages. One light theme since 27 Nov 2026 (the dark theme was removed to keep the
+ * platform light).
  * ==================================================================================================================== */
-:root:not([data-theme="none"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+:root .cc-app { --ui-size: 14px; --ui-frame: #1c2840; --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   font-family: var(--ui-font); color: var(--ui-text); }
 /* Text a step larger and heavier than before (F1): body 14 px medium, tables 13.5 px, page titles 22 px */
-:root:not([data-theme="none"]) .cc-app .cc-main { font-size: 14px; }
-:root:not([data-theme="none"]) .cc-app .cc-main h1 { font-size: 22px; }
-:root:not([data-theme="none"]) .cc-app .cc-main h2 { font-size: 16px; }
-:root:not([data-theme="none"]) .cc-app .cc-main .ui-btn, :root:not([data-theme="none"]) .cc-app .cc-main .ui-input,
-:root:not([data-theme="none"]) .cc-app .cc-main select, :root:not([data-theme="none"]) .cc-app .cc-main .ui-search-select-field { font-size: 13.5px; }
-:root:not([data-theme="none"]) .cc-app .cc-main table th { height: 34px; font-size: 13px; }
-:root:not([data-theme="none"]) .cc-app .cc-main table tbody td { height: 32px; font-size: 13.5px; }
-:root:not([data-theme="none"]) .cc-app .cc-main [role="tab"], :root:not([data-theme="none"]) .cc-app .cc-main .st-page-tab,
-:root:not([data-theme="none"]) .cc-app .cc-main .ov-tab, :root:not([data-theme="none"]) .cc-app .cc-group-tab { font-size: 13.5px; }
-:root:not([data-theme="none"]) .cc-app .cc-main .st-muted, :root:not([data-theme="none"]) .cc-app .cc-main .cc-list-count,
-:root:not([data-theme="none"]) .cc-app .cc-main .ui-field-hint { font-size: 13px; color: var(--ui-text-2); }
-:root:not([data-theme="none"]) .cc-app .cc-main { background: var(--ui-bg); font-weight: 500; }
-:root:not([data-theme="none"]) .cc-app .st-top { border-bottom: 3px solid #0b6ba3; }
-:root:not([data-theme="dark"]) .cc-app .ui-btn-primary:hover:not(:disabled) { background: #063a5a; }
-:root:not([data-theme="none"]) .cc-app .cc-main a:not(.ui-btn) { color: var(--ui-accent-text); }
-:root:not([data-theme="none"]) .cc-app .cc-main td a:not(.ui-btn), :root:not([data-theme="none"]) .cc-app .cc-main td .cc-link { font-weight: 600; }
-:root:not([data-theme="none"]) .cc-app .cc-main h1 { font-weight: 700; }
+:root .cc-app .cc-main { font-size: 14px; }
+:root .cc-app .cc-main h1 { font-size: 22px; }
+:root .cc-app .cc-main h2 { font-size: 16px; }
+:root .cc-app .cc-main .ui-btn, :root .cc-app .cc-main .ui-input,
+:root .cc-app .cc-main select, :root .cc-app .cc-main .ui-search-select-field { font-size: 13.5px; }
+:root .cc-app .cc-main table th { height: 34px; font-size: 13px; }
+:root .cc-app .cc-main table tbody td { height: 32px; font-size: 13.5px; }
+:root .cc-app .cc-main [role="tab"], :root .cc-app .cc-main .st-page-tab,
+:root .cc-app .cc-main .ov-tab, :root .cc-app .cc-group-tab { font-size: 13.5px; }
+:root .cc-app .cc-main .st-muted, :root .cc-app .cc-main .cc-list-count,
+:root .cc-app .cc-main .ui-field-hint { font-size: 13px; color: var(--ui-text-2); }
+:root .cc-app .cc-main { background: var(--ui-bg); font-weight: 500; }
+:root .cc-app .st-top { border-bottom: 3px solid #0b6ba3; }
+:root .cc-app .ui-btn-primary:hover:not(:disabled) { background: #063a5a; }
+:root .cc-app .cc-main a:not(.ui-btn) { color: var(--ui-accent-text); }
+:root .cc-app .cc-main td a:not(.ui-btn), :root .cc-app .cc-main td .cc-link { font-weight: 600; }
+:root .cc-app .cc-main h1 { font-weight: 700; }
 
 /* Selected tab: a purple underline, the brand's second colour */
-:root:not([data-theme="none"]) .cc-app .cc-main .ov-tab[aria-selected="true"],
-:root:not([data-theme="none"]) .cc-app .cc-main .st-page-tab[aria-selected="true"],
-:root:not([data-theme="none"]) .cc-app .cc-main [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; border-bottom-color: #7148c9; font-weight: 700; color: var(--ui-text); }
+:root .cc-app .cc-main .ov-tab[aria-selected="true"],
+:root .cc-app .cc-main .st-page-tab[aria-selected="true"],
+:root .cc-app .cc-main [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; border-bottom-color: #7148c9; font-weight: 700; color: var(--ui-text); }
 
 /* Tables on every page: a dark header with white bold text, lines between columns and rows, light stripes, an outline */
-:root:not([data-theme="none"]) .cc-app .cc-main table { border-collapse: collapse; }
-:root:not([data-theme="none"]) .cc-app .cc-main thead th,
-:root:not([data-theme="none"]) .cc-app .cc-list-table th,
-:root:not([data-theme="none"]) .cc-app .ov-t th,
-:root:not([data-theme="none"]) .cc-app .st-table.cc-table th { background: var(--cc-th-bg, #1c2840); color: #ffffff; font-weight: 700; border-bottom: 0; }
-:root:not([data-theme="none"]) .cc-app .cc-main thead th + th,
-:root:not([data-theme="none"]) .cc-app .cc-list-table th + th,
-:root:not([data-theme="none"]) .cc-app .ov-t th + th { border-left: 1px solid #4a5874; }
-:root:not([data-theme="none"]) .cc-app .cc-main thead th button,
-:root:not([data-theme="none"]) .cc-app .cc-main thead th a,
-:root:not([data-theme="none"]) .cc-app .cc-main thead th svg { color: #ffffff; }
-:root:not([data-theme="none"]) .cc-app .cc-main tbody td { border-bottom: 1px solid var(--ui-divider); }
-:root:not([data-theme="none"]) .cc-app .cc-main tbody td + td,
-:root:not([data-theme="none"]) .cc-app .cc-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
-:root:not([data-theme="none"]) .cc-app .cc-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
-:root:not([data-theme="none"]) .cc-app .cc-main tbody tr:hover > td { background: var(--ui-row-hover); }
-:root:not([data-theme="none"]) .cc-app .cc-main table:not(.cc-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
+:root .cc-app .cc-main table { border-collapse: collapse; }
+:root .cc-app .cc-main thead th,
+:root .cc-app .cc-list-table th,
+:root .cc-app .ov-t th,
+:root .cc-app .st-table.cc-table th { background: var(--cc-th-bg, #1c2840); color: #ffffff; font-weight: 700; border-bottom: 0; }
+:root .cc-app .cc-main thead th + th,
+:root .cc-app .cc-list-table th + th,
+:root .cc-app .ov-t th + th { border-left: 1px solid #4a5874; }
+:root .cc-app .cc-main thead th button,
+:root .cc-app .cc-main thead th a,
+:root .cc-app .cc-main thead th svg { color: #ffffff; }
+:root .cc-app .cc-main tbody td { border-bottom: 1px solid var(--ui-divider); }
+:root .cc-app .cc-main tbody td + td,
+:root .cc-app .cc-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
+:root .cc-app .cc-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
+:root .cc-app .cc-main tbody tr:hover > td { background: var(--ui-row-hover); }
+:root .cc-app .cc-main table:not(.cc-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
 
 /* Sections inside a page: a clear outline and a line under each section title */
-:root:not([data-theme="none"]) .cc-app .cc-card,
-:root:not([data-theme="none"]) .cc-app .cc-main .st-panel,
-:root:not([data-theme="none"]) .cc-app .cc-main fieldset { border-color: var(--ui-border); }
-:root:not([data-theme="none"]) .cc-app .cc-main h2,
-:root:not([data-theme="none"]) .cc-app .cc-main .cc-card > h3:first-child { padding-bottom: 6px; border-bottom: 1px solid var(--ui-line); }
+:root .cc-app .cc-card,
+:root .cc-app .cc-main .st-panel,
+:root .cc-app .cc-main fieldset { border-color: var(--ui-border); }
+:root .cc-app .cc-main h2,
+:root .cc-app .cc-main .cc-card > h3:first-child { padding-bottom: 6px; border-bottom: 1px solid var(--ui-line); }
 
 /* Left menu, kept as it is, with section headings set apart from their pages (an idea from AA's menu): headings in
    bold white capitals on their band with the section's coloured icon; pages indented, lighter and medium weight. */
@@ -1098,7 +1097,7 @@ body .cc-app .cc-sums .cc-sum > span { white-space: normal; overflow: visible; t
 .cc-main .ov-seg button { white-space: nowrap; }
 
 /* ======================================================================================================================
- * The page heading (fix list 27 Nov 2026, round 2, item 1; A2 light and A3 dark, chosen on the canvas). Every page
+ * The page heading (fix list 27 Nov 2026, round 2, item 1; A2, chosen on the canvas). Every page
  * that uses the standard parts (PageTitle, HelpButton, PageIntro) gets the same three lines without changing a page:
  *   1. where you are (Build › Agents), drawn above the page by the console;
  *   2. the title, its count as a tag, then the page's own buttons on the right;

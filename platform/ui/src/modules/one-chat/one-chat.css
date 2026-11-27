@@ -59,7 +59,6 @@
 
 /* S6: the note on an answer the built-in engine gave because the OneChat service could not */
 .cc-chat-notice { margin: 0 0 6px; padding: 4px 8px; font-size: 12.5px; color: #7a4a00; background: #fff4dc; border: 1px solid #f0c674; border-radius: 4px; }
-:root[data-theme="dark"] .cc-chat-notice { color: #ffd98a; background: #3a2c10; border-color: #8a6a2a; }
 /* S6: Settings > AI assistants > Studio assistant: one line per OneChat model server, then Check again */
 .cc-oc-models { display: flex; flex-direction: column; }
 .cc-oc-models .cc-oc-status { margin-bottom: 0; }

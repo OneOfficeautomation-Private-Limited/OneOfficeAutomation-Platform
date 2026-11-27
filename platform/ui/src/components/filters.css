@@ -2,7 +2,6 @@
    30 px high, and one panel. A set filter turns quiet blue: light #174ba6 on #e3edfb (7.4:1), dark #b9dcfa on #1d3554
    (8.7:1); its border is the accent colour (light 4.6:1, dark 3.2:1 on the page). */
 :root { --ui-fset-bg: #e3edfb; --ui-fset-text: #174ba6; --ui-fset-line: var(--ui-accent); --ui-cal-in: #d6e4fa; --ui-cal-in-text: #10357a; }
-:root[data-theme="dark"] { --ui-fset-bg: #1d3554; --ui-fset-text: #b9dcfa; --ui-fset-line: #5a9fd8; --ui-cal-in: #1d3554; --ui-cal-in-text: #d6ebfd; }
 
 .ui-fbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; max-width: 100%; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--ui-field);
   border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }

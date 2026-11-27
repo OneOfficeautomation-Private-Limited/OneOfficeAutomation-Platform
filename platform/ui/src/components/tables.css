@@ -6,23 +6,22 @@
    dark; the lines between rows and columns inside are --ui-col-line (1.6:1 light, 1.8:1 dark), the same for rows and
    columns so the grid reads evenly. Tables marked cc-bare (a calendar, a chat answer) keep their own look. */
 :root { --ui-th-bg: #1c2840; --ui-th-line: #46536b; }
-:root[data-theme="dark"] { --ui-th-bg: var(--cc-th-bg, #243352); --ui-th-line: #5f6b84; }
 
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) { border-collapse: collapse; outline: 1px solid var(--ui-field); outline-offset: -1px; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) { border-collapse: collapse; outline: 1px solid var(--ui-field); outline-offset: -1px; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > :is(thead, tbody, tfoot) > tr > :is(th, td) {
   border-top: 0; border-right: 0; border-bottom: 1px solid var(--ui-col-line); border-left: 1px solid var(--ui-col-line); }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > :is(thead, tbody, tfoot) > tr > :is(th, td):first-child { border-left: 0; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th {
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > :is(thead, tbody, tfoot) > tr > :is(th, td):first-child { border-left: 0; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th {
   height: 32px; box-sizing: border-box; background: var(--ui-th-bg); color: #ffffff; font-weight: 700; border-bottom: 0; border-left-color: var(--ui-th-line); }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th :is(a, button:not(.cc-col-filter), svg) { color: #ffffff; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th .cc-col-filter { color: #ffffff; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th .cc-col-filter:hover { color: var(--ui-text); }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr > :is(td, th) { height: 31px; box-sizing: border-box; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr > th[scope="row"] { font-weight: 600; color: var(--ui-text); text-align: start; }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table):not(.cc-heat) > tbody > tr:nth-child(even) > :is(td, th) { background: var(--ui-soft); }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table):not(.cc-heat) > tbody > tr:hover > :is(td, th) { background: var(--ui-row-hover); }
-:root:not([data-theme="none"]) :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr:is(.is-selected, .is-open) > td { background: var(--ui-selected); }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th :is(a, button:not(.cc-col-filter), svg) { color: #ffffff; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th .cc-col-filter { color: #ffffff; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > thead > tr > th .cc-col-filter:hover { color: var(--ui-text); }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr > :is(td, th) { height: 31px; box-sizing: border-box; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr > th[scope="row"] { font-weight: 600; color: var(--ui-text); text-align: start; }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table):not(.cc-heat) > tbody > tr:nth-child(even) > :is(td, th) { background: var(--ui-soft); }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table):not(.cc-heat) > tbody > tr:hover > :is(td, th) { background: var(--ui-row-hover); }
+:root :is(.cc-app, .ui-dialog) table:not(.cc-bare):not(.cc-chat-table) > tbody > tr:is(.is-selected, .is-open) > td { background: var(--ui-selected); }
 
 /* Document Automation's tables had tall rows (9 px padding) and a light header: the same rows as every other table now */
-:root:not([data-theme="none"]) .cc-app table.df-table > tbody > tr > td { padding-top: 4px; padding-bottom: 4px; }
-:root:not([data-theme="none"]) .cc-app table.df-table > thead > tr > th { padding-top: 6px; padding-bottom: 6px; font-size: 12.5px; }
+:root .cc-app table.df-table > tbody > tr > td { padding-top: 4px; padding-bottom: 4px; }
+:root .cc-app table.df-table > thead > tr > th { padding-top: 6px; padding-bottom: 6px; font-size: 12.5px; }

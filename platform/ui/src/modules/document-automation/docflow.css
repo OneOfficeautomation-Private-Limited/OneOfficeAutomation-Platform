@@ -309,7 +309,7 @@
 .df-tab-group.is-menu { align-items: center; }
 .df-tab-group.is-menu .df-tab-group-label { padding-inline: 8px 0; }
 /* a page heading and its sentence read as one block: no line under the heading alone */
-:root:not([data-theme="dark"]) .cc-app .cc-main .df-page-head h2 { border-bottom: 0; padding-bottom: 0; }
+:root .cc-app .cc-main .df-page-head h2 { border-bottom: 0; padding-bottom: 0; }
 .df-page-head p { margin: 2px 0 0; }
 /* languages in even columns */
 .df-langs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 10px; align-items: start; }

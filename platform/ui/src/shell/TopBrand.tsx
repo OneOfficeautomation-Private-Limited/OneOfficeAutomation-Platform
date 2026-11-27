@@ -6,7 +6,7 @@ import logo from "../assets/logo-bar.png";
  * The left of the top bar (fix list 27 Nov round 2, item 1, option A2 chosen on the canvas): a round ‹ that folds and
  * opens the menu (the same button as at the menu's foot), the company's logo with its lettering in white for the dark
  * bar (no white plate), a thin line and the product's name: One CommandCenter, or OneAgentStudio in the agent editor.
- * The bar is dark in both themes, so this is the same in Light and Dark. Used by the console, Studio and Document
+ * The bar is dark on the light pages (one theme since 27 Nov 2026). Used by the console, Studio and Document
  * Automation, so the bar is one.
  */
 let folded = false;

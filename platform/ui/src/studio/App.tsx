@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type RunWindowSize, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, pointerOf, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type MenuPoint, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
+import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, pointerOf, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuPoint, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode, showInList, STATUS as FILE_STATUS } from "./Automation";
 import { FileProperties } from "./FileProperties";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
@@ -102,19 +102,9 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
   const [undoing, setUndoing] = useState<{ local: string; repoPath: string } | null>(null);
   const [reverting, setReverting] = useState<string | null>(null);
   const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
-  // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
-  const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
   const [simple, setSimple] = usePersistent("mode.simple", false);   // Simple mode for business users (G47)
   // the run window on the desktop while an agent runs (item 1, 21 Nov 2026): chosen beside Run, kept for the next runs
   const [runWindow, setRunWindow] = usePersistent<"hidden" | RunWindowSize>("run.window", "medium");
-  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
-  const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
-    ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
-  const displayItems = [
-    choice("light", "Light theme", theme === "light", () => setTheme("light"), "White panels in a dark frame"),
-    choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
-    { key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), separatorBefore: true, onSelect: () => setShowKeys(true) },
-  ];
   const [showKeys, setShowKeys] = useState(false);
   const [askTrigger, setAskTrigger] = useState<{ kind: string; n: number } | null>(null);   // a workspace trigger picked in the command list   // AI agents shown as plain steps instead of in the AI agent editor
 
@@ -617,8 +607,9 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
         {current ? crumbs : <span className="st-crumbs" />}
         <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
-        <Menu label="Display" title="Display" items={displayItems}
-          trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
+        {/* one light theme since 27 Nov 2026 (the Display menu held light, dark and this): the shortcuts on their own */}
+        <button type="button" className="st-top-icon" aria-label="Keyboard shortcuts" title={"Keyboard shortcuts (" + keyOf("app.shortcuts") + ")"}
+          onClick={() => setShowKeys(true)}><Icon name="keyboard" size={16} /></button>
         {editActions}
       </header>}
       {propsFor && (() => {

@@ -10,7 +10,7 @@
 .ui-btn-run:hover:not(:disabled) { background: #166338; }
 .ui-btn-debug { background: var(--ui-debug); color: var(--ui-on-debug); }
 .ui-btn-debug:hover:not(:disabled) { background: #f0a51c; }
-.ui-btn-light { background: #ffffff; color: #17202b; }   /* on the dark top bar in both themes */
+.ui-btn-light { background: #ffffff; color: #17202b; }   /* on the dark top bar */
 .ui-btn-light:hover:not(:disabled) { background: #e8f0fe; }
 .ui-btn-secondary { background: var(--ui-bg); color: var(--ui-accent-text); border-color: var(--ui-accent); }
 .ui-btn-secondary:hover:not(:disabled) { background: var(--ui-selected); }

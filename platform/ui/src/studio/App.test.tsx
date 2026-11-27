@@ -1980,21 +1980,12 @@ describe("new Studio", () => {
     expect(wrap().className).toContain("is-out-float");   // back where it was
   });
 
-  it("offers two themes only, light and dark, and remembers the choice", async () => {
+  it("has one light theme, and the Keyboard shortcuts on the top bar", async () => {
     render(<App api={fakeServer().api} />);
-    const pick = async (name: string) => {
-      fireEvent.pointerDown(await screen.findByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
-      fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
-    };
-    expect(document.documentElement.dataset.theme).toBe("light");
-    await pick("Dark theme");
-    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
-    expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
-    expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
-    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toHaveLength(3);   // the two themes, and Keyboard shortcuts
+    expect(document.documentElement.dataset.theme).toBeUndefined();   // no theme switch since 27 Nov 2026
+    expect(screen.queryByRole("button", { name: "Theme" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Keyboard shortcuts" }));
     // the Keyboard shortcuts dialog, with the switch for single-key shortcuts
-    fireEvent.click(screen.getByRole("menuitem", { name: /^Keyboard shortcuts/ }));
     const d = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     expect(within(within(d).getByRole("region", { name: "Run and debug" })).getByText("F10")).toBeTruthy();
     fireEvent.click(within(d).getByRole("checkbox", { name: /Single-key shortcuts/ }));

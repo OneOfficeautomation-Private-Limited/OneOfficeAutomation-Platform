@@ -107,8 +107,6 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   }, [user, page]);
   // Setup in the menu: administrators (the server says, setup_menu), unless the person hid it in this browser
   const [hideSetup, setHideSetup] = usePersistent<boolean>("menu.hideSetup", false);
-  const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
-  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => enableTableTools(), []);   // widen, narrow and filter the columns of every table
   useEffect(() => {
     api.me().then(setUser, () => setUser(null));
