@@ -608,7 +608,7 @@ export function App({ api: given, embedded }: { api?: StudioApi; embedded?: Embe
         </div>);
 
   return (
-    <div className={embedded ? "st-embedded" : "st-app cc-app"}>
+    <div className={embedded ? "st-embedded" : "st-app cc-app st-studio"}>
       {!embedded && <header className="st-top">
         {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is OneAgentStudio */}
         <TopBrand product={current ? "OneAgentStudio" : undefined} />

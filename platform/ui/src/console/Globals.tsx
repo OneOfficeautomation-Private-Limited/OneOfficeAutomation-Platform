@@ -101,7 +101,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
             {shown.map((g) => (
               <tr key={g.name} className={openOf(g) ? undefined : "is-static"} onClick={rowClick(() => setDialog(openOf(g)))}>
                 <td className="ui-mono">$global.{g.name}</td><td>{KIND[kindOf(g.value, g.type)]}</td>
-                <td className="ui-mono cc-clip">{show(g.value)}{g.team_values?.length ? <span className="cc-none"> · {g.team_values.length} team value{g.team_values.length === 1 ? "" : "s"}</span> : null}</td>
+                <td className="ui-mono cc-break">{show(g.value)}{g.team_values?.length ? <span className="cc-none"> · {g.team_values.length} team value{g.team_values.length === 1 ? "" : "s"}</span> : null}</td>
                 <td>{g.changeable ? "Yes" : "No"}</td>
                 <td className="cc-clip">{!g.changeable ? <span className="cc-none">–</span> : g.my_value === undefined ? <span className="cc-none">Uses the shared one</span> : <span className="ui-mono">{show(g.my_value)}</span>}</td>
                 <td>{when(g.updated)}{g.updated_by ? " by " + g.updated_by : ""}</td>

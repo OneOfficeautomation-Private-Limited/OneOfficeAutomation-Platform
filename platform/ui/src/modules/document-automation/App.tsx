@@ -90,14 +90,16 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const head = !reviewing && (
             <div className={embedded ? "df-head df-head-embedded" : "df-head"}>
               <div className={embedded ? "df-head-row cc-list-head st-agents-head" : "df-head-row"}>
-                <h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} />
-                {optIn
-                  ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
-                  : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
-                {embedded && status}
-                {embedded && tenants.length === 1 && <span className="cc-list-count">Tenant: {tenants[0]}</span>}
-                <span className="df-grow" />
-                <HelpButton open={helpOpen} onToggle={toggleHelp} />
+                {/* layout fixes 27 Nov, item 4: the title and its intro on the left; the status pills and Help keep together on the right */}
+                <div className="df-head-main"><h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} /></div>
+                <div className="df-head-side">
+                  {optIn
+                    ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
+                    : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
+                  {embedded && status}
+                  {embedded && tenants.length === 1 && <span className="cc-list-count">Tenant: {tenants[0]}</span>}
+                  <HelpButton open={helpOpen} onToggle={toggleHelp} />
+                </div>
               </div>
               <nav className={embedded ? "df-tabs ov-tabs cc-ins-tabs" : "df-tabs"} aria-label="Document Automation">
                 {TAB_GROUPS.map((g) => (

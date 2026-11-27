@@ -96,7 +96,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
                 <td className="cc-clip" title={c.description || undefined}>{c.name}</td>
                 <td>{kindName(c.package)}</td>
                 <td className="cc-clip">{Object.entries(c.values ?? {}).map(([n, v]) => n + ": " + String(v)).join("; ")}</td>
-                <td className="ui-mono cc-clip">{Object.entries(c.credentials ?? {}).map(([n, v]) => n + " → " + v).join("; ")}</td>
+                <td className="ui-mono cc-break">{Object.entries(c.credentials ?? {}).map(([n, v]) => n + " → " + v).join("; ")}</td>
                 <td>{when(c.updated)}{c.updated_by ? " by " + c.updated_by : ""}</td>
                 <td className="cc-list-menu"><RowMenu label={"Actions for " + c.name} items={rowMenu(c)} /></td>
               </tr>

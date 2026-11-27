@@ -248,8 +248,7 @@ function Steps({ steps, stage, onStage, enabled }:
       {steps.map((s, i) => (
         <button key={s.name} type="button" role="tab" className="df-stage" aria-selected={i === stage} disabled={!enabled(i)} onClick={() => onStage(i)}>
           <span className={`df-stage-n${s.done ? " is-done" : i === stage ? " is-current" : ""}`}>{s.done ? "✓" : i + 1}</span>
-          <span style={{ minWidth: 0 }}><span className="df-step-label">Step {i + 1}</span><b style={{ display: "block" }}>{s.name}</b>
-            <span className="df-small">{s.summary.split(";")[0]}</span></span>
+          <span className="df-stage-text"><b>{s.name}</b><span className="df-small">{s.summary.split(";")[0]}</span></span>
         </button>
       ))}
     </div>

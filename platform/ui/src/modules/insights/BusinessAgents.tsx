@@ -78,7 +78,8 @@ export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrAp
           <th scope="col" className="cc-num">With values</th><th scope="col">Last run</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>{rows.map((a) => <tr key={a.bot_path} title="Open its dashboard" onClick={rowClick(() => setOpen(a.bot_path))}>
           <td><span className="cc-aico" aria-hidden="true">A</span>{name(a.bot_path)}</td><td>{folderOf(a.bot_path)}</td>
-          <td className="cc-clip" title={a.values.join(", ")}>{a.values.map((v) => <span key={v} className={"cc-chip-s" + (a.kpis.includes(v) ? " is-kpi" : "")}>{v}</span>)}</td>
+          <td className="cc-chips" title={a.values.join(", ")}>{a.values.slice(0, 3).map((v) => <span key={v} className={"cc-chip-s" + (a.kpis.includes(v) ? " is-kpi" : "")}>{v}</span>)}
+            {a.values.length > 3 && <span className="cc-none"> +{a.values.length - 3} more</span>}</td>
           <td className="cc-num">{a.runs}</td><td className="cc-num">{a.runs_with_values}</td><td>{when(a.last_run)}</td>
           <td className="cc-list-menu"><RowMenu label={"Actions for " + name(a.bot_path)} items={[{ key: "open", label: "Dashboard, data profile and Compare", onSelect: () => setOpen(a.bot_path) },
             { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = "#/activity?" + new URLSearchParams({ tab: "completed", bot: a.bot_path }).toString(); } }]} /></td></tr>)}

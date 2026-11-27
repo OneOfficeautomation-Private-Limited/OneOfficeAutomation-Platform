@@ -804,7 +804,7 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-main svg[width="13"]:not(.ui-tile svg), .cc-app .cc-main svg[width="14"]:not(.ui-tile svg) { width: 14px; height: 14px; }
 .cc-app .cc-main table th { height: 30px; font-size: 12.5px; }
 .cc-app .cc-main table tbody td { height: 30px; font-size: 12.5px; }
-.cc-app .cc-main [role="tab"], .cc-app .cc-main .st-page-tab, .cc-app .cc-main .ov-tab, .cc-app .cc-group-tab { height: var(--ui-h); font-size: 13px; }
+.cc-app .cc-main [role="tab"], .cc-app .cc-main .st-page-tab, .cc-app .cc-main .ov-tab, .cc-app .cc-group-tab { min-height: var(--ui-h); font-size: 13px; }
 .cc-app .cc-main .ov-tab[aria-selected="true"], .cc-app .cc-main .st-page-tab[aria-selected="true"] { font-weight: 600; box-shadow: inset 0 -3px 0 var(--ui-accent); }
 .cc-app .cc-main .st-muted, .cc-app .cc-main .cc-list-count, .cc-app .cc-main .ui-field-hint { font-size: 12.5px; }
 
@@ -1072,3 +1072,11 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-explorer-body:has(> .ui-panel-strip-left) { grid-template-columns: 40px minmax(0, 1fr); }
 .cc-agent-steps:has(> .ui-panel-strip-right) { grid-template-columns: minmax(0, 1fr) 40px; }
 .cc-tree-pane > .ui-panel-bar { background: transparent; }
+
+/* layout fixes 27 Nov, item 5: long values wrap instead of being cut off; summary tiles wrap their words */
+.cc-app .cc-main table td.cc-break { white-space: normal; overflow-wrap: anywhere; max-width: 420px; min-width: 160px; }
+body .cc-app .cc-sums .cc-sum > span { white-space: normal; overflow: visible; text-overflow: clip; }
+/* a page's header and its tab row never shrink: on a short window a wrapped header was squeezed and its buttons overlapped the page */
+.cc-main .st-page > header, .cc-main .st-page > .cc-list-head, .cc-main .st-page > .cc-sums { flex-shrink: 0; }
+/* period switches keep each choice on one line on a phone ("24 hours" broke onto two lines and spilled out) */
+.cc-main .ov-seg button { white-space: nowrap; }

@@ -1267,7 +1267,7 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-embedded { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .st-embedded-body { flex: 1; min-height: 0; }
 /* Studio on its own uses the console's classes too (one look), but keeps its own scrolling */
-.st-app > .st-body > .st-main.cc-main { overflow: visible; background: var(--ui-bg); }
+.st-studio > .st-body > .st-main.cc-main { overflow: visible; background: var(--ui-bg); }
 .st-editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 44px; padding: 4px 12px; border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
 .st-editbar .st-crumbs { flex: 1 1 280px; min-width: 0; color: var(--ui-text); }
 .st-editbar .st-crumbs .st-crumb-current { color: var(--ui-text); }
@@ -1275,3 +1275,5 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 /* the Agents header, in the console and in Studio: the console's page margin */
 .st-agents-head { padding: 0 16px; flex: none; }
 .st-page > .ov-tabs { flex: none; }
+/* layout fixes 27 Nov, item 6: the Details panel's tabs wrap onto a second row in a narrow panel instead of the last one being cut off */
+.st-right .ui-tabs > .ui-tab-list { flex-wrap: wrap; overflow-x: visible; }
