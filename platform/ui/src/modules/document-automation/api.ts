@@ -500,7 +500,8 @@ export interface DocFlowApi {
   previewRefTable(file: File, headerRow?: number): Promise<RefPreview>;
   deleteRefTable(id: string): Promise<void>;
   /** Reads the file as the document type with engine A (and B), side by side. Nothing is kept. */
-  runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun>;
+  /** compare: "pages" (page-reading engines) or "fields" (field-reading engines; DocFlow 3.4.2). */
+  runTest(file: File, docTypeId: string, engineA: string, engineB: string | null, compare?: "pages" | "fields"): Promise<TestRun>;
   saveDocType(t: DocType): Promise<DocType>;
   deleteDocType(id: string): Promise<void>;
   /** Proposes a document type (not saved) from 1 to 3 sample files. */

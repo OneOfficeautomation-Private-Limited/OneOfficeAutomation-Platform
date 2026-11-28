@@ -54,7 +54,7 @@ export function SetList({ api }: { api: DocFlowApi }) {
           </table>
         </div>
       ) : (
-        <Empty>{sets.length ? "No test set of this document type." : "No test set yet. Click New test set, or Add our sample set to start with generated invoices."}</Empty>
+        <Empty>{sets.length ? "No test set of this document type." : "No test set yet. A test set is a few documents with their right values: run it after any change (an engine, a type's fields) to see whether reading got better or worse. Click New test set, or Add our sample set to start with generated invoices."}</Empty>
       )}
       {making && <NewSetDialog api={api} types={types} initialType={type === "all" ? "" : type} onClose={() => setMaking(false)} />}
     </section>

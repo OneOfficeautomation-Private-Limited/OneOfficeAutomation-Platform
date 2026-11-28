@@ -795,11 +795,12 @@ export class HttpDocFlowApi implements DocFlowApi {
     await this.call("DELETE", `/df/reftables/${encodeURIComponent(id)}`);
   }
 
-  async runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun> {
+  async runTest(file: File, docTypeId: string, engineA: string, engineB: string | null, compare: "pages" | "fields" = "pages"): Promise<TestRun> {
     const form = new FormData();
     form.append("file", file, file.name);
     form.append("docType", docTypeId);
     form.append("engines", [engineA, engineB].filter(Boolean).join(","));
+    if (compare === "fields") form.append("compare", "fields");
     type Run = { engine: string; ms?: number; confidence?: number | null; review?: boolean; readBy?: string[]; error?: string;
       fields?: Record<string, { value: unknown; confidence: number | null; passed: boolean; errors: string[] }> };
     const r = await this.call<{ fields: { name: string; label: string; required: boolean }[]; runs: Run[] }>("POST", "/df/test", form);

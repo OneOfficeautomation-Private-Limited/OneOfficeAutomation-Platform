@@ -696,6 +696,36 @@ describe("Document Automation", () => {
     expect(screen.queryByLabelText("Engine B")).toBeNull();
   });
 
+  it("compares who reads the fields, says the level it judges by, and turns a tried document into a test set item", async () => {
+    const api = start(); await go("#/testlab");
+    expect(screen.getByRole("link", { name: "step 8" }).getAttribute("href")).toBe("#/processes");
+    fireEvent.change(await screen.findByLabelText("Choose a document"), { target: { files: [new File(["x"], "inv.pdf")] } });
+    fireEvent.change(screen.getByLabelText("Document type"), { target: { value: "supplier-invoice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+    const engine = () => [...(screen.getByLabelText("Engine") as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(engine()).toContain("Tesseract 5");
+    fireEvent.click(screen.getByRole("button", { name: "Reading the fields" }));
+    expect(engine()).toContain("Rules extractor");
+    expect(engine()).not.toContain("Tesseract 5");
+    fireEvent.click(screen.getByRole("button", { name: "Run test" }));
+    expect(await screen.findByText("at the default review level, not a process's")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add to a test set…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add to a test set" });
+    const first = within(dialog).getAllByRole("textbox")[0] as HTMLInputElement;
+    fireEvent.change(first, { target: { value: "INV-RIGHT-1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add to the set" }));
+    expect(await within(dialog).findByText(/is in the set with these right values/)).toBeTruthy();
+    const set = (await api.testSets("supplier-invoice"))[0];
+    expect(set.itemCount).toBeGreaterThan(0);
+  });
+
+  it("explains test sets in one line when there are none", async () => {
+    const api = new SampleApi();
+    api.testSets = async () => [];
+    start(api); await go("#/testlab/sets");
+    expect(await screen.findByText(/A test set is a few documents with their right values/)).toBeTruthy();
+  });
+
   it("has two Test lab sections: try one document, as before, and test sets", async () => {
     start(); await go("#/testlab");
     const sections = await screen.findByRole("navigation", { name: "Test lab sections" });
