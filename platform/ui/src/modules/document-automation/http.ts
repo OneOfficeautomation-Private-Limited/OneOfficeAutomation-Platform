@@ -50,6 +50,8 @@ interface DfDocRow {
   id: string; file_name: string; created_at: string; status: string; instance_id: string; source: string; parent_id: string | null;
   doctype_id: string | null; flags: string | DfFlag[] | null; validated_by: string | null;
   fields?: Record<string, unknown>; confidence?: number | null; pages?: number | null; engines?: string[];
+  /** DocFlow 3.4.2: why a failed document failed. */
+  error?: { code?: string; message?: string } | null;
 }
 /** Where a value is on the pages (docauto/grounding.py locations()); rows only for table fields. */
 interface DfPlace { page: number | null; bbox: { x: number; y: number; w: number; h: number } | null; grounded: boolean | null; groundedBy?: string | null }
@@ -142,7 +144,7 @@ function sourceOf(r: DfDocRow): { source: Source; label: string } {
   switch (r.source) {
     case "folder": return { source: "folder", label: "Folder" };
     case "email": return { source: "email", label: "Email" };
-    case "bot": case "api": return { source: "bot", label: "Bot" };
+    case "bot": case "api": return { source: "bot", label: "Agent" };
     default: return { source: "upload", label: "Upload" };
   }
 }
@@ -342,10 +344,11 @@ export class HttpDocFlowApi implements DocFlowApi {
         supplier: text(f.supplier_name ?? f.merchant_name ?? f.vendor), invoice: text(f.invoice_number ?? f.document_number ?? f.po_number),
         total: f.total === undefined || f.total === null ? "—" : `${text(f.total)}${f.currency ? " " + text(f.currency) : ""}`,
         time: clock(r.created_at), source: src.source, sourceLabel: src.label, status: st,
-        note: flags[0]?.message ?? (r.status === "invalid" ? "Rejected" + (r.validated_by ? " by " + r.validated_by : "") : r.status === "validated" && r.validated_by ? "Approved by " + r.validated_by : ""),
+        note: (r.status === "failed" && r.error?.message) || flags[0]?.message || (r.status === "invalid" ? "Rejected" + (r.validated_by ? " by " + r.validated_by : "") : r.status === "validated" && r.validated_by ? "Approved by " + r.validated_by : ""),
         engine: st === "processing" ? "Reading…" : (r.engines ?? []).map((e) => ENGINE_NAMES[e] ?? e).join(", then ") || "—",
         confidence: pct(r.confidence),
         values: Object.fromEntries(Object.entries(f).filter(([, v]) => v === null || typeof v !== "object").map(([k, v]) => [k, text(v)])),
+        docTypeId: r.doctype_id,
       };
     });
   }

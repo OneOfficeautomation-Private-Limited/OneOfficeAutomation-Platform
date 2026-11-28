@@ -211,13 +211,40 @@ describe("Document Automation", () => {
     start(); await go("#/inbox");
     const region = await table("Processes");
     expect(within(region).getAllByRole("row")).toHaveLength(5);   // header + 4 processes
-    fireEvent.change(within(region).getByLabelText("Status"), { target: { value: "failed" } });
+    fireEvent.change(within(region).getByLabelText("Has documents that are"), { target: { value: "failed" } });
     expect(within(region).getAllByRole("row")).toHaveLength(2);
     expect(within(region).getByRole("link", { name: "One Inbox" })).toBeTruthy();
     fireEvent.change(within(region).getByLabelText("Comes in from"), { target: { value: "email" } });
     expect(within(region).getByText("No process matches these filters.")).toBeTruthy();
     fireEvent.click(within(region).getAllByRole("button", { name: "Clear filters" })[0]);
     expect(within(region).getAllByRole("row")).toHaveLength(5);
+  });
+
+  it("puts what needs someone first: review and failed documents across processes, why they failed, Try again", async () => {
+    const api = start(); await go("#/inbox");
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    const list = await within(needs).findByRole("table", { name: "Documents that need you" });
+    expect(within(list).getAllByRole("link", { name: "Review" }).length).toBeGreaterThan(0);
+    expect(within(list).getByText("contract_signed.pdf")).toBeTruthy();
+    expect(within(needs).getByLabelText("Why documents failed").textContent).toContain("PDF is password-protected");
+    // the Failed figure shows only the failed ones; Waiting for review opens the oldest review
+    fireEvent.click(screen.getByRole("button", { name: "Show them, and why" }));
+    expect(within(list).queryByRole("link", { name: "Review" })).toBeNull();
+    expect((await screen.findByRole("link", { name: "Review the oldest" })).getAttribute("href")).toMatch(/^#\/review\//);
+    fireEvent.click(within(list).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Needs you" })).queryByText("contract_signed.pdf")).toBeNull());
+    expect((await api.documents("smart-inbox")).find((x) => x.id === "contract")!.status).toBe("done");
+    // a chip opens its process with only those documents; Open and Try again work there
+    const procs = await table("Processes");
+    expect(within(procs).getAllByRole("link", { name: /done/ })[0].getAttribute("href")).toMatch(/^#\/process\/.+\/done$/);
+    expect([...(within(procs).getByLabelText("Comes in from") as HTMLSelectElement).options].map((o) => o.textContent)).toContain("Agent");
+  });
+
+  it("opens a process with one status shown, and its Open and Try again buttons work", async () => {
+    start(); await go("#/process/ap-invoices/done");
+    const docs = await screen.findByRole("table", { name: /documents/i });
+    expect(within(docs).getAllByRole("link", { name: /^Open / })[0].getAttribute("href")).toMatch(/^#\/review\//);
+    expect(within(docs).queryByRole("button", { name: "Try again" })).toBeNull();      // only done documents shown
   });
 
   it("adds documents on the process page, not on the Inbox's main screen", async () => {

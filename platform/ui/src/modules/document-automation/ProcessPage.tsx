@@ -2,15 +2,18 @@ import { useState } from "react";
 import { Button, Icon } from "../../components";
 import { INBOX_ID, type DocFlowApi, type DocStatus, type Source } from "./api";
 import { folderLabel } from "./dialogs";
-import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad, dfHash } from "./ui";
+import { Chip, ConfidenceBar, FilterBar, FilterSelect, Kpi, Loading, SearchBox, StatusChip, matches, useLoad, dfHash, reportError } from "./ui";
+import { retryDocument } from "./needsYou";
 import { UploadFiles } from "./upload";
 import { AccuracyCard } from "./accuracy";
 import { SplitDialog } from "./splitDialog";
 
-const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split from a batch" };
+const SOURCE_LABEL: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Agent", split: "Split from a batch" };
 
 /** One process: what it is, its numbers, adding documents to it, and every document with full details. */
-export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: string }) {
+export function ProcessPage({ api, processId, show }: { api: DocFlowApi; processId: string;
+  /** A status to show only (the Inbox's chips open #/process/<id>/<status>). */
+  show?: string }) {
   // the newest documents, 200 at a time ("Show more" loads more)
   const [limit, setLimit] = useState(200);
   const [data, reload] = useLoad(() => Promise.all([api.processes(), api.documents(processId, limit)]), [api, processId, limit]);
@@ -18,7 +21,14 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
   const [columns, setColumns] = useState<string[] | null>(null);
   const [splitting, setSplitting] = useState<{ id: string; name: string; pages: number } | null>(null);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | DocStatus>("all");
+  const [status, setStatus] = useState<"all" | DocStatus>(() => (["review", "failed", "done", "processing", "split"].includes(show ?? "") ? show as DocStatus : "all"));
+  const [retrying, setRetrying] = useState<Set<string>>(new Set());
+  // Try again: the failed document is read once more as its type (the process's type when it had none)
+  const retry = async (d: { id: string; docTypeId?: string | null }) => {
+    setRetrying((s) => new Set([...s, d.id]));
+    try { await retryDocument(api, processId, d); reload(); } catch (e) { reportError(e); }
+    finally { setRetrying((s) => { const n = new Set(s); n.delete(d.id); return n; }); }
+  };
   const [source, setSource] = useState<"all" | Source>("all");
   const [readBy, setReadBy] = useState("all");
   const [conf, setConf] = useState("all");
@@ -86,7 +96,7 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
             </div></details>}
         </FilterBar>
         <div className="df-table-wrap">
-          <table className="df-table" style={{ minWidth: 1000 }}>
+          <table className="df-table" aria-label="Documents" style={{ minWidth: 1000 }}>
             <thead><tr><th>Document</th>{!columns && invoiceLike && <><th>Supplier · invoice no.</th><th className="df-right">Total</th></>}
               {shown.map((k) => <th key={k}>{k}</th>)}<th>Came in</th><th>Status</th><th>Read by</th><th>Confidence</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
@@ -102,9 +112,9 @@ export function ProcessPage({ api, processId }: { api: DocFlowApi; processId: st
                   <td><ConfidenceBar value={d.confidence} /></td>
                   <td className="df-right">
                     {d.status === "review" ? <a className="ui-btn ui-btn-secondary" href={dfHash() + "review/" + d.id}>Review</a>
-                      : d.status === "failed" ? <Button>Retry</Button>
+                      : d.status === "failed" ? <Button disabled={retrying.has(d.id)} onClick={() => retry(d)}>{retrying.has(d.id) ? "Reading…" : "Try again"}</Button>
                       : d.status === "split" ? <Button kind="plain" onClick={() => setSplitting({ id: d.id, name: d.name, pages: parseInt(d.pages, 10) || 1 })}>Change the split</Button>
-                      : <Button kind="plain">Open</Button>}
+                      : <a className="ui-btn ui-btn-plain" href={dfHash() + "review/" + encodeURIComponent(d.id)} aria-label={"Open " + d.name}>Open</a>}
                   </td>
                 </tr>
               ))}

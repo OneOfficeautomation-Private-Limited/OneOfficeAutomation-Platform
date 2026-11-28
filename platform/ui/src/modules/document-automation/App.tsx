@@ -29,7 +29,7 @@ export type Route = { tab: typeof TAB_IDS[number] | "review"; process?: string; 
 export function parseRoute(hash: string): Route {
   // inside the console its addresses are #/docautomation/<route> (fix list 27 Nov, item 3c)
   const [first, second, third] = hash.replace(/^#\/?/, "").replace(/^docautomation(\/|$)/, "").split("/").map(decodeURIComponent);
-  if (first === "process" && second) return { tab: "inbox", process: second };
+  if (first === "process" && second) return { tab: "inbox", process: second, ...(third ? { section: third } : {}) };
   if (first === "review" && second) return { tab: "review", document: second };
   if (first === "processes" && second) return { tab: "processes", design: second, ...(third ? { stage: third } : {}) };
   if (first === "overview" && second) return { tab: "overview", section: second };
@@ -175,7 +175,7 @@ function LibraryMenu({ tabs, current }: { tabs: Tab[]; current: Route["tab"] }) 
 }
 
 function Screen({ route, api, onOptIn }: { route: Route; api: DocFlowApi; onOptIn: (on: boolean) => void }) {
-  if (route.process) return <ProcessPage api={api} processId={route.process} />;
+  if (route.process) return <ProcessPage key={route.process + (route.section ?? "")} api={api} processId={route.process} show={route.section} />;
   switch (route.tab) {
     case "review": return <Review api={api} documentId={route.document!} />;
     case "inbox": return <Inbox api={api} />;

@@ -273,6 +273,9 @@
 .ui-dialog.df-type-panel .ui-dialog-body { flex: 1; background: var(--ui-soft); }
 .df-panel-note { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; padding: 9px 12px; border: 1px solid #b7791f; border-radius: 6px; background: #fff7e6; color: var(--ui-text); }
 .df-panel-note.is-done { border-color: #1f7a45; background: #eaf6ef; }
+/* Inbox: a status chip opens the process with only those documents */
+.df-chip-link { text-decoration: none; border-radius: 12px; }
+.df-chip-link:hover .df-chip, .df-chip-link:focus-visible .df-chip { outline: 1px solid currentColor; }
 /* step 5: field names to click into a formula */
 .df-chips-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .df-chip-btn { min-height: 26px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 13px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }

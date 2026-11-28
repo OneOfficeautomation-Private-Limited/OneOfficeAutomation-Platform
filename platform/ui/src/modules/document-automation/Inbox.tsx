@@ -3,6 +3,7 @@ import { Button } from "../../components";
 import { INBOX_ID, type DocFlowApi, type Source } from "./api";
 import { NewProcessDialog, folderLabel } from "./dialogs";
 import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad, dfHash } from "./ui";
+import { NeedsYou, type NeedFilter } from "./needsYou";
 
 /**
  * Inbox: one row per process (minimal); a row opens the process page with every document. Documents are added on a
@@ -15,6 +16,8 @@ export function Inbox({ api }: { api: DocFlowApi }) {
   const [status, setStatus] = useState<"all" | "review" | "processing" | "done" | "failed">("all");
   const [folder, setFolder] = useState("all");
   const [source, setSource] = useState<"all" | Source>("all");
+  const [need, setNeed] = useState<NeedFilter>("all");
+  const [oldest, setOldest] = useState<string | null>(null);   // the oldest document waiting for review
   if (!processes) return <Loading />;
 
   const total = (k: "review" | "processing" | "done" | "failed" | "today") => processes.reduce((n, p) => n + p[k], 0);
@@ -39,21 +42,26 @@ export function Inbox({ api }: { api: DocFlowApi }) {
       <div className="df-grid df-g4">
         <Kpi label="Received today" value={total("today")} />
         <Kpi label="Straight through" value={straight} sub={Math.round(straight / Math.max(1, total("done")) * 100) + "%"} tone="ok" />
-        <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <a href={dfHash() + "process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a> : undefined} />
-        <Kpi label="Failed" value={total("failed")} tone={total("failed") ? "bad" : undefined} />
+        <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <>
+          {oldest ? <a href={dfHash() + "review/" + encodeURIComponent(oldest)}>Review the oldest</a> : <a href={dfHash() + "process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a>}
+          {" · "}<button type="button" className="df-link" onClick={() => setNeed("review")}>Show them</button></> : undefined} />
+        <Kpi label="Failed" value={total("failed")} tone={total("failed") ? "bad" : undefined}
+          sub={total("failed") ? <button type="button" className="df-link" onClick={() => setNeed("failed")}>Show them, and why</button> : undefined} />
       </div>
+
+      <NeedsYou api={api} processes={processes} filter={need} onFilter={setNeed} onChanged={reload} onOldest={setOldest} />
 
       <section className="df-card" aria-label="Processes" style={{ overflow: "hidden" }}>
         <FilterBar onClear={clear} count={`${rows.length} of ${processes.length} processes`}>
           <SearchBox value={q} onChange={setQ} placeholder="Search processes or documents" />
-          <FilterSelect label="Status" value={status} onChange={setStatus} options={[
+          <FilterSelect label="Has documents that are" value={status} onChange={setStatus} options={[
             { value: "all", label: `All statuses (${processes.reduce((n, p) => n + docs(p), 0)})` }, { value: "review", label: `Needs review (${total("review")})` },
             { value: "processing", label: `Processing (${total("processing")})` }, { value: "done", label: `Done (${total("done")})` },
             { value: "failed", label: `Failed (${total("failed")})` }]} />
           <FilterSelect label="Folder" value={folder} onChange={setFolder} options={[{ value: "all", label: "All folders" },
             ...[...new Set(processes.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
           <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
-            { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }, { value: "split", label: "Split from a batch" }]} />
+            { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Agent" }, { value: "split", label: "Split from a batch" }]} />
         </FilterBar>
         <div className="df-table-wrap">
           <table className="df-table" style={{ minWidth: 900 }}>
@@ -65,10 +73,10 @@ export function Inbox({ api }: { api: DocFlowApi }) {
                   <td className="df-right df-num"><span style={{ fontSize: 15, fontWeight: 600 }}>{docs(p)}</span>
                     {p.today > 0 && <div className="df-small">{p.today} today</div>}</td>
                   <td><span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {p.review > 0 && <Chip tone="warn">{p.review} need{p.review === 1 ? "s" : ""} review</Chip>}
-                    {p.processing > 0 && <Chip tone="info">{p.processing} processing</Chip>}
-                    {p.failed > 0 && <Chip tone="bad">{p.failed} failed</Chip>}
-                    {p.done > 0 && <Chip tone="ok">{p.done} done</Chip>}
+                    {p.review > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/review"}><Chip tone="warn">{p.review} need{p.review === 1 ? "s" : ""} review</Chip></a>}
+                    {p.processing > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/processing"}><Chip tone="info">{p.processing} processing</Chip></a>}
+                    {p.failed > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/failed"}><Chip tone="bad">{p.failed} failed</Chip></a>}
+                    {p.done > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/done"}><Chip tone="ok">{p.done} done</Chip></a>}
                     {docs(p) === 0 && <Chip tone="mute">No documents yet</Chip>}
                   </span></td>
                   <td className="df-muted" style={{ whiteSpace: "nowrap" }}>{p.lastTime ? `${p.lastTime} · ${p.lastDocument}` : "—"}</td>

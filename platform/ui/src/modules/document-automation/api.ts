@@ -39,6 +39,8 @@ export interface DocumentRow {
   time: string; source: Source; sourceLabel: string; status: DocStatus; note: string; engine: string; confidence: number | null;
   /** Every value read, as text, by field name (the process page shows the columns a person chooses). */
   values?: Record<string, string>;
+  /** The document type it was read as (Try again reads it as this type again). */
+  docTypeId?: string | null;
 }
 
 /** A box on a page: 0–1 of the page's width and height, from its top-left corner. */
@@ -567,7 +569,7 @@ const DOCUMENTS: DocumentRow[] = [
   doc({ id: "batch_0930_3", processId: "smart-inbox", name: "Part 3 of batch_0930.pdf", pages: "pages 5–7", status: "review", time: "10:31", source: "split",
     sourceLabel: "Split from batch", confidence: 61, note: "Choose a document type" }),
   doc({ id: "contract", processId: "smart-inbox", name: "contract_signed.pdf", pages: "12 pages", status: "failed", time: "09:15",
-    sourceLabel: "Upload · Omar Haddad", engine: "—", note: "PDF is password-protected" }),
+    sourceLabel: "Upload · Omar Haddad", engine: "—", note: "PDF is password-protected", docTypeId: "contract" }),
   doc({ id: "img_2231", processId: "expense-claims", name: "IMG_2231.jpg", status: "processing", time: "10:12", source: "bot",
     sourceLabel: "Bot · Portal download", engine: "Reading page 1…" }),
   doc({ id: "dn_118", processId: "deliveries", name: "Part 2 of batch_0930.pdf", pages: "pages 3–4", status: "done", time: "10:31", source: "split",
@@ -911,7 +913,10 @@ export class SampleApi implements DocFlowApi {
     if (d) { d.status = decision === "approve" ? "done" : "failed"; d.note = decision === "approve" ? "Approved by you" : "Rejected by you"; }
     return { next: this.documentsData.find((x) => x.status === "review" && x.processId === d?.processId && x.id !== documentId)?.id };
   }
-  async changeDocType(documentId: string) { return { documentId, needsReview: true }; }
+  async changeDocType(documentId: string) {
+    this.documentsData = this.documentsData.map((d) => d.id === documentId ? { ...d, status: "done" as const, note: "" } : d);
+    return { documentId, needsReview: false };
+  }
   exportUrl(processId: string) {
     const rows = this.documentsData.filter((d) => d.processId === processId && d.status === "done");
     return "data:text/csv;charset=utf-8," + encodeURIComponent(["Document,Supplier,Invoice,Total", ...rows.map((d) => [d.name, d.supplier, d.invoice, d.total].join(","))].join("\r\n"));
