@@ -462,6 +462,8 @@ function ReviewLevels({ s, set }: { s: ProcessSettings; set: SetSettings }) {
   );
 }
 
+/** A delivery a draft process held back (DocFlow 3.4.1): not a failure. */
+const held = (r: DeliveryLogRow) => !r.ok && r.detail.startsWith("Held:");
 const when = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }); };
 
 /**
@@ -496,8 +498,8 @@ export function DeliverStage({ deliveries, onEdit, onRemove, onAdd, api, process
           <div key={d.id} className="df-way" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ minWidth: 0, flex: 1 }}><b>{d.name || DELIVERY_KIND[d.type].label}</b>
               <span className="df-small" style={{ display: "block", overflowWrap: "anywhere" }}>{DELIVERY_KIND[d.type].label} · {d.target || "not set"} · when {d.on.map((o) => SEND_ON.find(([k]) => k === o)?.[1].toLowerCase() ?? o).join(", ")}{d.enabled ? "" : " · off"}</span>
-              <span className={"df-small" + (l && !l.ok ? " df-text-warn" : "")} aria-label={"Last sent: " + (d.name || DELIVERY_KIND[d.type].label)} style={{ display: "block" }}>
-                {l ? `Last sent ${when(l.ts)} · ${l.ok ? "OK" : "Failed: " + l.detail}` : "Not sent yet"}</span>
+              <span className={"df-small" + (l && !l.ok && !held(l) ? " df-text-warn" : "")} aria-label={"Last sent: " + (d.name || DELIVERY_KIND[d.type].label)} style={{ display: "block" }}>
+                {!l ? "Not sent yet" : held(l) ? `${when(l.ts)} · ${l.detail}` : `Last sent ${when(l.ts)} · ${l.ok ? "OK" : "Failed: " + l.detail}`}</span>
               {t?.text && <span role="status" className={"df-small" + (t.ok ? "" : " df-text-warn")} style={{ display: "block" }}>{t.text}</span>}</span>
             {api && processId && <Button kind="plain" disabled={dirty || !!t?.busy} title={dirty ? "Save the process first: the test uses the saved delivery" : "Sends the last finished document through this delivery now"}
               onClick={() => test(d)}>{t?.busy ? "Sending…" : "Send a test"}</Button>}
@@ -511,7 +513,7 @@ export function DeliverStage({ deliveries, onEdit, onRemove, onAdd, api, process
           {showLog ? "Hide the delivery log" : `Delivery log (${log.length})`}</button>}</div>
       {showLog && log && <table className="df-table cc-no-filter" aria-label="Delivery log">
         <thead><tr><th>When</th><th>Delivery</th><th>Result</th></tr></thead>
-        <tbody>{log.slice(0, 50).map((r, i) => <tr key={i}><td>{when(r.ts)}</td><td>{r.delivery}</td><td className={r.ok ? "" : "df-text-warn"}>{r.ok ? "OK" : "Failed"}{r.detail ? " · " + r.detail : ""}</td></tr>)}</tbody>
+        <tbody>{log.slice(0, 50).map((r, i) => <tr key={i}><td>{when(r.ts)}</td><td>{r.delivery}</td><td className={r.ok || held(r) ? "" : "df-text-warn"}>{held(r) ? r.detail : (r.ok ? "OK" : "Failed") + (r.detail ? " · " + r.detail : "")}</td></tr>)}</tbody>
       </table>}
     </div>
   );

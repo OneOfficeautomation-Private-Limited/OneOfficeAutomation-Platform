@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Icon } from "../../components";
 import { INBOX_ID, stagesOf, type Check, type Delivery, type DocFlowApi, type DocType, type InboxStatus, type ProcessDesign, type ProcessSettings, type ProcessSummary, type RefTable } from "./api";
 import { ClassificationStep } from "./ClassificationStep";
+import { GoLiveChecklist, GoLiveConfirm, ProcessTry } from "./processTry";
 import { HINTS } from "./help";
 import { NewProcessDialog, folderLabel } from "./dialogs";
 import { SelectStep } from "./SelectStep";
@@ -32,6 +33,8 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   const [saved, setSaved] = useState<ProcessDesign | null>(null);
   const [tables, setTables] = useState<RefTable[]>([]);
   const [stage, setStage] = useState(firstStep(processId, firstStage));
+  const [tried, setTried] = useState(false);          // step 8: a sample was tried in this process
+  const [confirming, setConfirming] = useState(false); // step 8: Go live / Take offline asked
   const [creating, setCreating] = useState(false);
   const [inbox, setInbox] = useState<InboxStatus | null>(null);
   const [vaultRefs, setVaultRefs] = useState<{ ref: string; label: string }[] | null>(null);
@@ -150,14 +153,22 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
       {stage === SELECT ? <SelectStep choices={choices} chosen={design} onChoose={(id) => (id === design.id ? setStage(INTAKE) : choose(id))} onNew={() => setCreating(true)} />
         : stage === CLASSIFY ? <ClassificationStep api={api} design={design} setSettings={setSettings} onType={onType} onTypes={onTypes} onReplaceType={onReplaceType} /> : stage === TEST ? (
         <section className="df-card df-pad" aria-label="Testing & go-live" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-          <div><b style={{ fontSize: 15 }}>8 · Testing & go-live</b><div className="df-muted">Try 1–3 sample documents. Nothing is saved or sent to review. When the results are right, go live.</div></div>
-          <TestLab api={api} initialType={design.docType} embedded />
+          <div><b style={{ fontSize: 15 }}>8 · Testing & go-live</b><div className="df-muted">Try a sample document in this process. Nothing is kept, sent to review or delivered.
+            When the results are right, go live. To check many documents whose right values you know, use <a href={dfHash() + "testlab/sets"}>Test lab, Test sets</a>.</div></div>
+          <ProcessTry api={api} design={design} dirty={dirty} onTried={() => setTried(true)} />
+          <GoLiveChecklist api={api} design={design} tried={tried} onStage={setStage} />
           <div className={`df-note ${live ? "df-ok" : "df-info"}`} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ flex: 1, minWidth: 200 }}>{live ? "This process is live: new documents use this version." : "Results look right? Go live: new documents then use this version."}</span>
             {live
-              ? <Button disabled={busy} onClick={() => goLive(false)}>Take offline</Button>
-              : <Button kind="run" disabled={busy} onClick={() => goLive(true)}>Go live</Button>}
+              ? <Button disabled={busy} onClick={() => setConfirming(true)}>Take offline</Button>
+              : <Button kind="run" disabled={busy} onClick={() => setConfirming(true)}>Go live</Button>}
           </div>
+          {confirming && <GoLiveConfirm design={design} live={live} busy={busy} onClose={() => setConfirming(false)}
+            onConfirm={async () => { await goLive(!live); setConfirming(false); }} />}
+          <details className="df-sec">
+            <summary className="df-sec-head" style={{ cursor: "pointer" }}><b>Test the document type only</b><span className="df-small">one engine, or two side by side; not this process's checks</span></summary>
+            <div className="df-sec-body"><TestLab api={api} initialType={design.docType} embedded /></div>
+          </details>
         </section>
       ) : (
         <div className="df-grid df-g3">

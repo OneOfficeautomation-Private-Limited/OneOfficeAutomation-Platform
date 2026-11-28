@@ -241,6 +241,12 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
+/** Step 8: what a process would do with a document (DocFlow 3.4.1, POST df/flows/{id}/try). */
+export interface ProcessTryResult {
+  status: string; doctypeId: string | null; doctypeName: string; fields: Record<string, unknown>; confidence: Record<string, number | null>;
+  flags: { rule: string; message: string; action: string }[]; reviewReasons: { reason: string; message: string }[];
+  warnings: string[]; deliveries: string[]; live: boolean; error?: string | null;
+}
 /** Step 7: one delivery sent (a test, or a document going out). */
 export interface DeliveryResult { delivery: string; type: string; ok: boolean; detail: string }
 export interface DeliveryLogRow { delivery: string; type: string; ok: boolean; detail: string; ts: string; documentId: string }
@@ -417,6 +423,8 @@ export interface DocFlowApi {
   agentPaths(): Promise<string[]>;
   /** Step 7: the runner pools an agent can run on. */
   runnerPools(): Promise<{ id: string; name: string }[]>;
+  /** Step 8: a dry run of the saved process on one document (DocFlow 3.4.1); nothing is kept, reviewed or sent. */
+  tryInProcess(processId: string, file: File): Promise<ProcessTryResult>;
   /** DA-1: whether "Sign in with Microsoft" is offered for email inboxes (a Microsoft app is set up). */
   msSignInReady(): Promise<boolean>;
   /** Starts "Sign in with Microsoft": the person types the code at Microsoft; then ask msSignInPoll until it is done. */
@@ -808,6 +816,13 @@ export class SampleApi implements DocFlowApi {
     return [r];
   }
   async deliveryLog(_processId: string) { return copy(this.sent); }
+  async tryInProcess(processId: string, _file: File): Promise<ProcessTryResult> {
+    const d = this.designs[processId] ?? DESIGN;
+    return { status: "validation", doctypeId: d.docTypeIds[0] ?? null, doctypeName: d.docType, live: d.state === "live", warnings: [],
+      fields: { invoice_number: "INV-2026-0042", total: 1150 }, confidence: { invoice_number: 0.97, total: 0.62 },
+      flags: [], reviewReasons: [{ reason: "low_confidence", message: "Total is 62% sure; 85% is needed" }],
+      deliveries: d.deliveries.filter((x) => x.enabled).map((x) => x.name) };
+  }
   async agentPaths() { return ["Finance/Post invoice to ERP.flow.json", "Finance/Upload to SharePoint.flow.json", "Shared/Send to SFTP.flow.json"]; }
   async runnerPools() { return [{ id: "finance", name: "Finance runners" }, { id: "night", name: "Night shift" }]; }
   async vaultRefs() { return [{ ref: "mail/invoices/password", label: "mail · invoices · password" }, { ref: "m365/app/secret", label: "m365 · app · secret" }]; }

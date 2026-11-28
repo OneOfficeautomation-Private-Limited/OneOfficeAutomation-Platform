@@ -2,7 +2,7 @@ import type { MailConditions, MailTry } from "../../api/cr";
 import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type ReviewMode, type DeliveryResult, type DeliveryLogRow, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type ReviewMode, type DeliveryResult, type DeliveryLogRow, type ProcessTryResult, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
@@ -366,6 +366,12 @@ export class HttpDocFlowApi implements DocFlowApi {
     const rows = await this.call<{ delivery: string; type: string; ok: number | boolean; detail: string | null; ts: string; document_id: string }[]>(
       "GET", `/df/flows/${encodeURIComponent(processId)}/deliveries`);
     return rows.map((r) => ({ delivery: r.delivery, type: r.type, ok: !!r.ok, detail: r.detail ?? "", ts: r.ts, documentId: r.document_id }));
+  }
+
+  async tryInProcess(processId: string, file: File): Promise<ProcessTryResult> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return this.call<ProcessTryResult>("POST", `/df/flows/${encodeURIComponent(processId)}/try`, form);
   }
 
   // step 7: agents and runner pools are One CommandCenter's own (/api/repo, /api/pools)

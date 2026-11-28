@@ -114,10 +114,27 @@ describe("Document Automation", () => {
     fireEvent.blur(engine);
     fireEvent.click(screen.getByRole("button", { name: "step 8, Testing & go-live" }));
     const test = screen.getByRole("region", { name: "Testing & go-live" });
-    expect(await within(test).findByRole("button", { name: "Run test" })).toBeTruthy();
-    fireEvent.click(within(test).getByRole("button", { name: "Go live" }));
+    expect(await within(test).findByRole("button", { name: "Run test" })).toBeTruthy();   // the type-only test, folded below
+    // step 8 (28 Nov 2026): try in this process, the checklist, and Go live says what it does first
+    const tryIt = within(test).getByRole("region", { name: "Try in this process" });
+    const list = within(test).getByRole("region", { name: "Before going live" });
+    expect(await within(list).findByText("Not tried on a sample document yet")).toBeTruthy();
+    expect(within(list).getByText("Nothing is delivered: results stay in DocFlow")).toBeTruthy();
+    fireEvent.change(within(tryIt).getByLabelText("Sample document"), { target: { files: [new File(["%PDF"], "inv.pdf", { type: "application/pdf" })] } });
+    fireEvent.click(within(tryIt).getByRole("button", { name: "Try it" }));
+    const would = await within(tryIt).findByLabelText("What would happen");
+    expect(would.textContent).toContain("Would go to a person for review");
+    expect(within(would).getByText("Total is 62% sure; 85% is needed")).toBeTruthy();
+    expect(await within(list).findByText("Tried on a sample document")).toBeTruthy();
+    fireEvent.click(within(list).getAllByRole("button", { name: "Step 7" })[0]);
+    expect(screen.getByRole("region", { name: "Export & integration" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "step 8, Testing & go-live" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Testing & go-live" })).getByRole("button", { name: "Go live" }));
+    const confirm = await screen.findByRole("dialog", { name: /^Go live with / });
+    expect(confirm.textContent).toMatch(/New documents from uploads, agents, the watched folder/);
+    fireEvent.click(within(confirm).getByRole("button", { name: "Go live" }));
     expect(await screen.findByText("Live · version 1")).toBeTruthy();
-    expect(within(test).getByText("This process is live: new documents use this version.")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Testing & go-live" })).getByText("This process is live: new documents use this version.")).toBeTruthy();
   });
 
   it("shows this process's choices in step 3, and its document type read-only with Edit this type", async () => {
