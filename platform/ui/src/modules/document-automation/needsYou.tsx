@@ -34,7 +34,7 @@ export function NeedsYou({ api, processes, filter, onFilter, onChanged, onOldest
   const wanted = processes.filter((p) => p.review > 0 || p.failed > 0);
   useEffect(() => {
     let live = true;
-    Promise.all(wanted.map((p) => api.documents(p.id, 100).then((ds) => ds.filter((d) => d.status === "review" || d.status === "failed")
+    Promise.all(wanted.map((p) => api.documents(p.id, 100).then((ds) => ds.filter((d) => d.status === "review" || (d.status === "failed" && !d.rejected))
       .map((d) => ({ ...d, processName: p.name }))).catch(() => [])))
       .then((lists) => {
         if (!live) return;

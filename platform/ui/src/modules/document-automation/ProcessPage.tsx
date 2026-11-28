@@ -112,7 +112,7 @@ export function ProcessPage({ api, processId, show }: { api: DocFlowApi; process
                   <td><ConfidenceBar value={d.confidence} /></td>
                   <td className="df-right">
                     {d.status === "review" ? <a className="ui-btn ui-btn-secondary" href={dfHash() + "review/" + d.id}>Review</a>
-                      : d.status === "failed" ? <Button disabled={retrying.has(d.id)} onClick={() => retry(d)}>{retrying.has(d.id) ? "Reading…" : "Try again"}</Button>
+                      : d.status === "failed" && !d.rejected ? <Button disabled={retrying.has(d.id)} onClick={() => retry(d)}>{retrying.has(d.id) ? "Reading…" : "Try again"}</Button>
                       : d.status === "split" ? <Button kind="plain" onClick={() => setSplitting({ id: d.id, name: d.name, pages: parseInt(d.pages, 10) || 1 })}>Change the split</Button>
                       : <a className="ui-btn ui-btn-plain" href={dfHash() + "review/" + encodeURIComponent(d.id)} aria-label={"Open " + d.name}>Open</a>}
                   </td>

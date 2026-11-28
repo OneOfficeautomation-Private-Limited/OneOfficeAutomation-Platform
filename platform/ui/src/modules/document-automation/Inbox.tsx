@@ -22,7 +22,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
 
   const total = (k: "review" | "processing" | "done" | "failed" | "today") => processes.reduce((n, p) => n + p[k], 0);
   // every document of a process, whenever it came in (today's count is shown under it)
-  const docs = (p: typeof processes[number]) => p.review + p.processing + p.failed + p.done;
+  const docs = (p: typeof processes[number]) => p.review + p.processing + p.failed + (p.rejected ?? 0) + p.done;
   const top = (f: string) => folderLabel(f).split(" / ")[0];
   // done documents that needed nobody: each process's straight-through share of its done documents
   const straight = processes.reduce((n, p) => n + Math.round(p.done * p.straightThrough / 100), 0);
@@ -77,6 +77,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
                     {p.processing > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/processing"}><Chip tone="info">{p.processing} processing</Chip></a>}
                     {p.failed > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/failed"}><Chip tone="bad">{p.failed} failed</Chip></a>}
                     {p.done > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/done"}><Chip tone="ok">{p.done} done</Chip></a>}
+                    {(p.rejected ?? 0) > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id)}><Chip tone="mute">{p.rejected} rejected</Chip></a>}
                     {docs(p) === 0 && <Chip tone="mute">No documents yet</Chip>}
                   </span></td>
                   <td className="df-muted" style={{ whiteSpace: "nowrap" }}>{p.lastTime ? `${p.lastTime} · ${p.lastDocument}` : "—"}</td>

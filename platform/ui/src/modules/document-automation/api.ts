@@ -13,6 +13,8 @@ export type Source = "upload" | "folder" | "email" | "bot" | "split";
 export interface ProcessSummary {
   id: string; name: string; folder: string; docType: string; state: "live" | "draft"; version: number;
   today: number; review: number; processing: number; failed: number; done: number; straightThrough: number;
+  /** Rejected by a person (counted apart from failed, which the engines could not read). */
+  rejected?: number;
   lastDocument: string; lastTime: string; sources: Source[]; deliversTo: string[];
 }
 
@@ -41,6 +43,8 @@ export interface DocumentRow {
   values?: Record<string, string>;
   /** The document type it was read as (Try again reads it as this type again). */
   docTypeId?: string | null;
+  /** Rejected by a person (shown as failed, but never read again by Try again). */
+  rejected?: boolean;
 }
 
 /** A box on a page: 0–1 of the page's width and height, from its top-left corner. */
@@ -570,6 +574,7 @@ const DOCUMENTS: DocumentRow[] = [
     sourceLabel: "Split from batch", confidence: 61, note: "Choose a document type" }),
   doc({ id: "contract", processId: "smart-inbox", name: "contract_signed.pdf", pages: "12 pages", status: "failed", time: "09:15",
     sourceLabel: "Upload · Omar Haddad", engine: "—", note: "PDF is password-protected", docTypeId: "contract" }),
+  doc({ id: "rejected_1", processId: "smart-inbox", name: "flyer.pdf", status: "failed", rejected: true, time: "08:40", note: "Rejected by Sara: Not a document we process", docTypeId: "invoice" }),
   doc({ id: "img_2231", processId: "expense-claims", name: "IMG_2231.jpg", status: "processing", time: "10:12", source: "bot",
     sourceLabel: "Bot · Portal download", engine: "Reading page 1…" }),
   doc({ id: "dn_118", processId: "deliveries", name: "Part 2 of batch_0930.pdf", pages: "pages 3–4", status: "done", time: "10:31", source: "split",

@@ -280,7 +280,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       id: f.id, name: f.name, folder: f.folder ?? "", docType: f.isInbox ? "Any" : (f.docTypeNames ?? []).join(", ") || "—",
       state: f.status, version: f.version,
       today: f.stats?.daily.find((d) => d.day === todayKey)?.total ?? 0,
-      review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: (by.failed ?? 0) + (by.invalid ?? 0),
+      review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: by.failed ?? 0, rejected: by.invalid ?? 0,
       done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
       lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
       sources: [...(f.intake.upload === false ? [] : ["upload" as const]), ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
@@ -348,7 +348,7 @@ export class HttpDocFlowApi implements DocFlowApi {
         engine: st === "processing" ? "Reading…" : (r.engines ?? []).map((e) => ENGINE_NAMES[e] ?? e).join(", then ") || "—",
         confidence: pct(r.confidence),
         values: Object.fromEntries(Object.entries(f).filter(([, v]) => v === null || typeof v !== "object").map(([k, v]) => [k, text(v)])),
-        docTypeId: r.doctype_id,
+        docTypeId: r.doctype_id, rejected: r.status === "invalid",
       };
     });
   }

@@ -227,6 +227,7 @@ describe("Document Automation", () => {
     expect(within(list).getAllByRole("link", { name: "Review" }).length).toBeGreaterThan(0);
     expect(within(list).getByText("contract_signed.pdf")).toBeTruthy();
     expect(within(needs).getByLabelText("Why documents failed").textContent).toContain("PDF is password-protected");
+    expect(within(list).queryByText("flyer.pdf")).toBeNull();                         // rejected by a person: never tried again
     // the Failed figure shows only the failed ones; Waiting for review opens the oldest review
     fireEvent.click(screen.getByRole("button", { name: "Show them, and why" }));
     expect(within(list).queryByRole("link", { name: "Review" })).toBeNull();
@@ -245,6 +246,10 @@ describe("Document Automation", () => {
     const docs = await screen.findByRole("table", { name: /documents/i });
     expect(within(docs).getAllByRole("link", { name: /^Open / })[0].getAttribute("href")).toMatch(/^#\/review\//);
     expect(within(docs).queryByRole("button", { name: "Try again" })).toBeNull();      // only done documents shown
+    await go("#/process/smart-inbox/failed");
+    const failed = await screen.findByRole("table", { name: "Documents" });
+    expect(within(failed).getAllByRole("button", { name: "Try again" })).toHaveLength(1);   // contract_signed.pdf, not the rejected flyer
+    expect(within(failed).getByRole("link", { name: "Open flyer.pdf" })).toBeTruthy();
   });
 
   it("adds documents on the process page, not on the Inbox's main screen", async () => {
