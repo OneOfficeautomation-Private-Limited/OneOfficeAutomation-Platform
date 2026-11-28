@@ -25,7 +25,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
   return (
     <div className="df-page">
       <div className="df-page-head">
-        <div><h2>Inbox</h2><p>Every process and its documents. Open a process to see them, or to add documents.</p></div>
+        <div><h2>Inbox</h2><p>What needs someone now, across every process: documents waiting for review, and ones that failed.</p></div>
         <span className="df-grow" />
         <Button icon="plus" onClick={() => setCreating(true)}>New process</Button>
       </div>
